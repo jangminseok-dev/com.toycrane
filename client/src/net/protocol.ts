@@ -2,7 +2,12 @@
 import type { Vec2 } from '../game/movement';
 
 export type PlayerView = { id: string; nick: string; color: number; x: number; z: number; dx: number; dz: number };
-export type Welcome = { t: 'welcome'; store: number; you: PlayerView; players: PlayerView[] };
+// 기계 속 인형 한 칸 [id, x, z, 몸 돌림] (기계 안 좌표)
+export type DollSpot = [string, number, number, number];
+export type Welcome = {
+  t: 'welcome'; store: number; you: PlayerView; players: PlayerView[];
+  coins: number; bag: number; machines: Record<string, DollSpot[]>; queues: string[][]; plays: Record<string, string>;
+};
 export type Join = { t: 'join'; p: PlayerView };
 export type Move = { t: 'move'; id: string; x: number; z: number; dx: number; dz: number };
 export type Correct = { t: 'correct'; x: number; z: number };
@@ -22,12 +27,16 @@ const isPlayer = (v: unknown): v is PlayerView => {
   return !!o && typeof o === 'object' && str(o.id) && str(o.nick) && num(o.color) && pose(o);
 };
 
+const isSpot = (v: unknown) => Array.isArray(v) && v.length === 4 && str(v[0]) && num(v[1]) && num(v[2]) && num(v[3]);
+const isMachines = (v: unknown) => !!v && typeof v === 'object' && Object.values(v).every((spots) => Array.isArray(spots) && spots.every(isSpot));
+
 export function decode(raw: string): ServerMsg | null {
   let m: Record<string, unknown>;
   try { m = JSON.parse(raw); } catch { return null; }
   if (!m || typeof m !== 'object') return null;
   switch (m.t) {
-    case 'welcome': return num(m.store) && isPlayer(m.you) && Array.isArray(m.players) && m.players.every(isPlayer) ? (m as Welcome) : null;
+    case 'welcome': return num(m.store) && isPlayer(m.you) && Array.isArray(m.players) && m.players.every(isPlayer)
+      && num(m.coins) && num(m.bag) && isMachines(m.machines) && Array.isArray(m.queues) && !!m.plays && typeof m.plays === 'object' ? (m as Welcome) : null;
     case 'join': return isPlayer(m.p) ? (m as Join) : null;
     case 'move': return str(m.id) && pose(m) ? (m as Move) : null;
     case 'correct': return num(m.x) && num(m.z) ? (m as Correct) : null;

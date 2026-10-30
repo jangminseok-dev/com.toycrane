@@ -15,10 +15,8 @@ import { StoreSocket, storeUrl } from './net/storeSocket';
 import { askNickname, hideEntry, showFull, showMessage, showWelcomeBack } from './ui/entry';
 import { setStatus } from './ui/status';
 import { makeAvatar, type Avatar } from './world/avatar';
-import { buildBigZone, type DollSpot } from './world/bigZone';
+import { buildBigZone } from './world/bigZone';
 import { buildCoinCounters } from './world/coinCounter';
-import { DOLLS } from './data/catalog';
-import { MACHINES } from './data/storeLayout';
 import { buildStore } from './world/storeScene';
 
 const GUEST_KEY = 'toycrane.guestId';
@@ -45,23 +43,9 @@ let sampler = new InputSampler();
 const bigZone = buildBigZone(scene);
 // 탑·기계 행·교환소가 내 캐릭터를 가리면 그것만 흐리게(머리·몸통 중 하나라도 가리면)
 const fader = new OcclusionFader([tower, ...bigZone.occluders, ...buildCoinCounters(scene)]);
-fillMachinesForNow();
-
-// 임시(Task 6에서 지움): 서버가 기계 속 배치를 보내기 전까지 기계마다 그 세트 인형 9개를 놓는다
-function fillMachinesForNow() {
-  for (const m of MACHINES) {
-    const kinds = Object.values(DOLLS).filter((d) => d.set === m.set).map((d) => d.id);
-    const spots: DollSpot[] = [];
-    for (let i = 0; spots.length < 9 && i < 200; i++) {
-      const x = (Math.random() - 0.5) * 0.88, z = (Math.random() - 0.5) * 0.76;
-      if (Math.hypot(x + 0.36, z - 0.27) < 0.24) continue;
-      spots.push([kinds[spots.length % kinds.length], x, z, Math.random() * 6.28]);
-    }
-    bigZone.setContents(m.id, spots);
-  }
-}
 
 let me: LocalPlayer | null = null;
+let wallet = { coins: 0, bag: 0 }; // 코인·가방 수 (HUD는 Task 8)
 let myAvatar: Avatar | null = null;
 let socket: StoreSocket | null = null;
 let attempt = 0;
@@ -129,6 +113,8 @@ function onMessage(m: ServerMsg, guest: Guest) {
       myAvatar = makeAvatar(m.you.color, guest.nickname);
       scene.add(myAvatar.root);
       for (const p of m.players) remotes.add(p, now);
+      for (const [id, spots] of Object.entries(m.machines)) bigZone.setContents(id, spots);
+      wallet = { coins: m.coins, bag: m.bag };
       break;
     case 'join': remotes.add(m.p, now); break;
     case 'move': remotes.move(m, now); break;

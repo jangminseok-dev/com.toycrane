@@ -1,13 +1,22 @@
+import random
 from collections.abc import Callable
 
 from toycrane.app.dtos.enter_dto import EnterCommand, EnterResult, StoreFull
 from toycrane.app.dtos.player_view import PlayerView
+from toycrane.app.dtos.store_snapshot import StoreSnapshot
 from toycrane.app.ports.input.enter_use_case import EnterUseCase
+from toycrane.app.ports.output.bag_port import BagPort
 from toycrane.app.ports.output.connections_port import ConnectionsPort
+from toycrane.app.ports.output.machine_contents_port import MachineContentsPort
 from toycrane.app.ports.output.occupancy_port import OccupancyPort
+from toycrane.app.ports.output.play_lock_port import PlayLockPort
 from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
+from toycrane.app.ports.output.queue_registry_port import QueueRegistryPort
+from toycrane.app.ports.output.wallet_port import WalletPort
+from toycrane.app.use_cases.machine_contents import ensure_contents
 from toycrane.app.use_cases.occupancy_note import note_occupancy
 from toycrane.domain.entities.player import Player
+from toycrane.domain.layout import COUNTERS
 from toycrane.domain.store_rules import STORE_CAPACITY, spawn_position
 from toycrane.domain.value_objects.heading import Heading
 
@@ -15,7 +24,8 @@ KICK_OTHER_TAB = 4003
 
 
 class EnterInteractor(EnterUseCase):
-    """매장에 들어오기: 같은 게스트의 이전 접속은 내보내고, 정원 안이면 스폰 링에 세운다."""
+    """매장에 들어오기: 같은 게스트의 이전 접속은 내보내고, 정원 안이면 스폰 링에 세운다.
+    welcome에는 내 코인·가방, 기계 속 인형, 교환소 줄, 하는 중인 기계를 함께 담는다."""
 
     def __init__(
         self,
@@ -23,11 +33,24 @@ class EnterInteractor(EnterUseCase):
         connections: ConnectionsPort,
         occupancy: OccupancyPort,
         new_player_id: Callable[[], str],
+        *,
+        wallet: WalletPort,
+        bag: BagPort,
+        contents: MachineContentsPort,
+        queues: QueueRegistryPort,
+        locks: PlayLockPort,
+        rng: random.Random,
     ) -> None:
         self._registry = registry
         self._connections = connections
         self._occupancy = occupancy
         self._new_player_id = new_player_id
+        self._wallet = wallet
+        self._bag = bag
+        self._contents = contents
+        self._queues = queues
+        self._locks = locks
+        self._rng = rng
 
     async def enter(self, cmd: EnterCommand) -> EnterResult:
         for conn_id, old in self._registry.entries():
@@ -47,7 +70,14 @@ class EnterInteractor(EnterUseCase):
         self._registry.put(cmd.conn_id, me)
         you = PlayerView.of(me)
         result = EnterResult(you=you, others=tuple(PlayerView.of(p) for _, p in others))
-        self._connections.send_welcome(cmd.conn_id, cmd.store_no, you, list(result.others))
+        snapshot = StoreSnapshot(
+            coins=await self._wallet.balance(cmd.guest_id),
+            bag=await self._bag.total(cmd.guest_id),
+            machines=await ensure_contents(self._contents, self._rng),
+            queues=[[m.player_id for m in self._queues.members(c.id)] for c in COUNTERS],
+            plays=self._locks.plays(),
+        )
+        self._connections.send_welcome(cmd.conn_id, cmd.store_no, you, list(result.others), snapshot)
         self._connections.broadcast_join(cmd.conn_id, you)
         await note_occupancy(self._occupancy, cmd.store_no, len(others) + 1, cmd.now)
         return result

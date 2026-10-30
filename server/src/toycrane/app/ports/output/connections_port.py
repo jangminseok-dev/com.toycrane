@@ -1,13 +1,14 @@
 from abc import ABC, abstractmethod
 
 from toycrane.app.dtos.player_view import PlayerView
+from toycrane.app.dtos.store_snapshot import StoreSnapshot
 
 
 class ConnectionsPort(ABC):
     """매장 접속들에게 알리기. 메시지 형식(직렬화)은 어댑터가 정한다."""
 
     @abstractmethod
-    def send_welcome(self, conn_id: str, store_no: int, you: PlayerView, players: list[PlayerView]) -> None: ...
+    def send_welcome(self, conn_id: str, store_no: int, you: PlayerView, players: list[PlayerView], snapshot: StoreSnapshot) -> None: ...
 
     @abstractmethod
     def broadcast_join(self, except_conn: str, p: PlayerView) -> None: ...

@@ -2,6 +2,7 @@
 
 from toycrane.adapter.inbound.ws.schemas import server_messages
 from toycrane.app.dtos.guest_dto import GuestView
+from toycrane.app.dtos.queue_dto import QueueMember
 from toycrane.domain.entities.player import Player
 from toycrane.domain.value_objects.heading import Heading
 from toycrane.domain.value_objects.position import Position
@@ -83,8 +84,8 @@ class FakeConnections:
         self.direct: list[tuple[str, dict]] = []
         self.kicked: list[tuple[str, int]] = []
 
-    def send_welcome(self, conn_id, store_no, you, players) -> None:
-        self.direct.append((conn_id, server_messages.welcome(store_no, you, players)))
+    def send_welcome(self, conn_id, store_no, you, players, snapshot) -> None:
+        self.direct.append((conn_id, server_messages.welcome(store_no, you, players, snapshot)))
 
     def broadcast_join(self, except_conn, p) -> None:
         self.broadcasts.append((except_conn, server_messages.join(p)))
@@ -100,3 +101,105 @@ class FakeConnections:
 
     def kick(self, conn_id: str, code: int, reason: str) -> None:
         self.kicked.append((conn_id, code))
+
+
+class FakeWallet:
+    """지갑(D1) 가짜 — 게스트별 코인 수."""
+
+    def __init__(self, balances: dict[str, int] | None = None) -> None:
+        self.coins = dict(balances or {})
+        self.spent = 0
+
+    async def balance(self, guest_id: str) -> int:
+        return self.coins.get(guest_id, 0)
+
+    async def add(self, guest_id: str, n: int, cap: int, now: float) -> int:
+        self.coins[guest_id] = min(self.coins.get(guest_id, 0) + n, cap)
+        return self.coins[guest_id]
+
+    async def spend_one(self, guest_id: str, now: float) -> int | None:
+        if self.coins.get(guest_id, 0) < 1:
+            return None
+        self.coins[guest_id] -= 1
+        self.spent += 1
+        return self.coins[guest_id]
+
+
+class FakeBag:
+    def __init__(self, totals: dict[str, int] | None = None) -> None:
+        self.totals = dict(totals or {})
+        self.added: list[tuple[str, str, str]] = []
+
+    async def total(self, guest_id: str) -> int:
+        return self.totals.get(guest_id, 0)
+
+    async def add(self, guest_id: str, doll: str, zone: str, now: float) -> int:
+        self.added.append((guest_id, doll, zone))
+        self.totals[guest_id] = self.totals.get(guest_id, 0) + 1
+        return self.totals[guest_id]
+
+
+class FakeContents:
+    """기계 속 배치 저장소(DO 저장소) 가짜."""
+
+    def __init__(self, stored: dict | None = None) -> None:
+        self.stored = dict(stored or {})
+        self.saves = 0
+
+    async def load(self) -> dict:
+        return dict(self.stored)
+
+    async def save(self, contents: dict) -> None:
+        self.stored = dict(contents)
+        self.saves += 1
+
+
+class FakeQueues:
+    """교환소 줄(attachment) 가짜. player_ids: 접속 → player_id."""
+
+    def __init__(self, player_ids: dict[str, str] | None = None) -> None:
+        self.player_ids = dict(player_ids or {})
+        self.rows: dict[str, dict] = {}
+
+    def members(self, counter: int) -> list[QueueMember]:
+        rows = sorted((r["at"], c) for c, r in self.rows.items() if r["c"] == counter)
+        return [QueueMember(c, self.player_ids.get(c, c.replace("c-", "p")), at, self.rows[c]["head"]) for at, c in rows]
+
+    def counter_of(self, conn_id: str) -> int | None:
+        row = self.rows.get(conn_id)
+        return row["c"] if row else None
+
+    def join(self, conn_id: str, counter: int, now: float) -> None:
+        self.rows[conn_id] = {"c": counter, "at": now, "head": None}
+
+    def remove(self, conn_id: str) -> None:
+        self.rows.pop(conn_id, None)
+
+    def mark_head(self, conn_id: str, now: float) -> None:
+        self.rows[conn_id]["head"] = now
+
+    def head_since(self, conn_id: str) -> float | None:
+        return self.rows[conn_id]["head"]
+
+
+class FakeLocks:
+    """기계 잠금(attachment) 가짜. player_ids: 접속 → player_id."""
+
+    def __init__(self, player_ids: dict[str, str] | None = None) -> None:
+        self.player_ids = dict(player_ids or {})
+        self.rows: dict[str, tuple[str, float]] = {}
+
+    def holder(self, machine_id: str) -> tuple[str, float] | None:
+        return next(((c, at) for c, (m, at) in self.rows.items() if m == machine_id), None)
+
+    def lock_of(self, conn_id: str) -> tuple[str, float] | None:
+        return self.rows.get(conn_id)
+
+    def lock(self, conn_id: str, machine_id: str, now: float) -> None:
+        self.rows[conn_id] = (machine_id, now)
+
+    def release(self, conn_id: str) -> None:
+        self.rows.pop(conn_id, None)
+
+    def plays(self) -> dict[str, str]:
+        return {m: self.player_ids.get(c, c.replace("c-", "p")) for c, (m, _) in self.rows.items()}

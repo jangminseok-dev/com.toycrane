@@ -3,6 +3,7 @@ import json
 from toycrane.adapter.inbound.ws.schemas import server_messages
 from toycrane.adapter.outbound import ws_attachment
 from toycrane.app.dtos.player_view import PlayerView
+from toycrane.app.dtos.store_snapshot import StoreSnapshot
 from toycrane.app.ports.output.connections_port import ConnectionsPort
 
 
@@ -33,8 +34,8 @@ class WsConnectionsAdapter(ConnectionsPort):
             if data.get("player") and data.get("conn") != except_conn:
                 self._send(ws, message)
 
-    def send_welcome(self, conn_id: str, store_no: int, you: PlayerView, players: list[PlayerView]) -> None:
-        self._to_one(conn_id, server_messages.welcome(store_no, you, players))
+    def send_welcome(self, conn_id: str, store_no: int, you: PlayerView, players: list[PlayerView], snapshot: StoreSnapshot) -> None:
+        self._to_one(conn_id, server_messages.welcome(store_no, you, players, snapshot))
 
     def broadcast_join(self, except_conn: str, p: PlayerView) -> None:
         self._to_all_except(except_conn, server_messages.join(p))
