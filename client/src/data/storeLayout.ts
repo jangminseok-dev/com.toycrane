@@ -17,3 +17,13 @@ export const OBSTACLES = layout.obstacles as [number, number, number, number][];
 export function frontSpot(m: MachineSpot): Vec2 {
   return { x: m.x + Math.sin(m.ry) * MACHINE_SPEC.front, z: m.z + Math.cos(m.ry) * MACHINE_SPEC.front };
 }
+
+// 손 닿는 거리(reach) 안의 앞자리 중 가장 가까운 기계
+export function nearestMachine(pos: Vec2): MachineSpot | null {
+  let best: MachineSpot | null = null, bestD = MACHINE_SPEC.reach;
+  for (const m of MACHINES) {
+    const f = frontSpot(m), d = Math.hypot(pos.x - f.x, pos.z - f.z);
+    if (d <= bestD) { best = m; bestD = d; }
+  }
+  return best;
+}

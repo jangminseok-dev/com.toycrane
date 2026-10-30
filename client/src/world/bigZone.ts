@@ -13,11 +13,15 @@ export interface BigZone {
   clawOf(machineId: string): THREE.Object3D;
   worldOf(machineId: string): THREE.Object3D; // 기계 자리·방향 (모션·카메라 기준)
   flash(machineId: string, gold: boolean, seconds: number): void;
+  showAim(machineId: string, on: boolean): void; // 집게 아래 바닥의 겨냥 고리 (하는 동안만)
   update(t: number): void; // 깜빡임, 바뀐 행의 인형 다시 합치기
   occluders: Occluder[]; // 행 2개: 벽 줄, 섬
 }
 
 const DOLL_SCALE = 0.3;
+const aimGeo = new THREE.RingGeometry(0.035, 0.06, 28);
+// 인형 더미에 가려도 보이게 맨 위에 그린다
+const aimMat = new THREE.MeshBasicMaterial({ color: 0xff3b8f, transparent: true, opacity: 0.85, depthWrite: false, depthTest: false });
 type Row = { group: THREE.Group; dolls: THREE.Group; cloner: ReturnType<typeof materialCloner>; spots: MachineSpot[]; dirty: boolean };
 type Unit = { row: Row; anchor: THREE.Group; claw: THREE.Group; led: THREE.Mesh; contents: DollSpot[]; flashUntil: number; gold: boolean };
 
@@ -42,6 +46,10 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     const led = new THREE.Mesh(ledGeo, row.cloner.remap(ledBaseMat()));
     const claw = new THREE.Group(); claw.position.copy(CLAW_REST);
     claw.add(new THREE.Mesh(clawGeo, row.cloner.remap(clawMat())));
+    // 겨냥 고리: 집게를 따라 펠트 바닥에 비친다(실제 크레인 게임의 집게 그림자처럼)
+    const aim = new THREE.Mesh(aimGeo, aimMat);
+    aim.name = 'aim'; aim.visible = false; aim.renderOrder = 10; aim.rotation.x = -Math.PI / 2; aim.position.y = DOLL_FLOOR + 0.012 - CLAW_REST.y;
+    claw.add(aim);
     anchor.add(led, claw);
     row.group.add(anchor);
     units.set(spot.id, { row, anchor, claw, led, contents: [], flashUntil: 0, gold: false });
@@ -87,6 +95,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     clawOf: (id) => unit(id).claw,
     worldOf: (id) => unit(id).anchor,
     flash(id, gold, seconds) { const u = unit(id); u.flashUntil = performance.now() / 1000 + seconds; u.gold = gold; },
+    showAim(id, on) { unit(id).claw.getObjectByName('aim')!.visible = on; },
     update(t) {
       for (const row of rows) if (row.dirty) rebuild(row);
       const now = performance.now() / 1000, blink = Math.floor(t * 10) % 2 === 0;

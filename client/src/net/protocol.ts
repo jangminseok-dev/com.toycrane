@@ -15,7 +15,15 @@ export type Leave = { t: 'leave'; id: string };
 export type QueueMsg = { t: 'queue'; c: number; ids: string[] };
 export type QueueNo = { t: 'queue_no'; c: number; why: string };
 export type Coins = { t: 'coins'; n: number; got: number };
-export type ServerMsg = Welcome | Join | Move | Correct | Leave | QueueMsg | QueueNo | Coins;
+export type PlayOk = { t: 'play_ok'; m: string; coins: number; limit: number };
+export type PlayNo = { t: 'play_no'; m: string; why: 'busy' | 'coins' | 'far' | 'playing' };
+export type Play = { t: 'play'; m: string; id: string };
+export type Outcome = 'win' | 'slip' | 'miss';
+export type Result = { t: 'result'; m: string; id: string; x: number; z: number; o: Outcome; part: 'head' | 'body' | 'arm' | 'none'; k: string | null };
+export type MachineMsg = { t: 'machine'; m: string; dolls: DollSpot[] };
+export type Free = { t: 'free'; m: string };
+export type Bag = { t: 'bag'; n: number };
+export type ServerMsg = Welcome | Join | Move | Correct | Leave | QueueMsg | QueueNo | Coins | PlayOk | PlayNo | Play | Result | MachineMsg | Free | Bag;
 
 // 닫기 코드 (서버와 같은 값)
 export const CLOSE_FULL = 4001;
@@ -47,6 +55,14 @@ export function decode(raw: string): ServerMsg | null {
     case 'queue': return num(m.c) && Array.isArray(m.ids) && m.ids.every(str) ? (m as QueueMsg) : null;
     case 'queue_no': return num(m.c) && str(m.why) ? (m as QueueNo) : null;
     case 'coins': return num(m.n) && num(m.got) ? (m as Coins) : null;
+    case 'play_ok': return str(m.m) && num(m.coins) && num(m.limit) ? (m as PlayOk) : null;
+    case 'play_no': return str(m.m) && str(m.why) ? (m as PlayNo) : null;
+    case 'play': return str(m.m) && str(m.id) ? (m as Play) : null;
+    case 'result': return str(m.m) && str(m.id) && num(m.x) && num(m.z) && ['win', 'slip', 'miss'].includes(m.o as string)
+      && str(m.part) && (m.k === null || str(m.k)) ? (m as Result) : null;
+    case 'machine': return str(m.m) && Array.isArray(m.dolls) && m.dolls.every(isSpot) ? (m as MachineMsg) : null;
+    case 'free': return str(m.m) ? (m as Free) : null;
+    case 'bag': return num(m.n) ? (m as Bag) : null;
     default: return null;
   }
 }
@@ -60,3 +76,5 @@ export function encodeMove(p: Vec2, d: Vec2): string {
 export const encodeQueue = (c: number) => JSON.stringify({ t: 'queue', c });
 export const encodeUnqueue = () => JSON.stringify({ t: 'unqueue' });
 export const encodeTake = () => JSON.stringify({ t: 'take' });
+export const encodePlay = (m: string) => JSON.stringify({ t: 'play', m });
+export const encodeDrop = (x: number, z: number) => JSON.stringify({ t: 'drop', x: round(x, 3), z: round(z, 3) });

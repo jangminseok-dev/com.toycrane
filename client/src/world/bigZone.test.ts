@@ -19,3 +19,12 @@ test('setContents skips unknown dolls', () => {
     zone.update(0);
   }).not.toThrow();
 });
+
+// 겨냥 고리: 집게를 따라 바닥에 비치고, 하는 동안에만 보인다
+test('aim ring follows the claw and starts hidden', () => {
+  const zone = buildBigZone(new THREE.Scene());
+  const aim = zone.clawOf('C-6').getObjectByName('aim')!;
+  expect(aim.visible).toBe(false);
+  zone.showAim('C-6', true);
+  expect(aim.visible).toBe(true);
+});
