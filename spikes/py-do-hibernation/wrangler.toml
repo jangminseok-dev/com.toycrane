@@ -1,0 +1,13 @@
+name = "toycrane-py-do-spike"
+main = "src/entry.py"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["python_workers", "disable_python_external_sdk"]
+
+[[durable_objects.bindings]]
+name = "ROOM"
+class_name = "Room"
+
+# 무료 요금제는 SQLite 기반 Durable Object만 가능
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]

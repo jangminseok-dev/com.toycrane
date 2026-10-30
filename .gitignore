@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.venv/
+__pycache__/
+.pytest_cache/
+.wrangler/
+.superpowers/
+server/python_modules/
+.DS_Store
