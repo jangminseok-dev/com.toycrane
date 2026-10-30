@@ -13,5 +13,7 @@
   "durable_objects": { "bindings": [{ "name": "STORE", "class_name": "Store" }] },
   // 무료 요금제는 SQLite 기반 Durable Object만 가능
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Store"] }],
+  // database_id: 로그인 전 로컬 전용 자리표시 — `npx wrangler d1 create toycrane` 출력값으로 교체
+  "d1_databases": [{ "binding": "DB", "database_name": "toycrane", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }],
   "vars": { "MAX_STORES": "4" }
 }

@@ -11,12 +11,27 @@ const getJson = async (path, init) => {
   const res = await fetch(base + path, init);
   return { status: res.status, body: await res.json().catch(() => null) };
 };
+const postJson = (path, data) =>
+  getJson(path, { method: 'POST', body: JSON.stringify(data), headers: { 'content-type': 'application/json' } });
 
 const cases = {
   async myself() {
     const { status, body } = await getJson('/api/myself');
     assert(status === 200, `status ${status}`);
     assert(Array.isArray(body.endpoints) && body.endpoints.length === 5, `endpoints ${JSON.stringify(body?.endpoints)}`);
+  },
+  async guest() {
+    const made = await postJson('/api/guest', { nickname: '  스모크  토끼 ' });
+    assert(made.status === 201, `create ${made.status}`);
+    assert(made.body.nickname === '스모크 토끼' && Number.isInteger(made.body.color), `body ${JSON.stringify(made.body)}`);
+    const found = await getJson(`/api/guest/${made.body.guestId}`);
+    assert(found.status === 200 && found.body.guestId === made.body.guestId, `find ${found.status}`);
+    const blank = await postJson('/api/guest', { nickname: '   ' });
+    assert(blank.status === 400 && blank.body.error === 'nickname', `blank ${blank.status}`);
+    const broken = await getJson('/api/guest', { method: 'POST', body: 'not json', headers: { 'content-type': 'application/json' } });
+    assert(broken.status === 400, `broken body ${broken.status}`);
+    const unknown = await getJson('/api/guest/nope');
+    assert(unknown.status === 404, `unknown ${unknown.status}`);
   },
 };
 

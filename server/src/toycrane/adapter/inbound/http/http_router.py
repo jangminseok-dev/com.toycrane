@@ -1,15 +1,24 @@
-"""HTTP 요청을 (메서드, 경로) 표로 슬라이스별 라우터에 넘긴다."""
+"""HTTP 요청을 (메서드, 경로) 표로 슬라이스별 라우터에 넘긴다. 정확한 경로가 먼저, 그다음 접두사."""
 
-from toycrane.adapter.inbound.http import manager_router
+from toycrane.adapter.inbound.http import guest_router, manager_router
 from toycrane.adapter.runtime import json_response, path_of
 
 ROUTES = {
     ("GET", "/api/myself"): manager_router.introduce,
+    ("GET", "/api/guest/myself"): guest_router.introduce,
+    ("POST", "/api/guest"): guest_router.create,
 }
+
+PREFIX_ROUTES = [
+    ("GET", guest_router.PREFIX + "/", guest_router.find),
+]
 
 
 async def route(request, env):
-    handler = ROUTES.get((request.method, path_of(request)))
+    method, path = request.method, path_of(request)
+    handler = ROUTES.get((method, path))
+    if handler is None:
+        handler = next((h for m, prefix, h in PREFIX_ROUTES if m == method and path.startswith(prefix)), None)
     if handler is None:
         return json_response({"error": "not_found"}, status=404)
     return await handler(request, env)
