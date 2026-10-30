@@ -2,8 +2,8 @@
 import type { Vec2 } from '../game/movement';
 
 export type PlayerView = { id: string; nick: string; color: number; x: number; z: number; dx: number; dz: number };
-// 기계 속 인형 한 칸 [id, x, z, 몸 돌림] (기계 안 좌표)
-export type DollSpot = [string, number, number, number];
+// 기계 속 인형 한 칸 [id, x, z, 몸 돌림, 얹힌 높이] (기계 안 좌표, 바닥이면 높이 0 — 옛 서버는 높이 없이 보냄)
+export type DollSpot = [string, number, number, number, number?];
 export type Welcome = {
   t: 'welcome'; store: number; you: PlayerView; players: PlayerView[];
   coins: number; bag: number; machines: Record<string, DollSpot[]>; queues: string[][]; plays: Record<string, string>;
@@ -38,7 +38,7 @@ const isPlayer = (v: unknown): v is PlayerView => {
   return !!o && typeof o === 'object' && str(o.id) && str(o.nick) && num(o.color) && pose(o);
 };
 
-const isSpot = (v: unknown) => Array.isArray(v) && v.length === 4 && str(v[0]) && num(v[1]) && num(v[2]) && num(v[3]);
+const isSpot = (v: unknown) => Array.isArray(v) && (v.length === 4 || (v.length === 5 && num(v[4]))) && str(v[0]) && num(v[1]) && num(v[2]) && num(v[3]);
 const isMachines = (v: unknown) => !!v && typeof v === 'object' && Object.values(v).every((spots) => Array.isArray(spots) && spots.every(isSpot));
 
 export function decode(raw: string): ServerMsg | null {

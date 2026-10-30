@@ -20,7 +20,7 @@ def test_welcome_matches_fixture():
     fx = FX["server_welcome"]
     snap = StoreSnapshot(
         coins=5, bag=2,
-        machines={"A-1": [DollSpot("bunny", 0.1204, -0.0501, 1.5703), DollSpot("starbunny", -0.2, 0.1, 3.1)]},
+        machines={"A-1": [DollSpot("bunny", 0.1204, -0.0501, 1.5703), DollSpot("starbunny", -0.2, 0.1, 3.1, 0.21)]},
         queues=[["p2"], []], plays={"A-3": "p2"},
     )
     assert welcome(fx["store"], view(fx["you"]), [view(p) for p in fx["players"]], snap) == fx

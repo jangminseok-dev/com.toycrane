@@ -309,12 +309,14 @@ function clawRun(m: Result, seconds: number): Promise<void> {
   const target = m.k && m.o !== 'miss'
     ? before.reduce<DollSpot | null>((best, d) => d[0] === m.k && (!best || Math.hypot(d[1] - m.x, d[2] - m.z) < Math.hypot(best[1] - m.x, best[2] - m.z)) ? d : best, null)
     : null;
+  // 집게 손이 인형 머리(없으면 바닥) 바로 위까지 내려간다 — 얹힌 인형이면 덜 내려간다
+  const depth = Math.max(0.3, CLAW_REST.y - (aimHeight(before, m.x, m.z) + 0.18));
   return tw.tween(seconds, (k) => {
-    claw.position.y = CLAW_REST.y - Math.sin(k * Math.PI) * 0.75;
+    claw.position.y = CLAW_REST.y - Math.sin(k * Math.PI) * depth;
     if (target && !carried && k >= 0.5) {
       carried = makeDoll(target[0], true);
       if (carried) {
-        carried.scale.setScalar(0.3); carried.position.set(0, DOLL_FLOOR - (CLAW_REST.y - 0.75) - 0.02, 0); claw.add(carried);
+        carried.scale.setScalar(0.3); carried.position.set(0, DOLL_FLOOR + (target[4] ?? 0) - (CLAW_REST.y - depth), 0); claw.add(carried);
         bigZone.setContents(m.m, before.filter((d) => d !== target)); // 무더기에서 들어 올린다
       }
     }

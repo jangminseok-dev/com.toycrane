@@ -24,7 +24,8 @@ def setup(roll: float):
     reg, locks, conns, bag = FakeRegistry(), FakeLocks({"c-1": "p1"}), FakeConnections(), FakeBag({"g-1": 2})
     reg.put("c-1", player("p1", guest="g-1"))
     stored = {m: generate_contents(MACHINES[m].set, random.Random(9)) for m in MACHINE_IDS}
-    stored["A-1"] = [DollSpot("bunny", 0.0, 0.0, 0.0)] + stored["A-1"][1:]
+    # 가운데 토끼 하나 + 손이 닿지 않는 오른쪽에 8개 (위층 인형이 집게 근처에 오지 않게 고정)
+    stored["A-1"] = [DollSpot("bunny", 0.0, 0.0, 0.0)] + [DollSpot("bear", 0.35, -0.3 + i * 0.08, 0.0) for i in range(8)]
     contents = FakeContents(stored)
     locks.lock("c-1", "A-1", 10.0)
     return locks, conns, bag, contents, DropInteractor(reg, locks, contents, bag, conns, Rolls(roll))
@@ -38,7 +39,8 @@ async def test_winning_drop_moves_the_doll_into_the_bag():
     assert {k: result[k] for k in ("m", "id", "o", "part", "k")} == {"m": "A-1", "id": "p1", "o": "win", "part": "head", "k": "bunny"}
     machine = next(m for _, m in conns.broadcasts if m["t"] == "machine")
     assert machine["m"] == "A-1" and len(machine["dolls"]) == 9
-    assert contents.stored["A-1"][:8] == before[1:] and contents.saves == 1  # 뽑힌 인형만 빠지고 하나 새로
+    after = contents.stored["A-1"]
+    assert after[1:] == before[1:] and (after[0].x, after[0].z) == (0.0, 0.0) and contents.saves == 1  # 뽑힌 자리에 새 인형
     assert ("c-1", bag_msg(3)) in conns.direct and bag.added == [("g-1", "bunny", "big")]
     assert locks.lock_of("c-1") is None
 

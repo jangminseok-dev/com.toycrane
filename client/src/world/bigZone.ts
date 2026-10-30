@@ -3,10 +3,11 @@ import { MACHINES, type MachineSpot } from '../data/storeLayout';
 import type { Occluder } from '../game/occlusion';
 import { bakeByMaterial, fadeMaterials, materialCloner, mergeBuckets } from './bake';
 import { makeDoll } from './dolls';
-import { CLAW_REST, DOLL_FLOOR, DOLL_SCALE, STACK_RAISE, clawMat, ledBaseMat, ledFlashMat, makeMachineParts } from './machine';
+import { CLAW_REST, DOLL_FLOOR, DOLL_SCALE, clawMat, ledBaseMat, ledFlashMat, makeMachineParts } from './machine';
 
-// 기계 속 인형 한 칸: [인형 id, x, z, 몸 돌림] — 기계 안 좌표 (서버 welcome·machine 메시지와 같은 모양)
-export type DollSpot = [string, number, number, number];
+// 기계 속 인형 한 칸: [인형 id, x, z, 몸 돌림, 얹힌 높이] — 서버 welcome·machine 메시지와 같은 모양
+import type { DollSpot } from '../net/protocol';
+export type { DollSpot };
 
 export interface BigZone {
   setContents(machineId: string, dolls: DollSpot[]): void; // 목록에 없는 인형은 건너뜀
@@ -88,12 +89,12 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     const buckets = new Map<THREE.Material, { line: boolean; geos: THREE.BufferGeometry[] }>();
     for (const spot of block.spots) {
       holder.compose(at.set(spot.x, 0, spot.z), turn.setFromAxisAngle(UP, spot.ry), new THREE.Vector3(1, 1, 1));
-      units.get(spot.id)!.contents.forEach(([id, x, z, r], i) => {
+      units.get(spot.id)!.contents.forEach(([id, x, z, r, y = 0]) => {
         const parts = liteParts(id);
         if (!parts) return; // 목록에 없는 인형
-        // 뒤쪽 셋은 위에 얹은 것처럼, 기울기는 r에서 정해 모든 화면에서 같게
-        tilt.set(Math.sin(r * 3) * 0.25, r, Math.cos(r * 5) * 0.25);
-        local.compose(at.set(x, DOLL_FLOOR + (i >= 6 ? STACK_RAISE : 0), z), turn.setFromEuler(tilt), size);
+        // 서버가 정한 얹힌 높이에 놓고, 기울기는 r에서 정해 모든 화면에서 같게 (얹힌 인형은 조금 더 기댄다)
+        tilt.set(Math.sin(r * 3) * 0.25 + (y > 0 ? 0.3 : 0), r, Math.cos(r * 5) * 0.25);
+        local.compose(at.set(x, DOLL_FLOOR + y, z), turn.setFromEuler(tilt), size);
         world.multiplyMatrices(holder, local);
         for (const { geo, mat } of parts) {
           if (!buckets.has(mat)) buckets.set(mat, { line: false, geos: [] });

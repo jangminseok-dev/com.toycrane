@@ -46,3 +46,14 @@ test('a contents change rebuilds only its block of machines', () => {
   expect(changed).toHaveLength(1);
   expect(groups.length).toBeGreaterThanOrEqual(6);
 });
+
+// 서버가 정한 얹힌 높이(y)대로 그린다 — 위층 인형이 바닥 인형보다 높이 있다
+test('dolls are drawn at their resting height', () => {
+  const scene = new THREE.Scene();
+  const zone = buildBigZone(scene);
+  zone.setContents('C-6', [['bear', 0, 0, 0, 0.22]]);
+  zone.update(0);
+  const box = new THREE.Box3();
+  scene.traverse((o) => { if (o.name.startsWith('dolls-')) box.expandByObject(o); });
+  expect(box.min.y).toBeGreaterThan(0.87 + 0.15);
+});

@@ -9,7 +9,6 @@ const BODY = 0xf8f3fb, PANEL = 0x2b2433;
 export const CLAW_REST = new THREE.Vector3(0.1, 1.95, 0); // 기계 안 좌표
 export const DOLL_FLOOR = 0.87; // 펠트 위 인형 바닥 높이
 export const DOLL_SCALE = 0.3; // 기계 속 인형 크기
-export const STACK_RAISE = DOLL_SCALE * 0.55; // 7번째부터는 위에 얹은 것처럼 이만큼 올린다
 
 // 기계 이름표(오리지널 이름)와 간판 색: 배치 순서대로 돌려 쓴다
 const NAMES = ['곰돌이 대작전', '병아리 파티', '말랑 토끼', '포근 곰', '두근 크레인', '왕큰 인형', '행운 상자',

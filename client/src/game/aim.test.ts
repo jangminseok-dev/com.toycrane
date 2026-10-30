@@ -22,7 +22,13 @@ test('round dolls are lower than standing dolls', () => {
   expect(aimHeight([['penguin', 0, 0, 0]], 0, 0)).toBeLessThan(aimHeight([['bear', 0, 0, 0]], 0, 0));
 });
 
-test('dolls stacked on top (7th and later) are higher', () => {
-  const spots: DollSpot[] = Array.from({ length: 7 }, (_, i) => ['bear', i === 6 ? 0 : 0.4, i === 6 ? 0 : -0.3, 0]);
-  expect(aimHeight(spots, 0, 0)).toBeGreaterThan(aimHeight([['bear', 0, 0, 0]], 0, 0));
+// 위층 인형은 서버가 정한 얹힌 높이(y)만큼 높다
+test('dolls resting on others are higher', () => {
+  expect(aimHeight([['bear', 0, 0, 0, 0.22]], 0, 0)).toBeCloseTo(aimHeight([['bear', 0, 0, 0]], 0, 0) + 0.22);
+});
+
+// 높이가 다른 두 인형이 겹치는 자리에선 더 높은 면
+test('the higher doll wins where two overlap', () => {
+  const spots: DollSpot[] = [['bear', 0, 0, 0, 0], ['cat', 0.05, 0, 0, 0.22]];
+  expect(aimHeight(spots, 0.02, 0)).toBeCloseTo(aimHeight([['cat', 0.05, 0, 0, 0.22]], 0.02, 0));
 });

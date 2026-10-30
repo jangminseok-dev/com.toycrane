@@ -1,5 +1,5 @@
 """서버→화면 메시지 형식. 견본: shared/protocol_fixtures.json. 위치는 소수 2자리, 방향은 3자리로 줄여 보낸다.
-기계 속 인형은 [id, x, z, r] — 기계 안 좌표 소수 3자리, 몸 돌림 2자리."""
+기계 속 인형은 [id, x, z, r, y] — 기계 안 좌표·얹힌 높이 소수 3자리, 몸 돌림 2자리."""
 
 from toycrane.app.dtos.drop_dto import ResultView
 from toycrane.app.dtos.player_view import PlayerView
@@ -16,7 +16,7 @@ def _pose(p: PlayerView) -> dict:
 
 
 def _spots(spots: list[DollSpot]) -> list[list]:
-    return [[s.kind, round(s.x, 3), round(s.z, 3), round(s.r, 2)] for s in spots]
+    return [[s.kind, round(s.x, 3), round(s.z, 3), round(s.r, 2), round(s.y, 3)] for s in spots]
 
 
 def welcome(store_no: int, you: PlayerView, players: list[PlayerView], snapshot: StoreSnapshot) -> dict:
