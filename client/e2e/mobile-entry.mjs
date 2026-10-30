@@ -20,6 +20,8 @@ const leftPoint = (selector) => evaluate(`(() => { const r = document.querySelec
 
 await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
 await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
+// 앞선 실행이 저장한 게스트가 있으면 닉네임 칸 대신 "어서 오세요"가 떠서, 처음 온 사람처럼 저장소를 비운다
+await send('Storage.clearDataForOrigin', { origin: new URL(url).origin, storageTypes: 'local_storage' });
 await send('Page.navigate', { url });
 await sleep(2500);
 

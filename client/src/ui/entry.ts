@@ -1,4 +1,6 @@
-// 입장 화면들: 닉네임 정하기, 만석, 안내. 매장 위에 덮는 카드 하나를 바꿔 끼운다.
+// 입장 화면들: 닉네임 정하기, 만석, 안내. 매장 위에 덮는 유리 카드 하나를 바꿔 끼운다(아이폰 리퀴드 글라스 느낌).
+import { backdropBlur } from './glass';
+
 const FONT = '-apple-system, "Apple SD Gothic Neo", sans-serif';
 let layer: HTMLDivElement | null = null;
 
@@ -7,17 +9,21 @@ function card(): HTMLDivElement {
     layer = document.createElement('div');
     Object.assign(layer.style, {
       position: 'fixed', inset: '0', zIndex: '30', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'rgba(20,14,30,.55)', backdropFilter: 'blur(3px)', padding: '16px', fontFamily: FONT,
+      background: 'rgba(20,14,30,.35)', padding: '16px', fontFamily: FONT,
     });
+    backdropBlur(layer, 'blur(6px)');
     document.body.appendChild(layer);
   }
   layer.style.display = 'flex';
   layer.innerHTML = '';
   const box = document.createElement('div');
   Object.assign(box.style, {
-    width: 'min(360px, 100%)', background: '#241c33', borderRadius: '22px', padding: '26px 22px 22px',
-    border: '1px solid rgba(255,95,220,.45)', boxShadow: '0 0 40px rgba(255,95,220,.18)', color: '#f6ecff', textAlign: 'center',
+    width: 'min(360px, 100%)', borderRadius: '28px', padding: '26px 22px 22px', color: '#f6ecff', textAlign: 'center',
+    background: 'linear-gradient(160deg, rgba(255,255,255,.16), rgba(255,255,255,.05))',
+    border: '1px solid rgba(255,255,255,.28)',
+    boxShadow: 'inset 0 1px 1px rgba(255,255,255,.45), 0 20px 50px rgba(0,0,0,.45), 0 0 40px rgba(255,95,220,.12)',
   });
+  backdropBlur(box, 'blur(24px) saturate(180%)');
   layer.appendChild(box);
   return box;
 }
@@ -40,8 +46,10 @@ function button(text: string): HTMLButtonElement {
   const b = document.createElement('button');
   b.textContent = text;
   Object.assign(b.style, {
-    marginTop: '16px', width: '100%', padding: '13px', border: '0', borderRadius: '14px', cursor: 'pointer',
-    background: '#ff7ab6', color: '#2a0f1f', fontSize: '16px', fontWeight: '800', fontFamily: FONT,
+    marginTop: '16px', width: '100%', padding: '13px', borderRadius: '16px', cursor: 'pointer',
+    background: 'linear-gradient(180deg, rgba(255,150,205,.95), rgba(255,110,175,.85))', border: '1px solid rgba(255,255,255,.45)',
+    boxShadow: 'inset 0 1px 1px rgba(255,255,255,.7), 0 6px 18px rgba(255,95,180,.35)',
+    color: '#2a0f1f', fontSize: '16px', fontWeight: '800', fontFamily: FONT,
   });
   return b;
 }
@@ -58,8 +66,9 @@ export function askNickname(error?: string): Promise<string> {
   const input = document.createElement('input');
   Object.assign(input, { maxLength: 20, placeholder: '닉네임 (1~10자)', autocomplete: 'off' });
   Object.assign(input.style, {
-    marginTop: '16px', width: '100%', boxSizing: 'border-box', padding: '13px 14px', borderRadius: '14px', fontSize: '16px',
-    border: '1px solid rgba(255,255,255,.2)', background: '#1c1526', color: '#fff', fontFamily: FONT,
+    marginTop: '16px', width: '100%', boxSizing: 'border-box', padding: '13px 14px', borderRadius: '16px', fontSize: '16px',
+    border: '1px solid rgba(255,255,255,.22)', background: 'rgba(255,255,255,.08)', boxShadow: 'inset 0 1px 2px rgba(0,0,0,.25)',
+    color: '#fff', fontFamily: FONT, outline: 'none',
   });
   form.append(input);
   if (error) form.append(paragraph(error, '#ff8fa8'));
