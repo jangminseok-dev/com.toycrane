@@ -21,8 +21,10 @@ DOLL_H, DOLL_W = 0.34, 0.16  # 기계 속 인형을 감싸는 타원체: 높이,
 SINK = 0.06         # 위층 인형이 받침 사이에 파묻히는 깊이
 RARE_CHANCE = 0.06
 PART_RADII = (("head", 0.05), ("body", 0.10), ("arm", 0.14))
-ODDS = {"head": (0.40, 0.40), "body": (0.25, 0.45), "arm": (0.10, 0.45)}  # (성공, 놓침)
+# (성공, 놓침), 나머지는 헛잡음. 보통 난이도(사용자 결정 2026-10-31) — 머리를 맞혀도 7판에 하나꼴, 4단계 근성 게이지가 받쳐 준다
+ODDS = {"head": (0.15, 0.40), "body": (0.08, 0.45), "arm": (0.03, 0.45)}
 RARE_WIN_FACTOR = 0.35  # 희귀는 성공 확률 × 0.35, 줄어든 만큼 놓침으로
+SWAY_MAX = 0.07  # 내려갈 때 집게가 흔들려 노린 자리에서 벗어나는 최대 거리(m) — 머리(5cm)를 노려도 몸통에 걸릴 수 있게
 
 
 @dataclass(frozen=True)
@@ -100,6 +102,12 @@ class Grab:
     outcome: str  # "win" | "slip" | "miss"
     part: str  # "head" | "body" | "arm" | "none"
     index: int | None  # 집게가 노린 인형 (빈 곳이면 None)
+
+
+def sway(x: float, z: float, rng: random.Random) -> tuple[float, float]:
+    """집게가 내려가며 흔들려 실제로 떨어지는 자리 (서버가 정한다 — 화면을 고쳐도 없앨 수 없게)."""
+    angle, reach = rng.uniform(0, 2 * math.pi), rng.uniform(0, SWAY_MAX)
+    return x + math.cos(angle) * reach, z + math.sin(angle) * reach
 
 
 def clamp_claw(x: float, z: float) -> tuple[float, float]:

@@ -4,7 +4,7 @@ import random
 import pytest
 
 from toycrane.domain.catalog import DOLLS
-from toycrane.domain.crane import DollSpot, Grab, clamp_claw, generate_contents, judge, restock
+from toycrane.domain.crane import SWAY_MAX, DollSpot, Grab, clamp_claw, generate_contents, judge, restock, sway
 from toycrane.domain.layout import MACHINE_SPEC
 
 
@@ -60,14 +60,15 @@ def test_part_depends_on_distance_to_the_nearest_doll(x, part):
     assert judge(SPOTS, x, -0.0, roll=0.99).part == part
 
 
-@pytest.mark.parametrize("roll, outcome", [(0.39, "win"), (0.79, "slip"), (0.81, "miss")])
+# 보통 난이도(사용자 결정 2026-10-31): 머리 15%·몸통 8%·팔 3% 성공, 놓침은 그대로
+@pytest.mark.parametrize("roll, outcome", [(0.14, "win"), (0.54, "slip"), (0.56, "miss")])
 def test_head_odds(roll, outcome):
     assert judge(SPOTS, 0.0, 0.0, roll).outcome == outcome
 
 
 def test_rare_wins_less_and_slips_more():
-    assert judge(SPOTS, 0.3, 0.2, roll=0.15).outcome == "slip"  # 0.40×0.35 = 0.14
-    assert judge(SPOTS, 0.3, 0.2, roll=0.13).outcome == "win"
+    assert judge(SPOTS, 0.3, 0.2, roll=0.06).outcome == "slip"  # 0.15×0.35 = 0.0525
+    assert judge(SPOTS, 0.3, 0.2, roll=0.05).outcome == "win"
 
 
 def test_empty_spot_always_misses():
@@ -75,7 +76,7 @@ def test_empty_spot_always_misses():
 
 
 def test_unknown_kind_is_judged_as_normal():
-    assert judge([DollSpot("gone-doll", 0, 0, 0)], 0, 0, roll=0.39).outcome == "win"
+    assert judge([DollSpot("gone-doll", 0, 0, 0)], 0, 0, roll=0.14).outcome == "win"
 
 
 def test_restock_puts_a_new_doll_in_the_same_place():
@@ -89,3 +90,12 @@ def test_restock_puts_a_new_doll_in_the_same_place():
 
 def test_claw_is_clamped_into_the_play_area():
     assert clamp_claw(5.0, -5.0) == (0.44, -0.38)
+
+
+# 내려갈 때 집게가 살짝 흔들린다 — 서버가 정하므로 화면을 고쳐도 없앨 수 없다 (사용자 요청 2026-10-31)
+def test_claw_sways_a_little_off_the_aimed_spot():
+    rng = random.Random(5)
+    landings = [sway(0.0, 0.0, rng) for _ in range(200)]
+    assert all(math.hypot(x, z) <= SWAY_MAX + 1e-9 for x, z in landings)
+    assert any(math.hypot(x, z) > 0.05 for x, z in landings)  # 머리(5cm) 밖으로 벗어날 때도 있다
+    assert len({(round(x, 3), round(z, 3)) for x, z in landings}) > 150

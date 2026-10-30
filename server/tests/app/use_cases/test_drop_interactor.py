@@ -1,3 +1,4 @@
+import math
 import random
 
 from fakes import FakeBag, FakeConnections, FakeContents, FakeLocks, FakeRegistry, player
@@ -72,3 +73,15 @@ async def test_drop_without_a_lock_is_ignored():
     locks.release("c-1")
     await it.drop(DropCommand("c-1", 0.0, 0.0, now=15.0))
     assert conns.broadcasts == [] and conns.direct == []
+
+
+async def test_result_reports_where_the_claw_actually_landed():
+    """판정은 흔들린 자리로 하고, 모두에게 그 자리를 알려 같은 곳으로 내려가게 한다."""
+    reg, locks, conns, bag = FakeRegistry(), FakeLocks({"c-1": "p1"}), FakeConnections(), FakeBag()
+    reg.put("c-1", player("p1", guest="g-1"))
+    stored = {m: generate_contents(MACHINES[m].set, random.Random(9)) for m in MACHINE_IDS}
+    locks.lock("c-1", "A-1", 10.0)
+    await DropInteractor(reg, locks, FakeContents(stored), bag, conns, random.Random(2)).drop(DropCommand("c-1", 0.1, -0.1, now=15.0))
+    result = next(m for _, m in conns.broadcasts if m["t"] == "result")
+    assert (result["x"], result["z"]) != (0.1, -0.1)
+    assert math.hypot(result["x"] - 0.1, result["z"] + 0.1) <= 0.071

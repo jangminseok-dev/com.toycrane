@@ -8,7 +8,7 @@ from toycrane.app.ports.output.machine_contents_port import MachineContentsPort
 from toycrane.app.ports.output.play_lock_port import PlayLockPort
 from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
 from toycrane.app.use_cases.machine_contents import ensure_contents
-from toycrane.domain.crane import clamp_claw, judge, restock
+from toycrane.domain.crane import clamp_claw, judge, restock, sway
 from toycrane.domain.layout import MACHINES
 from toycrane.domain.play_rules import expired
 
@@ -39,7 +39,7 @@ class DropInteractor(DropUseCase):
         if expired(started, cmd.now):
             self._connections.broadcast_free(machine_id)
             return
-        x, z = clamp_claw(cmd.x, cmd.z)
+        x, z = clamp_claw(*sway(cmd.x, cmd.z, self._rng))  # 흔들린 자리로 판정하고 모두에게 그 자리를 알린다
         contents = await ensure_contents(self._contents, self._rng)
         spots = contents[machine_id]
         grab = judge(spots, x, z, self._rng.random())

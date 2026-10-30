@@ -4,6 +4,7 @@ import { followCamera } from './game/followCamera';
 import { InputSampler } from './game/inputSampler';
 import { LocalPlayer } from './game/localPlayer';
 import { aimHeight } from './game/aim';
+import { clawPath } from './game/clawPath';
 import { machineCameraPose } from './game/machineCamera';
 import { MachineBusy } from './game/machineBusy';
 import { PlaySession } from './game/playSession';
@@ -302,7 +303,8 @@ async function showResult(m: Result) {
 // 집게: 내린 자리로 옮겨 내려갔다 올라온다. 성공·놓침이면 노린 인형이 매달려 올라오고(놓침은 도중에 떨어짐)
 function clawRun(m: Result, seconds: number): Promise<void> {
   const claw = bigZone.clawOf(m.m);
-  claw.position.set(m.x, CLAW_REST.y, m.z);
+  // 지금 집게 자리(내 화면은 노린 곳, 남의 화면은 쉬는 자리)에서 서버가 정한 실제 자리로 흔들리며 내려간다
+  const from = { x: claw.position.x, z: claw.position.z }, landing = { x: m.x, z: m.z };
   const before = bigZone.contentsOf(m.m);
   let carried: THREE.Group | null = null, dropped = false;
   // 노린 인형: 집게 위치에서 가장 가까운 그 종류
@@ -312,7 +314,8 @@ function clawRun(m: Result, seconds: number): Promise<void> {
   // 집게 손이 인형 머리(없으면 바닥) 바로 위까지 내려간다 — 얹힌 인형이면 덜 내려간다
   const depth = Math.max(0.3, CLAW_REST.y - (aimHeight(before, m.x, m.z) + 0.18));
   return tw.tween(seconds, (k) => {
-    claw.position.y = CLAW_REST.y - Math.sin(k * Math.PI) * depth;
+    const at = clawPath(from, landing, k);
+    claw.position.set(at.x, CLAW_REST.y - Math.sin(k * Math.PI) * depth, at.z);
     if (target && !carried && k >= 0.5) {
       carried = makeDoll(target[0], true);
       if (carried) {
