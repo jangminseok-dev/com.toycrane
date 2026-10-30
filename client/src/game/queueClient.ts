@@ -5,6 +5,7 @@ const ENTRY_REACH = 1.5;  // 줄 끝 빈자리에서 이만큼 안이면 "줄 �
 const LEAVE_REACH = 1.5;  // 내 자리에서 이만큼 넘게 벗어나면 줄에서 나감 (설계 §3.3 "줄에서 벗어나면 차례가 빠진다")
 const WINDOW_REACH = 1.0; // 서버 coins.py WINDOW_REACH와 같음
 const TAKE_SECONDS = 2.0; // 서버가 0.3초 여유를 두므로 화면은 꼭 2초 뒤에 보낸다
+const STALL_ASK = 8.5;    // 서버 HEAD_TIMEOUT(8초) + 여유: 맨 앞이 이만큼 그대로면 2번째가 한 번 다시 묻는다
 
 export type QueueStatus = { kind: 'none' } | { kind: 'waiting'; place: number } | { kind: 'taking'; progress: number };
 
@@ -17,10 +18,14 @@ export class QueueClient {
   private place = -1;
   private headAt: number | null = null;
   private sent: 'take' | 'unqueue' | null = null;
+  private headId: string | null = null;
+  private headSince = 0;
+  private asked = false;
 
   onQueue(c: number, ids: string[], myId: string, now: number): void {
     this.lengths[c] = ids.length;
     const place = ids.indexOf(myId);
+    if (place >= 0 && ids[0] !== this.headId) { this.headId = ids[0]; this.headSince = now; this.asked = false; }
     if (place < 0) {
       if (this.counter === c) this.reset();
       return;
@@ -33,7 +38,7 @@ export class QueueClient {
   }
 
   reset(): void {
-    this.counter = null; this.place = -1; this.headAt = null; this.sent = null;
+    this.counter = null; this.place = -1; this.headAt = null; this.sent = null; this.headId = null; this.asked = false;
   }
 
   // 줄 끝 빈자리 근처면 그 교환소 번호 (이미 줄에 있으면 null)
@@ -49,12 +54,21 @@ export class QueueClient {
     return { x, z };
   }
 
-  tick(pos: Vec2, now: number): 'take' | 'unqueue' | null {
+  get currentCounter(): number | null {
+    return this.counter;
+  }
+
+  tick(pos: Vec2, now: number): 'take' | 'unqueue' | 'requeue' | null {
     if (this.counter === null || this.sent) return null;
     const k = COUNTERS[this.counter];
     if (dist(pos, k.queue[this.place]) > LEAVE_REACH) return (this.sent = 'unqueue');
     if (this.place === 0 && this.headAt !== null && dist(pos, k.window) <= WINDOW_REACH && now - this.headAt >= TAKE_SECONDS) {
       return (this.sent = 'take');
+    }
+    // 둘만 있는 줄에서 맨 앞이 멈추면 서버는 다음 메시지가 와야 알 수 있다 — 한 번 다시 물어 차례를 당겨 온다
+    if (this.place === 1 && !this.asked && now - this.headSince >= STALL_ASK) {
+      this.asked = true;
+      return 'requeue';
     }
     return null;
   }

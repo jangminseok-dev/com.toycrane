@@ -5,6 +5,7 @@ import { InputSampler } from './game/inputSampler';
 import { LocalPlayer } from './game/localPlayer';
 import { aimHeight } from './game/aim';
 import { machineCameraPose } from './game/machineCamera';
+import { MachineBusy } from './game/machineBusy';
 import { PlaySession } from './game/playSession';
 import { Tweens, ease } from './game/tween';
 import { sfx, unlockAudio } from './audio/sfx';
@@ -27,7 +28,7 @@ import { showWinCard } from './ui/winCard';
 import { setStatus } from './ui/status';
 import { makeAvatar, type Avatar } from './world/avatar';
 import { DOLLS, SETS } from './data/catalog';
-import { MACHINES, frontSpot, nearestMachine } from './data/storeLayout';
+import { MACHINES, MACHINE_SPEC, frontSpot, nearestMachine } from './data/storeLayout';
 import { buildBigZone } from './world/bigZone';
 import { makeDoll } from './world/dolls';
 import { burst, updateEffects } from './world/effects';
@@ -65,10 +66,12 @@ let me: LocalPlayer | null = null;
 let wallet = { coins: 0, bag: 0 }; // 코인·가방 수 (서버가 알려 준 값)
 let myId = '';
 const queue = new QueueClient();
-// 기계 한 판: 내가 하는 중(session) → 내리고 결과 기다림(awaiting). busy = 기계 → 하는 사람
+// 기계 한 판: 내가 하는 중(session) → 내리고 결과 기다림(awaiting, dropped). busy = 기계 → 하는 사람(판이 끝날 시간이 지나면 풀림)
 let session: PlaySession | null = null;
 let awaiting: string | null = null;
-const busy = new Map<string, string>();
+const busy = new MachineBusy(MACHINE_SPEC.play_seconds);
+let dropped: PlaySession | null = null; // 내리고 결과를 기다리는 판 (8초 넘게 못 받으면 포기)
+const clock = () => performance.now() / 1000;
 const spotOf = new Map(MACHINES.map((m) => [m.id, m]));
 const camLook = new THREE.Vector3();
 // 연출: 기계마다 돌고 있는 코인·조이스틱 모션, 결과 연출 중인 기계, 연출이 끝나면 넣을 새 배치
@@ -155,12 +158,12 @@ function onMessage(m: ServerMsg, guest: Guest) {
       playing.clear(); showing.clear(); pendingContents.clear(); showingMe = false;
       queue.reset();
       m.queues.forEach((ids, c) => queue.onQueue(c, ids, myId, now / 1000));
-      busy.clear();
-      for (const [id, who] of Object.entries(m.plays)) busy.set(id, who);
+      busy.reset();
+      for (const [id, who] of Object.entries(m.plays)) busy.set(id, who, now / 1000);
       endPlay();
       break;
     case 'play': {
-      busy.set(m.m, m.id);
+      busy.set(m.m, m.id, now / 1000);
       const rig = remotes.rigOf(m.id);
       if (rig) playing.set(m.m, startPlaying(rig, tw, spotOf.get(m.m)!.ry + Math.PI));
       break;
@@ -170,11 +173,11 @@ function onMessage(m: ServerMsg, guest: Guest) {
       if (m.why !== 'playing') toast({ busy: '다른 사람이 하는 중이에요', coins: '코인이 없어요 · 교환소에서 받아요', far: '기계 앞에 서 주세요' }[m.why]);
       break;
     case 'free':
-      busy.delete(m.m);
+      busy.clear(m.m);
       void playing.get(m.m)?.stop(); playing.delete(m.m);
       if (session?.machineId === m.m || awaiting === m.m) { endPlay(); toast('시간이 지나 기계가 풀렸어요'); }
       break;
-    case 'result': busy.delete(m.m); void showResult(m); break;
+    case 'result': busy.clear(m.m); void showResult(m); break;
     case 'machine':
       if (showing.has(m.m)) pendingContents.set(m.m, m.dolls); // 집게·모션 연출이 끝난 뒤에 바꾼다
       else bigZone.setContents(m.m, m.dolls);
@@ -189,7 +192,11 @@ function onMessage(m: ServerMsg, guest: Guest) {
       break;
     case 'join': remotes.add(m.p, now); break;
     case 'move': remotes.move(m, now); break;
-    case 'leave': remotes.remove(m.id); break;
+    case 'leave':
+      // 나간 사람이 하던 기계도 푼다 (서버 free가 오지 않는 경우의 안전망)
+      for (const id of busy.clearPlayer(m.id)) { void playing.get(id)?.stop(); playing.delete(id); }
+      remotes.remove(m.id);
+      break;
     case 'correct': me?.correct({ x: m.x, z: m.z }); break;
   }
 }
@@ -220,10 +227,10 @@ document.addEventListener('visibilitychange', () => {
 function startPlay(machineId: string, limit: number, coins: number) {
   wallet.coins = coins;
   setHud(wallet.coins, wallet.bag);
-  busy.set(machineId, myId);
-  session = new PlaySession(machineId, limit);
+  busy.set(machineId, myId, clock());
+  session = new PlaySession(machineId, limit, clock());
   setAction(null); setInfo(null);
-  showPlayControls(() => { if (session?.requestDrop()) sendDrop(); });
+  showPlayControls(() => { if (session?.requestDrop(clock())) sendDrop(); });
   if (myAvatar) {
     myAvatar.root.visible = false; // 정면 카메라를 가리지 않게 (다른 사람 화면에는 보임)
     playing.set(machineId, startPlaying(myAvatar.rig, tw, spotOf.get(machineId)!.ry + Math.PI, sfx.coin));
@@ -237,6 +244,7 @@ function sendDrop() {
   socket?.send(encodeDrop(session.claw.x, session.claw.z));
   bigZone.showAim(session.machineId, false);
   awaiting = session.machineId;
+  dropped = session;
   session = null;
   hidePlayControls();
 }
@@ -244,7 +252,7 @@ function sendDrop() {
 function endPlay() {
   const id = session?.machineId ?? awaiting;
   if (id) { bigZone.clawOf(id).position.copy(CLAW_REST); bigZone.showAim(id, false); }
-  session = null; awaiting = null;
+  session = null; awaiting = null; dropped = null;
   hidePlayControls();
   if (myAvatar) myAvatar.root.visible = true;
 }
@@ -321,7 +329,7 @@ function showMachineUi(): boolean {
   if (!me) return false;
   const near = nearestMachine(me.pos);
   if (!near) return false;
-  const who = busy.get(near.id);
+  const who = busy.who(near.id, clock());
   if (who && who !== myId) { setAction(null); setInfo('구경 중 · 다른 사람이 하는 중'); return true; }
   setInfo(null);
   if (wallet.coins > 0) setAction('🪙1 넣고 하기', () => socket?.send(encodePlay(near.id)));
@@ -344,10 +352,11 @@ renderer.setAnimationLoop((now) => {
   if (me && myAvatar) {
     const stick = joystick.read();
     const input = Math.hypot(stick.x, stick.z) > 0 ? stick : readKeyboard();
+    if (dropped && awaiting && dropped.resultOverdue(now / 1000)) { endPlay(); toast('결과를 받지 못했어요'); }
     const atMachine = session?.machineId ?? awaiting; // 기계 카메라를 쓰는 동안
     if (session) {
       // 조이스틱·키가 집게를 움직이고 캐릭터는 기계 앞에 서 있다
-      if (session.update(dt, input) === 'drop') sendDrop();
+      if (session.update(dt, input, now / 1000) === 'drop') sendDrop();
       else {
         setTimer(session.remaining);
         const claw = bigZone.clawOf(session.machineId);
@@ -363,7 +372,9 @@ renderer.setAnimationLoop((now) => {
       me.autoTarget = queue.target();
       me.drive(input, dt);
       const queueAction = queue.tick(me.pos, now / 1000);
-      if (queueAction && socket) socket.send(queueAction === 'take' ? encodeTake() : encodeUnqueue());
+      if (queueAction && socket) {
+        socket.send(queueAction === 'take' ? encodeTake() : queueAction === 'unqueue' ? encodeUnqueue() : encodeQueue(queue.currentCounter!));
+      }
       if (!showMachineUi()) showQueueUi(now / 1000);
     }
     const moving = Math.hypot(me.dir.x, me.dir.z) > 0 && !atMachine;

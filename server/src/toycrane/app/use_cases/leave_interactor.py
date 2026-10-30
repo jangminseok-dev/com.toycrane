@@ -6,8 +6,8 @@ from toycrane.app.ports.output.play_lock_port import PlayLockPort
 from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
 from toycrane.app.ports.output.queue_registry_port import QueueRegistryPort
 from toycrane.app.ports.output.wallet_port import WalletPort
+from toycrane.app.use_cases.connection_cleanup import release_connection
 from toycrane.app.use_cases.occupancy_note import note_occupancy
-from toycrane.app.use_cases.queue_settle import settle_queue
 from toycrane.domain.coins import WALLET_CAP
 
 
@@ -27,17 +27,11 @@ class LeaveInteractor(LeaveUseCase):
         self._wallet = wallet
 
     async def leave(self, cmd: LeaveCommand) -> None:
-        counter = self._queues.counter_of(cmd.conn_id)
-        playing = self._locks.lock_of(cmd.conn_id)
         gone = self._registry.remove(cmd.conn_id)
         if gone is None:
-            return
+            return  # 이미 같은 게스트의 새 접속이 정리했다(enter의 밀어내기)
         self._connections.broadcast_leave(cmd.conn_id, gone.player_id)
-        if playing is not None:
-            self._locks.release(cmd.conn_id)
-            self._connections.broadcast_free(playing[0])
-            await self._wallet.add(gone.guest_id, 1, WALLET_CAP, cmd.now)
-        if counter is not None:
-            self._queues.remove(cmd.conn_id)
-            settle_queue(self._queues, self._connections, counter, cmd.now)
+        refund = release_connection(cmd.conn_id, self._queues, self._locks, self._connections, cmd.now)
+        if refund:
+            await self._wallet.add(gone.guest_id, refund, WALLET_CAP, cmd.now)
         await note_occupancy(self._occupancy, cmd.store_no, len(self._registry.entries()), cmd.now)

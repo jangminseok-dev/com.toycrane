@@ -26,7 +26,6 @@ export interface Avatar {
   rig: AvatarRig;
   setWalking(on: boolean): void;
   update(t: number): void;
-  setLabelVisible(on: boolean): void; // 기계를 하는 동안 내 이름표가 화면을 가리지 않게
   dispose(): void; // 장면에서 뺄 때 이 아바타만의 GPU 자원(이름표) 해제
 }
 
@@ -67,7 +66,6 @@ export function makeAvatar(color: number, nickname: string): Avatar {
     root,
     rig,
     dispose() { disposeLabel(label); },
-    setLabelVisible(on) { label.visible = on; },
     setWalking(on) { walking = on; },
     update(t) {
       const s = Math.sin(t * 2.4 + phase);

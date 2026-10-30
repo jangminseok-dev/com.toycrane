@@ -41,6 +41,8 @@ class PlayStartInteractor(PlayStartUseCase):
         # D1을 기다리는 사이 끼어든 요청이 busy를 받게 코인보다 잠금이 먼저
         self._locks.lock(cmd.conn_id, machine.id, cmd.now)
         left = await self._wallet.spend_one(me.guest_id, cmd.now)
+        if self._locks.lock_of(cmd.conn_id) != (machine.id, cmd.now):
+            return  # 기다리는 사이 창이 닫혀 이미 풀고 환불했다 — 여기서 play를 보내면 기계가 영원히 '하는 중'으로 남는다
         if left is None:
             self._locks.release(cmd.conn_id)
             self._connections.send_play_no(cmd.conn_id, machine.id, "coins")

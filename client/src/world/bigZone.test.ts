@@ -28,3 +28,21 @@ test('aim ring follows the claw and starts hidden', () => {
   zone.showAim('C-6', true);
   expect(aim.visible).toBe(true);
 });
+
+// 기계 하나 결과마다 행 전체(섬 198개 인형)를 다시 합치면 휴대폰이 멈춘다 — 그 기계가 든 묶음만 다시 합친다 (최종 리뷰 I5)
+test('a contents change rebuilds only its block of machines', () => {
+  const scene = new THREE.Scene();
+  const zone = buildBigZone(scene);
+  for (const m of MACHINES) zone.setContents(m.id, [['bear', 0, 0, 0]]);
+  zone.update(0);
+  const groups: THREE.Object3D[] = [];
+  scene.traverse((o) => { if (o.name.startsWith('dolls-')) groups.push(o); });
+  const blocks = () => groups.map((b) => b.children.slice());
+  const before = blocks();
+  zone.setContents('C-6', [['cat', 0.1, 0.1, 0]]);
+  zone.update(0.1);
+  const after = blocks();
+  const changed = before.filter((meshes, i) => meshes.some((m, k) => m !== after[i][k]));
+  expect(changed).toHaveLength(1);
+  expect(groups.length).toBeGreaterThanOrEqual(6);
+});

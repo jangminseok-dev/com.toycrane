@@ -13,6 +13,13 @@ export function bakeByMaterial(root: THREE.Object3D, remap: (m: THREE.Material) 
     if (!buckets.has(mat)) buckets.set(mat, { line: !!(obj as THREE.LineSegments).isLineSegments, geos: [] });
     buckets.get(mat)!.geos.push(obj.geometry.clone().applyMatrix4(obj.matrixWorld));
   });
+  return mergeBuckets(buckets, remap);
+}
+
+// 재질별로 모은 (이미 월드 좌표로 옮긴) 도형들을 재질마다 한 덩어리로 합친다. 넘긴 도형은 정리한다
+export function mergeBuckets(
+  buckets: Map<THREE.Material, { line: boolean; geos: THREE.BufferGeometry[] }>, remap: (m: THREE.Material) => THREE.Material = (m) => m,
+): Array<THREE.Mesh | THREE.LineSegments> {
   const out: Array<THREE.Mesh | THREE.LineSegments> = [];
   for (const [mat, { line, geos }] of buckets) {
     const list = geos.some((g) => !g.index) ? geos.map((g) => (g.index ? g.toNonIndexed() : g)) : geos;

@@ -1,8 +1,10 @@
 import asyncio
 
-from fakes import FakeConnections, FakeLocks, FakeRegistry, FakeWallet, player
+from fakes import FakeConnections, FakeLocks, FakeOccupancy, FakeQueues, FakeRegistry, FakeWallet, player
 from toycrane.adapter.inbound.ws.schemas.server_messages import free, play, play_no, play_ok
+from toycrane.app.dtos.leave_dto import LeaveCommand
 from toycrane.app.dtos.play_dto import PlayStartCommand
+from toycrane.app.use_cases.leave_interactor import LeaveInteractor
 from toycrane.app.use_cases.play_start_interactor import PlayStartInteractor
 from toycrane.domain.value_objects.position import Position
 
@@ -68,3 +70,13 @@ async def test_second_start_during_coin_spend_is_busy():
     oks = [m for _, m in conns.direct if m["t"] == "play_ok"]
     nos = [m for _, m in conns.direct if m["t"] == "play_no"]
     assert len(oks) == 1 and nos[0]["why"] == "busy" and wallet.spent == 1
+
+
+async def test_closing_during_coin_spend_sends_no_play_after_free():
+    """코인 쓰기(D1)를 기다리는 사이 창이 닫히면, free 뒤에 play가 가서 기계가 영원히 '하는 중'이 되면 안 된다 (최종 리뷰 I2)."""
+    reg, locks, conns, wallet, it = setup(wallet=SlowWallet({"g-1": 3}))
+    leave = LeaveInteractor(reg, conns, FakeOccupancy(), queues=FakeQueues(), locks=locks, wallet=wallet)
+    await asyncio.gather(it.start(PlayStartCommand("c-1", "A-1", 5.0)), leave.leave(LeaveCommand("c-1", 1, 5.0)))
+    kinds = [m["t"] for _, m in conns.broadcasts]
+    assert "play" not in kinds and "free" in kinds and locks.holder("A-1") is None
+    assert not any(m["t"] == "play_ok" for _, m in conns.direct) and wallet.coins["g-1"] == 3

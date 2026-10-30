@@ -35,7 +35,8 @@ await send('Input.insertText', { text: '폰 토끼' });
 await tap(button.x, button.y);
 await sleep(3000);
 const text = await evaluate('document.body.innerText');
-const entered = text === '';
+// 들어가면 입장 카드(닉네임 칸)가 사라진다 — 코인·가방 알약은 남으므로 글자 유무로 보지 않는다
+const entered = await evaluate("[...document.querySelectorAll('input')].every((i) => i.getClientRects().length === 0)");
 const fitsPhone = view.w === 390; // 화면이 축소되지 않고 휴대폰 폭 그대로인지
 console.log(JSON.stringify({ view, button, buttonInLowerLeft: inLowerLeft(button), fitsPhone, focused, entered, text }));
 await fetch(`http://127.0.0.1:${port}/json/close/${tab.id}`);

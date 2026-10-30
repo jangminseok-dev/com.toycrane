@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { MACHINES, type MachineSpot } from '../data/storeLayout';
 import type { Occluder } from '../game/occlusion';
-import { bakeByMaterial, fadeMaterials, materialCloner } from './bake';
+import { bakeByMaterial, fadeMaterials, materialCloner, mergeBuckets } from './bake';
 import { makeDoll } from './dolls';
 import { CLAW_REST, DOLL_FLOOR, DOLL_SCALE, STACK_RAISE, clawMat, ledBaseMat, ledFlashMat, makeMachineParts } from './machine';
 
@@ -22,8 +22,22 @@ export interface BigZone {
 const aimGeo = new THREE.RingGeometry(0.035, 0.06, 28);
 // 인형 더미에 가려도 보이게 맨 위에 그린다
 const aimMat = new THREE.MeshBasicMaterial({ color: 0xff3b8f, transparent: true, opacity: 0.85, depthWrite: false, depthTest: false });
-type Row = { group: THREE.Group; dolls: THREE.Group; cloner: ReturnType<typeof materialCloner>; spots: MachineSpot[]; dirty: boolean };
-type Unit = { row: Row; anchor: THREE.Group; claw: THREE.Group; led: THREE.Mesh; contents: DollSpot[]; flashUntil: number; gold: boolean };
+// 기계 속 인형은 행 안에서 기계 4~6대씩 묶어 합친다 — 한 기계가 바뀌면 그 묶음만 다시 합친다(행 전체는 휴대폰에서 멈칫함)
+const BLOCK_MAX = 6;
+type Row = { group: THREE.Group; cloner: ReturnType<typeof materialCloner>; spots: MachineSpot[] };
+type Block = { row: Row; group: THREE.Group; spots: MachineSpot[]; dirty: boolean };
+type Unit = { row: Row; block: Block; anchor: THREE.Group; claw: THREE.Group; led: THREE.Mesh; contents: DollSpot[]; flashUntil: number; gold: boolean };
+
+// 인형 종류마다 lite 모양을 재질별로 한 번만 합쳐 두고, 다시 합칠 때는 옮겨 붙이기만 한다
+type Part = { geo: THREE.BufferGeometry; mat: THREE.Material };
+const partsCache = new Map<string, Part[] | null>();
+function liteParts(kind: string): Part[] | null {
+  if (!partsCache.has(kind)) {
+    const doll = makeDoll(kind, true);
+    partsCache.set(kind, doll ? bakeByMaterial(doll).map((m) => ({ geo: m.geometry, mat: m.material as THREE.Material })) : null);
+  }
+  return partsCache.get(kind)!;
+}
 
 // 위쪽 큰인형 구역: 벽 줄 13대 + 등 맞댄 섬 22대 (shared/store_layout.json).
 // 그리기 호출을 줄이려고 행마다 고정 부분·기계 속 인형을 재질별로 합치고, LED·집게는 기계마다 한 덩어리로 둔다.
@@ -32,13 +46,21 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
   const units = new Map<string, Unit>();
   const rows: Row[] = (['wall', 'island'] as const).map((name) => {
     const group = new THREE.Group(); group.name = `big-${name}`;
-    const dolls = new THREE.Group(); group.add(dolls);
     scene.add(group);
-    return { group, dolls, cloner: materialCloner(), spots: MACHINES.filter((m) => m.row === name), dirty: false };
+    return { group, cloner: materialCloner(), spots: MACHINES.filter((m) => m.row === name) };
+  });
+  const blocks: Block[] = rows.flatMap((row) => {
+    const count = Math.ceil(row.spots.length / BLOCK_MAX), size = Math.ceil(row.spots.length / count);
+    return Array.from({ length: count }, (_, i) => {
+      const group = new THREE.Group(); group.name = `dolls-${row.group.name}-${i}`;
+      row.group.add(group);
+      return { row, group, spots: row.spots.slice(i * size, (i + 1) * size), dirty: false };
+    });
   });
 
   MACHINES.forEach((spot, index) => {
     const row = rows.find((r) => r.spots.includes(spot))!;
+    const block = blocks.find((b) => b.spots.includes(spot))!;
     const { statics, ledGeo, clawGeo } = makeMachineParts(spot, index);
     const tmp = new THREE.Group(); tmp.add(statics);
     for (const m of bakeByMaterial(tmp, row.cloner.remap)) row.group.add(m);
@@ -52,31 +74,35 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     claw.add(aim);
     anchor.add(led, claw);
     row.group.add(anchor);
-    units.set(spot.id, { row, anchor, claw, led, contents: [], flashUntil: 0, gold: false });
+    units.set(spot.id, { row, block, anchor, claw, led, contents: [], flashUntil: 0, gold: false });
   });
   const flashMats = new Map(rows.map((r) => [r, { hot: r.cloner.remap(ledFlashMat().hot), gold: r.cloner.remap(ledFlashMat().gold) }]));
 
-  // 행의 인형을 처음부터 다시 합친다 (기계 하나가 바뀌어도 그 행 전체 — 성공한 판마다 한 번)
-  function rebuild(row: Row) {
-    for (const old of row.dolls.children as THREE.Mesh[]) old.geometry.dispose();
-    row.dolls.clear();
-    const tmp = new THREE.Group();
-    for (const spot of row.spots) {
-      const unit = units.get(spot.id)!;
-      const holder = new THREE.Group(); holder.position.set(spot.x, 0, spot.z); holder.rotation.y = spot.ry;
-      unit.contents.forEach(([id, x, z, r], i) => {
-        const doll = makeDoll(id, true);
-        if (!doll) return;
-        doll.scale.setScalar(DOLL_SCALE);
-        // 뒤쪽 셋은 위에 얹어 무더기처럼, 기울기는 r에서 정해 모든 화면에서 같게
-        doll.position.set(x, DOLL_FLOOR + (i >= 6 ? STACK_RAISE : 0), z);
-        doll.rotation.set(Math.sin(r * 3) * 0.25, r, Math.cos(r * 5) * 0.25);
-        holder.add(doll);
+  // 묶음의 인형을 다시 합친다 (성공한 판마다 그 기계가 든 묶음 하나)
+  const holder = new THREE.Matrix4(), local = new THREE.Matrix4(), world = new THREE.Matrix4();
+  const at = new THREE.Vector3(), turn = new THREE.Quaternion(), tilt = new THREE.Euler(), size = new THREE.Vector3().setScalar(DOLL_SCALE);
+  const UP = new THREE.Vector3(0, 1, 0);
+  function rebuild(block: Block) {
+    for (const old of block.group.children as THREE.Mesh[]) old.geometry.dispose();
+    block.group.clear();
+    const buckets = new Map<THREE.Material, { line: boolean; geos: THREE.BufferGeometry[] }>();
+    for (const spot of block.spots) {
+      holder.compose(at.set(spot.x, 0, spot.z), turn.setFromAxisAngle(UP, spot.ry), new THREE.Vector3(1, 1, 1));
+      units.get(spot.id)!.contents.forEach(([id, x, z, r], i) => {
+        const parts = liteParts(id);
+        if (!parts) return; // 목록에 없는 인형
+        // 뒤쪽 셋은 위에 얹은 것처럼, 기울기는 r에서 정해 모든 화면에서 같게
+        tilt.set(Math.sin(r * 3) * 0.25, r, Math.cos(r * 5) * 0.25);
+        local.compose(at.set(x, DOLL_FLOOR + (i >= 6 ? STACK_RAISE : 0), z), turn.setFromEuler(tilt), size);
+        world.multiplyMatrices(holder, local);
+        for (const { geo, mat } of parts) {
+          if (!buckets.has(mat)) buckets.set(mat, { line: false, geos: [] });
+          buckets.get(mat)!.geos.push(geo.clone().applyMatrix4(world));
+        }
       });
-      tmp.add(holder);
     }
-    for (const m of bakeByMaterial(tmp, row.cloner.remap)) { m.castShadow = false; row.dolls.add(m); }
-    row.dirty = false;
+    for (const m of mergeBuckets(buckets, block.row.cloner.remap)) { m.castShadow = false; block.group.add(m); }
+    block.dirty = false;
   }
 
   const occluders: Occluder[] = rows.map((row) => {
@@ -91,14 +117,14 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
   };
   return {
     occluders,
-    setContents(id, dolls) { const u = units.get(id); if (!u) return; u.contents = dolls; u.row.dirty = true; },
+    setContents(id, dolls) { const u = units.get(id); if (!u) return; u.contents = dolls; u.block.dirty = true; },
     contentsOf: (id) => units.get(id)?.contents ?? [],
     clawOf: (id) => unit(id).claw,
     worldOf: (id) => unit(id).anchor,
     flash(id, gold, seconds) { const u = unit(id); u.flashUntil = performance.now() / 1000 + seconds; u.gold = gold; },
     showAim(id, on) { unit(id).claw.getObjectByName('aim')!.visible = on; },
     update(t) {
-      for (const row of rows) if (row.dirty) rebuild(row);
+      for (const block of blocks) if (block.dirty) rebuild(block);
       const now = performance.now() / 1000, blink = Math.floor(t * 10) % 2 === 0;
       for (const u of units.values()) {
         const flashing = now < u.flashUntil, mats = flashMats.get(u.row)!;

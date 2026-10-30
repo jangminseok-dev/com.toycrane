@@ -35,3 +35,14 @@ test('dropping out of the server line resets me', () => {
   expect(q.target()).toBeNull();
   expect(q.status(5)).toEqual({ kind: 'none' });
 });
+
+// 둘만 있는 줄에서 맨 앞이 8초 넘게 멈추면 서버는 다음 메시지가 와야 알 수 있다 — 2번째가 8.5초 뒤 한 번 다시 묻는다 (최종 리뷰 I4)
+test('second in line asks again once when the head stalls', () => {
+  const q = new QueueClient(); q.onQueue(0, ['p9', 'me'], 'me', 10);
+  const slot = { x: -3.65, z: -2.6 };
+  expect(q.tick(slot, 18.4)).toBeNull();
+  expect(q.tick(slot, 18.6)).toBe('requeue');
+  expect(q.tick(slot, 19)).toBeNull();
+  q.onQueue(0, ['p8', 'me'], 'me', 19); // 맨 앞이 바뀌면 다시 센다
+  expect(q.tick(slot, 27.6)).toBe('requeue');
+});

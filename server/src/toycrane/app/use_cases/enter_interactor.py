@@ -1,5 +1,6 @@
+import logging
 import random
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 from toycrane.app.dtos.enter_dto import EnterCommand, EnterResult, StoreFull
 from toycrane.app.dtos.player_view import PlayerView
@@ -13,8 +14,10 @@ from toycrane.app.ports.output.play_lock_port import PlayLockPort
 from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
 from toycrane.app.ports.output.queue_registry_port import QueueRegistryPort
 from toycrane.app.ports.output.wallet_port import WalletPort
+from toycrane.app.use_cases.connection_cleanup import release_connection
 from toycrane.app.use_cases.machine_contents import ensure_contents
 from toycrane.app.use_cases.occupancy_note import note_occupancy
+from toycrane.domain.coins import WALLET_CAP
 from toycrane.domain.entities.player import Player
 from toycrane.domain.layout import COUNTERS
 from toycrane.domain.store_rules import STORE_CAPACITY, spawn_position
@@ -53,8 +56,15 @@ class EnterInteractor(EnterUseCase):
         self._rng = rng
 
     async def enter(self, cmd: EnterCommand) -> EnterResult:
+        # D1·DO 저장소 읽기를 먼저 끝낸다 — 목록을 바꾼 뒤(put~welcome) 기다리면 그 사이 온 leave·join을 welcome이 덮는다
+        coins = await _or_zero(self._wallet.balance(cmd.guest_id))
+        bag = await _or_zero(self._bag.total(cmd.guest_id))
+        machines = await ensure_contents(self._contents, self._rng)
+        refund = 0
         for conn_id, old in self._registry.entries():
             if old.guest_id == cmd.guest_id:
+                # 같은 게스트의 이전 접속(네트워크가 바뀜·다른 탭): 하던 기계·줄을 정리하고 내보낸다
+                refund += release_connection(conn_id, self._queues, self._locks, self._connections, cmd.now)
                 self._registry.remove(conn_id)
                 self._connections.kick(conn_id, KICK_OTHER_TAB, "다른 창에서 접속")
                 self._connections.broadcast_leave(cmd.conn_id, old.player_id)
@@ -71,13 +81,24 @@ class EnterInteractor(EnterUseCase):
         you = PlayerView.of(me)
         result = EnterResult(you=you, others=tuple(PlayerView.of(p) for _, p in others))
         snapshot = StoreSnapshot(
-            coins=await self._wallet.balance(cmd.guest_id),
-            bag=await self._bag.total(cmd.guest_id),
-            machines=await ensure_contents(self._contents, self._rng),
+            coins=min(coins + refund, WALLET_CAP),
+            bag=bag,
+            machines=machines,
             queues=[[m.player_id for m in self._queues.members(c.id)] for c in COUNTERS],
             plays=self._locks.plays(),
         )
         self._connections.send_welcome(cmd.conn_id, cmd.store_no, you, list(result.others), snapshot)
         self._connections.broadcast_join(cmd.conn_id, you)
+        if refund:
+            await self._wallet.add(cmd.guest_id, refund, WALLET_CAP, cmd.now)
         await note_occupancy(self._occupancy, cmd.store_no, len(others) + 1, cmd.now)
         return result
+
+
+async def _or_zero(read: Awaitable[int]) -> int:
+    """코인·가방 수는 화면 표시용 — D1 읽기가 실패해도 입장은 된다(1단계 최종 리뷰 #10과 같은 원칙)."""
+    try:
+        return await read
+    except Exception:
+        logging.warning("D1 read failed on enter", exc_info=True)
+        return 0

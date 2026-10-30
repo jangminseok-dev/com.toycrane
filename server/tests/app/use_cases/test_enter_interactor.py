@@ -1,3 +1,4 @@
+import asyncio
 import math
 import random
 
@@ -94,3 +95,54 @@ async def test_welcome_shows_who_is_in_line_and_playing():
     await enter_interactor(conns=conns, queues=queues, locks=locks).enter(cmd("c-1", "g-1"))
     snap = conns.direct[0][1]
     assert snap["queues"] == [[], ["p-9"]] and snap["plays"] == {"A-3": "p-8"}
+
+
+# ---- 최종 리뷰 C1·I1 ----
+from toycrane.adapter.inbound.ws.schemas.server_messages import free  # noqa: E402
+from toycrane.adapter.inbound.ws.schemas.server_messages import queue as queue_msg  # noqa: E402
+
+
+async def test_kicked_tab_mid_play_is_refunded_and_freed():
+    """같은 게스트가 다시 들어오면(네트워크 바뀜·두 번째 탭) 이전 접속이 쥔 기계와 줄도 정리한다 (최종 리뷰 C1)."""
+    reg, conns, locks, q, wallet = FakeRegistry(), FakeConnections(), FakeLocks(), FakeQueues(), FakeWallet({"g-1": 2})
+    reg.put("c-old", player("p-old", guest="g-1"))
+    locks.lock("c-old", "A-1", 3.0)
+    q.join("c-old", 0, 1.0); q.mark_head("c-old", 1.0)
+    reg.put("c-2", player("p2", guest="g-2")); q.join("c-2", 0, 2.0)
+    await enter_interactor(reg, conns, wallet=wallet, queues=q, locks=locks, new_id=lambda: "p-new").enter(cmd("c-new", "g-1", now=5.0))
+    assert wallet.coins["g-1"] == 3 and locks.holder("A-1") is None
+    assert (None, free("A-1")) in conns.broadcasts and (None, queue_msg(0, ["p2"])) in conns.broadcasts
+    welcome_msg = next(m for c, m in conns.direct if c == "c-new")
+    assert welcome_msg["coins"] == 3 and welcome_msg["plays"] == {}
+
+
+class WatchingWallet(FakeWallet):
+    """D1을 기다리는 동안 매장 목록이 어떤지 본다."""
+
+    def __init__(self, registry, balances) -> None:
+        super().__init__(balances)
+        self.registry, self.seen = registry, None
+
+    async def balance(self, guest_id):
+        self.seen = [c for c, _ in self.registry.entries()]
+        await asyncio.sleep(0)
+        return await super().balance(guest_id)
+
+
+async def test_store_reads_happen_before_the_player_is_placed():
+    """put과 welcome 사이에 D1을 기다리면 그 사이 온 leave·join을 welcome이 덮는다 (최종 리뷰 I1)."""
+    reg = FakeRegistry(); reg.put("c-1", player("p1", guest="g-1"))
+    wallet = WatchingWallet(reg, {"g-2": 4})
+    await enter_interactor(reg, wallet=wallet, new_id=lambda: "p2").enter(cmd("c-2", "g-2"))
+    assert wallet.seen == ["c-1"]  # 새 사람은 아직 목록에 없다
+
+
+class BrokenWallet(FakeWallet):
+    async def balance(self, guest_id):
+        raise RuntimeError("D1 read failed")
+
+
+async def test_enter_survives_wallet_read_failure():
+    conns = FakeConnections()
+    await enter_interactor(conns=conns, wallet=BrokenWallet()).enter(cmd("c-1", "g-1"))
+    assert conns.direct[0][1]["t"] == "welcome" and conns.direct[0][1]["coins"] == 0

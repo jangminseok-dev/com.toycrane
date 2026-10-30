@@ -36,3 +36,12 @@ async def test_stale_head_is_skipped_after_8s():
     await QueueJoinInteractor(q, conns).join(QueueJoinCommand("c-3", 0, now=9.5))
     assert conns.broadcasts[-1] == (None, queue_msg(0, ["p2", "p3"]))
     assert q.head_since("c-2") == 9.5
+
+
+async def test_second_person_asking_again_moves_past_a_stale_head():
+    """둘만 줄에 있고 맨 앞이 자리를 비우면, 2번째 화면이 다시 보낸 queue로 차례가 넘어온다 (최종 리뷰 I4)."""
+    q, conns = FakeQueues(), FakeConnections()
+    await QueueJoinInteractor(q, conns).join(QueueJoinCommand("c-1", 0, now=1.0))
+    await QueueJoinInteractor(q, conns).join(QueueJoinCommand("c-2", 0, now=2.0))
+    await QueueJoinInteractor(q, conns).join(QueueJoinCommand("c-2", 0, now=9.5))
+    assert conns.broadcasts[-1] == (None, queue_msg(0, ["p2"])) and q.head_since("c-2") == 9.5
