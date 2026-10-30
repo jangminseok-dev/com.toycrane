@@ -10,6 +10,7 @@ export type DollSpot = [string, number, number, number];
 
 export interface BigZone {
   setContents(machineId: string, dolls: DollSpot[]): void; // 목록에 없는 인형은 건너뜀
+  contentsOf(machineId: string): DollSpot[];
   clawOf(machineId: string): THREE.Object3D;
   worldOf(machineId: string): THREE.Object3D; // 기계 자리·방향 (모션·카메라 기준)
   flash(machineId: string, gold: boolean, seconds: number): void;
@@ -92,6 +93,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
   return {
     occluders,
     setContents(id, dolls) { const u = units.get(id); if (!u) return; u.contents = dolls; u.row.dirty = true; },
+    contentsOf: (id) => units.get(id)?.contents ?? [],
     clawOf: (id) => unit(id).claw,
     worldOf: (id) => unit(id).anchor,
     flash(id, gold, seconds) { const u = unit(id); u.flashUntil = performance.now() / 1000 + seconds; u.gold = gold; },

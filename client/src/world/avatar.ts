@@ -7,8 +7,23 @@ export const AVATAR_COLORS = [0xff7ab6, 0x8fe3c8, 0x8fd3ff, 0xffe08a, 0xb48cff, 
 const HAIRS = [0x5a3a2e, 0x2b1d3f, 0x8a5a3c, 0xe8c07a, 0x3b2a5a, 0xc2410c, 0x5a3a2e, 0x2b1d3f];
 const BAGS = [0x8fd3ff, 0xffd36b, 0xff7ab6, 0x8fe3c8, 0xffd36b, 0xb48cff, 0xff7ab6, 0x8fd3ff];
 
+// 모션(world/motions.ts)이 움직이는 손잡이. 손 목표는 아바타 기준 좌표, 걷지 않을 때 손이 따라간다
+export interface AvatarRig {
+  root: THREE.Group;
+  bob: THREE.Group;
+  head: THREE.Group;
+  backpack: THREE.Group;
+  handL: THREE.Vector3;
+  handR: THREE.Vector3;
+  crouch: number;
+  held: THREE.Object3D | null; // 손에 든 것 (root의 자식)
+  holdMode: 'none' | 'right' | 'both' | 'free'; // free = 모션이 직접 움직임
+}
+export const REST_L = new THREE.Vector3(-0.52, 0.66, 0.1), REST_R = new THREE.Vector3(0.52, 0.66, 0.1);
+
 export interface Avatar {
   root: THREE.Group;
+  rig: AvatarRig;
   setWalking(on: boolean): void;
   update(t: number): void;
   setLabelVisible(on: boolean): void; // 기계를 하는 동안 내 이름표가 화면을 가리지 않게
@@ -46,8 +61,11 @@ export function makeAvatar(color: number, nickname: string): Avatar {
 
   const phase = Math.random() * 6;
   let walking = false;
+  const rig: AvatarRig = { root, bob, head, backpack, handL: REST_L.clone(), handR: REST_R.clone(), crouch: 0, held: null, holdMode: 'none' };
+  const mid = new THREE.Vector3();
   return {
     root,
+    rig,
     dispose() { disposeLabel(label); },
     setLabelVisible(on) { label.visible = on; },
     setWalking(on) { walking = on; },
@@ -59,11 +77,17 @@ export function makeAvatar(color: number, nickname: string): Avatar {
         hands.forEach((h, k) => h.position.set(k ? 0.52 : -0.52, 0.66, 0.1 + Math.sin(w + k * Math.PI) * 0.18));
         feet.forEach((f, k) => { f.position.z = 0.06 + Math.sin(w + k * Math.PI) * 0.12; });
       } else {
-        bob.position.y = 0;
+        bob.position.y = -rig.crouch;
         bob.scale.set(1 - s * 0.01, 1 + s * 0.015, 1 - s * 0.01);
-        hands.forEach((h, k) => h.position.set(k ? 0.52 : -0.52, 0.66 + Math.sin(t * 2.4 + phase + 0.8 + k * 0.6) * 0.025, 0.1));
+        hands.forEach((h, k) => {
+          const base = k ? rig.handR : rig.handL;
+          h.position.set(base.x, base.y + Math.sin(t * 2.4 + phase + 0.8 + k * 0.6) * 0.025, base.z);
+        });
         feet.forEach((f) => { f.position.z = 0.06; });
       }
+      // 든 것은 손을 따라간다 (오른손 앞 / 두 손 가운데)
+      if (rig.held && rig.holdMode === 'right') rig.held.position.copy(hands[1].position).add(mid.set(0, 0.05, 0.12));
+      else if (rig.held && rig.holdMode === 'both') rig.held.position.copy(hands[0].position).add(hands[1].position).multiplyScalar(0.5).add(mid.set(0, -0.12, 0.05));
     },
   };
 }

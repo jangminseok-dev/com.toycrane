@@ -5,26 +5,33 @@ import { InputSampler } from './game/inputSampler';
 import { LocalPlayer } from './game/localPlayer';
 import { machineCameraPose } from './game/machineCamera';
 import { PlaySession } from './game/playSession';
+import { Tweens, ease } from './game/tween';
+import { sfx, unlockAudio } from './audio/sfx';
 import { QueueClient } from './game/queueClient';
 import { OcclusionFader } from './game/occlusion';
 import { RemotePlayers } from './game/remotePlayers';
 import { installJoystick } from './input/joystick';
 import { readKeyboard } from './input/keyboard';
 import { admit, createGuest, getGuest, type Guest } from './net/api';
-import { encodeDrop, encodeMove, encodePlay, encodeQueue, encodeTake, encodeUnqueue, type ServerMsg } from './net/protocol';
+import { encodeDrop, encodeMove, encodePlay, encodeQueue, encodeTake, encodeUnqueue, type DollSpot, type Result, type ServerMsg } from './net/protocol';
 import { closeAction, nextDelay, retrying } from './net/reconnect';
 import { safeStorage } from './net/storage';
 import { StoreSocket, storeUrl } from './net/storeSocket';
 import { setAction } from './ui/actionButton';
 import { askNickname, hideEntry, showFull, showMessage, showWelcomeBack } from './ui/entry';
 import { setHud, setInfo, toast } from './ui/hud';
+import { eulReul } from './ui/josa';
 import { hidePlayControls, setTimer, showPlayControls } from './ui/playControls';
+import { showWinCard } from './ui/winCard';
 import { setStatus } from './ui/status';
 import { makeAvatar, type Avatar } from './world/avatar';
-import { DOLLS } from './data/catalog';
+import { DOLLS, SETS } from './data/catalog';
 import { MACHINES, frontSpot, nearestMachine } from './data/storeLayout';
 import { buildBigZone } from './world/bigZone';
-import { CLAW_REST } from './world/machine';
+import { makeDoll } from './world/dolls';
+import { burst, updateEffects } from './world/effects';
+import { CLAW_REST, DOLL_FLOOR } from './world/machine';
+import { playResult, startPlaying } from './world/motions';
 import { buildCoinCounters } from './world/coinCounter';
 import { buildStore } from './world/storeScene';
 
@@ -63,7 +70,16 @@ let awaiting: string | null = null;
 const busy = new Map<string, string>();
 const spotOf = new Map(MACHINES.map((m) => [m.id, m]));
 const camLook = new THREE.Vector3();
+// 연출: 기계마다 돌고 있는 코인·조이스틱 모션, 결과 연출 중인 기계, 연출이 끝나면 넣을 새 배치
+const tw = new Tweens();
+const playing = new Map<string, { stop(): Promise<void> }>();
+const showing = new Set<string>();
+const pendingContents = new Map<string, DollSpot[]>();
+const spinners: { obj: THREE.Object3D; speed: number }[] = [];
+let showingMe = false; // 내 결과 모션 중엔 걷지 않는다
+let myNick = '';
 let myAvatar: Avatar | null = null;
+unlockAudio();
 let socket: StoreSocket | null = null;
 let attempt = 0;
 
@@ -134,29 +150,34 @@ function onMessage(m: ServerMsg, guest: Guest) {
       wallet = { coins: m.coins, bag: m.bag };
       setHud(wallet.coins, wallet.bag);
       myId = m.you.id;
+      myNick = guest.nickname;
+      playing.clear(); showing.clear(); pendingContents.clear(); showingMe = false;
       queue.reset();
       m.queues.forEach((ids, c) => queue.onQueue(c, ids, myId, now / 1000));
       busy.clear();
       for (const [id, who] of Object.entries(m.plays)) busy.set(id, who);
       endPlay();
       break;
-    case 'play': busy.set(m.m, m.id); break;
+    case 'play': {
+      busy.set(m.m, m.id);
+      const rig = remotes.rigOf(m.id);
+      if (rig) playing.set(m.m, startPlaying(rig, tw, spotOf.get(m.m)!.ry + Math.PI));
+      break;
+    }
     case 'play_ok': startPlay(m.m, m.limit, m.coins); break;
     case 'play_no':
       if (m.why !== 'playing') toast({ busy: '다른 사람이 하는 중이에요', coins: '코인이 없어요 · 교환소에서 받아요', far: '기계 앞에 서 주세요' }[m.why]);
       break;
     case 'free':
       busy.delete(m.m);
+      void playing.get(m.m)?.stop(); playing.delete(m.m);
       if (session?.machineId === m.m || awaiting === m.m) { endPlay(); toast('시간이 지나 기계가 풀렸어요'); }
       break;
-    case 'result':
-      busy.delete(m.m);
-      if (m.id === myId) {
-        toast(m.o === 'win' ? `짠! ${DOLLS[m.k ?? '']?.name ?? '인형'}` : m.o === 'slip' ? '아깝다! 놓쳤어요' : '헛잡았어요');
-        setTimeout(endPlay, 1200); // 결과 모션은 Task 11
-      }
+    case 'result': busy.delete(m.m); void showResult(m); break;
+    case 'machine':
+      if (showing.has(m.m)) pendingContents.set(m.m, m.dolls); // 집게·모션 연출이 끝난 뒤에 바꾼다
+      else bigZone.setContents(m.m, m.dolls);
       break;
-    case 'machine': bigZone.setContents(m.m, m.dolls); break;
     case 'bag': wallet.bag = m.n; setHud(wallet.coins, wallet.bag); break;
     case 'queue': queue.onQueue(m.c, m.ids, myId, now / 1000); break;
     case 'queue_no': toast('줄이 꽉 찼어요'); break;
@@ -202,7 +223,10 @@ function startPlay(machineId: string, limit: number, coins: number) {
   session = new PlaySession(machineId, limit);
   setAction(null); setInfo(null);
   showPlayControls(() => { if (session?.requestDrop()) sendDrop(); });
-  if (myAvatar) myAvatar.root.visible = false; // 정면 카메라를 가리지 않게 (다른 사람 화면에는 보임)
+  if (myAvatar) {
+    myAvatar.root.visible = false; // 정면 카메라를 가리지 않게 (다른 사람 화면에는 보임)
+    playing.set(machineId, startPlaying(myAvatar.rig, tw, spotOf.get(machineId)!.ry + Math.PI, sfx.coin));
+  }
   bigZone.showAim(machineId, true);
   if (me && socket) { me.dir = { x: 0, z: 0 }; socket.send(encodeMove(me.pos, me.dir)); }
 }
@@ -210,6 +234,7 @@ function startPlay(machineId: string, limit: number, coins: number) {
 function sendDrop() {
   if (!session) return;
   socket?.send(encodeDrop(session.claw.x, session.claw.z));
+  bigZone.showAim(session.machineId, false);
   awaiting = session.machineId;
   session = null;
   hidePlayControls();
@@ -221,6 +246,73 @@ function endPlay() {
   session = null; awaiting = null;
   hidePlayControls();
   if (myAvatar) myAvatar.root.visible = true;
+}
+
+// 결과 연출: 모두의 화면에서 같은 순서 — 쾅 → 두근두근(집게가 내려갔다 올라옴) → 성공(꺼내기·번쩍·가방에 쏙) / 실패(털썩)
+async function showResult(m: Result) {
+  showing.add(m.m);
+  const mine = m.id === myId;
+  if (mine) showingMe = true;
+  await playing.get(m.m)?.stop(); playing.delete(m.m);
+  const spot = spotOf.get(m.m)!, face = spot.ry + Math.PI;
+  const info = m.k ? DOLLS[m.k] : undefined, rare = !!info?.rare;
+  const front = frontSpot(spot);
+  const near = mine || (!!me && Math.hypot(me.pos.x - front.x, me.pos.z - front.z) < 6);
+  const rig = mine ? myAvatar?.rig ?? null : remotes.rigOf(m.id);
+  const doll = m.o === 'win' && m.k ? makeDoll(m.k) : null;
+  if (doll) spinners.push(...doll.userData.spin);
+  const fx = {
+    bonk: () => { if (near) sfx.bonk(); },
+    claw: (seconds: number) => clawRun(m, seconds),
+    afterClaw: () => { if (mine) { awaiting = null; if (myAvatar) myAvatar.root.visible = true; } },
+    pop: () => { if (near) sfx.pop(); },
+    win: () => {
+      bigZone.flash(m.m, rare, 3.2);
+      const at = new THREE.Vector3();
+      (doll ?? bigZone.worldOf(m.m)).getWorldPosition(at); at.y += 0.3;
+      burst(scene, at, rare ? [0xffd36b, 0xfff6b0, 0xff9f43, 0xffffff] : [0xff7ab6, 0x8fd3ff, 0xffe066, 0x8fe3c8], rare ? 80 : 36);
+      if (rare) sfx.rare(); else if (near) sfx.win();
+      if (rare && info) {
+        const nick = mine ? myNick : remotes.nickOf(m.id);
+        tower.showMessage('★ 희귀 등장! ★', `${nick} 님이 ${info.name}${eulReul(info.name)} 뽑았어요`, true, 6);
+      }
+      if (mine && info) showWinCard(info.name, SETS.find((x) => x.id === info.set)?.name ?? '', rare, wallet.bag);
+      return rare ? 1.7 : 1.0;
+    },
+    fail: () => { if (mine) sfx.fail(); },
+  };
+  if (rig) await playResult(rig, tw, m.o, doll, fx, face);
+  else { await clawRun(m, 1.7); fx.afterClaw(); }
+  if (doll) spinners.splice(0, spinners.length, ...spinners.filter((s) => !doll.userData.spin.includes(s)));
+  showing.delete(m.m);
+  const next = pendingContents.get(m.m);
+  if (next) { bigZone.setContents(m.m, next); pendingContents.delete(m.m); }
+  if (mine) { showingMe = false; endPlay(); }
+}
+
+// 집게: 내린 자리로 옮겨 내려갔다 올라온다. 성공·놓침이면 노린 인형이 매달려 올라오고(놓침은 도중에 떨어짐)
+function clawRun(m: Result, seconds: number): Promise<void> {
+  const claw = bigZone.clawOf(m.m);
+  claw.position.set(m.x, CLAW_REST.y, m.z);
+  const before = bigZone.contentsOf(m.m);
+  let carried: THREE.Group | null = null, dropped = false;
+  // 노린 인형: 집게 위치에서 가장 가까운 그 종류
+  const target = m.k && m.o !== 'miss'
+    ? before.reduce<DollSpot | null>((best, d) => d[0] === m.k && (!best || Math.hypot(d[1] - m.x, d[2] - m.z) < Math.hypot(best[1] - m.x, best[2] - m.z)) ? d : best, null)
+    : null;
+  return tw.tween(seconds, (k) => {
+    claw.position.y = CLAW_REST.y - Math.sin(k * Math.PI) * 0.75;
+    if (target && !carried && k >= 0.5) {
+      carried = makeDoll(target[0], true);
+      if (carried) {
+        carried.scale.setScalar(0.3); carried.position.set(0, DOLL_FLOOR - (CLAW_REST.y - 0.75) - 0.02, 0); claw.add(carried);
+        bigZone.setContents(m.m, before.filter((d) => d !== target)); // 무더기에서 들어 올린다
+      }
+    }
+    if (carried && m.o === 'slip' && !dropped && k >= 0.72) {
+      dropped = true; claw.remove(carried); bigZone.setContents(m.m, before); // 미끄러져 제자리로
+    }
+  }, ease.lin).then(() => { if (carried && !dropped) claw.remove(carried); });
 }
 
 // 기계 앞자리 가까이면 그 기계: 비었으면 "🪙1 넣고 하기", 남이 하면 구경 중
@@ -251,7 +343,7 @@ renderer.setAnimationLoop((now) => {
   if (me && myAvatar) {
     const stick = joystick.read();
     const input = Math.hypot(stick.x, stick.z) > 0 ? stick : readKeyboard();
-    const playing = session?.machineId ?? awaiting;
+    const atMachine = session?.machineId ?? awaiting; // 기계 카메라를 쓰는 동안
     if (session) {
       // 조이스틱·키가 집게를 움직이고 캐릭터는 기계 앞에 서 있다
       if (session.update(dt, input) === 'drop') sendDrop();
@@ -261,6 +353,8 @@ renderer.setAnimationLoop((now) => {
       }
       me.autoTarget = frontSpot(spotOf.get(session.machineId)!); // 기계 앞자리 가운데로 (카메라 구도가 늘 같게)
       me.drive({ x: 0, z: 0 }, dt);
+    } else if (showingMe) {
+      me.drive({ x: 0, z: 0 }, dt); // 내 결과 모션 동안은 제자리
     } else if (!awaiting) {
       me.autoTarget = queue.target();
       me.drive(input, dt);
@@ -268,16 +362,15 @@ renderer.setAnimationLoop((now) => {
       if (queueAction && socket) socket.send(queueAction === 'take' ? encodeTake() : encodeUnqueue());
       if (!showMachineUi()) showQueueUi(now / 1000);
     }
-    const moving = Math.hypot(me.dir.x, me.dir.z) > 0 && !playing;
+    const moving = Math.hypot(me.dir.x, me.dir.z) > 0 && !atMachine;
     myAvatar.root.position.set(me.pos.x, 0, me.pos.z);
-    if (playing) myAvatar.root.rotation.y = spotOf.get(playing)!.ry + Math.PI; // 기계를 바라봄
-    else if (moving) myAvatar.root.rotation.y = Math.atan2(me.dir.x, me.dir.z);
+    if (moving && !showingMe) myAvatar.root.rotation.y = Math.atan2(me.dir.x, me.dir.z); // 기계 앞에선 모션이 방향을 정한다
     myAvatar.setWalking(moving);
     myAvatar.update(now / 1000);
     if (socket && sampler.shouldSend(me.dir, now)) socket.send(encodeMove(me.pos, me.dir));
-    if (playing) {
-      // 기계 앞 위에서 유리 칸을 본다 (0.6초쯤에 걸쳐 부드럽게)
-      const pose = machineCameraPose(spotOf.get(playing)!);
+    if (atMachine) {
+      // 기계 정면에서 유리 칸을 본다 (0.6초쯤에 걸쳐 부드럽게)
+      const pose = machineCameraPose(spotOf.get(atMachine)!);
       camera.position.lerp(pose.pos, Math.min(1, dt * 5));
       camLook.lerp(pose.look, Math.min(1, dt * 5));
       camera.lookAt(camLook);
@@ -287,6 +380,9 @@ renderer.setAnimationLoop((now) => {
       fader.update(dt, camera.position, me.pos);
     }
   }
+  tw.update(dt);
+  updateEffects(dt);
+  for (const sp of spinners) sp.obj.rotation.y += dt * sp.speed;
   remotes.update(now);
   bigZone.update(now / 1000);
   renderer.render(scene, camera);

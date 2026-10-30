@@ -5,7 +5,11 @@ import { canvasTex, outlineMat, part, toon } from './toon';
 // 매장 겉모습: 회색 대리석 바닥 · 어두운 보라 벽 · 천장 분홍 네온 · 구역 바닥 색 · 허브 4면 전광판 탑 · 스폰 링
 // (분위기 고증: 설계 §4.2, 시제품 docs/reference/prototypes/spike-arcade-big-v3.html)
 // 탑이 내 캐릭터를 가릴 때 흐리게 하려고 탑 상자와 투명도 조절을 돌려준다
-export type HubTower = { box: THREE.Box3; setOpacity(opacity: number): void };
+export type HubTower = {
+  box: THREE.Box3;
+  setOpacity(opacity: number): void;
+  showMessage(line1: string, line2: string, gold: boolean, seconds: number): void; // 4면 전광판 문구를 잠깐 바꾼다(희귀 알림)
+};
 
 export function buildStore(scene: THREE.Scene): HubTower {
   scene.background = new THREE.Color(0x1c1526);
@@ -133,16 +137,25 @@ function addHubTower(scene: THREE.Scene): HubTower {
   const body = part(new THREE.BoxGeometry(w, h, w), bodyMat, [0, h / 2, 0], [1, 1, 1], [0, 0, 0], 1.02);
   body.traverse((o) => { if (o instanceof THREE.Mesh && o.material === outlineMat) o.material = edgeMat; });
   scene.add(body);
-  const screenTex = canvasTex(512, 384, (g) => {
+  // 전광판: 평소엔 "toycrane / 어서 오세요", 희귀가 나오면 잠깐 금색 알림 (시제품 drawBoard)
+  const draw = (l1: string, l2: string, gold: boolean) => (g: CanvasRenderingContext2D) => {
+    g.shadowBlur = 0;
     g.fillStyle = '#0d0a14'; g.fillRect(0, 0, 512, 384);
     g.fillStyle = 'rgba(255,255,255,.05)';
     for (let y = 4; y < 384; y += 8) for (let x = 4; x < 512; x += 8) g.fillRect(x, y, 3, 3);
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.shadowBlur = 24; g.shadowColor = '#ff5fdc'; g.fillStyle = '#ff9fe8';
-    g.font = '900 92px -apple-system, "Apple SD Gothic Neo", sans-serif'; g.fillText('toycrane', 256, 170);
+    g.shadowBlur = 24; g.shadowColor = gold ? '#ffd36b' : '#ff5fdc'; g.fillStyle = gold ? '#ffe28a' : '#ff9fe8';
+    fitText(g, l1, 92, 900, 470); g.fillText(l1, 256, 170);
     g.shadowColor = '#4fd8ff'; g.fillStyle = '#ffffff';
-    g.font = '700 40px -apple-system, "Apple SD Gothic Neo", sans-serif'; g.fillText('어서 오세요', 256, 262);
-  });
+    fitText(g, l2, 40, 700, 480); g.fillText(l2, 256, 262);
+  };
+  const idle = draw('toycrane', '어서 오세요', false);
+  const screenTex = canvasTex(512, 384, idle);
+  let restoreTimer = 0;
+  const redraw = (paint: (g: CanvasRenderingContext2D) => void) => {
+    paint((screenTex.image as HTMLCanvasElement).getContext('2d')!);
+    screenTex.needsUpdate = true;
+  };
   const screenMat = new THREE.MeshBasicMaterial({ map: screenTex });
   const glow = new THREE.MeshBasicMaterial({ color: 0x4fd8ff });
   for (let k = 0; k < 4; k++) {
@@ -158,6 +171,11 @@ function addHubTower(scene: THREE.Scene): HubTower {
   const mats = [bodyMat, edgeMat, screenMat, glow];
   return {
     box: new THREE.Box3(new THREE.Vector3(-TOWER_HALF, 0, -TOWER_HALF), new THREE.Vector3(TOWER_HALF, h, TOWER_HALF)),
+    showMessage(line1, line2, gold, seconds) {
+      redraw(draw(line1, line2, gold));
+      clearTimeout(restoreTimer);
+      restoreTimer = window.setTimeout(() => redraw(idle), seconds * 1000);
+    },
     setOpacity(opacity) {
       for (const m of mats) {
         if (m.transparent !== opacity < 1) { m.transparent = opacity < 1; m.needsUpdate = true; }
@@ -172,4 +190,11 @@ function addBox(scene: THREE.Scene, size: [number, number, number], pos: [number
   const m = new THREE.Mesh(new THREE.BoxGeometry(...size), mat);
   m.position.set(...pos);
   scene.add(m);
+}
+
+// 글자가 폭을 넘으면 크기를 줄인다
+function fitText(g: CanvasRenderingContext2D, text: string, size: number, weight: number, maxW: number) {
+  const font = () => `${weight} ${size}px -apple-system, "Apple SD Gothic Neo", sans-serif`;
+  g.font = font();
+  while (g.measureText(text).width > maxW && size > 12) { size -= 4; g.font = font(); }
 }

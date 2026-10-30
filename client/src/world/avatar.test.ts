@@ -11,3 +11,10 @@ test('label can be hidden and shown again', () => {
   a.setLabelVisible(false); expect(label.visible).toBe(false);
   a.setLabelVisible(true); expect(label.visible).toBe(true);
 });
+
+test('avatar exposes a rig for motions', () => {
+  const a = makeAvatar(0, '토끼');
+  expect(a.rig.head).toBeDefined();
+  expect(a.rig.held).toBeNull();
+  expect(a.rig.handR.x).toBeCloseTo(0.52);
+});
