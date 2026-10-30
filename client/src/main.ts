@@ -16,6 +16,7 @@ import { askNickname, hideEntry, showFull, showMessage, showWelcomeBack } from '
 import { setStatus } from './ui/status';
 import { makeAvatar, type Avatar } from './world/avatar';
 import { buildBigZone, type DollSpot } from './world/bigZone';
+import { buildCoinCounters } from './world/coinCounter';
 import { DOLLS } from './data/catalog';
 import { MACHINES } from './data/storeLayout';
 import { buildStore } from './world/storeScene';
@@ -42,8 +43,8 @@ const joystick = installJoystick(renderer.domElement);
 let sampler = new InputSampler();
 
 const bigZone = buildBigZone(scene);
-// 탑·기계 행이 내 캐릭터를 가리면 그것만 흐리게(머리·몸통 중 하나라도 가리면)
-const fader = new OcclusionFader([tower, ...bigZone.occluders]);
+// 탑·기계 행·교환소가 내 캐릭터를 가리면 그것만 흐리게(머리·몸통 중 하나라도 가리면)
+const fader = new OcclusionFader([tower, ...bigZone.occluders, ...buildCoinCounters(scene)]);
 fillMachinesForNow();
 
 // 임시(Task 6에서 지움): 서버가 기계 속 배치를 보내기 전까지 기계마다 그 세트 인형 9개를 놓는다

@@ -70,7 +70,7 @@ function fitFont(g: CanvasRenderingContext2D, text: string, size: number, weight
   while (g.measureText(text).width > maxW && size > 8) { size -= 4; g.font = font(); }
   return size;
 }
-function marqueeTex(text: string, color: number, h = 160): THREE.CanvasTexture {
+export function marqueeTex(text: string, color: number, h = 160): THREE.CanvasTexture {
   return canvasTex(512, h, (g) => {
     const c = '#' + new THREE.Color(color).getHexString();
     const grd = g.createLinearGradient(0, 0, 0, h);

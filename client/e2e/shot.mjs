@@ -74,8 +74,9 @@ await send('Page.navigate', { url: base + '/' });
 await sleep(2500);
 const nick = `캡처${Math.floor(Math.random() * 1000)}`;
 await evaluate(`(() => { const i = document.querySelector('input'); i.value = ${JSON.stringify(nick)}; i.form.requestSubmit(); })()`);
-await sleep(2500);
-const join = seen.find((m) => m.t === 'join' && m.p.nick === nick);
+let join;
+for (let i = 0; i < 80 && !join; i++) { await sleep(100); join = seen.find((m) => m.t === 'join' && m.p.nick === nick); }
+await sleep(500);
 const pos = join ? { x: join.p.x, z: join.p.z } : null;
 
 async function hold(dx, dz, seconds) {
