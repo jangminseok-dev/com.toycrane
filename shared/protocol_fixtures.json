@@ -1,0 +1,21 @@
+{
+  "client_move": { "t": "move", "x": 1.5, "z": -2.0, "dx": 0.707, "dz": -0.707 },
+  "server_welcome": {
+    "t": "welcome",
+    "store": 1,
+    "you": { "id": "p1", "nick": "말랑 토끼", "color": 3, "x": 2.4, "z": 0.0, "dx": 0, "dz": 0 },
+    "players": [{ "id": "p2", "nick": "곰돌이", "color": 5, "x": -1.2, "z": 2.08, "dx": 1, "dz": 0 }]
+  },
+  "server_join": { "t": "join", "p": { "id": "p2", "nick": "곰돌이", "color": 5, "x": -1.2, "z": 2.08, "dx": 0, "dz": 0 } },
+  "server_move": { "t": "move", "id": "p2", "x": 1.6, "z": 3.0, "dx": 1, "dz": 0 },
+  "server_correct": { "t": "correct", "x": 1.6, "z": 3.0 },
+  "server_leave": { "t": "leave", "id": "p2" },
+  "bad_client_moves": [
+    { "t": "move", "x": "a", "z": 0, "dx": 0, "dz": 0 },
+    { "t": "move", "x": 1, "z": 1, "dx": 2, "dz": 0 },
+    { "t": "move", "x": 1e400, "z": 0, "dx": 0, "dz": 0 },
+    { "t": "move", "x": 1, "z": 1 },
+    { "t": "jump" },
+    "not json"
+  ]
+}

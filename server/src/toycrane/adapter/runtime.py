@@ -2,6 +2,7 @@
 
 from urllib.parse import parse_qs, urlparse
 
+import js
 from workers import Response
 
 
@@ -28,3 +29,19 @@ def query_param(request, name: str) -> str | None:
 
 def to_py(value):
     return value.to_py() if hasattr(value, "to_py") else value
+
+
+def with_headers(request, extra: dict[str, str]):
+    """원래 요청(웹소켓 Upgrade 포함)에 헤더를 더한 JS Request — DO로 넘길 때 쓴다."""
+    headers = js.Headers.new(request.js_object.headers)
+    for key, value in extra.items():
+        headers.set(key, value)
+    return js.Request.new(request.js_object, headers=headers)
+
+
+def reject_websocket(code: int, reason: str) -> Response:
+    """웹소켓을 받자마자 닫기 코드로 닫는다 — 화면이 HTTP 오류 대신 이유(코드)를 알 수 있게."""
+    client, server = js.WebSocketPair.new().object_values()
+    server.accept()
+    server.close(code, reason)
+    return Response(None, status=101, web_socket=client)

@@ -13,6 +13,32 @@ const getJson = async (path, init) => {
 };
 const postJson = (path, data) =>
   getJson(path, { method: 'POST', body: JSON.stringify(data), headers: { 'content-type': 'application/json' } });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// 게스트를 만들고 배정받은 매장에 웹소켓으로 들어간다
+async function newGuest(nickname) {
+  const g = await postJson('/api/guest', { nickname });
+  const a = await postJson('/api/admission', { guestId: g.body.guestId });
+  assert(Number.isInteger(a.body.store), `admission ${JSON.stringify(a.body)}`);
+  return { id: g.body.guestId, store: a.body.store };
+}
+function connect(guestId, store) {
+  const ws = new WebSocket(`${base.replace(/^http/, 'ws')}/ws/store/${store}?guest=${guestId}`);
+  const c = { ws, messages: [], closeCode: null };
+  c.closed = new Promise((r) => ws.addEventListener('close', (e) => { c.closeCode = e.code; r(e.code); }));
+  ws.addEventListener('message', (e) => c.messages.push(JSON.parse(e.data)));
+  c.waitFor = async (pred, what, ms = 5000) => {
+    for (const end = Date.now() + ms; Date.now() < end; await sleep(50)) {
+      const m = c.messages.find(pred);
+      if (m) return m;
+    }
+    throw new Error(`기다리던 메시지 없음: ${what}`);
+  };
+  c.welcome = () => c.waitFor((m) => m.t === 'welcome', 'welcome');
+  c.close = async () => { ws.close(); await c.closed; };
+  return c;
+}
+const ids = (players) => players.map((p) => p.id);
 
 const cases = {
   async myself() {
@@ -41,6 +67,43 @@ const cases = {
     assert(unknown.status === 404, `unknown ${unknown.status}`);
     const intro = await getJson('/api/admission/myself');
     assert(intro.status === 200 && intro.body.name === '매장 배정', `myself ${intro.status}`);
+  },
+  async together() {
+    const ga = await newGuest('같이 A'), gb = await newGuest('같이 B');
+    const a = connect(ga.id, ga.store);
+    const wa = await a.welcome();
+    const b = connect(gb.id, ga.store);
+    const wb = await b.welcome();
+    assert(ids(wb.players).includes(wa.you.id), 'B의 welcome에 A가 없음');
+    await a.waitFor((m) => m.t === 'join' && m.p.id === wb.you.id, 'A가 B join 받기');
+    await b.close();
+    await a.waitFor((m) => m.t === 'leave' && m.id === wb.you.id, 'A가 B leave 받기');
+    await a.close();
+  },
+  async twotabs() {
+    const g = await newGuest('두 탭');
+    const first = connect(g.id, g.store);
+    const w1 = await first.welcome();
+    const second = connect(g.id, g.store);
+    const w2 = await second.welcome();
+    assert((await first.closed) === 4003, `첫 탭 닫기 코드 ${first.closeCode}`);
+    assert(!ids(w2.players).includes(w1.you.id), '이전 탭 캐릭터가 남아 있음');
+    await second.close();
+  },
+  async unknown() {
+    const c = connect('nope', 1);
+    assert((await c.closed) === 4002, `닫기 코드 ${c.closeCode}`);
+  },
+  async idle() {
+    const ga = await newGuest('잠 A'), gb = await newGuest('잠 B'), gc = await newGuest('잠 C');
+    const a = connect(ga.id, ga.store), b = connect(gb.id, ga.store);
+    const wa = await a.welcome(), wb = await b.welcome();
+    await sleep(20000); // 조용히 두면 매장 DO가 잠든다
+    const c = connect(gc.id, ga.store);
+    const wc = await c.welcome();
+    assert(ids(wc.players).includes(wa.you.id) && ids(wc.players).includes(wb.you.id), `깨어난 뒤 목록 ${JSON.stringify(ids(wc.players))}`);
+    await a.waitFor((m) => m.t === 'join' && m.p.id === wc.you.id, '깨어난 뒤 A가 C join 받기');
+    await Promise.all([a.close(), b.close(), c.close()]);
   },
 };
 

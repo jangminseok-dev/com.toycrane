@@ -1,4 +1,7 @@
-from toycrane.domain.store_rules import choose_store
+import math
+
+from toycrane.domain.store_rules import choose_store, clamp_to_floor, spawn_position
+from toycrane.domain.value_objects.position import Position
 
 
 def test_fills_lowest_open_store():
@@ -15,3 +18,14 @@ def test_empty_starts_at_one():
 
 def test_full_when_every_store_full():
     assert choose_store({1: 50, 2: 50, 3: 50, 4: 50}, max_stores=4) is None
+
+
+def test_spawn_on_ring():
+    p = spawn_position(7)
+    assert math.isclose(math.hypot(p.x, p.z), 2.4)
+    assert spawn_position(7) != spawn_position(8)
+
+
+def test_clamp_to_floor_bounds_and_tower():
+    assert clamp_to_floor(Position(13.0, -20.0)) == Position(12.6, -12.6)
+    assert clamp_to_floor(Position(0.5, 1.0)) == Position(0.5, 1.3)

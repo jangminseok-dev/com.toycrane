@@ -1,0 +1,25 @@
+from abc import ABC, abstractmethod
+
+from toycrane.app.dtos.player_view import PlayerView
+
+
+class ConnectionsPort(ABC):
+    """매장 접속들에게 알리기. 메시지 형식(직렬화)은 어댑터가 정한다."""
+
+    @abstractmethod
+    def send_welcome(self, conn_id: str, store_no: int, you: PlayerView, players: list[PlayerView]) -> None: ...
+
+    @abstractmethod
+    def broadcast_join(self, except_conn: str, p: PlayerView) -> None: ...
+
+    @abstractmethod
+    def broadcast_leave(self, except_conn: str | None, player_id: str) -> None: ...
+
+    @abstractmethod
+    def broadcast_move(self, except_conn: str, p: PlayerView) -> None: ...
+
+    @abstractmethod
+    def send_correction(self, conn_id: str, x: float, z: float) -> None: ...
+
+    @abstractmethod
+    def kick(self, conn_id: str, code: int, reason: str) -> None: ...
