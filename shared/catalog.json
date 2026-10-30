@@ -1,0 +1,38 @@
+{
+  "sets": [
+    {"id": "soft", "name": "말랑 동물", "color": "#ff7ab6"},
+    {"id": "forest", "name": "숲속 친구들", "color": "#2fbf8f"},
+    {"id": "water", "name": "물가 친구들", "color": "#3fa8f0"},
+    {"id": "dream", "name": "꿈동산 친구들", "color": "#9a6bff"}
+  ],
+  "dolls": [
+    {"id": "bunny", "name": "토끼", "set": "soft", "rare": false},
+    {"id": "bear", "name": "곰돌이", "set": "soft", "rare": false},
+    {"id": "cat", "name": "고양이", "set": "soft", "rare": false},
+    {"id": "dog", "name": "강아지", "set": "soft", "rare": false},
+    {"id": "panda", "name": "판다", "set": "soft", "rare": false},
+    {"id": "hamster", "name": "햄찌", "set": "soft", "rare": false},
+    {"id": "starbunny", "name": "별빛 토끼", "set": "soft", "rare": true, "base": "bunny"},
+    {"id": "fox", "name": "여우", "set": "forest", "rare": false},
+    {"id": "raccoon", "name": "너구리", "set": "forest", "rare": false},
+    {"id": "squirrel", "name": "다람쥐", "set": "forest", "rare": false},
+    {"id": "owl", "name": "부엉이", "set": "forest", "rare": false},
+    {"id": "deer", "name": "아기사슴", "set": "forest", "rare": false},
+    {"id": "hedgehog", "name": "고슴도치", "set": "forest", "rare": false},
+    {"id": "goldfox", "name": "황금 여우", "set": "forest", "rare": true, "base": "fox"},
+    {"id": "penguin", "name": "펭귄", "set": "water", "rare": false},
+    {"id": "frog", "name": "개구리", "set": "water", "rare": false},
+    {"id": "duck", "name": "오리", "set": "water", "rare": false},
+    {"id": "seal", "name": "물범", "set": "water", "rare": false},
+    {"id": "octopus", "name": "문어", "set": "water", "rare": false},
+    {"id": "whale", "name": "고래", "set": "water", "rare": false},
+    {"id": "pearlpenguin", "name": "진주 펭귄", "set": "water", "rare": true, "base": "penguin"},
+    {"id": "chick", "name": "병아리", "set": "dream", "rare": false},
+    {"id": "pig", "name": "꿀꿀이", "set": "dream", "rare": false},
+    {"id": "sheep", "name": "양", "set": "dream", "rare": false},
+    {"id": "cow", "name": "젖소", "set": "dream", "rare": false},
+    {"id": "dino", "name": "공룡", "set": "dream", "rare": false},
+    {"id": "unicorn", "name": "유니콘", "set": "dream", "rare": false},
+    {"id": "rainbowdino", "name": "무지개 공룡", "set": "dream", "rare": true, "base": "dino"}
+  ]
+}
