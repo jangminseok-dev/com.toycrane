@@ -64,6 +64,19 @@ async function walkTo(c, from, to) {
   assert(!c.messages.some((m) => m.t === 'correct'), `걷는 중 보정됨 ${JSON.stringify(c.messages.find((m) => m.t === 'correct'))}`);
 }
 
+const WINDOW = { x: -2.9, z: -2.6 }, C6 = { x: 0, z: -5.4 }; // 교환소 0 창구, C-6 기계 앞자리
+
+// 교환소에서 코인 5개 받고 C-6 앞까지 간다
+async function coinsThenC6(c, w) {
+  await walkTo(c, w.you, WINDOW);
+  send(c, { t: 'queue', c: 0 });
+  await c.waitFor((m) => m.t === 'queue' && m.ids[0] === w.you.id, '줄 맨 앞');
+  await sleep(2100);
+  send(c, { t: 'take' });
+  await c.waitFor((m) => m.t === 'coins' && m.got === 5, '코인 5개');
+  await walkTo(c, WINDOW, C6);
+}
+
 const cases = {
   async myself() {
     const { status, body } = await getJson('/api/myself');
@@ -152,6 +165,64 @@ const cases = {
     assert(got.n === 5 && got.got === 5, `coins ${JSON.stringify(got)}`);
     await c.waitFor((m) => m.t === 'queue' && m.c === 0 && !m.ids.includes(w.you.id), '받고 줄에서 빠짐');
     await c.close();
+  },
+  async play() {
+    const g = await newGuest('스모크 한판'), o = await newGuest('스모크 구경');
+    const c = connect(g.id, g.store), obs = connect(o.id, g.store);
+    const w = await c.welcome();
+    await obs.welcome();
+    await coinsThenC6(c, w);
+    send(c, { t: 'play', m: 'C-6' });
+    const ok = await c.waitFor((m) => m.t === 'play_ok', 'play_ok');
+    assert(ok.m === 'C-6' && ok.coins === 4 && ok.limit === 20, `play_ok ${JSON.stringify(ok)}`);
+    await obs.waitFor((m) => m.t === 'play' && m.m === 'C-6' && m.id === w.you.id, '구경꾼이 play 받기');
+    const [, x, z] = w.machines['C-6'][0];
+    send(c, { t: 'drop', x, z }); // 인형 위에
+    const r = await obs.waitFor((m) => m.t === 'result' && m.m === 'C-6', '구경꾼이 result 받기');
+    assert(['win', 'slip', 'miss'].includes(r.o) && ['head', 'body', 'arm', 'none'].includes(r.part) && r.id === w.you.id, `result ${JSON.stringify(r)}`);
+    if (r.o === 'win') {
+      await obs.waitFor((m) => m.t === 'machine' && m.m === 'C-6' && m.dolls.length === 9, '새 배치');
+      await c.waitFor((m) => m.t === 'bag' && m.n === 1, '가방 1');
+    }
+    await Promise.all([c.close(), obs.close()]);
+  },
+  async busy() {
+    const ga = await newGuest('스모크 먼저'), gb = await newGuest('스모크 나중');
+    const a = connect(ga.id, ga.store), b = connect(gb.id, ga.store);
+    const wa = await a.welcome();
+    await b.welcome();
+    await coinsThenC6(a, wa);
+    send(a, { t: 'play', m: 'C-6' });
+    await a.waitFor((m) => m.t === 'play_ok', 'A play_ok');
+    send(b, { t: 'play', m: 'C-6' });
+    const no = await b.waitFor((m) => m.t === 'play_no', 'B play_no');
+    assert(no.why === 'busy', `B ${JSON.stringify(no)}`);
+    await Promise.all([a.close(), b.close()]);
+  },
+  async nocoins() {
+    const g = await newGuest('스모크 빈지갑');
+    const c = connect(g.id, g.store);
+    const w = await c.welcome();
+    await walkTo(c, w.you, C6);
+    send(c, { t: 'play', m: 'C-6' });
+    const no = await c.waitFor((m) => m.t === 'play_no', 'play_no');
+    assert(no.why === 'coins', `play_no ${JSON.stringify(no)}`);
+    await c.close();
+  },
+  async refund() {
+    const g = await newGuest('스모크 환불'), o = await newGuest('스모크 지켜봄');
+    const c = connect(g.id, g.store), obs = connect(o.id, g.store);
+    const w = await c.welcome();
+    await obs.welcome();
+    await coinsThenC6(c, w);
+    send(c, { t: 'play', m: 'C-6' });
+    await c.waitFor((m) => m.t === 'play_ok' && m.coins === 4, 'play_ok');
+    await c.close(); // 하는 도중 끊김
+    await obs.waitFor((m) => m.t === 'free' && m.m === 'C-6', '구경꾼이 free 받기');
+    const again = connect(g.id, g.store);
+    const w2 = await again.welcome();
+    assert(w2.coins === 5, `돌려받은 코인 ${w2.coins}`);
+    await Promise.all([again.close(), obs.close()]);
   },
   async unknown() {
     const c = connect('nope', 1);
