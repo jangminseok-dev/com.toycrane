@@ -135,3 +135,29 @@ def restock(spots: list[DollSpot], index: int, set_id: str, rng: random.Random) 
     """뽑힌 자리에 같은 세트 새 인형을 넣는다 — 위층을 받치던 인형이 빠져도 무더기가 무너지지 않게 자리·높이는 그대로."""
     old = spots[index]
     return [new_spot(set_id, rng, old.x, old.z, old.y) if i == index else s for i, s in enumerate(spots)]
+
+
+def drop_nearby(spots: list[DollSpot], index: int, rng: random.Random) -> list[DollSpot]:
+    """들었다 놓친 인형이 떨어져 굴러간 자리: 5~16cm 떨어진 빈 바닥(다른 바닥 인형과 18cm 넘게), 없으면 근처 인형 위.
+    위층을 받치던 바닥 인형이면 위층이 뜨지 않게 제자리로 떨어진다."""
+    old = spots[index]
+    others = [s for i, s in enumerate(spots) if i != index]
+    floor = [s for s in others if s.y == 0]
+    holding = old.y == 0 and any(s.y > 0 and math.hypot(s.x - old.x, s.z - old.z) <= 0.17 for s in others)
+    moved = old
+    if not holding:
+        w, d = MACHINE_SPEC.play_half
+        candidates = []
+        for _ in range(32):
+            angle, dist = rng.uniform(0, 2 * math.pi), rng.uniform(0.05, 0.16)
+            x, z = round(old.x + math.cos(angle) * dist, 3), round(old.z + math.sin(angle) * dist, 3)
+            if abs(x) <= w and abs(z) <= d and _in_area(x, z):
+                candidates.append((x, z))
+        spin = round(rng.uniform(0, 2 * math.pi), 2)
+        on_floor = next(((x, z) for x, z in candidates if all(math.hypot(x - f.x, z - f.z) >= 0.18 for f in floor)), None)
+        if on_floor:
+            moved = DollSpot(old.kind, on_floor[0], on_floor[1], spin, 0.0)
+        elif candidates:
+            x, z = candidates[0]
+            moved = DollSpot(old.kind, x, z, spin, rest_height(floor, x, z))
+    return [moved if i == index else s for i, s in enumerate(spots)]

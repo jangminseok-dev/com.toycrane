@@ -3,7 +3,8 @@ import { MACHINES, type MachineSpot } from '../data/storeLayout';
 import type { Occluder } from '../game/occlusion';
 import { bakeByMaterial, fadeMaterials, materialCloner, mergeBuckets } from './bake';
 import { makeDoll } from './dolls';
-import { CLAW_REST, DOLL_FLOOR, DOLL_SCALE, clawMat, ledBaseMat, ledFlashMat, makeMachineParts } from './machine';
+import { CHROME, idleClawGeometry, makeClawRig, type ClawRig } from './claw';
+import { CLAW_REST, DOLL_FLOOR, DOLL_SCALE, ledBaseMat, ledFlashMat, makeMachineParts } from './machine';
 
 // 기계 속 인형 한 칸: [인형 id, x, z, 몸 돌림, 얹힌 높이] — 서버 welcome·machine 메시지와 같은 모양
 import type { DollSpot } from '../net/protocol';
@@ -16,6 +17,9 @@ export interface BigZone {
   worldOf(machineId: string): THREE.Object3D; // 기계 자리·방향 (모션·카메라 기준)
   flash(machineId: string, gold: boolean, seconds: number): void;
   showAim(machineId: string, on: boolean): void; // 집게 아래 바닥의 겨냥 고리 (하는 동안만)
+  activateClaw(machineId: string): ClawRig; // 하는 동안 그 기계에 움직이는 집게를 빌려 준다
+  rigOf(machineId: string): ClawRig | null;
+  releaseClaw(machineId: string): void;
   update(t: number): void; // 깜빡임, 바뀐 행의 인형 다시 합치기
   occluders: Occluder[]; // 행 2개: 벽 줄, 섬
 }
@@ -27,7 +31,11 @@ const aimMat = new THREE.MeshBasicMaterial({ color: 0xff3b8f, transparent: true,
 const BLOCK_MAX = 6;
 type Row = { group: THREE.Group; cloner: ReturnType<typeof materialCloner>; spots: MachineSpot[] };
 type Block = { row: Row; group: THREE.Group; spots: MachineSpot[]; dirty: boolean };
-type Unit = { row: Row; block: Block; anchor: THREE.Group; claw: THREE.Group; led: THREE.Mesh; contents: DollSpot[]; flashUntil: number; gold: boolean };
+type Unit = {
+  row: Row; block: Block; anchor: THREE.Group; claw: THREE.Group; idle: THREE.Mesh; rig: ClawRig | null;
+  led: THREE.Mesh; contents: DollSpot[]; flashUntil: number; gold: boolean;
+};
+const rigPool: ClawRig[] = [];
 
 // 인형 종류마다 lite 모양을 재질별로 한 번만 합쳐 두고, 다시 합칠 때는 옮겨 붙이기만 한다
 type Part = { geo: THREE.BufferGeometry; mat: THREE.Material };
@@ -62,20 +70,21 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
   MACHINES.forEach((spot, index) => {
     const row = rows.find((r) => r.spots.includes(spot))!;
     const block = blocks.find((b) => b.spots.includes(spot))!;
-    const { statics, ledGeo, clawGeo } = makeMachineParts(spot, index);
+    const { statics, ledGeo } = makeMachineParts(spot, index);
     const tmp = new THREE.Group(); tmp.add(statics);
     for (const m of bakeByMaterial(tmp, row.cloner.remap)) row.group.add(m);
     const anchor = new THREE.Group(); anchor.position.set(spot.x, 0, spot.z); anchor.rotation.y = spot.ry;
     const led = new THREE.Mesh(ledGeo, row.cloner.remap(ledBaseMat()));
     const claw = new THREE.Group(); claw.position.copy(CLAW_REST);
-    claw.add(new THREE.Mesh(clawGeo, row.cloner.remap(clawMat())));
+    const idle = new THREE.Mesh(idleClawGeometry(), row.cloner.remap(CHROME())); idle.name = 'idle-claw';
+    claw.add(idle);
     // 겨냥 고리: 집게를 따라 펠트 바닥에 비친다(실제 크레인 게임의 집게 그림자처럼)
     const aim = new THREE.Mesh(aimGeo, aimMat);
     aim.name = 'aim'; aim.visible = false; aim.renderOrder = 10; aim.rotation.x = -Math.PI / 2; aim.position.y = DOLL_FLOOR + 0.012 - CLAW_REST.y;
     claw.add(aim);
     anchor.add(led, claw);
     row.group.add(anchor);
-    units.set(spot.id, { row, block, anchor, claw, led, contents: [], flashUntil: 0, gold: false });
+    units.set(spot.id, { row, block, anchor, claw, idle, rig: null, led, contents: [], flashUntil: 0, gold: false });
   });
   const flashMats = new Map(rows.map((r) => [r, { hot: r.cloner.remap(ledFlashMat().hot), gold: r.cloner.remap(ledFlashMat().gold) }]));
 
@@ -124,6 +133,20 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     worldOf: (id) => unit(id).anchor,
     flash(id, gold, seconds) { const u = unit(id); u.flashUntil = performance.now() / 1000 + seconds; u.gold = gold; },
     showAim(id, on) { unit(id).claw.getObjectByName('aim')!.visible = on; },
+    activateClaw(id) {
+      const u = unit(id);
+      if (!u.rig) { u.rig = rigPool.pop() ?? makeClawRig(); u.claw.add(u.rig.root); u.idle.visible = false; }
+      return u.rig;
+    },
+    rigOf: (id) => units.get(id)?.rig ?? null,
+    releaseClaw(id) {
+      const u = unit(id);
+      if (!u.rig) return;
+      const rig = u.rig;
+      rig.root.removeFromParent(); rig.setOpen(0.35); rig.setCable(0.05); rig.swing.rotation.set(0, 0, 0);
+      for (const c of [...rig.grip.children]) rig.grip.remove(c);
+      rigPool.push(rig); u.rig = null; u.idle.visible = true;
+    },
     update(t) {
       for (const block of blocks) if (block.dirty) rebuild(block);
       const now = performance.now() / 1000, blink = Math.floor(t * 10) % 2 === 0;

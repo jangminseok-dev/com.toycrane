@@ -56,6 +56,6 @@ def test_play_messages_match_fixtures():
     assert play_ok("A-3", 9, 20) == FX["server_play_ok"]
     assert play_no("A-3", "busy") == FX["server_play_no"]
     assert play("A-3", "p1") == FX["server_play"]
-    assert result(ResultView("A-3", "p1", 0.1204, -0.0501, "win", "head", "bunny")) == FX["server_result"]
+    assert result(ResultView("A-3", "p1", 0.1204, -0.0501, "win", "head", "bunny", 0)) == FX["server_result"]
     assert machine("A-3", [DollSpot("bear", 0.2, 0.1, 0.5)]) == FX["server_machine"]
     assert free("A-3") == FX["server_free"] and bag(3) == FX["server_bag"]

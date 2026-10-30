@@ -99,3 +99,27 @@ def test_claw_sways_a_little_off_the_aimed_spot():
     assert all(math.hypot(x, z) <= SWAY_MAX + 1e-9 for x, z in landings)
     assert any(math.hypot(x, z) > 0.05 for x, z in landings)  # 머리(5cm) 밖으로 벗어날 때도 있다
     assert len({(round(x, 3), round(z, 3)) for x, z in landings}) > 150
+
+
+# ---- 놓친 인형이 떨어져 굴러서 근처에 멈춘다 (사용자 요청 2026-10-31) ----
+from toycrane.domain.crane import drop_nearby  # noqa: E402
+
+
+@pytest.mark.parametrize("seed", range(15))
+def test_slipped_doll_lands_near_where_it_was(seed):
+    spots = generate_contents("soft", random.Random(seed))
+    top = next(i for i, s in enumerate(spots) if s.y > 0)
+    after = drop_nearby(spots, top, random.Random(seed + 100))
+    moved, was = after[top], spots[top]
+    assert moved.kind == was.kind  # 같은 인형이 자리만 바뀐다
+    assert 0.04 <= math.hypot(moved.x - was.x, moved.z - was.z) <= 0.17
+    w, d = MACHINE_SPEC.play_half
+    assert abs(moved.x) <= w and abs(moved.z) <= d
+    assert [s for i, s in enumerate(after) if i != top] == [s for i, s in enumerate(spots) if i != top]
+
+
+def test_a_floor_doll_holding_others_falls_back_to_its_place():
+    """위층을 받치던 바닥 인형은 굴러가면 위층이 뜨므로 제자리로 떨어진다."""
+    spots = [DollSpot("bear", 0.0, 0.0, 0.0), DollSpot("cat", 0.24, 0.0, 0.0), DollSpot("dog", 0.12, 0.0, 0.0, 0.2)]
+    after = drop_nearby(spots, 0, random.Random(1))
+    assert (after[0].x, after[0].z, after[0].y) == (0.0, 0.0, 0.0)

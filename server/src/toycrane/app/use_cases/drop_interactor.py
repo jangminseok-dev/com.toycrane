@@ -8,7 +8,7 @@ from toycrane.app.ports.output.machine_contents_port import MachineContentsPort
 from toycrane.app.ports.output.play_lock_port import PlayLockPort
 from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
 from toycrane.app.use_cases.machine_contents import ensure_contents
-from toycrane.domain.crane import clamp_claw, judge, restock, sway
+from toycrane.domain.crane import clamp_claw, drop_nearby, judge, restock, sway
 from toycrane.domain.layout import MACHINES
 from toycrane.domain.play_rules import expired
 
@@ -48,6 +48,9 @@ class DropInteractor(DropUseCase):
             contents[machine_id] = restock(spots, grab.index, MACHINES[machine_id].set, self._rng)
             await self._contents.save(contents)
             self._connections.send_bag(cmd.conn_id, await self._bag.add(me.guest_id, kind, ZONE, cmd.now))
-        self._connections.broadcast_result(ResultView(machine_id, me.player_id, x, z, grab.outcome, grab.part, kind))
-        if grab.outcome == "win":
+        elif grab.outcome == "slip":
+            contents[machine_id] = drop_nearby(spots, grab.index, self._rng)  # 떨어져 굴러간 자리
+            await self._contents.save(contents)
+        self._connections.broadcast_result(ResultView(machine_id, me.player_id, x, z, grab.outcome, grab.part, kind, grab.index))
+        if grab.outcome in ("win", "slip"):
             self._connections.broadcast_machine(machine_id, contents[machine_id])

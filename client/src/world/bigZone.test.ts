@@ -57,3 +57,15 @@ test('dolls are drawn at their resting height', () => {
   scene.traverse((o) => { if (o.name.startsWith('dolls-')) box.expandByObject(o); });
   expect(box.min.y).toBeGreaterThan(0.87 + 0.15);
 });
+
+// 하는 기계에서만 움직이는 집게로 바꿔 끼우고, 끝나면 쉬는 집게로 돌려놓는다(35대 모두 움직이는 집게면 휴대폰이 무겁다)
+test('a machine borrows the moving claw while in use', () => {
+  const zone = buildBigZone(new THREE.Scene());
+  const idle = zone.clawOf('C-6').getObjectByName('idle-claw')!;
+  const rig = zone.activateClaw('C-6');
+  expect(idle.visible).toBe(false);
+  expect(rig.root.parent).toBe(zone.clawOf('C-6'));
+  zone.releaseClaw('C-6');
+  expect(idle.visible).toBe(true);
+  expect(rig.root.parent).toBeNull();
+});

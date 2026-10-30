@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MachineSpot } from '../data/storeLayout';
-import { SPH_LO, canvasTex, cap, part, toon, toonWith } from './toon';
+import { SPH_LO, canvasTex, part, toon, toonWith } from './toon';
 
 // 큰인형 기계 (시제품 docs/reference/prototypes/spike-arcade-big-v3.html makeMachine, 578~711행).
 // 실제 크레인 게임기 구성: 아래 캐비닛(투입구·조작대·상품 출구) / 유리 칸(펠트 바닥·상품 구멍·투명 가림막·뒷판) / 위 간판(이름판·전구)
@@ -30,7 +30,6 @@ const G = once(() => ({
   felt: new THREE.BoxGeometry(1.12, 0.02, 0.98), back: new THREE.PlaneGeometry(1.12, 1.08), inner: new THREE.BoxGeometry(1.04, 0.03, 0.05),
   hole: new THREE.PlaneGeometry(0.3, 0.3), glass: new THREE.BoxGeometry(1.14, 1.1, 1.0), pillar: new THREE.BoxGeometry(0.06, 1.1, 0.06),
   header: new THREE.BoxGeometry(1.26, 0.5, 1.11), marquee: new THREE.PlaneGeometry(1.0, 0.31), plate: new THREE.PlaneGeometry(0.26, 0.13), plateBox: new THREE.BoxGeometry(0.3, 0.17, 0.04),
-  clawRod: new THREE.CylinderGeometry(0.015, 0.015, 0.22, 8), clawFinger: cap(0.014, 0.14),
   bulb: new THREE.SphereGeometry(0.026, 8, 6), bar: new THREE.BoxGeometry(0.03, 0.15, 0.02), acryl: new THREE.BoxGeometry(0.34, 0.2, 0.34),
   pole: new THREE.CylinderGeometry(0.012, 0.012, 0.85, 8),
 }));
@@ -61,7 +60,6 @@ const M = once(() => {
     cardScreen: new THREE.MeshBasicMaterial({ color: 0x4fd8ff }),
     flag: new THREE.MeshLambertMaterial({ map: flagTex, side: THREE.DoubleSide }),
     flagGeo: new THREE.ShapeGeometry(flagShape),
-    claw: toon(0xc9c9d6),
   };
 });
 
@@ -94,7 +92,6 @@ function plateTex(text: string): THREE.CanvasTexture {
 export type MachineParts = {
   statics: THREE.Group; // 움직이지 않는 부분 (기계 자리·방향에 놓임, 행마다 합침)
   ledGeo: THREE.BufferGeometry; // 기계의 LED 전부를 꼭짓점 색으로 한 덩어리 (기계 안 좌표)
-  clawGeo: THREE.BufferGeometry; // 집게 한 덩어리 (집게 안 좌표)
 };
 
 // index: 배치 순서 (이름표·간판 색·깃발을 돌려 쓰는 기준)
@@ -157,17 +154,8 @@ export function makeMachineParts(spot: MachineSpot, index: number): MachineParts
   for (const y of [2.0, 2.4]) for (let i = 0; i < 8; i++) led(g.bulb, i % 2 ? LED_COLORS.pink : LED_COLORS.white, [-0.525 + i * 0.15, y, 0.565]);
   const ledGeo = mergeGeometries(leds.map((l) => (l.index ? l.toNonIndexed() : l)))!;
 
-  // 집게: 막대 + 둥근 머리 + 손가락 3개
-  const clawParts: THREE.BufferGeometry[] = [g.clawRod.clone().translate(0, -0.11, 0), SPH_LO.clone().scale(0.06, 0.05, 0.06).translate(0, -0.24, 0)];
-  for (let i = 0; i < 3; i++) {
-    const a = (i / 3) * Math.PI * 2;
-    const f = g.clawFinger.clone().applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(Math.cos(a) * 0.35, 0, -Math.sin(a) * 0.35)));
-    clawParts.push(f.translate(Math.sin(a) * 0.06, -0.33, Math.cos(a) * 0.06));
-  }
-  const clawGeo = mergeGeometries(clawParts.map((c) => (c.index ? c.toNonIndexed() : c)))!;
-  return { statics: m, ledGeo, clawGeo };
+  return { statics: m, ledGeo };
 }
 
 export const ledBaseMat = once(() => new THREE.MeshBasicMaterial({ vertexColors: true }));
 export const ledFlashMat = once(() => ({ hot: new THREE.MeshBasicMaterial({ color: 0xff5fa2 }), gold: new THREE.MeshBasicMaterial({ color: 0xffd36b }) }));
-export const clawMat = () => M().claw;

@@ -69,7 +69,10 @@ def play(machine_id: str, player_id: str) -> dict:
 
 
 def result(v: ResultView) -> dict:
-    return {"t": "result", "m": v.machine_id, "id": v.player_id, "x": round(v.x, 3), "z": round(v.z, 3), "o": v.outcome, "part": v.part, "k": v.kind}
+    return {
+        "t": "result", "m": v.machine_id, "id": v.player_id, "x": round(v.x, 3), "z": round(v.z, 3),
+        "o": v.outcome, "part": v.part, "k": v.kind, "i": v.index,
+    }
 
 
 def machine(machine_id: str, spots: list[DollSpot]) -> dict:

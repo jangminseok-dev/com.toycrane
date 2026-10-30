@@ -85,3 +85,16 @@ async def test_result_reports_where_the_claw_actually_landed():
     result = next(m for _, m in conns.broadcasts if m["t"] == "result")
     assert (result["x"], result["z"]) != (0.1, -0.1)
     assert math.hypot(result["x"] - 0.1, result["z"] + 0.1) <= 0.071
+
+
+async def test_slip_moves_the_doll_nearby_and_tells_everyone():
+    """놓친 인형은 근처로 굴러가고, 새 배치를 모두에게 알린다. 결과에는 잡은 인형 번호(i)를 싣는다."""
+    locks, conns, bag, contents, it = setup(roll=0.3)  # 머리 놓침 구간
+    before = list(contents.stored["A-1"])
+    await it.drop(DropCommand("c-1", 0.0, 0.0, now=15.0))
+    result = next(m for _, m in conns.broadcasts if m["t"] == "result")
+    assert result["o"] == "slip" and result["i"] == 0
+    machine = next(m for _, m in conns.broadcasts if m["t"] == "machine")
+    moved = contents.stored["A-1"][0]
+    assert machine["m"] == "A-1" and moved.kind == "bunny" and (moved.x, moved.z) != (0.0, 0.0)
+    assert contents.stored["A-1"][1:] == before[1:] and bag.added == []

@@ -4,10 +4,11 @@ import { followCamera } from './game/followCamera';
 import { InputSampler } from './game/inputSampler';
 import { LocalPlayer } from './game/localPlayer';
 import { aimHeight } from './game/aim';
-import { clawPath } from './game/clawPath';
 import { machineCameraPose } from './game/machineCamera';
 import { MachineBusy } from './game/machineBusy';
 import { PlaySession } from './game/playSession';
+import { Swing } from './game/swing';
+import { runClaw } from './world/clawShow';
 import { Tweens, ease } from './game/tween';
 import { sfx, unlockAudio } from './audio/sfx';
 import { QueueClient } from './game/queueClient';
@@ -33,7 +34,7 @@ import { MACHINES, MACHINE_SPEC, frontSpot, nearestMachine } from './data/storeL
 import { buildBigZone } from './world/bigZone';
 import { makeDoll } from './world/dolls';
 import { burst, updateEffects } from './world/effects';
-import { CLAW_REST, DOLL_FLOOR } from './world/machine';
+import { CLAW_REST } from './world/machine';
 import { playResult, startPlaying } from './world/motions';
 import { buildCoinCounters } from './world/coinCounter';
 import { buildStore } from './world/storeScene';
@@ -81,6 +82,30 @@ const playing = new Map<string, { stop(): Promise<void> }>();
 const showing = new Set<string>();
 const pendingContents = new Map<string, DollSpot[]>();
 const spinners: { obj: THREE.Object3D; speed: number }[] = [];
+// 움직이는 집게의 흔들림(진자): 기계마다 집게 위치에서 속도·가속도를 구해 매 프레임 기울인다
+const swings = new Map<string, { swing: Swing; px: number; pz: number; vx: number; vz: number }>();
+function swingOf(id: string): Swing {
+  let s = swings.get(id);
+  if (!s) { const c = bigZone.clawOf(id).position; s = { swing: new Swing(), px: c.x, pz: c.z, vx: 0, vz: 0 }; swings.set(id, s); }
+  return s.swing;
+}
+function updateSwings(dt: number) {
+  if (dt <= 0) return;
+  for (const [id, s] of swings) {
+    const rig = bigZone.rigOf(id), c = bigZone.clawOf(id).position;
+    const vx = (c.x - s.px) / dt, vz = (c.z - s.pz) / dt;
+    const ax = Math.max(-20, Math.min(20, (vx - s.vx) / dt)), az = Math.max(-20, Math.min(20, (vz - s.vz) / dt));
+    s.px = c.x; s.pz = c.z; s.vx = vx; s.vz = vz;
+    s.swing.update(dt, ax, az);
+    if (rig) { rig.swing.rotation.z = s.swing.tiltX; rig.swing.rotation.x = -s.swing.tiltZ; }
+    else { s.swing.reset(); swings.delete(id); }
+  }
+}
+function takePending(id: string): DollSpot[] | undefined {
+  const p = pendingContents.get(id);
+  pendingContents.delete(id);
+  return p;
+}
 let showingMe = false; // 내 결과 모션 중엔 걷지 않는다
 let myNick = '';
 let myAvatar: Avatar | null = null;
@@ -237,6 +262,7 @@ function startPlay(machineId: string, limit: number, coins: number) {
     playing.set(machineId, startPlaying(myAvatar.rig, tw, spotOf.get(machineId)!.ry + Math.PI, sfx.coin));
   }
   bigZone.showAim(machineId, true);
+  bigZone.activateClaw(machineId); // 움직이는 집게로 바꿔 끼운다 (흔들림이 보이게)
   if (me && socket) { me.dir = { x: 0, z: 0 }; socket.send(encodeMove(me.pos, me.dir)); }
 }
 
@@ -252,7 +278,10 @@ function sendDrop() {
 
 function endPlay() {
   const id = session?.machineId ?? awaiting;
-  if (id) { bigZone.clawOf(id).position.copy(CLAW_REST); bigZone.showAim(id, false); }
+  if (id) {
+    bigZone.clawOf(id).position.copy(CLAW_REST); bigZone.showAim(id, false);
+    if (!showing.has(id)) bigZone.releaseClaw(id);
+  }
   session = null; awaiting = null; dropped = null;
   hidePlayControls();
   if (myAvatar) myAvatar.root.visible = true;
@@ -273,7 +302,7 @@ async function showResult(m: Result) {
   if (doll) spinners.push(...doll.userData.spin);
   const fx = {
     bonk: () => { if (near) sfx.bonk(); },
-    claw: (seconds: number) => clawRun(m, seconds),
+    claw: () => runClaw({ tw, zone: bigZone, swing: swingOf(m.m), takePending: () => takePending(m.m) }, m),
     afterClaw: () => { if (mine) { awaiting = null; if (myAvatar) myAvatar.root.visible = true; } },
     pop: () => { if (near) sfx.pop(); },
     win: () => {
@@ -292,41 +321,12 @@ async function showResult(m: Result) {
     fail: () => { if (mine) sfx.fail(); },
   };
   if (rig) await playResult(rig, tw, m.o, doll, fx, face);
-  else { await clawRun(m, 1.7); fx.afterClaw(); }
+  else { await fx.claw(); fx.afterClaw(); }
   if (doll) spinners.splice(0, spinners.length, ...spinners.filter((s) => !doll.userData.spin.includes(s)));
   showing.delete(m.m);
   const next = pendingContents.get(m.m);
   if (next) { bigZone.setContents(m.m, next); pendingContents.delete(m.m); }
   if (mine) { showingMe = false; endPlay(); }
-}
-
-// 집게: 내린 자리로 옮겨 내려갔다 올라온다. 성공·놓침이면 노린 인형이 매달려 올라오고(놓침은 도중에 떨어짐)
-function clawRun(m: Result, seconds: number): Promise<void> {
-  const claw = bigZone.clawOf(m.m);
-  // 지금 집게 자리(내 화면은 노린 곳, 남의 화면은 쉬는 자리)에서 서버가 정한 실제 자리로 흔들리며 내려간다
-  const from = { x: claw.position.x, z: claw.position.z }, landing = { x: m.x, z: m.z };
-  const before = bigZone.contentsOf(m.m);
-  let carried: THREE.Group | null = null, dropped = false;
-  // 노린 인형: 집게 위치에서 가장 가까운 그 종류
-  const target = m.k && m.o !== 'miss'
-    ? before.reduce<DollSpot | null>((best, d) => d[0] === m.k && (!best || Math.hypot(d[1] - m.x, d[2] - m.z) < Math.hypot(best[1] - m.x, best[2] - m.z)) ? d : best, null)
-    : null;
-  // 집게 손이 인형 머리(없으면 바닥) 바로 위까지 내려간다 — 얹힌 인형이면 덜 내려간다
-  const depth = Math.max(0.3, CLAW_REST.y - (aimHeight(before, m.x, m.z) + 0.18));
-  return tw.tween(seconds, (k) => {
-    const at = clawPath(from, landing, k);
-    claw.position.set(at.x, CLAW_REST.y - Math.sin(k * Math.PI) * depth, at.z);
-    if (target && !carried && k >= 0.5) {
-      carried = makeDoll(target[0], true);
-      if (carried) {
-        carried.scale.setScalar(0.3); carried.position.set(0, DOLL_FLOOR + (target[4] ?? 0) - (CLAW_REST.y - depth), 0); claw.add(carried);
-        bigZone.setContents(m.m, before.filter((d) => d !== target)); // 무더기에서 들어 올린다
-      }
-    }
-    if (carried && m.o === 'slip' && !dropped && k >= 0.72) {
-      dropped = true; claw.remove(carried); bigZone.setContents(m.m, before); // 미끄러져 제자리로
-    }
-  }, ease.lin).then(() => { if (carried && !dropped) claw.remove(carried); });
 }
 
 // 기계 앞자리 가까이면 그 기계: 비었으면 "🪙1 넣고 하기", 남이 하면 구경 중
@@ -365,6 +365,7 @@ renderer.setAnimationLoop((now) => {
       else {
         setTimer(session.remaining);
         const claw = bigZone.clawOf(session.machineId);
+        swingOf(session.machineId);
         claw.position.set(session.claw.x, CLAW_REST.y, session.claw.z);
         // 겨냥 고리는 집게 아래 인형 머리 위(없으면 바닥)에 놓는다
         claw.getObjectByName('aim')!.position.y = aimHeight(bigZone.contentsOf(session.machineId), session.claw.x, session.claw.z) - CLAW_REST.y;
@@ -401,6 +402,7 @@ renderer.setAnimationLoop((now) => {
     }
   }
   tw.update(dt);
+  updateSwings(dt);
   updateEffects(dt);
   for (const sp of spinners) sp.obj.rotation.y += dt * sp.speed;
   remotes.update(now);

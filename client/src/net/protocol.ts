@@ -19,7 +19,10 @@ export type PlayOk = { t: 'play_ok'; m: string; coins: number; limit: number };
 export type PlayNo = { t: 'play_no'; m: string; why: 'busy' | 'coins' | 'far' | 'playing' };
 export type Play = { t: 'play'; m: string; id: string };
 export type Outcome = 'win' | 'slip' | 'miss';
-export type Result = { t: 'result'; m: string; id: string; x: number; z: number; o: Outcome; part: 'head' | 'body' | 'arm' | 'none'; k: string | null };
+export type Result = {
+  t: 'result'; m: string; id: string; x: number; z: number; o: Outcome; part: 'head' | 'body' | 'arm' | 'none'; k: string | null;
+  i?: number | null; // 잡은 인형이 기계 속 배치에서 몇 번째인지 (빈 곳이면 null)
+};
 export type MachineMsg = { t: 'machine'; m: string; dolls: DollSpot[] };
 export type Free = { t: 'free'; m: string };
 export type Bag = { t: 'bag'; n: number };

@@ -26,7 +26,7 @@
   "server_play_ok": { "t": "play_ok", "m": "A-3", "coins": 9, "limit": 20 },
   "server_play_no": { "t": "play_no", "m": "A-3", "why": "busy" },
   "server_play": { "t": "play", "m": "A-3", "id": "p1" },
-  "server_result": { "t": "result", "m": "A-3", "id": "p1", "x": 0.12, "z": -0.05, "o": "win", "part": "head", "k": "bunny" },
+  "server_result": { "t": "result", "m": "A-3", "id": "p1", "x": 0.12, "z": -0.05, "o": "win", "part": "head", "k": "bunny", "i": 0 },
   "server_machine": { "t": "machine", "m": "A-3", "dolls": [["bear", 0.2, 0.1, 0.5, 0.0]] },
   "server_free": { "t": "free", "m": "A-3" },
   "server_bag": { "t": "bag", "n": 3 },
