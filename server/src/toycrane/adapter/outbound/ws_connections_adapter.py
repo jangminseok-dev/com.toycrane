@@ -2,9 +2,11 @@ import json
 
 from toycrane.adapter.inbound.ws.schemas import server_messages
 from toycrane.adapter.outbound import ws_attachment
+from toycrane.app.dtos.drop_dto import ResultView
 from toycrane.app.dtos.player_view import PlayerView
 from toycrane.app.dtos.store_snapshot import StoreSnapshot
 from toycrane.app.ports.output.connections_port import ConnectionsPort
+from toycrane.domain.crane import DollSpot
 
 
 def _encode(message: dict) -> str:
@@ -57,6 +59,27 @@ class WsConnectionsAdapter(ConnectionsPort):
 
     def send_coins(self, conn_id: str, total: int, got: int) -> None:
         self._to_one(conn_id, server_messages.coins(total, got))
+
+    def send_play_ok(self, conn_id: str, machine_id: str, coins: int, limit: int) -> None:
+        self._to_one(conn_id, server_messages.play_ok(machine_id, coins, limit))
+
+    def send_play_no(self, conn_id: str, machine_id: str, why: str) -> None:
+        self._to_one(conn_id, server_messages.play_no(machine_id, why))
+
+    def broadcast_play(self, except_conn: str, machine_id: str, player_id: str) -> None:
+        self._to_all_except(except_conn, server_messages.play(machine_id, player_id))
+
+    def broadcast_result(self, view: ResultView) -> None:
+        self._to_all_except(None, server_messages.result(view))
+
+    def broadcast_machine(self, machine_id: str, spots: list[DollSpot]) -> None:
+        self._to_all_except(None, server_messages.machine(machine_id, spots))
+
+    def broadcast_free(self, machine_id: str) -> None:
+        self._to_all_except(None, server_messages.free(machine_id))
+
+    def send_bag(self, conn_id: str, total: int) -> None:
+        self._to_one(conn_id, server_messages.bag(total))
 
     def kick(self, conn_id: str, code: int, reason: str) -> None:
         ws = ws_attachment.find(self._ctx, conn_id)

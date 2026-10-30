@@ -111,6 +111,27 @@ class FakeConnections:
     def send_coins(self, conn_id, total, got) -> None:
         self.direct.append((conn_id, server_messages.coins(total, got)))
 
+    def send_play_ok(self, conn_id, machine_id, coins, limit) -> None:
+        self.direct.append((conn_id, server_messages.play_ok(machine_id, coins, limit)))
+
+    def send_play_no(self, conn_id, machine_id, why) -> None:
+        self.direct.append((conn_id, server_messages.play_no(machine_id, why)))
+
+    def broadcast_play(self, except_conn, machine_id, player_id) -> None:
+        self.broadcasts.append((except_conn, server_messages.play(machine_id, player_id)))
+
+    def broadcast_result(self, view) -> None:
+        self.broadcasts.append((None, server_messages.result(view)))
+
+    def broadcast_machine(self, machine_id, spots) -> None:
+        self.broadcasts.append((None, server_messages.machine(machine_id, spots)))
+
+    def broadcast_free(self, machine_id) -> None:
+        self.broadcasts.append((None, server_messages.free(machine_id)))
+
+    def send_bag(self, conn_id, total) -> None:
+        self.direct.append((conn_id, server_messages.bag(total)))
+
 
 class FakeWallet:
     """지갑(D1) 가짜 — 게스트별 코인 수."""

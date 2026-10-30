@@ -1,7 +1,10 @@
 import json
 from pathlib import Path
 
-from toycrane.adapter.inbound.ws.schemas.server_messages import coins, correct, join, leave, move, queue, queue_no, welcome
+from toycrane.adapter.inbound.ws.schemas.server_messages import (
+    bag, coins, correct, free, join, leave, machine, move, play, play_no, play_ok, queue, queue_no, result, welcome,
+)
+from toycrane.app.dtos.drop_dto import ResultView
 from toycrane.app.dtos.player_view import PlayerView
 from toycrane.app.dtos.store_snapshot import StoreSnapshot
 from toycrane.domain.crane import DollSpot
@@ -47,3 +50,12 @@ def test_queue_and_coin_messages_match_fixtures():
     assert queue(0, ["p1", "p2"]) == FX["server_queue"]
     assert queue_no(0, "full") == FX["server_queue_no"]
     assert coins(10, 5) == FX["server_coins"]
+
+
+def test_play_messages_match_fixtures():
+    assert play_ok("A-3", 9, 20) == FX["server_play_ok"]
+    assert play_no("A-3", "busy") == FX["server_play_no"]
+    assert play("A-3", "p1") == FX["server_play"]
+    assert result(ResultView("A-3", "p1", 0.1204, -0.0501, "win", "head", "bunny")) == FX["server_result"]
+    assert machine("A-3", [DollSpot("bear", 0.2, 0.1, 0.5)]) == FX["server_machine"]
+    assert free("A-3") == FX["server_free"] and bag(3) == FX["server_bag"]

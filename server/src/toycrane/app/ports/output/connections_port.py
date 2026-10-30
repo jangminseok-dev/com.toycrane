@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
 
+from toycrane.app.dtos.drop_dto import ResultView
 from toycrane.app.dtos.player_view import PlayerView
 from toycrane.app.dtos.store_snapshot import StoreSnapshot
+from toycrane.domain.crane import DollSpot
 
 
 class ConnectionsPort(ABC):
@@ -34,3 +36,26 @@ class ConnectionsPort(ABC):
 
     @abstractmethod
     def send_coins(self, conn_id: str, total: int, got: int) -> None: ...
+
+    @abstractmethod
+    def send_play_ok(self, conn_id: str, machine_id: str, coins: int, limit: int) -> None: ...
+
+    @abstractmethod
+    def send_play_no(self, conn_id: str, machine_id: str, why: str) -> None:
+        """why: "busy" | "coins" | "far" | "playing"."""
+
+    @abstractmethod
+    def broadcast_play(self, except_conn: str, machine_id: str, player_id: str) -> None: ...
+
+    @abstractmethod
+    def broadcast_result(self, view: ResultView) -> None:
+        """본인 포함 모두에게."""
+
+    @abstractmethod
+    def broadcast_machine(self, machine_id: str, spots: list[DollSpot]) -> None: ...
+
+    @abstractmethod
+    def broadcast_free(self, machine_id: str) -> None: ...
+
+    @abstractmethod
+    def send_bag(self, conn_id: str, total: int) -> None: ...

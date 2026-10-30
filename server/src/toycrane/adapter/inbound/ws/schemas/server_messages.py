@@ -1,6 +1,7 @@
 """서버→화면 메시지 형식. 견본: shared/protocol_fixtures.json. 위치는 소수 2자리, 방향은 3자리로 줄여 보낸다.
 기계 속 인형은 [id, x, z, r] — 기계 안 좌표 소수 3자리, 몸 돌림 2자리."""
 
+from toycrane.app.dtos.drop_dto import ResultView
 from toycrane.app.dtos.player_view import PlayerView
 from toycrane.app.dtos.store_snapshot import StoreSnapshot
 from toycrane.domain.crane import DollSpot
@@ -53,3 +54,31 @@ def queue_no(counter: int, why: str) -> dict:
 
 def coins(total: int, got: int) -> dict:
     return {"t": "coins", "n": total, "got": got}
+
+
+def play_ok(machine_id: str, coins: int, limit: int) -> dict:
+    return {"t": "play_ok", "m": machine_id, "coins": coins, "limit": limit}
+
+
+def play_no(machine_id: str, why: str) -> dict:
+    return {"t": "play_no", "m": machine_id, "why": why}
+
+
+def play(machine_id: str, player_id: str) -> dict:
+    return {"t": "play", "m": machine_id, "id": player_id}
+
+
+def result(v: ResultView) -> dict:
+    return {"t": "result", "m": v.machine_id, "id": v.player_id, "x": round(v.x, 3), "z": round(v.z, 3), "o": v.outcome, "part": v.part, "k": v.kind}
+
+
+def machine(machine_id: str, spots: list[DollSpot]) -> dict:
+    return {"t": "machine", "m": machine_id, "dolls": _spots(spots)}
+
+
+def free(machine_id: str) -> dict:
+    return {"t": "free", "m": machine_id}
+
+
+def bag(total: int) -> dict:
+    return {"t": "bag", "n": total}
