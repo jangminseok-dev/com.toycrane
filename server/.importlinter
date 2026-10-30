@@ -1,0 +1,27 @@
+# import-linter — toycrane 서버 계층 규칙
+# 실행: cd server && uv run lint-imports
+[importlinter]
+root_packages =
+    toycrane
+include_external_packages = True
+
+# 계약 1) 헥사고날/클린: adapter·dependencies(같은 층, 서로 import 허용) > app > domain
+[importlinter:contract:layers]
+name = 계층 (adapter : dependencies > app > domain)
+type = layers
+layers =
+    toycrane.adapter : toycrane.dependencies
+    toycrane.app
+    toycrane.domain
+
+# 계약 2) 런타임 격리: app·domain은 Workers 런타임 모듈을 모른다
+[importlinter:contract:runtime-isolation]
+name = 런타임 격리 (app·domain → js/workers/pyodide 금지)
+type = forbidden
+source_modules =
+    toycrane.app
+    toycrane.domain
+forbidden_modules =
+    js
+    workers
+    pyodide

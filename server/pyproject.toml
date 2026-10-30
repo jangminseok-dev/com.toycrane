@@ -1,0 +1,22 @@
+[project]
+name = "toycrane"
+version = "0.1.0"
+description = "toycrane 매장 서버 (Cloudflare Python Workers)"
+requires-python = ">=3.14"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "workers-py",
+    "workers-runtime-sdk",
+    "pytest",
+    "pytest-asyncio",
+    "import-linter",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+pythonpath = ["src", "tests"]
+addopts = "--import-mode=importlib"
+testpaths = ["tests"]

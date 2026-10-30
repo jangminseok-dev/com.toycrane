@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>도감 시제품</title>
+<style>
+  :root { --bg: #fbf4ff; --ink: #3b2a5a; --sub: #8a7aa8; --line: #eadcff; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: radial-gradient(circle at 15% 0%, #fff0f7 0, transparent 38%), radial-gradient(circle at 90% 8%, #eef6ff 0, transparent 40%), var(--bg); color: var(--ink); font-family: -apple-system, "Apple SD Gothic Neo", "Pretendard", sans-serif; }
+  #c { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+  header { max-width: 1180px; margin: 0 auto; padding: 28px 20px 4px; display: flex; align-items: end; gap: 16px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 30px; font-weight: 900; letter-spacing: -0.5px; }
+  header p { margin: 4px 0 0; color: var(--sub); font-size: 13px; }
+  .tabs { display: flex; gap: 6px; margin-left: auto; background: #fff; padding: 6px; border-radius: 999px; box-shadow: 0 2px 0 var(--line); }
+  .tabs button { border: 0; background: none; padding: 9px 18px; border-radius: 999px; font-weight: 800; font-size: 14px; color: var(--sub); cursor: pointer; }
+  .tabs button.on { background: #ff7ab6; color: #fff; }
+  main { max-width: 1180px; margin: 0 auto; padding: 4px 20px 60px; }
+  section { margin-top: 22px; }
+  section h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font-size: 17px; font-weight: 900; }
+  section h2 i { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+  section h2 small { color: var(--sub); font-weight: 700; font-size: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; }
+  .card { background: #fff; border-radius: 18px; box-shadow: 0 2px 0 var(--line), 0 6px 18px rgba(59, 42, 90, 0.06); cursor: pointer; transition: transform 0.15s; }
+  .card:hover { transform: translateY(-3px); }
+  .card .view { aspect-ratio: 1 / 1.08; }
+  .card .name { text-align: center; font-size: 13px; font-weight: 800; padding: 0 6px 10px; }
+  .card.rare { background: linear-gradient(180deg, #fff6d8, #fff); box-shadow: 0 0 0 2px #ffd36b inset, 0 2px 0 #f3d38a, 0 6px 18px rgba(201, 154, 42, 0.15); }
+  .card.rare .name { color: #9a6a00; }
+  @media (max-width: 760px) { .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } header h1 { font-size: 24px; } .tabs { margin-left: 0; } }
+  #detail { position: fixed; inset: 0; background: rgba(59, 42, 90, 0.45); display: none; align-items: center; justify-content: center; z-index: 3; padding: 16px; }
+  #detail.show { display: flex; }
+  #detail .box { width: min(540px, 100%); background: #fff; border-radius: 26px; padding: 14px 14px 18px; position: relative; }
+  #detail .view { width: 100%; aspect-ratio: 1 / 1; border-radius: 18px; background: radial-gradient(circle at 50% 40%, #fff, #f3e9ff); cursor: grab; touch-action: none; }
+  #detail h3 { margin: 12px 0 2px; text-align: center; font-size: 22px; font-weight: 900; }
+  #detail p { margin: 0; text-align: center; color: var(--sub); font-size: 13px; }
+  #detail .x { position: absolute; top: 10px; right: 12px; width: 36px; height: 36px; border-radius: 50%; border: 0; background: #f3e9ff; color: var(--ink); font-size: 18px; font-weight: 900; cursor: pointer; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<header>
+  <div><h1>도감</h1><p>버리는 시제품 · 28종 × 큰인형 · 미니 · 피규어 · 누르면 크게 돌려 보기</p></div>
+  <nav class="tabs"><button data-v="big">큰인형</button><button data-v="mini">미니</button><button data-v="figure">피규어</button></nav>
+</header>
+<main id="book"></main>
+<div id="detail"><div class="box"><button class="x" aria-label="닫기">✕</button><div class="view"></div><h3></h3><p></p></div></div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0x000000, 0);
+const envTex = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+
+// ---------- 공용 재료 ----------
+const gradientMap = new THREE.DataTexture(new Uint8Array([140, 205, 255]), 3, 1, THREE.RedFormat);
+gradientMap.minFilter = gradientMap.magFilter = THREE.NearestFilter;
+gradientMap.needsUpdate = true;
+const matCache = new Map();
+const toon = (color) => {
+  if (!matCache.has(color)) matCache.set(color, new THREE.MeshToonMaterial({ color, gradientMap }));
+  return matCache.get(color);
+};
+const outlineMat = new THREE.MeshBasicMaterial({ color: 0x3b2a5a, side: THREE.BackSide });
+const SPH = new THREE.SphereGeometry(1, 32, 20);
+const cap = (r, l) => new THREE.CapsuleGeometry(r, l, 8, 16);
+function part(geo, mat, pos = [0, 0, 0], scl = [1, 1, 1], rot = [0, 0, 0], outline = 1.06) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(...pos); m.scale.set(...scl); m.rotation.set(...rot);
+  if (outline) { const o = new THREE.Mesh(geo, outlineMat); o.scale.setScalar(outline); m.add(o); }
+  return m;
+}
+function canvasTex(w, h, draw, repeat) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'));
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(...repeat); }
+  return t;
+}
+const pick = a => a[Math.floor(Math.random() * a.length)];
+
+// ---------- 무늬 텍스처 ----------
+function starTexture() {
+  return canvasTex(256, 256, g => {
+    g.fillStyle = '#b9a4ff'; g.fillRect(0, 0, 256, 256);
+    g.fillStyle = '#fff6b0';
+    for (let i = 0; i < 46; i++) {
+      const x = Math.random() * 256, y = Math.random() * 256, r = 4 + Math.random() * 8;
+      g.beginPath();
+      for (let j = 0; j < 10; j++) {
+        const a = j * Math.PI / 5 - Math.PI / 2, rr = j % 2 ? r * 0.45 : r;
+        g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+      }
+      g.closePath(); g.fill();
+    }
+  });
+}
+const rainbowTex = canvasTex(64, 256, g => {
+  ['#ff6b8b', '#ffa94d', '#ffe066', '#8fdc8a', '#4fd8ff', '#a77bff'].forEach((c, i, a) => { g.fillStyle = c; g.fillRect(0, i * 256 / a.length, 64, 256 / a.length + 1); });
+});
+const pearlTex = canvasTex(256, 256, g => {
+  const grd = g.createLinearGradient(0, 0, 256, 256);
+  ['#fdf6ff', '#ffd9ef', '#d9f2ff', '#efe0ff', '#fff3d9'].forEach((c, i, a) => grd.addColorStop(i / (a.length - 1), c));
+  g.fillStyle = grd; g.fillRect(0, 0, 256, 256);
+});
+// 다람쥐 무늬: 구 UV 기준 x=64가 앞, x=192가 등
+const squirrelTex = canvasTex(256, 128, g => {
+  g.fillStyle = '#c98a52'; g.fillRect(0, 0, 256, 128);
+  g.fillStyle = '#f6e3c8'; g.beginPath(); g.ellipse(64, 80, 46, 40, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#f2dcbc'; for (const dx of [-14, 14]) g.fillRect(192 + dx - 3, 6, 6, 100);
+  g.fillStyle = '#5a3a2a'; g.fillRect(188, 0, 8, 112); for (const dx of [-26, 26]) g.fillRect(192 + dx - 3, 12, 6, 90);
+  g.fillRect(61, 0, 6, 20);
+});
+const ballTex = canvasTex(256, 64, g => { ['#ff6b7a', '#ffffff', '#4fb8ff', '#ffffff', '#ffd84d', '#ffffff'].forEach((c, i) => { g.fillStyle = c; g.fillRect(i * 256 / 6, 0, 256 / 6 + 1, 64); }); });
+const swirlTex = canvasTex(128, 128, g => {
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, 128, 128);
+  g.strokeStyle = '#ff7ab6'; g.lineWidth = 12; g.beginPath();
+  for (let a = 0; a < Math.PI * 6; a += 0.1) { const r = a * 3.2; g.lineTo(64 + Math.cos(a) * r, 64 + Math.sin(a) * r); }
+  g.stroke();
+});
+
+function taperedTube(points, radii, extra = 0, tubular = 24, radial = 12) {
+  const curve = new THREE.CatmullRomCurve3(points.map(q => new THREE.Vector3(...q)));
+  const geo = new THREE.TubeGeometry(curve, tubular, 1, radial, false);
+  const pos = geo.attributes.position, c = new THREE.Vector3(), v = new THREE.Vector3();
+  for (let i = 0; i <= tubular; i++) {
+    const t = i / tubular, f = t * (radii.length - 1), k = Math.min(Math.floor(f), radii.length - 2);
+    const r = radii[k] + (radii[k + 1] - radii[k]) * (f - k) + extra;
+    curve.getPointAt(t, c);
+    for (let j = 0; j <= radial; j++) {
+      const idx = i * (radial + 1) + j;
+      v.fromBufferAttribute(pos, idx).sub(c).multiplyScalar(r).add(c);
+      pos.setXYZ(idx, v.x, v.y, v.z);
+    }
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+const TAIL_PTS = [[0, 0.22, -0.2], [0.04, 0.32, -0.46], [0.1, 0.62, -0.6], [0.16, 0.95, -0.55], [0.21, 1.15, -0.42], [0.24, 1.2, -0.24]];
+const TAIL_R = [0.07, 0.14, 0.18, 0.18, 0.14, 0.05];
+const squirrelTail = { geo: taperedTube(TAIL_PTS, TAIL_R), line: taperedTube(TAIL_PTS, TAIL_R, 0.022) };
+
+// ---------- 인형 목록 (4세트 × 일반 6 + 희귀 1) ----------
+const GOLD = new THREE.MeshToonMaterial({ color: 0xffd36b, gradientMap, emissive: 0x7a5200, emissiveIntensity: 0.35 });
+const DOLLS = {
+  bunny:    { name: '토끼', color: 0xfff4f8 },
+  bear:     { name: '곰돌이', color: 0xe8b07a },
+  cat:      { name: '고양이', color: 0xffc58f },
+  dog:      { name: '강아지', color: 0xfff1dc },
+  panda:    { name: '판다', color: 0xffffff },
+  hamster:  { name: '햄찌', color: 0xf3d2a2 },
+  fox:      { name: '여우', color: 0xff9a52 },
+  raccoon:  { name: '너구리', color: 0xb3a59a },
+  squirrel: { name: '다람쥐', color: 0xc98a52, mat: new THREE.MeshToonMaterial({ color: 0xffffff, map: squirrelTex, gradientMap }) },
+  owl:      { name: '부엉이', color: 0x9a7a5a, round: true, feet: 'orange', wings: true },
+  deer:     { name: '아기사슴', color: 0xd9a46a },
+  hedgehog: { name: '고슴도치', color: 0xf5dcc0 },
+  penguin:  { name: '펭귄', color: 0x4a5a8a, round: true, feet: 'orange', wings: true },
+  frog:     { name: '개구리', color: 0x9be36f, round: true, feet: 'body', wings: true },
+  duck:     { name: '오리', color: 0xffffff, round: true, feet: 'orange', wings: true },
+  seal:     { name: '물범', color: 0xdfe3ea, round: true, wings: true },
+  octopus:  { name: '문어', color: 0xff8fb1, round: true },
+  whale:    { name: '고래', color: 0x6fa8dc, round: true, wings: true },
+  chick:    { name: '병아리', color: 0xffe066, round: true, feet: 'orange', wings: true },
+  pig:      { name: '꿀꿀이', color: 0xffc4d6 },
+  sheep:    { name: '양', color: 0xffffff },
+  cow:      { name: '젖소', color: 0xffffff },
+  dino:     { name: '공룡', color: 0x8fdc8a },
+  unicorn:  { name: '유니콘', color: 0xfdf4ff },
+  rare:         { name: '별빛 토끼', base: 'bunny', prop: 'wand', mat: new THREE.MeshToonMaterial({ color: 0xffffff, map: starTexture(), gradientMap, emissive: 0x6b4bd6, emissiveIntensity: 0.22 }) },
+  goldfox:      { name: '황금 여우', base: 'fox', prop: 'goldleaf', mat: GOLD },
+  pearlpenguin: { name: '진주 펭귄', base: 'penguin', prop: 'pearl', mat: new THREE.MeshToonMaterial({ color: 0xffffff, map: pearlTex, gradientMap, emissive: 0x8a6bd6, emissiveIntensity: 0.18 }) },
+  rainbow:      { name: '무지개 공룡', base: 'dino', prop: 'wand', mat: new THREE.MeshToonMaterial({ color: 0xffffff, map: rainbowTex, gradientMap, emissive: 0x553366, emissiveIntensity: 0.2 }) },
+};
+const SETS = [
+  { name: '말랑 동물', color: '#ff7ab6', kinds: ['bunny', 'bear', 'cat', 'dog', 'panda', 'hamster'], rare: 'rare' },
+  { name: '숲속 친구들', color: '#2fbf8f', kinds: ['fox', 'raccoon', 'squirrel', 'owl', 'deer', 'hedgehog'], rare: 'goldfox' },
+  { name: '물가 친구들', color: '#3fa8f0', kinds: ['penguin', 'frog', 'duck', 'seal', 'octopus', 'whale'], rare: 'pearlpenguin' },
+  { name: '꿈동산 친구들', color: '#9a6bff', kinds: ['chick', 'pig', 'sheep', 'cow', 'dino', 'unicorn'], rare: 'rainbow' },
+];
+const SET_OF = {};
+for (const s of SETS) for (const k of [...s.kinds, s.rare]) SET_OF[k] = s;
+
+const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
+const INK = toon(0x2b1d3f), BLUSH = toon(0xff9ec4), ORANGE = toon(0xff9f43), CREAM = toon(0xfff0dc), PURE = toon(0xffffff);
+const UP = new THREE.Vector3(0, 1, 0);
+const DG = {
+  bunnyEar: cap(0.075, 0.36), bunnyInner: cap(0.04, 0.26), beak: new THREE.ConeGeometry(0.08, 0.16, 10),
+  catEar: new THREE.ConeGeometry(0.11, 0.22, 10), foxEar: new THREE.ConeGeometry(0.12, 0.27, 10), smallEar: new THREE.ConeGeometry(0.07, 0.12, 8),
+  spike: new THREE.ConeGeometry(0.06, 0.15, 8), dinoTail: new THREE.ConeGeometry(0.12, 0.36, 10), tail: cap(0.05, 0.32),
+  snout: new THREE.CylinderGeometry(0.11, 0.11, 0.06, 16), horn: new THREE.ConeGeometry(0.055, 0.28, 10), tentacle: cap(0.07, 0.22),
+  crownBand: new THREE.CylinderGeometry(0.15, 0.16, 0.08, 20), crownTip: new THREE.ConeGeometry(0.035, 0.09, 8),
+  smile: new THREE.TorusGeometry(0.032, 0.009, 6, 14, Math.PI),
+};
+
+const spinners = [];
+// ---------- 인형 기본형 (큰인형 기준) ----------
+function makeDoll(kind) {
+  const d = DOLLS[kind], shape = d.base ?? kind, sd = DOLLS[shape], S = SPH;
+  const body = d.mat ?? toon(d.color);
+  const g = new THREE.Group();
+  const p = (geo, mat, pos, scl = [1, 1, 1], rot = [0, 0, 0], ol = 1.06) => { const m = part(geo, mat, pos, scl, rot, ol); g.add(m); return m; };
+  const pointed = (geo, mat, pos, dir, scl) => { const m = p(geo, mat, pos, scl); m.quaternion.setFromUnitVectors(UP, dir.normalize()); return m; };
+  // 눈: 크게 + 반짝이 2개 + 볼터치
+  const eyes = (y, z, dx, bx, bz) => {
+    for (const s of [-1, 1]) {
+      p(S, INK, [s * dx, y, z], [0.05, 0.062, 0.03], [0, 0, 0], 0);
+      p(S, white, [s * dx + 0.016, y + 0.025, z + 0.024], [0.016, 0.016, 0.01], [0, 0, 0], 0);
+      p(S, white, [s * dx - 0.012, y - 0.02, z + 0.024], [0.008, 0.008, 0.006], [0, 0, 0], 0);
+      p(S, BLUSH, [s * bx, y - 0.075, bz], [0.06, 0.035, 0.02], [0, 0, 0], 0);
+    }
+  };
+  // 입: 웃는 입(∪) 또는 ω
+  const mouth = (y, z, w = 1, omega = false) => {
+    if (omega) for (const s of [-1, 1]) p(DG.smile, INK, [s * 0.026, y, z], [0.8, 0.8, 1], [0, 0, Math.PI], 0);
+    else p(DG.smile, INK, [0, y, z], [w, 1, 1], [0, 0, Math.PI], 0);
+  };
+  const nose = (y, z, mat = INK) => p(S, mat, [0, y, z], [0.05, 0.035, 0.035], [0, 0, 0], 0);
+  if (sd.round) {
+    if (shape === 'octopus') {
+      p(S, body, [0, 0.62, 0], [0.42, 0.45, 0.4]);
+      for (let i = 0; i < 6; i++) {
+        const a = i / 6 * Math.PI * 2 + Math.PI / 6, dx = Math.sin(a), dz = Math.cos(a);
+        pointed(DG.tentacle, body, [dx * 0.26, 0.14, dz * 0.26], new THREE.Vector3(dx, -0.35, dz), [1, 1, 1]);
+      }
+      eyes(0.66, 0.37, 0.15, 0.25, 0.33);
+      mouth(0.56, 0.4);
+    } else {
+      p(S, body, [0, 0.5, 0], [0.45, 0.52, 0.43]);
+      for (const s of [-1, 1]) {
+        if (sd.wings) { const w = p(S, body, [s * 0.43, 0.45, 0.02], [0.1, 0.18, 0.12], [0, 0, -s * 0.5]); w.userData.arm = s; }
+        if (sd.feet) p(S, sd.feet === 'orange' ? ORANGE : body, [s * 0.16, 0.04, 0.14], [0.11, 0.06, 0.14]);
+      }
+      if (shape === 'chick') {
+        p(DG.beak, ORANGE, [0, 0.6, 0.46], [1, 1, 1], [Math.PI / 2, 0, 0]);
+        for (const dx of [-0.06, 0, 0.06]) p(S, body, [dx, 1.04, -0.02], [0.035, 0.1, 0.035], [0, 0, dx * 5]);
+        eyes(0.74, 0.35, 0.15, 0.25, 0.32);
+      } else if (shape === 'penguin') {
+        p(S, PURE, [0, 0.45, 0.14], [0.34, 0.4, 0.32], [0, 0, 0], 0);
+        p(DG.beak, ORANGE, [0, 0.62, 0.46], [1, 0.8, 1], [Math.PI / 2, 0, 0]);
+        eyes(0.76, 0.37, 0.14, 0.25, 0.33);
+      } else if (shape === 'frog') {
+        for (const s of [-1, 1]) p(S, body, [s * 0.2, 0.95, 0.12], [0.15, 0.13, 0.15]);
+        eyes(0.98, 0.26, 0.2, 0.3, 0.3);
+        p(DG.smile, toon(0xff6b8b), [0, 0.6, 0.42], [3.2, 2, 1], [0, 0, Math.PI], 0);
+      } else if (shape === 'owl') {
+        p(S, toon(0xd9c2a0), [0, 0.42, 0.18], [0.3, 0.32, 0.28], [0, 0, 0], 0);
+        for (const s of [-1, 1]) {
+          p(S, PURE, [s * 0.17, 0.72, 0.33], [0.15, 0.15, 0.07]);
+          p(DG.smallEar, body, [s * 0.24, 1.0, 0], [1, 1, 0.7], [0, 0, -s * 0.35]);
+        }
+        p(DG.beak, ORANGE, [0, 0.6, 0.41], [0.6, 0.6, 0.6], [Math.PI, 0, 0], 0);
+        eyes(0.72, 0.4, 0.17, 0.3, 0.33);
+      } else if (shape === 'duck') {
+        p(S, ORANGE, [0, 0.6, 0.44], [0.17, 0.05, 0.12]);
+        p(S, body, [0, 1.04, -0.02], [0.04, 0.09, 0.04]);
+        eyes(0.76, 0.36, 0.15, 0.25, 0.32);
+      } else if (shape === 'seal') {
+        for (const s of [-1, 1]) p(S, PURE, [s * 0.065, 0.6, 0.39], [0.08, 0.065, 0.06], [0, 0, 0], 0);
+        nose(0.66, 0.44);
+        eyes(0.76, 0.36, 0.17, 0.27, 0.32);
+        mouth(0.535, 0.43);
+      } else if (shape === 'whale') {
+        p(S, toon(0xcfe8ff), [0, 0.4, 0.16], [0.34, 0.3, 0.3], [0, 0, 0], 0);
+        for (const s of [-1, 1]) p(S, body, [s * 0.13, 0.95, -0.36], [0.14, 0.05, 0.09], [0, 0, s * 0.4]);
+        for (const [x, y] of [[0, 1.1], [-0.07, 1.19], [0.07, 1.19]]) p(S, toon(0x9fe0ff), [x, y, 0.05], [0.04, 0.05, 0.04], [0, 0, 0], 0);
+        eyes(0.7, 0.38, 0.17, 0.27, 0.34);
+        mouth(0.6, 0.425, 1.6);
+      }
+    }
+  } else {
+    const limb = shape === 'panda' ? INK : body;
+    p(S, body, [0, 0.32, 0], [0.33, 0.3, 0.3]);
+    p(S, body, [0, 0.8, 0], [0.38, 0.34, 0.34]);
+    for (const s of [-1, 1]) {
+      const arm = p(S, limb, shape === 'squirrel' ? [s * 0.14, 0.44, 0.25] : [s * 0.31, 0.36, 0.06], [0.1, 0.1, 0.1]);
+      arm.userData.arm = s;
+      p(S, limb, [s * 0.15, 0.06, 0.12], [0.12, 0.08, 0.14]);
+    }
+    const muzzle = (mat) => { p(S, mat, [0, 0.72, 0.27], [0.15, 0.11, 0.09]); nose(0.76, 0.35); mouth(0.675, 0.355); };
+    let eyeZ = 0.305, eyeY = 0.83;
+    for (const s of [-1, 1]) {
+      if (shape === 'bunny') {
+        const ear = p(DG.bunnyEar, body, [s * 0.14, 1.27, -0.02], [1, 1, 1], [0, 0, -s * 0.18]);
+        ear.add(part(DG.bunnyInner, toon(0xffb3cf), [0, 0, 0.06], [1, 1, 0.5], [0, 0, 0], 0));
+      } else if (shape === 'bear' || shape === 'panda') p(S, shape === 'panda' ? INK : body, [s * 0.27, 1.07, -0.02], [0.12, 0.12, 0.08]);
+      else if (shape === 'raccoon') p(S, toon(0x5a4a58), [s * 0.27, 1.05, -0.02], [0.11, 0.11, 0.07]);
+      else if (shape === 'cat') {
+        const ear = p(DG.catEar, body, [s * 0.22, 1.1, 0], [1, 1, 0.6], [0, 0, -s * 0.35]);
+        ear.add(part(DG.catEar, toon(0xffb3cf), [0, -0.02, 0.05], [0.55, 0.6, 0.4], [0, 0, 0], 0));
+      } else if (shape === 'fox') p(DG.foxEar, body, [s * 0.21, 1.13, 0], [1, 1, 0.55], [0, 0, -s * 0.3]);
+      else if (shape === 'squirrel') p(DG.foxEar, toon(d.color), [s * 0.19, 1.13, -0.02], [0.72, 0.85, 0.5], [0, 0, -s * 0.25]);
+      else if (shape === 'dog') p(S, toon(0xc98a5a), [s * 0.37, 0.8, 0], [0.1, 0.2, 0.13], [0, 0, s * 0.25]);
+      else if (shape === 'pig') p(DG.smallEar, body, [s * 0.24, 1.08, 0.05], [1, 1, 0.6], [0.5, 0, -s * 0.4]);
+      else if (shape === 'deer') p(S, body, [s * 0.34, 0.98, -0.02], [0.15, 0.07, 0.06], [0, 0, s * 0.4]);
+      else if (shape === 'sheep' || shape === 'cow') p(S, shape === 'sheep' ? toon(0xf2dcc4) : body, [s * 0.37, 0.88, 0], [0.12, 0.06, 0.06], [0, 0, s * 0.3]);
+      else if (shape === 'unicorn') p(DG.smallEar, body, [s * 0.2, 1.09, -0.04], [1, 1, 0.6], [0, 0, -s * 0.3]);
+      else if (shape === 'hamster') {
+        p(S, toon(0xffb3cf), [s * 0.25, 1.06, 0], [0.08, 0.08, 0.05]);
+        p(S, PURE, [s * 0.22, 0.71, 0.18], [0.14, 0.12, 0.12]);
+      }
+    }
+    if (shape === 'bear') muzzle(CREAM);
+    else if (shape === 'dog' || shape === 'raccoon') muzzle(PURE);
+    else if (shape === 'deer') muzzle(CREAM);
+    else if (shape === 'panda') {
+      for (const s of [-1, 1]) p(S, INK, [s * 0.13, 0.82, 0.285], [0.09, 0.11, 0.05], [0, 0, s * 0.4], 0);
+      nose(0.75, 0.33); mouth(0.705, 0.33);
+    } else if (shape === 'pig') {
+      p(DG.snout, BLUSH, [0, 0.74, 0.33], [1, 1, 1], [Math.PI / 2, 0, 0]);
+      for (const s of [-1, 1]) p(S, INK, [s * 0.04, 0.74, 0.365], [0.02, 0.03, 0.01], [0, 0, 0], 0);
+      mouth(0.605, 0.285, 0.8);
+    } else if (shape === 'fox') {
+      p(S, PURE, [0, 0.72, 0.24], [0.26, 0.13, 0.12], [0, 0, 0], 0);
+      p(S, INK, [0, 0.75, 0.355], [0.04, 0.03, 0.03], [0, 0, 0], 0);
+      mouth(0.68, 0.357);
+      p(S, body, [0, 0.32, -0.36], [0.14, 0.14, 0.28]);
+      p(S, PURE, [0, 0.32, -0.6], [0.08, 0.08, 0.08]);
+    } else if (shape === 'cat' || shape === 'hamster' || shape === 'bunny') {
+      p(S, BLUSH, [0, 0.752, 0.338], [0.032, 0.024, 0.02], [0, 0, 0], 0);
+      mouth(0.715, 0.335, 1, true);
+      if (shape === 'cat') p(DG.tail, body, [0.16, 0.3, -0.32], [1, 1, 1], [0.7, 0, -0.6]);
+    } else if (shape === 'raccoon') {
+      p(S, toon(0x5a4a58), [0, 0.83, 0.27], [0.3, 0.085, 0.07], [0, 0, 0], 0);
+      eyeZ = 0.33;
+      p(S, toon(0x5a4a58), [0, 0.3, -0.36], [0.12, 0.12, 0.26]);
+      p(S, body, [0, 0.3, -0.47], [0.125, 0.125, 0.06], [0, 0, 0], 0);
+    } else if (shape === 'squirrel') {
+      nose(0.76, 0.34, BLUSH);
+      mouth(0.715, 0.335, 1, true);
+      g.add(new THREE.Mesh(squirrelTail.geo, toon(0xb87a48)), new THREE.Mesh(squirrelTail.line, outlineMat));
+      p(S, toon(0xb5763c), [0, 0.42, 0.33], [0.075, 0.09, 0.075]);
+      p(S, toon(0x7a5230), [0, 0.5, 0.33], [0.085, 0.045, 0.085]);
+    } else if (shape === 'deer') {
+      for (const s of [-1, 1]) {
+        p(S, PURE, [s * 0.16, 1.0, 0.22], [0.035, 0.035, 0.02], [0, 0, 0], 0);
+        p(S, PURE, [s * 0.2, 0.42, 0.22], [0.045, 0.045, 0.02], [0, 0, 0], 0);
+      }
+    } else if (shape === 'hedgehog') {
+      const spikeMat = toon(0x8a6a5a);
+      for (const [x, y, z] of [[0, 1, -0.3], [0.5, 0.8, -0.4], [-0.5, 0.8, -0.4], [0, 0.6, -0.8], [0.65, 0.4, -0.65], [-0.65, 0.4, -0.65], [0, 0.1, -1], [0.75, 0, -0.6], [-0.75, 0, -0.6]]) {
+        const dir = new THREE.Vector3(x, y, z).normalize();
+        pointed(DG.spike, spikeMat, [dir.x * 0.38, 0.8 + dir.y * 0.34, dir.z * 0.34], dir, [1.3, 1.6, 1.3]);
+      }
+      for (const [x, y, z] of [[0, 0.3, -1], [0.6, 0.2, -0.8], [-0.6, 0.2, -0.8]]) {
+        const dir = new THREE.Vector3(x, y, z).normalize();
+        pointed(DG.spike, spikeMat, [dir.x * 0.33, 0.32 + dir.y * 0.3, dir.z * 0.3], dir, [1.3, 1.6, 1.3]);
+      }
+      nose(0.76, 0.35); mouth(0.715, 0.335);
+    } else if (shape === 'sheep') {
+      p(S, toon(0xf2dcc4), [0, 0.78, 0.17], [0.27, 0.25, 0.2], [0, 0, 0], 0);
+      eyeZ = 0.355; eyeY = 0.81;
+      mouth(0.72, 0.366);
+      for (const [x, z] of [[-0.16, 0.02], [0, 0.08], [0.16, 0.02], [-0.08, -0.12], [0.08, -0.12]]) p(S, body, [x, 1.08, z], [0.12, 0.11, 0.12]);
+    } else if (shape === 'cow') {
+      const spot = toon(0x3b2a3a);
+      for (const [x, y, z, sx, sy] of [[0.15, 0.4, 0.2, 0.1, 0.08], [-0.2, 0.28, 0.14, 0.09, 0.07], [0.2, 0.96, 0.16, 0.1, 0.07], [-0.12, 0.3, -0.24, 0.1, 0.08]]) p(S, spot, [x, y, z], [sx, sy, 0.06], [0, 0, 0], 0);
+      p(S, toon(0xffb3c7), [0, 0.7, 0.26], [0.22, 0.12, 0.1]);
+      for (const s of [-1, 1]) p(S, INK, [s * 0.07, 0.71, 0.355], [0.02, 0.03, 0.01], [0, 0, 0], 0);
+      mouth(0.645, 0.352, 1.2);
+      for (const s of [-1, 1]) p(DG.smallEar, CREAM, [s * 0.17, 1.12, 0], [0.7, 0.9, 0.7], [0, 0, -s * 0.5]);
+    } else if (shape === 'dino') {
+      const spikeMat = d.base ? GOLD : toon(0xffb84d);
+      for (const [y, z, rx] of [[1.15, -0.05, -0.3], [1.0, -0.24, -0.9], [0.62, -0.3, -1.3]]) p(DG.spike, spikeMat, [0, y, z], [1, 1, 0.6], [rx, 0, 0]);
+      p(DG.dinoTail, body, [0, 0.2, -0.4], [1, 1, 1], [-1.9, 0, 0]);
+      mouth(0.715, 0.335, 1.3);
+    } else if (shape === 'unicorn') {
+      p(DG.horn, GOLD, [0, 1.17, 0.12], [1, 1, 1], [0.35, 0, 0]);
+      const manes = [toon(0xff9fcf), toon(0x9fd8ff), toon(0xffe08a)];
+      for (const [i, [y, z]] of [[1.06, -0.12], [0.92, -0.28], [0.72, -0.33]].entries()) p(S, manes[i], [0, y, z], [0.12, 0.12, 0.12]);
+      p(S, manes[0], [0, 0.3, -0.36], [0.1, 0.1, 0.22]);
+      mouth(0.715, 0.335);
+    }
+    eyes(eyeY, eyeZ, 0.13, 0.22, 0.255);
+  }
+  if (d.base) {
+    const crown = new THREE.Group();
+    crown.position.set(0, sd.round ? 1.04 : 1.12, 0.04); crown.rotation.x = -0.12;
+    crown.add(part(DG.crownBand, GOLD));
+    for (let i = 0; i < 5; i++) {
+      const a = i / 5 * Math.PI * 2;
+      crown.add(part(DG.crownTip, GOLD, [Math.sin(a) * 0.13, 0.08, Math.cos(a) * 0.13]));
+    }
+    crown.add(part(S, toon(0xff5fa2), [0, 0.02, 0.155], [0.03, 0.03, 0.02], [0, 0, 0], 0));
+    g.add(crown);
+    const aura = new THREE.Group(); aura.position.y = 0.7;
+    const sparkMat = new THREE.MeshBasicMaterial({ color: 0xffe27a });
+    for (let i = 0; i < 7; i++) {
+      const s = new THREE.Mesh(new THREE.OctahedronGeometry(0.035), sparkMat);
+      const a = i / 7 * Math.PI * 2;
+      s.position.set(Math.cos(a) * 0.62, Math.sin(a * 2) * 0.25, Math.sin(a) * 0.62);
+      aura.add(s);
+    }
+    g.add(aura);
+    spinners.push({ obj: aura, speed: 1.6 });
+  }
+  return g;
+}
+
+// ---------- 피규어 소품 ----------
+const CYL = (r, h, seg = 12) => new THREE.CylinderGeometry(r, r, h, seg);
+const CONE = (r, h, seg = 12) => new THREE.ConeGeometry(r, h, seg);
+const starShape = new THREE.Shape();
+for (let i = 0; i < 10; i++) {
+  const a = i / 10 * Math.PI * 2 + Math.PI / 2, r = i % 2 ? 0.045 : 0.1, x = Math.cos(a) * r, y = Math.sin(a) * r;
+  i ? starShape.lineTo(x, y) : starShape.moveTo(x, y);
+}
+const STAR = new THREE.ExtrudeGeometry(starShape, { depth: 0.035, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.01, bevelSegments: 2 }); STAR.center();
+const heartShape = new THREE.Shape();
+heartShape.moveTo(0, -0.08); heartShape.bezierCurveTo(-0.12, 0.0, -0.08, 0.1, 0, 0.05); heartShape.bezierCurveTo(0.08, 0.1, 0.12, 0.0, 0, -0.08);
+const HEART = new THREE.ExtrudeGeometry(heartShape, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.012, bevelSegments: 3 }); HEART.center();
+const prop = (fn, onBody = false) => () => { const g = new THREE.Group(); const a = (geo, mat, pos, scl = [1, 1, 1], rot = [0, 0, 0], ol = 1.08) => g.add(part(geo, mat, pos, scl, rot, ol)); fn(a); g.userData.onBody = onBody; return g; };
+const fish = color => prop(a => {
+  a(SPH, toon(color), [0, 0, 0], [0.11, 0.055, 0.04]);
+  a(CONE(0.045, 0.08, 3), toon(color), [0.12, 0, 0], [1, 1, 0.5], [0, 0, -Math.PI / 2]);
+  a(SPH, INK, [-0.06, 0.015, 0.035], [0.012, 0.012, 0.008], [0, 0, 0], 0);
+});
+const leaf = mat => prop(a => {
+  a(SPH, mat, [0, 0.03, 0], [0.09, 0.13, 0.02], [0, 0, 0.3]);
+  a(CYL(0.006, 0.12, 6), toon(0x8a5a3a), [0.02, -0.08, 0], [1, 1, 1], [0, 0, 0.3], 0);
+});
+const wand = prop(a => { a(CYL(0.01, 0.26, 6), toon(0xff9fcf), [0, 0.02, 0]); a(STAR, GOLD, [0, 0.2, 0]); });
+const PROPS = {
+  bunny: prop(a => { a(CONE(0.055, 0.22), toon(0xff9f43), [0, -0.02, 0], [1, 1, 1], [Math.PI, 0, 0]); for (const r of [-0.45, 0, 0.45]) a(CONE(0.022, 0.1, 8), toon(0x6fcf6a), [Math.sin(r) * 0.03, 0.13, 0], [1, 1, 1], [0, 0, r], 0); }),
+  bear: prop(a => {
+    a(CYL(0.085, 0.13, 20), toon(0xf0b85a), [0, 0, 0]);
+    a(new THREE.TorusGeometry(0.085, 0.018, 8, 20), toon(0xc98a3a), [0, 0.065, 0], [1, 1, 1], [Math.PI / 2, 0, 0], 0);
+    a(SPH, toon(0xffd84d), [0.04, 0.06, 0.07], [0.035, 0.05, 0.035], [0, 0, 0], 0);
+  }),
+  cat: fish(0x8fb3d9), penguin: fish(0x8fb3d9),
+  dog: prop(a => { a(cap(0.025, 0.16), PURE, [0, 0, 0], [1, 1, 1], [0, 0, Math.PI / 2]); for (const sx of [-1, 1]) for (const sy of [-1, 1]) a(SPH, PURE, [sx * 0.1, sy * 0.028, 0], [0.038, 0.038, 0.038]); }),
+  panda: prop(a => {
+    a(CYL(0.024, 0.34, 10), toon(0x7fcf6a), [0, 0.06, 0]);
+    for (const y of [-0.04, 0.08]) a(new THREE.TorusGeometry(0.025, 0.007, 6, 12), toon(0x5aa84a), [0, y, 0], [1, 1, 1], [Math.PI / 2, 0, 0], 0);
+    a(SPH, toon(0x8fe07a), [0.07, 0.22, 0], [0.07, 0.025, 0.02], [0, 0, 0.6]);
+  }),
+  hamster: prop(a => { a(SPH, toon(0x4a4a55), [0, 0, 0], [0.05, 0.085, 0.035]); a(SPH, PURE, [0, 0, 0.022], [0.012, 0.07, 0.02], [0, 0, 0], 0); }),
+  fox: leaf(toon(0xff7a3d)), dino: leaf(toon(0x6fcf6a)), goldleaf: leaf(GOLD),
+  raccoon: prop(a => { a(CYL(0.095, 0.03, 20), toon(0xd9a46a), [0, 0, 0], [1, 1, 1], [Math.PI / 2, 0, 0]); for (const [x, y] of [[-0.04, 0.03], [0.03, 0.04], [0.04, -0.03], [-0.02, -0.04]]) a(SPH, toon(0x6a4a3a), [x, y, 0.018], [0.014, 0.014, 0.01], [0, 0, 0], 0); }),
+  owl: prop(a => { a(new THREE.BoxGeometry(0.17, 0.2, 0.05), toon(0x8a6bd6), [0, 0, 0]); a(new THREE.BoxGeometry(0.15, 0.18, 0.052), PURE, [0.012, 0, 0], [1, 1, 1], [0, 0, 0], 0); a(HEART, toon(0xffd36b), [0, 0.01, 0.034], [0.45, 0.45, 0.45], [0, 0, 0], 0); }),
+  deer: prop(a => {
+    a(CYL(0.01, 0.22, 6), toon(0x6fcf6a), [0, -0.05, 0]);
+    a(SPH, toon(0xffd84d), [0, 0.08, 0.012], [0.035, 0.035, 0.025]);
+    for (let i = 0; i < 5; i++) { const t = i / 5 * Math.PI * 2; a(SPH, toon(0xffb3cf), [Math.cos(t) * 0.055, 0.08 + Math.sin(t) * 0.055, 0], [0.04, 0.04, 0.02]); }
+  }),
+  hedgehog: prop(a => { a(SPH, toon(0xff5a6a), [0, 0, 0], [0.085, 0.08, 0.085]); a(CYL(0.008, 0.05, 6), toon(0x8a5a3a), [0, 0.09, 0], [1, 1, 1], [0, 0, 0.2], 0); a(SPH, toon(0x6fcf6a), [0.035, 0.1, 0], [0.035, 0.015, 0.012], [0, 0, 0.5], 0); }),
+  frog: prop(a => { a(CYL(0.01, 0.64, 6), toon(0x5aa84a), [0, 0.3, 0]); a(new THREE.SphereGeometry(1, 24, 10, 0, Math.PI * 2, 0, Math.PI * 0.35), toon(0x7fd96a), [0, 0.6, 0], [0.32, 0.18, 0.32]); }),
+  duck: prop(a => {
+    a(new THREE.TorusGeometry(0.44, 0.08, 12, 32), toon(0xff6b7a), [0, 0.32, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
+    for (let k = 0; k < 4; k++) a(new THREE.TorusGeometry(0.44, 0.083, 12, 6, 0.38), PURE, [0, 0.32, 0], [1, 1, 1], [Math.PI / 2, 0, k * Math.PI / 2], 0);
+  }, true),
+  seal: prop(a => a(SPH, new THREE.MeshToonMaterial({ map: ballTex, gradientMap }), [0, 0.86, 0.43], [0.11, 0.11, 0.11]), true),
+  octopus: prop(a => a(HEART, toon(0xff5f8f), [0, 0, 0])),
+  whale: prop(a => { const bub = new THREE.MeshStandardMaterial({ color: 0xbfefff, transparent: true, opacity: 0.55, roughness: 0.1 }); for (const [x, y, s] of [[0, 0, 0.05], [0.05, 0.08, 0.035], [-0.03, 0.13, 0.028]]) a(SPH, bub, [x, y, 0], [s, s, s], [0, 0, 0], 0); }),
+  chick: prop(a => {
+    a(new THREE.SphereGeometry(1, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), PURE, [0, 0.9, 0], [0.3, 0.24, 0.3]);
+    for (let i = 0; i < 10; i++) { const t = i / 10 * Math.PI * 2; a(CONE(0.035, 0.07, 4), PURE, [Math.cos(t) * 0.285, 0.88, Math.sin(t) * 0.285], [1, 1, 1], [Math.PI, 0, 0], 0); }
+  }, true),
+  pig: prop(a => { a(CYL(0.009, 0.24, 6), PURE, [0, -0.04, 0]); a(CYL(0.09, 0.03, 24), new THREE.MeshToonMaterial({ map: swirlTex, gradientMap }), [0, 0.12, 0], [1, 1, 1], [Math.PI / 2, 0, 0]); }),
+  sheep: prop(a => { a(new THREE.TorusGeometry(0.26, 0.025, 8, 28), toon(0xff5f7a), [0, 0.55, 0], [1, 1, 1], [Math.PI / 2, 0, 0], 0); a(SPH, GOLD, [0, 0.47, 0.27], [0.06, 0.065, 0.06]); }, true),
+  cow: prop(a => { a(CYL(0.05, 0.15, 16), PURE, [0, 0, 0]); a(CYL(0.052, 0.045, 16), toon(0x9fd8ff), [0, -0.01, 0], [1, 1, 1], [0, 0, 0], 0); a(CYL(0.03, 0.05, 12), PURE, [0, 0.1, 0]); a(CYL(0.034, 0.02, 12), toon(0x4fa3ff), [0, 0.135, 0]); }),
+  unicorn: wand, wand,
+  pearl: prop(a => a(SPH, new THREE.MeshStandardMaterial({ color: 0xfff6ff, roughness: 0.12, metalness: 0.15 }), [0, 0, 0], [0.07, 0.07, 0.07])),
+};
+
+// ---------- 미니·피규어로 다듬기 ----------
+const glossCache = new Map();
+function glossy(m) {
+  if (!glossCache.has(m)) glossCache.set(m, new THREE.MeshStandardMaterial({ color: m.color, map: m.map, roughness: m === GOLD ? 0.25 : 0.4, metalness: m === GOLD ? 0.6 : 0, envMapIntensity: 0.35, emissive: m.emissive, emissiveIntensity: (m.emissiveIntensity ?? 0) * 0.5 }));
+  return glossCache.get(m);
+}
+const metal = new THREE.MeshStandardMaterial({ color: 0xe3e6f0, metalness: 0.85, roughness: 0.22 });
+function keyring(y) {
+  const k = new THREE.Group(); k.position.set(0, y, -0.04);
+  k.add(part(new THREE.TorusGeometry(0.055, 0.014, 10, 24), metal, [0, 0.03, 0], [1, 1, 1], [0, 0, 0], 0));
+  for (let i = 0; i < 3; i++) k.add(part(new THREE.SphereGeometry(0.019, 10, 8), metal, [0, 0.11 + i * 0.042, 0], [1, 1, 1], [0, 0, 0], 0));
+  k.add(part(new THREE.TorusGeometry(0.1, 0.013, 10, 32), metal, [0, 0.3, 0], [1, 1, 1], [0, 0.6, 0], 0));
+  return k;
+}
+function makeItem(kind, variant) {
+  const d = DOLLS[kind], shape = d.base ?? kind, round = DOLLS[shape].round;
+  const doll = makeDoll(kind), root = new THREE.Group();
+  if (variant === 'big') { root.add(doll); return root; }
+  // 서 있는 형은 머리(0.55 위)와 몸통을 나눠서 비율·자세를 바꿈
+  let head = null, body = null;
+  if (!round) {
+    head = new THREE.Group(); head.position.set(0, 0.8, 0); body = new THREE.Group();
+    for (const c of [...doll.children]) { if (c.position.y >= 0.55) { c.position.y -= 0.8; head.add(c); } else body.add(c); }
+    doll.add(body, head);
+  }
+  if (variant === 'mini') {
+    // 2등신 키링: 머리 크게, 몸 작게, 머리 위 고리 + 볼 체인
+    let top = 1.03;
+    if (head) { body.scale.setScalar(0.78); head.scale.setScalar(1.16); head.position.y = 0.74; top = 0.74 + 0.34 * 1.16; }
+    else doll.scale.set(1.04, 0.94, 1.04);
+    if (shape === 'frog' || shape === 'whale') top = 0.98;
+    root.add(doll, keyring(top));
+    return root;
+  }
+  // 피규어: 고개 갸웃 + 한 손 흔들기 + 다른 손에 소품, 반짝이는 PVC 재질, 세트 색 받침대
+  const arms = []; doll.traverse(o => { if (o.userData.arm) arms.push(o); });
+  const wave = arms.find(a => a.userData.arm === 1), hold = arms.find(a => a.userData.arm === -1);
+  let hand = [-0.26, 0.42, 0.42];
+  if (shape !== 'squirrel') {
+    if (head) {
+      head.rotation.z = 0.12;
+      wave?.position.set(0.34, 0.62, 0.06);
+      hold?.position.set(-0.2, 0.44, 0.26);
+      hand = [-0.2, 0.5, 0.34];
+    } else if (wave) {
+      wave.position.set(0.44, 0.66, 0.04); wave.rotation.z = -1.15;
+      hold.position.set(-0.34, 0.5, 0.28); hold.rotation.set(0.6, 0, 0.9);
+      hand = [-0.3, 0.55, 0.42];
+    }
+    const pr = PROPS[d.prop ?? kind]?.();
+    if (pr) {
+      if (!pr.userData.onBody) pr.position.set(...hand);
+      if (shape === 'frog') pr.rotation.z = 0.32; // 우산대가 얼굴을 가리지 않게 바깥으로 기울임
+      doll.add(pr);
+    }
+  }
+  doll.traverse(o => { if (o.isMesh && o.material.isMeshToonMaterial) o.material = glossy(o.material); });
+  const setColor = new THREE.Color(SET_OF[kind].color).lerp(new THREE.Color(0xffffff), 0.35);
+  root.add(part(new THREE.CylinderGeometry(0.46, 0.5, 0.1, 40), new THREE.MeshStandardMaterial({ color: setColor, roughness: 0.3 }), [0, 0.05, 0], [1, 1, 1], [0, 0, 0], 1.03));
+  root.add(part(new THREE.CylinderGeometry(0.42, 0.42, 0.012, 40), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25 }), [0, 0.106, 0], [1, 1, 1], [0, 0, 0], 0));
+  doll.position.y = 0.11;
+  root.add(doll);
+  return root;
+}
+
+// ---------- 카드마다 작은 무대 ----------
+const FRAME = { big: { y: 0.66, d: 3.5 }, mini: { y: 0.76, d: 3.7 }, figure: { y: 0.72, d: 3.8 } };
+function stage(kind, variant) {
+  const scene = new THREE.Scene();
+  scene.environment = envTex;
+  // 피규어(반짝이는 재질)는 같은 빛에서 더 밝게 떠서 조명을 낮춤
+  const fig = variant === 'figure';
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xd9c8ff, fig ? 0.75 : 1.5));
+  const key = new THREE.DirectionalLight(0xffffff, fig ? 1.4 : 1.7); key.position.set(2, 3, 4); scene.add(key);
+  const rim = new THREE.DirectionalLight(0xffd1e6, 0.9); rim.position.set(-3, 2, -3); scene.add(rim);
+  const obj = makeItem(kind, variant);
+  scene.add(obj);
+  const f = FRAME[variant];
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 30);
+  camera.position.set(0, f.y + 0.35, f.d); camera.lookAt(0, f.y, 0);
+  return { scene, camera, obj, target: new THREE.Vector3(0, f.y, 0) };
+}
+
+let items = [], variant = new URLSearchParams(location.search).get('v') || 'big';
+const book = document.getElementById('book');
+function build(v) {
+  variant = v; items = []; spinners.length = 0;
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  book.innerHTML = '';
+  for (const set of SETS) {
+    const sec = document.createElement('section');
+    sec.innerHTML = `<h2><i style="background:${set.color}"></i>${set.name} <small>일반 6 · 희귀 1</small></h2><div class="grid"></div>`;
+    const grid = sec.querySelector('.grid');
+    [...set.kinds, set.rare].forEach((kind, i) => {
+      const rare = kind === set.rare;
+      const card = document.createElement('div');
+      card.className = 'card' + (rare ? ' rare' : '');
+      card.innerHTML = `<div class="view"></div><div class="name">${rare ? '★ ' : ''}${DOLLS[kind].name}</div>`;
+      card.onclick = () => openDetail(kind);
+      grid.appendChild(card);
+      items.push({ el: card.querySelector('.view'), ...stage(kind, v), phase: i * 0.9 + SETS.indexOf(set) * 0.4 });
+    });
+    book.appendChild(sec);
+  }
+}
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => build(b.dataset.v));
+
+// 크게 보기
+const detailEl = document.getElementById('detail'), detailView = detailEl.querySelector('.view');
+let detail = null;
+const VNAME = { big: '큰인형', mini: '미니 (키링)', figure: '피규어' };
+function openDetail(kind) {
+  const st = stage(kind, variant);
+  const controls = new OrbitControls(st.camera, detailView);
+  controls.target.copy(st.target); controls.enableDamping = true; controls.autoRotate = true; controls.autoRotateSpeed = 2.2;
+  controls.minDistance = 2; controls.maxDistance = 7;
+  detail = { el: detailView, ...st, controls };
+  const set = SET_OF[kind], rare = kind === set.rare;
+  detailEl.querySelector('h3').textContent = (rare ? '★ ' : '') + DOLLS[kind].name;
+  detailEl.querySelector('p').textContent = `${set.name} · ${rare ? '희귀' : '일반'} · ${VNAME[variant]}`;
+  detailEl.classList.add('show');
+}
+function closeDetail() { detail?.controls.dispose(); detail = null; detailEl.classList.remove('show'); }
+detailEl.querySelector('.x').onclick = closeDetail;
+detailEl.onclick = e => { if (e.target === detailEl) closeDetail(); };
+
+// ---------- 그리기: 한 캔버스에 카드 자리마다 잘라서 ----------
+function draw(it, t, spin) {
+  const r = it.el.getBoundingClientRect();
+  if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth || r.width === 0) return;
+  const x = r.left, y = innerHeight - r.bottom;
+  renderer.setViewport(x, y, r.width, r.height); renderer.setScissor(x, y, r.width, r.height);
+  it.camera.aspect = r.width / r.height; it.camera.updateProjectionMatrix();
+  if (spin) it.obj.rotation.y = Math.sin(t * 0.7 + it.phase) * 0.55;
+  renderer.render(it.scene, it.camera);
+}
+const clock = new THREE.Clock();
+build(variant);
+const openKind = new URLSearchParams(location.search).get('d');
+if (openKind) openDetail(openKind);
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+  const w = innerWidth, h = innerHeight;
+  if (renderer.domElement.width !== Math.floor(w * renderer.getPixelRatio())) renderer.setSize(w, h, false);
+  for (const s of spinners) s.obj.rotation.y += dt * s.speed;
+  renderer.setScissorTest(false); renderer.clear(); renderer.setScissorTest(true);
+  if (detail) { detail.controls.update(); draw(detail, t, false); }
+  else for (const it of items) draw(it, t, true);
+});
+</script>
+</body>
+</html>
