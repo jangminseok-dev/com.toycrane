@@ -1,4 +1,8 @@
+import json
 import math
+from pathlib import Path
+
+import pytest
 
 from toycrane.domain.store_rules import choose_store, clamp_to_floor, spawn_position
 from toycrane.domain.value_objects.position import Position
@@ -29,3 +33,12 @@ def test_spawn_on_ring():
 def test_clamp_to_floor_bounds_and_tower():
     assert clamp_to_floor(Position(13.0, -20.0)) == Position(12.6, -12.6)
     assert clamp_to_floor(Position(0.5, 1.0)) == Position(0.5, 1.3)
+
+
+SHARED = Path(__file__).resolve().parents[3] / "shared"
+
+
+@pytest.mark.parametrize("case", json.loads((SHARED / "clamp_fixtures.json").read_text(encoding="utf-8")))
+def test_clamp_matches_shared_fixture(case):
+    p = clamp_to_floor(Position(*case["in"]))
+    assert (round(p.x, 3), round(p.z, 3)) == tuple(case["out"]), case["why"]

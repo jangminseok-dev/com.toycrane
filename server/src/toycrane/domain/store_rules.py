@@ -1,7 +1,8 @@
-"""매장 규칙: 정원, 매장 고르기, 바닥 경계, 스폰."""
+"""매장 규칙: 정원, 매장 고르기, 바닥 경계·장애물(탑·기계·교환소), 스폰."""
 
 import math
 
+from toycrane.domain.layout import OBSTACLES
 from toycrane.domain.value_objects.position import Position
 
 STORE_CAPACITY = 50
@@ -24,12 +25,20 @@ def spawn_position(seed: int) -> Position:
 
 
 def clamp_to_floor(p: Position) -> Position:
-    """바닥 밖은 경계로 자르고, 탑 안이면 덜 파고든 쪽 변으로 밀어낸다."""
+    """바닥 밖은 경계로 자르고, 장애물 상자 안이면 덜 파고든 축으로 가까운 변까지 밀어낸다."""
     x = min(max(p.x, -MAP_HALF), MAP_HALF)
     z = min(max(p.z, -MAP_HALF), MAP_HALF)
-    if abs(x) < TOWER_HALF and abs(z) < TOWER_HALF:
-        if TOWER_HALF - abs(z) <= TOWER_HALF - abs(x):
-            z = math.copysign(TOWER_HALF, z)
-        else:
-            x = math.copysign(TOWER_HALF, x)
+    for x0, z0, x1, z1 in OBSTACLES:
+        if x0 < x < x1 and z0 < z < z1:
+            if min(z - z0, z1 - z) <= min(x - x0, x1 - x):
+                z = _push_out(z, z0, z1)
+            else:
+                x = _push_out(x, x0, x1)
     return Position(x, z)
+
+
+def _push_out(v: float, lo: float, hi: float) -> float:
+    """가까운 변으로. 두 변까지 같으면 상자 가운데 기준 부호로(−0은 음수 쪽 — 화면 movement.ts와 같게)."""
+    if v - lo != hi - v:
+        return lo if v - lo < hi - v else hi
+    return lo if math.copysign(1.0, v - (lo + hi) / 2) < 0 else hi

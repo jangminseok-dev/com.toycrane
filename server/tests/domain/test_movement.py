@@ -15,9 +15,10 @@ def test_teleport_moves_only_as_far_as_the_budget():
 
 
 # 오래 서 있어도 예산은 2초 분량까지만 쌓인다 — 서 있다가 매장 끝으로 순간이동 금지 (최종 리뷰 #7)
+# (z=0 가로줄: 끝점이 기계·교환소 장애물에 걸리지 않게)
 def test_long_idle_does_not_allow_teleport():
-    pos, left = accept_move(Position(0, 3), 0.6, 0.0, Position(0, -12), now=60.0)
-    assert (pos.x, pos.z) == (0, approx(3 - BUDGET_CAP)) and left == 0
+    pos, left = accept_move(Position(-12, 0), 0.6, 0.0, Position(12, 0), now=60.0)
+    assert (pos.x, pos.z) == (approx(-12 + BUDGET_CAP), 0) and left == 0
 
 
 # 끊겼다가 몰려 도착한 메시지(0.5초 간격으로 보냈는데 10ms 간격 도착)는 쌓인 예산으로 받아 준다 (최종 리뷰 #7)
