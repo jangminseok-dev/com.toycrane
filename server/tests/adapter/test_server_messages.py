@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from toycrane.adapter.inbound.ws.schemas.server_messages import correct, join, leave, move, welcome
+from toycrane.adapter.inbound.ws.schemas.server_messages import coins, correct, join, leave, move, queue, queue_no, welcome
 from toycrane.app.dtos.player_view import PlayerView
 from toycrane.app.dtos.store_snapshot import StoreSnapshot
 from toycrane.domain.crane import DollSpot
@@ -41,3 +41,9 @@ def test_positions_are_rounded_for_the_wire():
     assert move(PlayerView("p2", "곰돌이", 5, 1.60004, 2.99996, 0.70712, -0.70712)) == {
         "t": "move", "id": "p2", "x": 1.6, "z": 3.0, "dx": 0.707, "dz": -0.707,
     }
+
+
+def test_queue_and_coin_messages_match_fixtures():
+    assert queue(0, ["p1", "p2"]) == FX["server_queue"]
+    assert queue_no(0, "full") == FX["server_queue_no"]
+    assert coins(10, 5) == FX["server_coins"]

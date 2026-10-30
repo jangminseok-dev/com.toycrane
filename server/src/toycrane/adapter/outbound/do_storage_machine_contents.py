@@ -1,6 +1,6 @@
 import json
 
-from toycrane.adapter.runtime import to_py
+from toycrane.adapter.outbound.js_values import to_py
 from toycrane.app.ports.output.machine_contents_port import MachineContentsPort
 from toycrane.domain.crane import DollSpot
 

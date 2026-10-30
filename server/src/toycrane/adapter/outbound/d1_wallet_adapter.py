@@ -1,4 +1,4 @@
-from toycrane.adapter.runtime import to_py
+from toycrane.adapter.outbound.js_values import to_py
 from toycrane.app.ports.output.wallet_port import WalletPort
 
 

@@ -24,3 +24,13 @@ class ConnectionsPort(ABC):
 
     @abstractmethod
     def kick(self, conn_id: str, code: int, reason: str) -> None: ...
+
+    @abstractmethod
+    def broadcast_queue(self, counter: int, player_ids: list[str]) -> None:
+        """교환소 줄 순서를 모두에게(맨 앞이 0번)."""
+
+    @abstractmethod
+    def send_queue_no(self, conn_id: str, counter: int, why: str) -> None: ...
+
+    @abstractmethod
+    def send_coins(self, conn_id: str, total: int, got: int) -> None: ...

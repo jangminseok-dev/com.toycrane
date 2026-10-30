@@ -5,6 +5,8 @@ from urllib.parse import parse_qs, urlparse
 import js
 from workers import Response
 
+from toycrane.adapter.outbound.js_values import to_py  # noqa: F401 — 기존 어댑터들이 여기서 가져다 쓴다
+
 
 async def read_json(request) -> dict | None:
     try:
@@ -25,10 +27,6 @@ def path_of(request) -> str:
 def query_param(request, name: str) -> str | None:
     values = parse_qs(urlparse(request.url).query).get(name)
     return values[0] if values else None
-
-
-def to_py(value):
-    return value.to_py() if hasattr(value, "to_py") else value
 
 
 def with_headers(request, extra: dict[str, str]):

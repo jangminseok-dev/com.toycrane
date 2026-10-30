@@ -41,3 +41,15 @@ def move(p: PlayerView) -> dict:
 
 def correct(x: float, z: float) -> dict:
     return {"t": "correct", "x": round(x, 2), "z": round(z, 2)}
+
+
+def queue(counter: int, player_ids: list[str]) -> dict:
+    return {"t": "queue", "c": counter, "ids": player_ids}
+
+
+def queue_no(counter: int, why: str) -> dict:
+    return {"t": "queue_no", "c": counter, "why": why}
+
+
+def coins(total: int, got: int) -> dict:
+    return {"t": "coins", "n": total, "got": got}

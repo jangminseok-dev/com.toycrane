@@ -15,6 +15,12 @@
   "server_move": { "t": "move", "id": "p2", "x": 1.6, "z": 3.0, "dx": 1, "dz": 0 },
   "server_correct": { "t": "correct", "x": 1.6, "z": 3.0 },
   "server_leave": { "t": "leave", "id": "p2" },
+  "client_queue": { "t": "queue", "c": 0 },
+  "client_unqueue": { "t": "unqueue" },
+  "client_take": { "t": "take" },
+  "server_queue": { "t": "queue", "c": 0, "ids": ["p1", "p2"] },
+  "server_queue_no": { "t": "queue_no", "c": 0, "why": "full" },
+  "server_coins": { "t": "coins", "n": 10, "got": 5 },
   "bad_client_moves": [
     { "t": "move", "x": "a", "z": 0, "dx": 0, "dz": 0 },
     { "t": "move", "x": 1, "z": 1, "dx": 2, "dz": 0 },

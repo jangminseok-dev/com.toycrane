@@ -2,10 +2,13 @@
 
 import json
 
-from toycrane.adapter.inbound.ws import move_handler
+from toycrane.adapter.inbound.ws import coin_take_handler, move_handler, queue_join_handler, queue_leave_handler
 
 HANDLERS = {
     "move": move_handler.handle,
+    "queue": queue_join_handler.handle,
+    "unqueue": queue_leave_handler.handle,
+    "take": coin_take_handler.handle,
 }
 
 

@@ -1,7 +1,12 @@
-from fakes import BrokenOccupancy, FakeConnections, FakeOccupancy, FakeRegistry, player
+from fakes import BrokenOccupancy, FakeConnections, FakeOccupancy, FakeQueues, FakeRegistry, player
 from toycrane.adapter.inbound.ws.schemas.server_messages import leave
+from toycrane.adapter.inbound.ws.schemas.server_messages import queue as queue_msg
 from toycrane.app.dtos.leave_dto import LeaveCommand
-from toycrane.app.use_cases.leave_interactor import LeaveInteractor
+from toycrane.app.use_cases.leave_interactor import LeaveInteractor as _LeaveInteractor
+
+
+def LeaveInteractor(reg, conns, occ, queues=None):  # noqa: N802 — 1단계 테스트 호출 모양을 그대로 쓰려고
+    return _LeaveInteractor(reg, conns, occ, queues=queues or FakeQueues())
 
 
 async def test_leave_removes_broadcasts_and_writes_count():
@@ -25,3 +30,11 @@ async def test_leave_survives_occupancy_write_failure():
     conns = FakeConnections()
     await LeaveInteractor(reg, conns, BrokenOccupancy()).leave(LeaveCommand("c-1", 1, now=5.0))
     assert reg.entries() == [] and conns.broadcasts == [("c-1", leave("p-1"))]
+
+
+async def test_leave_removes_from_queue():
+    reg, conns, q = FakeRegistry(), FakeConnections(), FakeQueues()
+    reg.put("c-1", player("p1")); reg.put("c-2", player("p2"))
+    q.join("c-1", 0, 1.0); q.mark_head("c-1", 1.0); q.join("c-2", 0, 2.0)
+    await LeaveInteractor(reg, conns, FakeOccupancy(), queues=q).leave(LeaveCommand("c-1", 1, now=5.0))
+    assert (None, queue_msg(0, ["p2"])) in conns.broadcasts and q.head_since("c-2") == 5.0

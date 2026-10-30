@@ -49,6 +49,15 @@ class WsConnectionsAdapter(ConnectionsPort):
     def send_correction(self, conn_id: str, x: float, z: float) -> None:
         self._to_one(conn_id, server_messages.correct(x, z))
 
+    def broadcast_queue(self, counter: int, player_ids: list[str]) -> None:
+        self._to_all_except(None, server_messages.queue(counter, player_ids))
+
+    def send_queue_no(self, conn_id: str, counter: int, why: str) -> None:
+        self._to_one(conn_id, server_messages.queue_no(counter, why))
+
+    def send_coins(self, conn_id: str, total: int, got: int) -> None:
+        self._to_one(conn_id, server_messages.coins(total, got))
+
     def kick(self, conn_id: str, code: int, reason: str) -> None:
         ws = ws_attachment.find(self._ctx, conn_id)
         if ws is not None:

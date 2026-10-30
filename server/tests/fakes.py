@@ -102,6 +102,15 @@ class FakeConnections:
     def kick(self, conn_id: str, code: int, reason: str) -> None:
         self.kicked.append((conn_id, code))
 
+    def broadcast_queue(self, counter, player_ids) -> None:
+        self.broadcasts.append((None, server_messages.queue(counter, player_ids)))
+
+    def send_queue_no(self, conn_id, counter, why) -> None:
+        self.direct.append((conn_id, server_messages.queue_no(counter, why)))
+
+    def send_coins(self, conn_id, total, got) -> None:
+        self.direct.append((conn_id, server_messages.coins(total, got)))
+
 
 class FakeWallet:
     """지갑(D1) 가짜 — 게스트별 코인 수."""

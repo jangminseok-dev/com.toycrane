@@ -9,3 +9,16 @@ class QueueMember:
     player_id: str
     joined_at: float
     head_since: float | None
+
+
+@dataclass(frozen=True)
+class QueueJoinCommand:
+    conn_id: str
+    counter: int
+    now: float
+
+
+@dataclass(frozen=True)
+class QueueLeaveCommand:
+    conn_id: str
+    now: float
