@@ -33,6 +33,10 @@ node server/scripts/smoke.mjs http://localhost:8787 myself
 
 휴대폰 검사(헤드리스 크롬을 `--remote-debugging-port=<port>`로 띄운 뒤): `node client/e2e/mobile-entry.mjs <port> http://localhost:8787`, `node client/e2e/mobile-joystick.mjs <port> http://localhost:8787`
 
+화면 캡처: `node client/e2e/shot.mjs <port> http://localhost:8787 out.png phone "go:-3.3,-1.7;press:4;go:0,-5.4;press:2;shot:playing"` (걷기·버튼 누르기·중간 캡처를 섞어 쓴다, 파일 위 주석 참고)
+
+공용 데이터(`shared/catalog.json`, `shared/store_layout.json`)를 고치면 `cd server && uv run python scripts/gen_shared.py`로 서버용 모듈을 다시 만든다.
+
 화면만 고칠 때는 `npm --prefix client run dev`(5173)를 함께 띄우면 `/api`·`/ws`가 8787로 넘어간다.
 
 ## 배포
@@ -51,3 +55,5 @@ npm --prefix client run build && (cd server && uv run pywrangler deploy)
 - 1단계 배포(2026-10-31): 배포 주소 스모크 8개 OK(myself guest admission together twotabs walk unknown idle). PC(맥 크롬)와 휴대폰으로 같은 매장에서 서로 보임.
 - 접속 중 다시 배포: 가만히 있던 접속은 끊기지 않고 이어짐(배포 뒤 들어온 사람과 서로 보이고 이동 주고받음). 걷던 접속은 1006으로 끊기고 화면이 2~4초 안에 다시 들어감.
 - 배포 직후·오래 잠든 매장의 첫 입장은 5~6초(파이썬 서버 깨어나는 시간) — 5단계 성능 다듬기 대상.
+- 2단계 배포(2026-10-31): 배포 주소 스모크 13개 OK(myself guest admission together twotabs walk unknown coins play busy nocoins refund idle). Worker 시작 시간 749ms.
+- 2단계 로컬 화면 확인(헤드리스 크롬 PC·휴대폰): 교환소 줄 서기→코인 5개, 기계 35대·교환소 60fps, 기계 정면 카메라·겨냥 고리·내리기, 성공 연출(집게→번쩍 들기→당첨 카드), 희귀 무지개 공룡 성공 시 금색 기계·탑 전광판 알림이 구경꾼 화면에도 보임.
