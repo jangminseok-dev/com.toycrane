@@ -1,19 +1,36 @@
-from toycrane.domain.movement import accept_move
-from toycrane.domain.value_objects.heading import Heading
+from pytest import approx
+
+from toycrane.domain.movement import BUDGET_CAP, accept_move
 from toycrane.domain.value_objects.position import Position
 
 
-def test_within_speed_is_accepted():
-    assert accept_move(Position(0, 3), Heading(1, 0), 0.0, Position(1.5, 3), now=0.5) == Position(1.5, 3)
+def test_within_budget_is_accepted_and_spent():
+    pos, left = accept_move(Position(0, 3), 0.6, 0.0, Position(1.5, 3), now=0.5)
+    assert pos == Position(1.5, 3) and left == approx(1.5)
 
 
-def test_teleport_snaps_to_expected():
-    assert accept_move(Position(0, 3), Heading(1, 0), 0.0, Position(9, 3), now=0.5) == Position(1.6, 3)
+def test_teleport_moves_only_as_far_as_the_budget():
+    pos, left = accept_move(Position(0, 3), 0.6, 0.0, Position(9, 3), now=0.5)
+    assert (pos.x, pos.z) == (approx(3.0), 3) and left == 0
+
+
+# 오래 서 있어도 예산은 2초 분량까지만 쌓인다 — 서 있다가 매장 끝으로 순간이동 금지 (최종 리뷰 #7)
+def test_long_idle_does_not_allow_teleport():
+    pos, left = accept_move(Position(0, 3), 0.6, 0.0, Position(0, -12), now=60.0)
+    assert (pos.x, pos.z) == (0, approx(3 - BUDGET_CAP)) and left == 0
+
+
+# 끊겼다가 몰려 도착한 메시지(0.5초 간격으로 보냈는데 10ms 간격 도착)는 쌓인 예산으로 받아 준다 (최종 리뷰 #7)
+def test_bunched_messages_use_saved_budget():
+    pos, left = accept_move(Position(3.2, 3), 2.0, 1.0, Position(4.8, 3), now=1.01)
+    assert pos == Position(4.8, 3) and left == approx(0.448)
 
 
 def test_clamped_to_floor_edge():
-    assert accept_move(Position(12.5, 0), Heading(1, 0), 0.0, Position(12.9, 0), now=0.5) == Position(12.6, 0)
+    pos, _ = accept_move(Position(12.5, 0), 0.6, 0.0, Position(12.9, 0), now=0.5)
+    assert pos == Position(12.6, 0)
 
 
 def test_pushed_out_of_tower():
-    assert accept_move(Position(0.5, 1.5), Heading(0, -1), 0.0, Position(0.5, 1.0), now=0.2) == Position(0.5, 1.3)
+    pos, _ = accept_move(Position(0.5, 1.5), 0.6, 0.0, Position(0.5, 1.0), now=0.2)
+    assert pos == Position(0.5, 1.3)

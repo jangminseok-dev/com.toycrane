@@ -3,6 +3,7 @@ from toycrane.app.ports.input.leave_use_case import LeaveUseCase
 from toycrane.app.ports.output.connections_port import ConnectionsPort
 from toycrane.app.ports.output.occupancy_port import OccupancyPort
 from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
+from toycrane.app.use_cases.occupancy_note import note_occupancy
 
 
 class LeaveInteractor(LeaveUseCase):
@@ -18,4 +19,4 @@ class LeaveInteractor(LeaveUseCase):
         if gone is None:
             return
         self._connections.broadcast_leave(cmd.conn_id, gone.player_id)
-        await self._occupancy.write(cmd.store_no, len(self._registry.entries()), cmd.now)
+        await note_occupancy(self._occupancy, cmd.store_no, len(self._registry.entries()), cmd.now)

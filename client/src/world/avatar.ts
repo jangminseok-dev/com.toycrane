@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { makeLabel } from './label';
+import { disposeLabel, makeLabel } from './label';
 import { SPH, cap, part, toon } from './toon';
 
 // 서버가 정한 색 번호 0~7 순서 (server/src/toycrane/dependencies/guest_provider.py AVATAR_COLORS = 8)
@@ -11,6 +11,7 @@ export interface Avatar {
   root: THREE.Group;
   setWalking(on: boolean): void;
   update(t: number): void;
+  dispose(): void; // 장면에서 뺄 때 이 아바타만의 GPU 자원(이름표) 해제
 }
 
 const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
@@ -46,6 +47,7 @@ export function makeAvatar(color: number, nickname: string): Avatar {
   let walking = false;
   return {
     root,
+    dispose() { disposeLabel(label); },
     setWalking(on) { walking = on; },
     update(t) {
       const s = Math.sin(t * 2.4 + phase);

@@ -5,6 +5,7 @@ import math
 from toycrane.domain.value_objects.position import Position
 
 STORE_CAPACITY = 50
+OCCUPANCY_STALE_SECONDS = 120  # 이보다 오래 갱신 안 된 인원 기록은 믿지 않는다(배포로 끊긴 접속은 "나감"이 안 남을 수 있음)
 MAP_HALF = 12.6        # 26m 매장, 벽 두께를 빼고 걸을 수 있는 반폭
 TOWER_HALF = 1.3       # 허브 한가운데 전광판 탑 반폭
 SPAWN_RADIUS = 2.4     # 탑 둘레 스폰 링

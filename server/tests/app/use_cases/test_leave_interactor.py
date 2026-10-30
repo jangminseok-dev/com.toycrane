@@ -1,4 +1,4 @@
-from fakes import FakeConnections, FakeOccupancy, FakeRegistry, player
+from fakes import BrokenOccupancy, FakeConnections, FakeOccupancy, FakeRegistry, player
 from toycrane.adapter.inbound.ws.schemas.server_messages import leave
 from toycrane.app.dtos.leave_dto import LeaveCommand
 from toycrane.app.use_cases.leave_interactor import LeaveInteractor
@@ -17,3 +17,11 @@ async def test_leave_unknown_connection_is_noop():
     conns = FakeConnections()
     await LeaveInteractor(FakeRegistry(), conns, FakeOccupancy()).leave(LeaveCommand("c-x", 1, 0.0))
     assert conns.broadcasts == []
+
+
+async def test_leave_survives_occupancy_write_failure():
+    reg = FakeRegistry()
+    reg.put("c-1", player("p-1"))
+    conns = FakeConnections()
+    await LeaveInteractor(reg, conns, BrokenOccupancy()).leave(LeaveCommand("c-1", 1, now=5.0))
+    assert reg.entries() == [] and conns.broadcasts == [("c-1", leave("p-1"))]

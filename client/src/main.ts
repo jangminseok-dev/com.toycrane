@@ -7,8 +7,9 @@ import { RemotePlayers } from './game/remotePlayers';
 import { installJoystick } from './input/joystick';
 import { readKeyboard } from './input/keyboard';
 import { admit, createGuest, getGuest, type Guest } from './net/api';
-import { CLOSE_FULL, CLOSE_OTHER_TAB, CLOSE_UNKNOWN_GUEST, encodeMove, type ServerMsg } from './net/protocol';
-import { nextDelay } from './net/reconnect';
+import { encodeMove, type ServerMsg } from './net/protocol';
+import { closeAction, nextDelay, retrying } from './net/reconnect';
+import { safeStorage } from './net/storage';
 import { StoreSocket, storeUrl } from './net/storeSocket';
 import { askNickname, hideEntry, showFull, showMessage, showWelcomeBack } from './ui/entry';
 import { setStatus } from './ui/status';
@@ -16,6 +17,8 @@ import { makeAvatar, type Avatar } from './world/avatar';
 import { buildStore } from './world/storeScene';
 
 const GUEST_KEY = 'toycrane.guestId';
+const storage = safeStorage();
+const reconnecting = () => setStatus('다시 연결 중…');
 
 // ---------- 무대 ----------
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -23,13 +26,15 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 Object.assign(document.body.style, { margin: '0', overflow: 'hidden', background: '#1c1526' });
+// 캔버스는 화면에 고정해 꽉 채운다 — 픽셀 폭을 박으면 휴대폰에서 페이지가 넓어져 축소돼 보인다
+Object.assign(renderer.domElement.style, { position: 'fixed', inset: '0', width: '100%', height: '100%', display: 'block', touchAction: 'none' });
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 buildStore(scene);
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
 camera.position.set(0, 7, 11.4);
 const remotes = new RemotePlayers(scene);
-const joystick = installJoystick(document.body);
+const joystick = installJoystick(renderer.domElement);
 let sampler = new InputSampler();
 
 let me: LocalPlayer | null = null;
@@ -38,7 +43,7 @@ let socket: StoreSocket | null = null;
 let attempt = 0;
 
 function resize() {
-  renderer.setSize(innerWidth, innerHeight);
+  renderer.setSize(innerWidth, innerHeight, false);
   camera.aspect = innerWidth / innerHeight;
   camera.fov = camera.aspect < 1 ? 60 : 45;
   camera.updateProjectionMatrix();
@@ -46,24 +51,28 @@ function resize() {
 addEventListener('resize', resize); resize();
 
 // ---------- 게스트 ----------
+// 네트워크가 잠깐 끊겨도 멈추지 않게 서버 호출은 retrying으로 감싼다
 async function ensureGuest(): Promise<Guest> {
-  const saved = localStorage.getItem(GUEST_KEY);
+  const saved = storage.get(GUEST_KEY);
   if (saved) {
-    const g = await getGuest(saved);
+    const g = await retrying(() => getGuest(saved), reconnecting);
+    setStatus(null);
     if (g) { showWelcomeBack(g.nickname); return g; }
-    localStorage.removeItem(GUEST_KEY);
+    storage.remove(GUEST_KEY);
   }
   let error: string | undefined;
   for (;;) {
-    const made = await createGuest(await askNickname(error));
-    if (made !== 'bad_nickname') { localStorage.setItem(GUEST_KEY, made.guestId); return made; }
+    const nickname = await askNickname(error);
+    const made = await retrying(() => createGuest(nickname), reconnecting);
+    setStatus(null);
+    if (made !== 'bad_nickname') { storage.set(GUEST_KEY, made.guestId); return made; }
     error = '닉네임은 1~10자로 해 주세요';
   }
 }
 
 // ---------- 입장·재접속 ----------
 function retryLater(guest: Guest) {
-  setStatus('다시 연결 중…');
+  reconnecting();
   setTimeout(() => enter(guest), nextDelay(attempt++));
 }
 
@@ -92,7 +101,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       remotes.clear();
       me = new LocalPlayer({ x: m.you.x, z: m.you.z });
       sampler = new InputSampler(); // 새로 들어오면 스폰 위치부터 다시 보낸다
-      if (myAvatar) scene.remove(myAvatar.root);
+      if (myAvatar) { scene.remove(myAvatar.root); myAvatar.dispose(); }
       myAvatar = makeAvatar(m.you.color, guest.nickname);
       scene.add(myAvatar.root);
       for (const p of m.players) remotes.add(p, now);
@@ -107,16 +116,24 @@ function onMessage(m: ServerMsg, guest: Guest) {
 function onClose(code: number, guest: Guest) {
   socket = null;
   remotes.clear();
-  if (code === CLOSE_OTHER_TAB) return showMessage('이 창은 멈췄어요', '다른 창에서 접속해서 이 창은 멈췄어요. 새로 고침하면 이 창으로 다시 들어와요.');
-  if (code === CLOSE_UNKNOWN_GUEST) return void restart();
-  if (code === CLOSE_FULL) return void enter(guest); // 그 사이 찼으면 다른 매장으로
-  retryLater(guest);
+  const action = closeAction(code);
+  if (action === 'stop') return showMessage('이 창은 멈췄어요', '다른 창에서 접속해서 이 창은 멈췄어요. 새로 고침하면 이 창으로 다시 들어와요.');
+  if (action === 'restart') return void restart();
+  retryLater(guest); // 만석·배포·끊김: 간격을 두고 다시 배정부터
 }
 
 async function restart() {
-  localStorage.removeItem(GUEST_KEY);
+  storage.remove(GUEST_KEY);
   enter(await ensureGuest());
 }
+
+// 탭을 내리면 멈춤을 알린다 — 안 그러면 다른 사람 화면에서 계속 걸어가 보인다
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden || !socket || !me) return;
+  me.dir = { x: 0, z: 0 };
+  socket.send(encodeMove(me.pos, me.dir));
+  sampler = new InputSampler();
+});
 
 // ---------- 매 프레임 ----------
 let last = performance.now();

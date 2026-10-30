@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Move, PlayerView } from '../net/protocol';
 import { makeAvatar, type Avatar } from '../world/avatar';
-import { extrapolate, type RemoteState } from './remote';
+import { extrapolate, isMoving, type RemoteState } from './remote';
 
 type Remote = { avatar: Avatar; state: RemoteState; shown: THREE.Vector2 };
 const SMOOTH = 0.2; // 매 프레임 추정 위치로 20%씩 다가간다
@@ -33,6 +33,7 @@ export class RemotePlayers {
     const r = this.remotes.get(id);
     if (!r) return;
     this.scene.remove(r.avatar.root);
+    r.avatar.dispose();
     this.remotes.delete(id);
   }
 
@@ -46,7 +47,7 @@ export class RemotePlayers {
       r.shown.x += (target.x - r.shown.x) * SMOOTH;
       r.shown.y += (target.z - r.shown.y) * SMOOTH;
       r.avatar.root.position.set(r.shown.x, 0, r.shown.y);
-      const moving = Math.hypot(r.state.dir.x, r.state.dir.z) > 0;
+      const moving = isMoving(r.state, nowMs);
       if (moving) r.avatar.root.rotation.y = Math.atan2(r.state.dir.x, r.state.dir.z);
       r.avatar.setWalking(moving);
       r.avatar.update(nowMs / 1000);

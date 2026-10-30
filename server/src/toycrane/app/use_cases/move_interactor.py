@@ -25,8 +25,8 @@ class MoveInteractor(MoveUseCase):
         if current is None:
             return
         claimed = Position(cmd.x, cmd.z)
-        accepted = accept_move(current.position, current.heading, current.updated_at, claimed, cmd.now)
-        moved = replace(current, position=accepted, heading=Heading(cmd.dx, cmd.dz), updated_at=cmd.now)
+        accepted, budget = accept_move(current.position, current.budget, current.updated_at, claimed, cmd.now)
+        moved = replace(current, position=accepted, heading=Heading(cmd.dx, cmd.dz), updated_at=cmd.now, budget=budget)
         self._registry.put(cmd.conn_id, moved)
         self._connections.broadcast_move(cmd.conn_id, PlayerView.of(moved))
         if math.hypot(accepted.x - claimed.x, accepted.z - claimed.z) > CORRECTION_EPSILON:

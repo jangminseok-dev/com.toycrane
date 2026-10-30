@@ -15,3 +15,9 @@ export function makeLabel(text: string): THREE.Sprite {
   sp.scale.set(1.0, 0.25, 1);
   return sp;
 }
+
+// 이름표는 사람마다 따로 만든 텍스처·재질이라, 사람이 나가면 직접 해제해야 GPU 메모리가 돌아온다
+export function disposeLabel(sprite: THREE.Sprite): void {
+  sprite.material.map?.dispose();
+  sprite.material.dispose();
+}

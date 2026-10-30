@@ -1,6 +1,7 @@
 from toycrane.adapter.outbound import ws_attachment
 from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
 from toycrane.domain.entities.player import Player
+from toycrane.domain.movement import START_BUDGET
 from toycrane.domain.value_objects.heading import Heading
 from toycrane.domain.value_objects.position import Position
 
@@ -8,12 +9,15 @@ from toycrane.domain.value_objects.position import Position
 def _to_dict(p: Player) -> dict:
     return {
         "id": p.player_id, "guest": p.guest_id, "nick": p.nickname, "color": p.color,
-        "x": p.position.x, "z": p.position.z, "dx": p.heading.dx, "dz": p.heading.dz, "at": p.updated_at,
+        "x": p.position.x, "z": p.position.z, "dx": p.heading.dx, "dz": p.heading.dz, "at": p.updated_at, "budget": p.budget,
     }
 
 
 def _from_dict(d: dict) -> Player:
-    return Player(d["id"], d["guest"], d["nick"], d["color"], Position(d["x"], d["z"]), Heading(d["dx"], d["dz"]), d["at"])
+    return Player(
+        d["id"], d["guest"], d["nick"], d["color"], Position(d["x"], d["z"]), Heading(d["dx"], d["dz"]), d["at"],
+        d.get("budget", START_BUDGET),
+    )
 
 
 class AttachmentPlayerRegistry(PlayerRegistryPort):

@@ -6,6 +6,7 @@ from toycrane.app.ports.input.enter_use_case import EnterUseCase
 from toycrane.app.ports.output.connections_port import ConnectionsPort
 from toycrane.app.ports.output.occupancy_port import OccupancyPort
 from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
+from toycrane.app.use_cases.occupancy_note import note_occupancy
 from toycrane.domain.entities.player import Player
 from toycrane.domain.store_rules import STORE_CAPACITY, spawn_position
 from toycrane.domain.value_objects.heading import Heading
@@ -36,6 +37,8 @@ class EnterInteractor(EnterUseCase):
                 self._connections.broadcast_leave(cmd.conn_id, old.player_id)
         others = self._registry.entries()
         if len(others) >= STORE_CAPACITY:
+            # 실제 인원을 다시 적어 배정이 이 매장을 비었다고 오해하지 않게 한다
+            await note_occupancy(self._occupancy, cmd.store_no, len(others), cmd.now)
             raise StoreFull(cmd.store_no)
         me = Player(
             self._new_player_id(), cmd.guest_id, cmd.nickname, cmd.color,
@@ -46,5 +49,5 @@ class EnterInteractor(EnterUseCase):
         result = EnterResult(you=you, others=tuple(PlayerView.of(p) for _, p in others))
         self._connections.send_welcome(cmd.conn_id, cmd.store_no, you, list(result.others))
         self._connections.broadcast_join(cmd.conn_id, you)
-        await self._occupancy.write(cmd.store_no, len(others) + 1, cmd.now)
+        await note_occupancy(self._occupancy, cmd.store_no, len(others) + 1, cmd.now)
         return result

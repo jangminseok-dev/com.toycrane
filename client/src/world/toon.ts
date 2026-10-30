@@ -14,7 +14,14 @@ export function toon(color: number): THREE.MeshToonMaterial {
 
 export const outlineMat = new THREE.MeshBasicMaterial({ color: 0x3b2a5a, side: THREE.BackSide });
 export const SPH = new THREE.SphereGeometry(1, 32, 20);
-export const cap = (r: number, l: number) => new THREE.CapsuleGeometry(r, l, 8, 16);
+// 같은 치수의 캡슐은 하나만 만들어 함께 쓴다 (아바타마다 새로 만들면 GPU 메모리가 샌다)
+const capsules = new Map<string, THREE.CapsuleGeometry>();
+export function cap(r: number, l: number): THREE.CapsuleGeometry {
+  const key = `${r}:${l}`;
+  let g = capsules.get(key);
+  if (!g) capsules.set(key, (g = new THREE.CapsuleGeometry(r, l, 8, 16)));
+  return g;
+}
 
 type V3 = [number, number, number];
 export function part(geo: THREE.BufferGeometry, mat: THREE.Material, pos: V3 = [0, 0, 0], scl: V3 = [1, 1, 1], rot: V3 = [0, 0, 0], outline = 1.06): THREE.Mesh {

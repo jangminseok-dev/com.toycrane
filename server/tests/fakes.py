@@ -32,16 +32,23 @@ class FakeGuestRepository:
 
 
 class FakeOccupancy:
-    def __init__(self, counts_value: dict[int, int] | None = None) -> None:
-        self.counts_value = dict(counts_value or {})
+    def __init__(self, counts_value: dict[int, int] | None = None, at: float = 0.0) -> None:
+        self.rows: dict[int, tuple[int, float]] = {n: (c, at) for n, c in (counts_value or {}).items()}
         self.writes: list[tuple[int, int, float]] = []
 
-    async def counts(self) -> dict[int, int]:
-        return dict(self.counts_value)
+    async def counts(self, fresh_since: float) -> dict[int, int]:
+        return {n: c for n, (c, at) in self.rows.items() if at >= fresh_since}
 
     async def write(self, store_no: int, count: int, now: float) -> None:
         self.writes.append((store_no, count, now))
-        self.counts_value[store_no] = count
+        self.rows[store_no] = (count, now)
+
+
+class BrokenOccupancy(FakeOccupancy):
+    """D1 쓰기가 실패하는 경우(한도 소진·장애)."""
+
+    async def write(self, store_no: int, count: int, now: float) -> None:
+        raise RuntimeError("D1 write failed")
 
 
 def player(

@@ -22,7 +22,8 @@ async def test_snapped_move_sends_correction_to_sender():
     reg.put("c-1", player("p-1", at=Position(0, 3), heading=Heading(1, 0), updated_at=0.0))
     conns = FakeConnections()
     await MoveInteractor(reg, conns).move(MoveCommand("c-1", 9, 3, 1, 0, now=0.5))
-    assert conns.direct == [("c-1", correct(1.6, 3))]
+    assert conns.direct == [("c-1", correct(3.0, 3))]  # 예산(0.6 + 0.5초×4.8)만큼만 이동
+    assert dict(reg.entries())["c-1"].budget == 0
 
 
 async def test_move_from_unknown_connection_is_ignored():

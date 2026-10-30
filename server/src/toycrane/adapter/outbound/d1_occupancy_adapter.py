@@ -6,8 +6,8 @@ class D1OccupancyAdapter(OccupancyPort):
     def __init__(self, db) -> None:
         self._db = db
 
-    async def counts(self) -> dict[int, int]:
-        result = to_py(await self._db.prepare("SELECT store_no, count FROM store_occupancy").all())
+    async def counts(self, fresh_since: float) -> dict[int, int]:
+        result = to_py(await self._db.prepare("SELECT store_no, count FROM store_occupancy WHERE updated_at >= ?").bind(fresh_since).all())
         return {int(r["store_no"]): int(r["count"]) for r in result["results"]}
 
     async def write(self, store_no: int, count: int, now: float) -> None:
