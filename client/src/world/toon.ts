@@ -12,8 +12,15 @@ export function toon(color: number): THREE.MeshToonMaterial {
   return m;
 }
 
+// 툰 음영에 재질 옵션(무늬·발광)을 더한 것 — 희귀 인형 재질용
+export function toonWith(params: THREE.MeshToonMaterialParameters): THREE.MeshToonMaterial {
+  return new THREE.MeshToonMaterial({ ...params, gradientMap });
+}
+
 export const outlineMat = new THREE.MeshBasicMaterial({ color: 0x3b2a5a, side: THREE.BackSide });
 export const SPH = new THREE.SphereGeometry(1, 32, 20);
+export const SPH_LO = new THREE.SphereGeometry(1, 12, 8); // 기계 속 작은 인형용
+export const CAP_LO = new THREE.CapsuleGeometry(0.075, 0.36, 3, 8);
 // 같은 치수의 캡슐은 하나만 만들어 함께 쓴다 (아바타마다 새로 만들면 GPU 메모리가 샌다)
 const capsules = new Map<string, THREE.CapsuleGeometry>();
 export function cap(r: number, l: number): THREE.CapsuleGeometry {
