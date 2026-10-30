@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { followCamera } from './game/followCamera';
 import { InputSampler } from './game/inputSampler';
 import { LocalPlayer } from './game/localPlayer';
+import { blocksView } from './game/occlusion';
 import { RemotePlayers } from './game/remotePlayers';
 import { installJoystick } from './input/joystick';
 import { readKeyboard } from './input/keyboard';
@@ -30,12 +31,25 @@ Object.assign(document.body.style, { margin: '0', overflow: 'hidden', background
 Object.assign(renderer.domElement.style, { position: 'fixed', inset: '0', width: '100%', height: '100%', display: 'block', touchAction: 'none' });
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
-buildStore(scene);
+const tower = buildStore(scene);
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
 camera.position.set(0, 7, 11.4);
 const remotes = new RemotePlayers(scene);
 const joystick = installJoystick(renderer.domElement);
 let sampler = new InputSampler();
+
+// 탑이 내 캐릭터를 가리면 탑을 흐리게(머리·몸통 중 하나라도 가리면)
+const TOWER_FADED = 0.25;
+let towerOpacity = 1;
+const eyeLine = { head: new THREE.Vector3(), body: new THREE.Vector3() };
+function fadeTowerIfBlocking(dt: number, at: { x: number; z: number }) {
+  eyeLine.head.set(at.x, 1.2, at.z); eyeLine.body.set(at.x, 0.4, at.z);
+  const blocked = blocksView(camera.position, eyeLine.head, tower.box) || blocksView(camera.position, eyeLine.body, tower.box);
+  const goal = blocked ? TOWER_FADED : 1;
+  towerOpacity += (goal - towerOpacity) * Math.min(1, dt * 8);
+  if (Math.abs(goal - towerOpacity) < 0.01) towerOpacity = goal;
+  tower.setOpacity(towerOpacity);
+}
 
 let me: LocalPlayer | null = null;
 let myAvatar: Avatar | null = null;
@@ -150,6 +164,7 @@ renderer.setAnimationLoop((now) => {
     myAvatar.update(now / 1000);
     if (socket && sampler.shouldSend(me.dir, now)) socket.send(encodeMove(me.pos, me.dir));
     followCamera(camera, me.pos, dt);
+    fadeTowerIfBlocking(dt, me.pos);
   }
   remotes.update(now);
   renderer.render(scene, camera);

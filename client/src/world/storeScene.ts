@@ -1,16 +1,19 @@
 import * as THREE from 'three';
 import { HUB_HALF, ROOM_HALF, ROOM_HEIGHT, SPAWN_RADIUS, TOWER_HALF } from './layout';
-import { canvasTex, part, toon } from './toon';
+import { canvasTex, outlineMat, part, toon } from './toon';
 
 // 매장 겉모습: 회색 대리석 바닥 · 어두운 보라 벽 · 천장 분홍 네온 · 구역 바닥 색 · 허브 4면 전광판 탑 · 스폰 링
 // (분위기 고증: 설계 §4.2, 시제품 docs/reference/prototypes/spike-arcade-big-v3.html)
-export function buildStore(scene: THREE.Scene): void {
+// 탑이 내 캐릭터를 가릴 때 흐리게 하려고 탑 상자와 투명도 조절을 돌려준다
+export type HubTower = { box: THREE.Box3; setOpacity(opacity: number): void };
+
+export function buildStore(scene: THREE.Scene): HubTower {
   scene.background = new THREE.Color(0x1c1526);
   addLights(scene);
   addFloor(scene);
   addWallsAndCeiling(scene);
   addZones(scene);
-  addHubTower(scene);
+  return addHubTower(scene);
 }
 
 function addLights(scene: THREE.Scene) {
@@ -123,9 +126,13 @@ function floorText(scene: THREE.Scene, text: string, x: number, z: number) {
   scene.add(m);
 }
 
-function addHubTower(scene: THREE.Scene) {
+function addHubTower(scene: THREE.Scene): HubTower {
   const w = TOWER_HALF * 2, h = 2.8;
-  scene.add(part(new THREE.BoxGeometry(w, h, w), toon(0x2b2433), [0, h / 2, 0], [1, 1, 1], [0, 0, 0], 1.02));
+  // 탑만 흐려지게 공용 재질(툰·외곽선)을 복제해 쓴다
+  const bodyMat = toon(0x2b2433).clone(), edgeMat = outlineMat.clone();
+  const body = part(new THREE.BoxGeometry(w, h, w), bodyMat, [0, h / 2, 0], [1, 1, 1], [0, 0, 0], 1.02);
+  body.traverse((o) => { if (o instanceof THREE.Mesh && o.material === outlineMat) o.material = edgeMat; });
+  scene.add(body);
   const screenTex = canvasTex(512, 384, (g) => {
     g.fillStyle = '#0d0a14'; g.fillRect(0, 0, 512, 384);
     g.fillStyle = 'rgba(255,255,255,.05)';
@@ -148,6 +155,17 @@ function addHubTower(scene: THREE.Scene) {
     side.add(band);
     scene.add(side);
   }
+  const mats = [bodyMat, edgeMat, screenMat, glow];
+  return {
+    box: new THREE.Box3(new THREE.Vector3(-TOWER_HALF, 0, -TOWER_HALF), new THREE.Vector3(TOWER_HALF, h, TOWER_HALF)),
+    setOpacity(opacity) {
+      for (const m of mats) {
+        if (m.transparent !== opacity < 1) { m.transparent = opacity < 1; m.needsUpdate = true; }
+        m.opacity = opacity;
+        m.depthWrite = opacity >= 1;
+      }
+    },
+  };
 }
 
 function addBox(scene: THREE.Scene, size: [number, number, number], pos: [number, number, number], mat: THREE.Material) {
