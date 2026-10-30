@@ -90,6 +90,26 @@ const cases = {
     assert(!ids(w2.players).includes(w1.you.id), '이전 탭 캐릭터가 남아 있음');
     await second.close();
   },
+  async walk() {
+    const ga = await newGuest('걷기 A'), gb = await newGuest('걷기 B');
+    const a = connect(ga.id, ga.store), b = connect(gb.id, ga.store);
+    const wa = await a.welcome();
+    await b.welcome();
+    const sx = wa.you.x, sz = wa.you.z;
+    // 걷는 속도 안의 이동 → B가 받음
+    a.ws.send(JSON.stringify({ t: 'move', x: sx + 0.3, z: sz, dx: 1, dz: 0 }));
+    const m1 = await b.waitFor((m) => m.t === 'move' && m.id === wa.you.id, 'B가 A move 받기');
+    assert(Math.abs(m1.x - (sx + 0.3)) < 0.02 && m1.dx === 1, `move ${JSON.stringify(m1)}`);
+    // 이상한 메시지 → 무시, 접속 유지
+    a.ws.send('not json');
+    a.ws.send(JSON.stringify({ t: 'jump' }));
+    // 순간이동 → A가 correct 받음
+    a.ws.send(JSON.stringify({ t: 'move', x: -12, z: -12, dx: 0, dz: 0 }));
+    const fix = await a.waitFor((m) => m.t === 'correct', 'A가 correct 받기');
+    assert(Math.hypot(fix.x - (-12), fix.z - (-12)) > 5, `보정 위치 ${JSON.stringify(fix)}`);
+    assert(a.closeCode === null, `이상한 메시지 뒤 접속이 닫힘 ${a.closeCode}`);
+    await Promise.all([a.close(), b.close()]);
+  },
   async unknown() {
     const c = connect('nope', 1);
     assert((await c.closed) === 4002, `닫기 코드 ${c.closeCode}`);
