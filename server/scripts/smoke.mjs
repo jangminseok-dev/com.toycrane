@@ -39,6 +39,30 @@ function connect(guestId, store) {
   return c;
 }
 const ids = (players) => players.map((p) => p.id);
+const send = (c, msg) => c.ws.send(JSON.stringify(msg));
+
+// 이동 예산(초당 4.8m) 안에서 걸어가기: 탑·교환소를 피해 반지름 3m 둘레를 돌아 목표 쪽으로 간 뒤 곧장 간다
+async function walkTo(c, from, to) {
+  const R = 3, path = [];
+  const a0 = Math.atan2(from.z, from.x), a1 = Math.atan2(to.z, to.x);
+  path.push({ x: Math.cos(a0) * R, z: Math.sin(a0) * R });
+  let da = a1 - a0;
+  if (da > Math.PI) da -= 2 * Math.PI;
+  if (da < -Math.PI) da += 2 * Math.PI;
+  for (let k = 1; k <= 12; k++) path.push({ x: Math.cos(a0 + (da * k) / 12) * R, z: Math.sin(a0 + (da * k) / 12) * R });
+  path.push(to);
+  let at = { ...from };
+  for (const p of path) {
+    for (let d = Math.hypot(p.x - at.x, p.z - at.z); d > 1e-6; d = Math.hypot(p.x - at.x, p.z - at.z)) {
+      const k = Math.min(1, 0.7 / d);
+      at = { x: at.x + (p.x - at.x) * k, z: at.z + (p.z - at.z) * k };
+      send(c, { t: 'move', x: +at.x.toFixed(2), z: +at.z.toFixed(2), dx: 0, dz: 0 });
+      await sleep(180);
+    }
+  }
+  await sleep(200);
+  assert(!c.messages.some((m) => m.t === 'correct'), `걷는 중 보정됨 ${JSON.stringify(c.messages.find((m) => m.t === 'correct'))}`);
+}
 
 const cases = {
   async myself() {
@@ -109,6 +133,25 @@ const cases = {
     assert(Math.hypot(fix.x - (-12), fix.z - (-12)) > 5, `보정 위치 ${JSON.stringify(fix)}`);
     assert(a.closeCode === null, `이상한 메시지 뒤 접속이 닫힘 ${a.closeCode}`);
     await Promise.all([a.close(), b.close()]);
+  },
+  async coins() {
+    const g = await newGuest('스모크 코인');
+    const c = connect(g.id, g.store);
+    const w = await c.welcome();
+    assert(w.coins === 0 && w.bag === 0 && Object.keys(w.machines).length === 35, `welcome ${JSON.stringify({ coins: w.coins, bag: w.bag })}`);
+    await walkTo(c, w.you, { x: -2.9, z: -2.6 }); // 교환소 0 창구
+    send(c, { t: 'queue', c: 0 });
+    await c.waitFor((m) => m.t === 'queue' && m.c === 0 && m.ids[0] === w.you.id, '줄 맨 앞');
+    await sleep(1500);
+    send(c, { t: 'take' }); // 2초 전 → 무시
+    await sleep(300);
+    assert(!c.messages.some((m) => m.t === 'coins'), '2초 전에 코인을 줌');
+    await sleep(500);
+    send(c, { t: 'take' });
+    const got = await c.waitFor((m) => m.t === 'coins', '코인 받기');
+    assert(got.n === 5 && got.got === 5, `coins ${JSON.stringify(got)}`);
+    await c.waitFor((m) => m.t === 'queue' && m.c === 0 && !m.ids.includes(w.you.id), '받고 줄에서 빠짐');
+    await c.close();
   },
   async unknown() {
     const c = connect('nope', 1);

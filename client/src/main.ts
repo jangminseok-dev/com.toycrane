@@ -3,16 +3,19 @@ import * as THREE from 'three';
 import { followCamera } from './game/followCamera';
 import { InputSampler } from './game/inputSampler';
 import { LocalPlayer } from './game/localPlayer';
+import { QueueClient } from './game/queueClient';
 import { OcclusionFader } from './game/occlusion';
 import { RemotePlayers } from './game/remotePlayers';
 import { installJoystick } from './input/joystick';
 import { readKeyboard } from './input/keyboard';
 import { admit, createGuest, getGuest, type Guest } from './net/api';
-import { encodeMove, type ServerMsg } from './net/protocol';
+import { encodeMove, encodeQueue, encodeTake, encodeUnqueue, type ServerMsg } from './net/protocol';
 import { closeAction, nextDelay, retrying } from './net/reconnect';
 import { safeStorage } from './net/storage';
 import { StoreSocket, storeUrl } from './net/storeSocket';
+import { setAction } from './ui/actionButton';
 import { askNickname, hideEntry, showFull, showMessage, showWelcomeBack } from './ui/entry';
+import { setHud, setInfo, toast } from './ui/hud';
 import { setStatus } from './ui/status';
 import { makeAvatar, type Avatar } from './world/avatar';
 import { buildBigZone } from './world/bigZone';
@@ -45,7 +48,9 @@ const bigZone = buildBigZone(scene);
 const fader = new OcclusionFader([tower, ...bigZone.occluders, ...buildCoinCounters(scene)]);
 
 let me: LocalPlayer | null = null;
-let wallet = { coins: 0, bag: 0 }; // 코인·가방 수 (HUD는 Task 8)
+let wallet = { coins: 0, bag: 0 }; // 코인·가방 수 (서버가 알려 준 값)
+let myId = '';
+const queue = new QueueClient();
 let myAvatar: Avatar | null = null;
 let socket: StoreSocket | null = null;
 let attempt = 0;
@@ -115,6 +120,17 @@ function onMessage(m: ServerMsg, guest: Guest) {
       for (const p of m.players) remotes.add(p, now);
       for (const [id, spots] of Object.entries(m.machines)) bigZone.setContents(id, spots);
       wallet = { coins: m.coins, bag: m.bag };
+      setHud(wallet.coins, wallet.bag);
+      myId = m.you.id;
+      queue.reset();
+      m.queues.forEach((ids, c) => queue.onQueue(c, ids, myId, now / 1000));
+      break;
+    case 'queue': queue.onQueue(m.c, m.ids, myId, now / 1000); break;
+    case 'queue_no': toast('줄이 꽉 찼어요'); break;
+    case 'coins':
+      wallet.coins = m.n;
+      setHud(wallet.coins, wallet.bag);
+      toast(m.got > 0 ? `🪙 +${m.got}` : '코인이 가득 찼어요');
       break;
     case 'join': remotes.add(m.p, now); break;
     case 'move': remotes.move(m, now); break;
@@ -145,14 +161,25 @@ document.addEventListener('visibilitychange', () => {
   sampler = new InputSampler();
 });
 
+// 교환소 줄: 진행 안내와 "줄 서기" 버튼
+function showQueueUi(nowSec: number) {
+  const st = queue.status(nowSec);
+  setInfo(st.kind === 'waiting' ? `줄 서는 중 · ${st.place}번째` : st.kind === 'taking' ? '코인 받는 중…' : null);
+  const entry = me && st.kind === 'none' ? queue.entryNear(me.pos) : null;
+  setAction(entry !== null ? '줄 서기' : null, () => { if (entry !== null) socket?.send(encodeQueue(entry)); });
+}
+
 // ---------- 매 프레임 ----------
 let last = performance.now();
 renderer.setAnimationLoop((now) => {
   const dt = Math.min((now - last) / 1000, 0.05); last = now;
   if (me && myAvatar) {
     const stick = joystick.read();
-    me.dir = Math.hypot(stick.x, stick.z) > 0 ? stick : readKeyboard();
-    me.tick(dt);
+    me.autoTarget = queue.target();
+    me.drive(Math.hypot(stick.x, stick.z) > 0 ? stick : readKeyboard(), dt);
+    const queueAction = queue.tick(me.pos, now / 1000);
+    if (queueAction && socket) socket.send(queueAction === 'take' ? encodeTake() : encodeUnqueue());
+    showQueueUi(now / 1000);
     const moving = Math.hypot(me.dir.x, me.dir.z) > 0;
     myAvatar.root.position.set(me.pos.x, 0, me.pos.z);
     if (moving) myAvatar.root.rotation.y = Math.atan2(me.dir.x, me.dir.z);

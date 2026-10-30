@@ -12,7 +12,10 @@ export type Join = { t: 'join'; p: PlayerView };
 export type Move = { t: 'move'; id: string; x: number; z: number; dx: number; dz: number };
 export type Correct = { t: 'correct'; x: number; z: number };
 export type Leave = { t: 'leave'; id: string };
-export type ServerMsg = Welcome | Join | Move | Correct | Leave;
+export type QueueMsg = { t: 'queue'; c: number; ids: string[] };
+export type QueueNo = { t: 'queue_no'; c: number; why: string };
+export type Coins = { t: 'coins'; n: number; got: number };
+export type ServerMsg = Welcome | Join | Move | Correct | Leave | QueueMsg | QueueNo | Coins;
 
 // 닫기 코드 (서버와 같은 값)
 export const CLOSE_FULL = 4001;
@@ -41,6 +44,9 @@ export function decode(raw: string): ServerMsg | null {
     case 'move': return str(m.id) && pose(m) ? (m as Move) : null;
     case 'correct': return num(m.x) && num(m.z) ? (m as Correct) : null;
     case 'leave': return str(m.id) ? (m as Leave) : null;
+    case 'queue': return num(m.c) && Array.isArray(m.ids) && m.ids.every(str) ? (m as QueueMsg) : null;
+    case 'queue_no': return num(m.c) && str(m.why) ? (m as QueueNo) : null;
+    case 'coins': return num(m.n) && num(m.got) ? (m as Coins) : null;
     default: return null;
   }
 }
@@ -50,3 +56,7 @@ const round = (v: number, digits: number) => Math.round(v * 10 ** digits) / 10 *
 export function encodeMove(p: Vec2, d: Vec2): string {
   return JSON.stringify({ t: 'move', x: round(p.x, 2), z: round(p.z, 2), dx: round(d.x, 3), dz: round(d.z, 3) });
 }
+
+export const encodeQueue = (c: number) => JSON.stringify({ t: 'queue', c });
+export const encodeUnqueue = () => JSON.stringify({ t: 'unqueue' });
+export const encodeTake = () => JSON.stringify({ t: 'take' });

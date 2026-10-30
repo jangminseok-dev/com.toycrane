@@ -1,10 +1,11 @@
 // 화면 확인 도구: 휴대폰·PC 화면으로 들어가(저장소 비우고 닉네임 넣기), 원하면 지점들을 차례로 걸어간 뒤 캡처한다.
 // 초당 프레임(3초 평균)도 함께 출력한다.
 // 사용: 헤드리스 크롬을 --remote-debugging-port=<port>로 띄운 뒤
-//   node client/e2e/shot.mjs <port> <base-url> <out.png> [phone|pc] ["x,z;x,z…"]
+//   node client/e2e/shot.mjs <port> <base-url> <out.png> [phone|pc] ["x,z;x,z…"] [누른 뒤 기다릴 초]
+// 마지막 인자가 있으면 걸어간 뒤 오른쪽 아래 행동 버튼("줄 서기" 등)을 누르고 그만큼 기다렸다 캡처한다.
 // 걷기: 지점마다 장애물(shared/store_layout.json)을 피하는 길을 격자로 찾아, 휴대폰은 조이스틱을 그 방향으로 끌고
 // PC는 WASD를 눌러 따라간다.
-const [port, base, out, mode = 'phone', walk = ''] = process.argv.slice(2);
+const [port, base, out, mode = 'phone', walk = '', press = ''] = process.argv.slice(2);
 const fs = await import('node:fs');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const SPEED = 3.2;
@@ -111,11 +112,17 @@ if (walk && pos) {
   }
   await sleep(800);
 }
+let pressed = null;
+if (press) {
+  pressed = await evaluate("(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent && x.getClientRects().length > 0); if (!b) return null; b.click(); return b.textContent; })()");
+  await sleep(Number(press) * 1000);
+}
 const fps = await evaluate('new Promise((r) => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < 3000) requestAnimationFrame(f); else r(Math.round(n / 3)); }; requestAnimationFrame(f); })', true);
 const shot = await send('Page.captureScreenshot', { format: 'png' });
 fs.writeFileSync(out, Buffer.from(shot.result.data, 'base64'));
 const last = seen.filter((m) => m.t === 'move' && join && m.id === join.p.id).at(-1);
-console.log(JSON.stringify({ mode, spawn: join && { x: join.p.x, z: join.p.z }, serverSaysNow: last && { x: last.x, z: last.z }, fps, errors }));
+const hud = await evaluate("document.body.innerText.replace(/\\s+/g, ' ').trim()");
+console.log(JSON.stringify({ mode, spawn: join && { x: join.p.x, z: join.p.z }, serverSaysNow: last && { x: last.x, z: last.z }, pressed, hud, fps, errors }));
 await fetch(`http://127.0.0.1:${port}/json/close/${tab.id}`);
 watcher.close();
 process.exit(0);
