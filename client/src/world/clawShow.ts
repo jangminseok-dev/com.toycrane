@@ -60,8 +60,8 @@ export async function runClaw(d: ClawShowDeps, m: Result): Promise<void> {
     setY(lerp(lowY, CLAW_REST.y, k));
     if (hang) rig.grip.quaternion.slerpQuaternions(new THREE.Quaternion(), hang, Math.min(1, k * 2.2));
     if (m.o === 'miss' && target) setOpen(k < 0.25 ? lerp(0.28, 0.45, k / 0.25) : lerp(0.45, 0, Math.min(1, (k - 0.25) / 0.3))); // 미끄러져 빈손
-    if (m.o === 'slip' && held && !fell && k >= 0.45) {
-      setOpen(0.6); // 손가락이 풀린다
+    if (m.o === 'slip' && held && !fell && k >= 0.75) {
+      setOpen(0.6); // 거의 다 올라가 덜컥할 때 손가락이 풀린다
       fell = fallAndRoll(d, m.m, held, anchor, before, index!);
       held = null;
     }
