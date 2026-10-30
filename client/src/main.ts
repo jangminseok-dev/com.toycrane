@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { followCamera } from './game/followCamera';
 import { InputSampler } from './game/inputSampler';
 import { LocalPlayer } from './game/localPlayer';
-import { blocksView } from './game/occlusion';
+import { OcclusionFader } from './game/occlusion';
 import { RemotePlayers } from './game/remotePlayers';
 import { installJoystick } from './input/joystick';
 import { readKeyboard } from './input/keyboard';
@@ -15,6 +15,9 @@ import { StoreSocket, storeUrl } from './net/storeSocket';
 import { askNickname, hideEntry, showFull, showMessage, showWelcomeBack } from './ui/entry';
 import { setStatus } from './ui/status';
 import { makeAvatar, type Avatar } from './world/avatar';
+import { buildBigZone, type DollSpot } from './world/bigZone';
+import { DOLLS } from './data/catalog';
+import { MACHINES } from './data/storeLayout';
 import { buildStore } from './world/storeScene';
 
 const GUEST_KEY = 'toycrane.guestId';
@@ -38,17 +41,23 @@ const remotes = new RemotePlayers(scene);
 const joystick = installJoystick(renderer.domElement);
 let sampler = new InputSampler();
 
-// 탑이 내 캐릭터를 가리면 탑을 흐리게(머리·몸통 중 하나라도 가리면)
-const TOWER_FADED = 0.25;
-let towerOpacity = 1;
-const eyeLine = { head: new THREE.Vector3(), body: new THREE.Vector3() };
-function fadeTowerIfBlocking(dt: number, at: { x: number; z: number }) {
-  eyeLine.head.set(at.x, 1.2, at.z); eyeLine.body.set(at.x, 0.4, at.z);
-  const blocked = blocksView(camera.position, eyeLine.head, tower.box) || blocksView(camera.position, eyeLine.body, tower.box);
-  const goal = blocked ? TOWER_FADED : 1;
-  towerOpacity += (goal - towerOpacity) * Math.min(1, dt * 8);
-  if (Math.abs(goal - towerOpacity) < 0.01) towerOpacity = goal;
-  tower.setOpacity(towerOpacity);
+const bigZone = buildBigZone(scene);
+// 탑·기계 행이 내 캐릭터를 가리면 그것만 흐리게(머리·몸통 중 하나라도 가리면)
+const fader = new OcclusionFader([tower, ...bigZone.occluders]);
+fillMachinesForNow();
+
+// 임시(Task 6에서 지움): 서버가 기계 속 배치를 보내기 전까지 기계마다 그 세트 인형 9개를 놓는다
+function fillMachinesForNow() {
+  for (const m of MACHINES) {
+    const kinds = Object.values(DOLLS).filter((d) => d.set === m.set).map((d) => d.id);
+    const spots: DollSpot[] = [];
+    for (let i = 0; spots.length < 9 && i < 200; i++) {
+      const x = (Math.random() - 0.5) * 0.88, z = (Math.random() - 0.5) * 0.76;
+      if (Math.hypot(x + 0.36, z - 0.27) < 0.24) continue;
+      spots.push([kinds[spots.length % kinds.length], x, z, Math.random() * 6.28]);
+    }
+    bigZone.setContents(m.id, spots);
+  }
 }
 
 let me: LocalPlayer | null = null;
@@ -164,9 +173,10 @@ renderer.setAnimationLoop((now) => {
     myAvatar.update(now / 1000);
     if (socket && sampler.shouldSend(me.dir, now)) socket.send(encodeMove(me.pos, me.dir));
     followCamera(camera, me.pos, dt);
-    fadeTowerIfBlocking(dt, me.pos);
+    fader.update(dt, camera.position, me.pos);
   }
   remotes.update(now);
+  bigZone.update(now / 1000);
   renderer.render(scene, camera);
 });
 
