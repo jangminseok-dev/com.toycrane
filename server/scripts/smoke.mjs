@@ -33,6 +33,15 @@ const cases = {
     const unknown = await getJson('/api/guest/nope');
     assert(unknown.status === 404, `unknown ${unknown.status}`);
   },
+  async admission() {
+    const g = await postJson('/api/guest', { nickname: '배정 토끼' });
+    const ok = await postJson('/api/admission', { guestId: g.body.guestId });
+    assert(ok.status === 200 && (Number.isInteger(ok.body.store) || ok.body.full === true), `admit ${ok.status} ${JSON.stringify(ok.body)}`);
+    const unknown = await postJson('/api/admission', { guestId: 'nope' });
+    assert(unknown.status === 404, `unknown ${unknown.status}`);
+    const intro = await getJson('/api/admission/myself');
+    assert(intro.status === 200 && intro.body.name === '매장 배정', `myself ${intro.status}`);
+  },
 };
 
 let failed = false;

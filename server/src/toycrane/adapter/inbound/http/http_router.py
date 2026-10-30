@@ -1,12 +1,14 @@
 """HTTP 요청을 (메서드, 경로) 표로 슬라이스별 라우터에 넘긴다. 정확한 경로가 먼저, 그다음 접두사."""
 
-from toycrane.adapter.inbound.http import guest_router, manager_router
+from toycrane.adapter.inbound.http import admission_router, guest_router, manager_router
 from toycrane.adapter.runtime import json_response, path_of
 
 ROUTES = {
     ("GET", "/api/myself"): manager_router.introduce,
     ("GET", "/api/guest/myself"): guest_router.introduce,
     ("POST", "/api/guest"): guest_router.create,
+    ("GET", "/api/admission/myself"): admission_router.introduce,
+    ("POST", "/api/admission"): admission_router.admit,
 }
 
 PREFIX_ROUTES = [

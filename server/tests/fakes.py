@@ -25,3 +25,16 @@ class FakeGuestRepository:
 
     async def touch(self, guest_id: str, now: float) -> None:
         self.touched.append((guest_id, now))
+
+
+class FakeOccupancy:
+    def __init__(self, counts_value: dict[int, int] | None = None) -> None:
+        self.counts_value = dict(counts_value or {})
+        self.writes: list[tuple[int, int, float]] = []
+
+    async def counts(self) -> dict[int, int]:
+        return dict(self.counts_value)
+
+    async def write(self, store_no: int, count: int, now: float) -> None:
+        self.writes.append((store_no, count, now))
+        self.counts_value[store_no] = count
