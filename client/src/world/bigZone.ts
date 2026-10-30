@@ -3,7 +3,7 @@ import { MACHINES, type MachineSpot } from '../data/storeLayout';
 import type { Occluder } from '../game/occlusion';
 import { bakeByMaterial, fadeMaterials, materialCloner } from './bake';
 import { makeDoll } from './dolls';
-import { CLAW_REST, DOLL_FLOOR, clawMat, ledBaseMat, ledFlashMat, makeMachineParts } from './machine';
+import { CLAW_REST, DOLL_FLOOR, DOLL_SCALE, STACK_RAISE, clawMat, ledBaseMat, ledFlashMat, makeMachineParts } from './machine';
 
 // 기계 속 인형 한 칸: [인형 id, x, z, 몸 돌림] — 기계 안 좌표 (서버 welcome·machine 메시지와 같은 모양)
 export type DollSpot = [string, number, number, number];
@@ -19,7 +19,6 @@ export interface BigZone {
   occluders: Occluder[]; // 행 2개: 벽 줄, 섬
 }
 
-const DOLL_SCALE = 0.3;
 const aimGeo = new THREE.RingGeometry(0.035, 0.06, 28);
 // 인형 더미에 가려도 보이게 맨 위에 그린다
 const aimMat = new THREE.MeshBasicMaterial({ color: 0xff3b8f, transparent: true, opacity: 0.85, depthWrite: false, depthTest: false });
@@ -70,7 +69,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
         if (!doll) return;
         doll.scale.setScalar(DOLL_SCALE);
         // 뒤쪽 셋은 위에 얹어 무더기처럼, 기울기는 r에서 정해 모든 화면에서 같게
-        doll.position.set(x, DOLL_FLOOR + (i >= 6 ? DOLL_SCALE * 0.55 : 0), z);
+        doll.position.set(x, DOLL_FLOOR + (i >= 6 ? STACK_RAISE : 0), z);
         doll.rotation.set(Math.sin(r * 3) * 0.25, r, Math.cos(r * 5) * 0.25);
         holder.add(doll);
       });

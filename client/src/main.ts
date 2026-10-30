@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { followCamera } from './game/followCamera';
 import { InputSampler } from './game/inputSampler';
 import { LocalPlayer } from './game/localPlayer';
+import { aimHeight } from './game/aim';
 import { machineCameraPose } from './game/machineCamera';
 import { PlaySession } from './game/playSession';
 import { Tweens, ease } from './game/tween';
@@ -349,7 +350,10 @@ renderer.setAnimationLoop((now) => {
       if (session.update(dt, input) === 'drop') sendDrop();
       else {
         setTimer(session.remaining);
-        bigZone.clawOf(session.machineId).position.set(session.claw.x, CLAW_REST.y, session.claw.z);
+        const claw = bigZone.clawOf(session.machineId);
+        claw.position.set(session.claw.x, CLAW_REST.y, session.claw.z);
+        // 겨냥 고리는 집게 아래 인형 머리 위(없으면 바닥)에 놓는다
+        claw.getObjectByName('aim')!.position.y = aimHeight(bigZone.contentsOf(session.machineId), session.claw.x, session.claw.z) - CLAW_REST.y;
       }
       me.autoTarget = frontSpot(spotOf.get(session.machineId)!); // 기계 앞자리 가운데로 (카메라 구도가 늘 같게)
       me.drive({ x: 0, z: 0 }, dt);

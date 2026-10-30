@@ -19,6 +19,12 @@ const LOOKS: Record<string, Look> = {
   cow: { color: 0xffffff }, dino: { color: 0x8fdc8a }, unicorn: { color: 0xfdf4ff },
 };
 
+// 동글이형(몸통 하나)인지 — 겨냥 고리가 인형 머리 높이를 가늠할 때 쓴다 (희귀는 모양을 빌린 인형 기준)
+export function isRoundDoll(id: string): boolean {
+  const info = DOLLS[id];
+  return !!LOOKS[info?.base ?? id]?.round;
+}
+
 const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
 const INK = toon(0x2b1d3f), BLUSH = toon(0xff9ec4), ORANGE = toon(0xff9f43), CREAM = toon(0xfff0dc), PURE = toon(0xffffff);
 const UP = new THREE.Vector3(0, 1, 0);
