@@ -4,7 +4,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { DECOR, type DecorSpot } from '../data/storeLayout';
 import type { Occluder } from '../game/occlusion';
 import { fadeMaterials } from './bake';
-import { makeDoll } from './dolls';
+import { PLAIN, makeDoll } from './dolls';
 import { DOLL_SCALE } from './machine';
 import { prepTex } from './signs';
 import { outlineMat, part, toon } from './toon';
@@ -41,7 +41,7 @@ function unit(kind: DecorSpot['kind'], i: number, len: number): { solid: THREE.G
     add(new RoundedBoxGeometry(len, 0.7, 0.95, 2, 0.03), 0xfbf8ff, [0, 0.35, 0]);
     add(new RoundedBoxGeometry(len - 0.2, 0.35, 0.42, 2, 0.03), 0xffe6f0, [0, 0.875, 0]);
     const place = (x: number, y: number, z: number, k: number) => {
-      const d = makeDoll(SHELF_DOLLS[k % SHELF_DOLLS.length], true);
+      const d = makeDoll(SHELF_DOLLS[k % SHELF_DOLLS.length], PLAIN, true);
       if (!d) return;
       d.scale.setScalar(DOLL_SCALE); d.position.set(x, y, z); d.rotation.y = z < 0 ? Math.PI : 0;
       solid.add(d);

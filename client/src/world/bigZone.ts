@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { MACHINES, type MachineSpot } from '../data/storeLayout';
 import type { Occluder } from '../game/occlusion';
 import { bakeByMaterial, fadeMaterials, materialCloner, mergeBuckets } from './bake';
-import { makeDoll } from './dolls';
+import { PLAIN, makeDoll } from './dolls';
 import { dollPose } from './dollPose';
 import { TOP_LAYER } from './topView';
 import { CHROME, idleClawGeometry, makeClawRig, type ClawRig } from './claw';
@@ -50,7 +50,7 @@ type Part = { geo: THREE.BufferGeometry; mat: THREE.Material };
 const partsCache = new Map<string, Part[] | null>();
 function liteParts(kind: string): Part[] | null {
   if (!partsCache.has(kind)) {
-    const doll = makeDoll(kind, true);
+    const doll = makeDoll(kind, PLAIN, true);
     partsCache.set(kind, doll ? bakeByMaterial(doll).map((m) => ({ geo: m.geometry, mat: m.material as THREE.Material })) : null);
   }
   return partsCache.get(kind)!;

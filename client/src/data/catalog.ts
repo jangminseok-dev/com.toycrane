@@ -3,8 +3,7 @@
 import catalog from '../../../shared/catalog.json';
 
 export type SetInfo = { id: string; name: string; color: string };
-// rare·base는 옛 희귀 캐릭터용 — 목록에서 빠졌다. 인형 모델(world/dolls.ts)이 변형으로 바뀌는 4단계 Task 8에서 없앤다
-export type DollInfo = { id: string; name: string; set: string; palette: { name: string; color: string }[]; rare?: boolean; base?: string };
+export type DollInfo = { id: string; name: string; set: string; palette: { name: string; color: string }[] };
 export type EffectInfo = { id: string; name: string };
 
 export const SETS: SetInfo[] = catalog.sets;

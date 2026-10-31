@@ -1,8 +1,14 @@
 import * as THREE from 'three';
 import { canvasTex, toonWith } from './toon';
 
-// 인형 무늬·희귀 재질. 처음 쓸 때 한 번만 만든다 (시제품 docs/reference/prototypes/spike-arcade-big-v3.html 227~285행)
+// 인형 무늬·희귀 재질. 처음 쓸 때 한 번만 만든다 (시제품 docs/reference/prototypes/spike-arcade-big-v3.html 227~285행).
+// 희귀 = 특수효과 8가지(별빛·진주·무지개·은하·벚꽃·크리스탈·오로라·솜사탕), 매우 희귀 = 진짜 금 (설계 2026-10-31 인형 채우기 §4.2)
 const once = <T>(make: () => T) => { let v: T | undefined; return () => (v ??= make()); };
+const keyed = <T>(make: (key: string) => T) => { const m = new Map<string, T>(); return (key: string) => { if (!m.has(key)) m.set(key, make(key)); return m.get(key)!; }; };
+const dots = (g: CanvasRenderingContext2D, n: number, color: string, r0: number, r1: number) => {
+  g.fillStyle = color;
+  for (let i = 0; i < n; i++) { g.beginPath(); g.arc(Math.random() * 256, Math.random() * 256, r0 + Math.random() * (r1 - r0), 0, Math.PI * 2); g.fill(); }
+};
 
 const starTex = once(() => canvasTex(256, 256, (g) => {
   g.fillStyle = '#b9a4ff'; g.fillRect(0, 0, 256, 256);
@@ -25,24 +31,86 @@ const pearlTex = once(() => canvasTex(256, 256, (g) => {
   ['#fdf6ff', '#ffd9ef', '#d9f2ff', '#efe0ff', '#fff3d9'].forEach((c, i, a) => grd.addColorStop(i / (a.length - 1), c));
   g.fillStyle = grd; g.fillRect(0, 0, 256, 256);
 }));
-// 다람쥐 무늬: 구 UV 기준 x=64가 앞, x=192가 등. 등에 진한 줄·밝은 줄, 얼굴 아래·배는 밝게
-const squirrelTex = once(() => canvasTex(256, 128, (g) => {
-  g.fillStyle = '#c98a52'; g.fillRect(0, 0, 256, 128);
-  g.fillStyle = '#f6e3c8'; g.beginPath(); g.ellipse(64, 80, 46, 40, 0, 0, Math.PI * 2); g.fill();
-  g.fillStyle = '#f2dcbc'; for (const dx of [-14, 14]) g.fillRect(192 + dx - 3, 6, 6, 100);
-  g.fillStyle = '#5a3a2a'; g.fillRect(188, 0, 8, 112); for (const dx of [-26, 26]) g.fillRect(192 + dx - 3, 12, 6, 90);
+// 은하: 짙은 남색에 작은 별이 흐르는 밤하늘
+const galaxyTex = once(() => canvasTex(256, 256, (g) => {
+  const grd = g.createLinearGradient(0, 0, 256, 256);
+  ['#1b1f5c', '#3a2a7a', '#1d3a7a', '#2a1a5a'].forEach((c, i, a) => grd.addColorStop(i / (a.length - 1), c));
+  g.fillStyle = grd; g.fillRect(0, 0, 256, 256);
+  dots(g, 90, '#ffffff', 0.8, 2); dots(g, 14, '#ffe9a8', 2, 3.5); dots(g, 10, 'rgba(160,140,255,.5)', 10, 22);
+}));
+// 벚꽃: 연분홍 몸에 꽃잎
+const sakuraTex = once(() => canvasTex(256, 256, (g) => {
+  g.fillStyle = '#ffe1ec'; g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 22; i++) {
+    const x = Math.random() * 256, y = Math.random() * 256, r = 7 + Math.random() * 6;
+    g.fillStyle = i % 3 ? '#ffb3cc' : '#ff9cbd';
+    for (let k = 0; k < 5; k++) { const a = (k / 5) * Math.PI * 2; g.beginPath(); g.ellipse(x + Math.cos(a) * r * 0.6, y + Math.sin(a) * r * 0.6, r * 0.55, r * 0.35, a, 0, Math.PI * 2); g.fill(); }
+    g.fillStyle = '#fff3a8'; g.beginPath(); g.arc(x, y, r * 0.22, 0, Math.PI * 2); g.fill();
+  }
+}));
+// 크리스탈: 맑은 하늘색 면이 각지게 반짝인다
+const crystalTex = once(() => canvasTex(256, 256, (g) => {
+  g.fillStyle = '#d8f6ff'; g.fillRect(0, 0, 256, 256);
+  const shades = ['#bfeeff', '#eafcff', '#a8e4ff', '#f4feff', '#c9f0ff'];
+  for (let i = 0; i < 40; i++) {
+    g.fillStyle = shades[i % shades.length];
+    const x = Math.random() * 256, y = Math.random() * 256, r = 18 + Math.random() * 26;
+    g.beginPath(); g.moveTo(x, y - r); g.lineTo(x + r * 0.8, y + r * 0.2); g.lineTo(x - r * 0.5, y + r * 0.7); g.closePath(); g.fill();
+  }
+  g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 2;
+  for (let i = 0; i < 18; i++) { const x = Math.random() * 256, y = Math.random() * 256; g.beginPath(); g.moveTo(x - 6, y); g.lineTo(x + 6, y); g.moveTo(x, y - 6); g.lineTo(x, y + 6); g.stroke(); }
+}));
+// 오로라: 초록·보라 빛 띠가 일렁인다
+const auroraTex = once(() => canvasTex(64, 256, (g) => {
+  const grd = g.createLinearGradient(0, 0, 0, 256);
+  ['#7af0c0', '#5fd8e8', '#9a7aff', '#d78aff', '#7af0c0'].forEach((c, i, a) => grd.addColorStop(i / (a.length - 1), c));
+  g.fillStyle = grd; g.fillRect(0, 0, 64, 256);
+}));
+// 솜사탕: 분홍·하늘 파스텔이 섞인 몽글몽글
+const cottonTex = once(() => canvasTex(256, 256, (g) => {
+  g.fillStyle = '#ffd6ec'; g.fillRect(0, 0, 256, 256);
+  dots(g, 26, 'rgba(176,222,255,.85)', 16, 34); dots(g, 18, 'rgba(255,236,250,.9)', 10, 24);
+}));
+// 진짜 금: 둥근 금 구슬을 그린 matcap — 매끈한 금속 광택과 밝은 하이라이트 (실제 반사·빛 번짐 없이)
+const goldMatcap = once(() => canvasTex(256, 256, (g) => {
+  const grd = g.createRadialGradient(100, 92, 6, 128, 128, 128);
+  [[0, '#fffbe8'], [0.18, '#ffe9a0'], [0.42, '#f5c242'], [0.7, '#c98a1c'], [0.9, '#7a4e0c'], [1, '#4a2e06']].forEach(([t, c]) => grd.addColorStop(t as number, c as string));
+  g.fillStyle = grd; g.fillRect(0, 0, 256, 256);
+  g.fillStyle = 'rgba(255,255,255,.85)'; g.beginPath(); g.ellipse(92, 78, 26, 14, -0.6, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(255,240,190,.5)'; g.beginPath(); g.ellipse(170, 190, 30, 10, -0.7, 0, Math.PI * 2); g.fill();
+}));
+// 다람쥐 무늬: 구 UV 기준 x=64가 앞, x=192가 등. 등에 진한 줄·밝은 줄, 얼굴 아래·배는 밝게 — 몸 색마다 하나
+const shade = (hex: string, toward: number, k: number) => '#' + new THREE.Color(hex).lerp(new THREE.Color(toward), k).getHexString();
+const squirrelTex = keyed((base) => canvasTex(256, 128, (g) => {
+  g.fillStyle = base; g.fillRect(0, 0, 256, 128);
+  g.fillStyle = shade(base, 0xffffff, 0.75); g.beginPath(); g.ellipse(64, 80, 46, 40, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = shade(base, 0xffffff, 0.65); for (const dx of [-14, 14]) g.fillRect(192 + dx - 3, 6, 6, 100);
+  g.fillStyle = shade(base, 0x2a1a10, 0.6); g.fillRect(188, 0, 8, 112); for (const dx of [-26, 26]) g.fillRect(192 + dx - 3, 12, 6, 90);
   g.fillRect(61, 0, 6, 20);
 }));
 
-export const GOLD = once(() => toonWith({ color: 0xffd36b, emissive: 0x7a5200, emissiveIntensity: 0.35 }));
-export const squirrelMat = once(() => toonWith({ color: 0xffffff, map: squirrelTex() }));
-// 희귀 인형 몸 재질
-export const rareMat: Record<string, () => THREE.Material> = {
-  starbunny: once(() => toonWith({ color: 0xffffff, map: starTex(), emissive: 0x6b4bd6, emissiveIntensity: 0.22 })),
-  goldfox: GOLD,
-  pearlpenguin: once(() => toonWith({ color: 0xffffff, map: pearlTex(), emissive: 0x8a6bd6, emissiveIntensity: 0.18 })),
-  rainbowdino: once(() => toonWith({ color: 0xffffff, map: rainbowTex(), emissive: 0x553366, emissiveIntensity: 0.2 })),
+// 금색 장식(왕관·유니콘 뿔) — 툰 칠
+export const goldToon = once(() => toonWith({ color: 0xffd36b, emissive: 0x7a5200, emissiveIntensity: 0.35 }));
+// 진짜 금으로 만든 인형(매우 희귀)의 온몸
+export const goldMaterial = once(() => new THREE.MeshMatcapMaterial({ matcap: goldMatcap() }));
+export const squirrelMat = keyed((base) => toonWith({ color: 0xffffff, map: squirrelTex(base) }));
+// 특수효과(희귀) 몸 재질 — 은은하게 빛나는 무늬
+const EFFECT_LOOKS: Record<string, { tex: () => THREE.Texture; glow: number; strength: number; spark: number }> = {
+  star: { tex: starTex, glow: 0x6b4bd6, strength: 0.22, spark: 0xffe27a },
+  pearl: { tex: pearlTex, glow: 0x8a6bd6, strength: 0.18, spark: 0xfff0fa },
+  rainbow: { tex: rainbowTex, glow: 0x553366, strength: 0.2, spark: 0xff9fd8 },
+  galaxy: { tex: galaxyTex, glow: 0x3a3aa8, strength: 0.25, spark: 0xc8d0ff },
+  sakura: { tex: sakuraTex, glow: 0xd66b9a, strength: 0.15, spark: 0xffb7d5 },
+  crystal: { tex: crystalTex, glow: 0x6bc8ff, strength: 0.3, spark: 0xcff6ff },
+  aurora: { tex: auroraTex, glow: 0x5ad6a8, strength: 0.28, spark: 0x9fffd8 },
+  cotton: { tex: cottonTex, glow: 0xd68ac0, strength: 0.15, spark: 0xffc8ef },
 };
+export const effectMaterial = keyed((effect) => {
+  const e = EFFECT_LOOKS[effect] ?? EFFECT_LOOKS.star;
+  return toonWith({ color: 0xffffff, map: e.tex(), emissive: e.glow, emissiveIntensity: e.strength });
+});
+// 둘레에서 도는 반짝이 색 (황금은 금빛)
+export const sparkMaterial = keyed((rare) => new THREE.MeshBasicMaterial({ color: rare === 'gold' ? 0xffd75a : (EFFECT_LOOKS[rare] ?? EFFECT_LOOKS.star).spark }));
 
 // 굵기가 변하는 관 (다람쥐 꼬리처럼 한 덩어리로 휘는 모양). extra만큼 굵게 만들면 외곽선용
 function taperedTube(points: [number, number, number][], radii: number[], extra = 0, tubular = 24, radial = 12): THREE.TubeGeometry {

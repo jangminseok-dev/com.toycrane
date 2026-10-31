@@ -407,7 +407,7 @@ async function showResult(m: Result, t: Ticket) {
   if (mine) showingMe = true;
   await playing.get(m.m)?.stop(); playing.delete(m.m);
   const spot = spotOf.get(m.m)!, face = spot.ry + Math.PI;
-  const info = m.k ? DOLLS[m.k] : undefined, rare = !!info?.rare;
+  const info = m.k ? DOLLS[m.k] : undefined, rare = !!m.rv;
   const front = frontSpot(spot);
   const near = mine || (!!me && Math.hypot(me.pos.x - front.x, me.pos.z - front.z) < 6);
   const rig = mine ? null : remotes.rigOf(m.id);
