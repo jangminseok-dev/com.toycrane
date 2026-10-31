@@ -9,7 +9,7 @@ test('catalog and layout match the shared files', () => {
   const c1 = MACHINES.find((m) => m.id === 'C-1')!;
   const f = frontSpot(c1);
   expect([+f.x.toFixed(2), +f.z.toFixed(2)]).toEqual([-9.25, -5.4]);
-  expect(COUNTERS.map((c) => c.queue.length)).toEqual([6, 6]);
+  expect(COUNTERS).toHaveLength(4); // 작은 교환소 4곳, 줄 자리 없음
 });
 
 // 앞자리 두 개가 손 닿는 거리 안이면 더 가까운 기계 (배치 순서가 아니라)

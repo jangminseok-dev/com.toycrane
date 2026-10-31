@@ -72,7 +72,7 @@ def test_decor_keeps_every_spot_reachable():
     from toycrane.domain.layout import COUNTERS, MACHINES, front_spot
     from toycrane.domain.store_rules import SPAWN_RADIUS
 
-    goals = [front_spot(m) for m in MACHINES.values()] + [q for c in COUNTERS for q in c.queue]
+    goals = [front_spot(m) for m in MACHINES.values()] + [c.window for c in COUNTERS]
     reach = reachable_from(Position(SPAWN_RADIUS, 0.0), step=0.25)
     assert all(reach(g) for g in goals)
 

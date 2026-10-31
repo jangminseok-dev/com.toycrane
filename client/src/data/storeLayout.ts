@@ -3,7 +3,7 @@ import layout from '../../../shared/store_layout.json';
 import type { Vec2 } from '../game/movement';
 
 export type MachineSpot = { id: string; x: number; z: number; ry: number; kind: string; row: 'wall' | 'island' }; // kind: 이 기계에 든 캐릭터
-export type CounterSpot = { id: number; x: number; z: number; ry: number; window: [number, number]; queue: [number, number][] };
+export type CounterSpot = { id: number; x: number; z: number; ry: number; window: [number, number] }; // window: 창구 앞 (1.5m 안이면 코인 받기·조르기)
 export type MachineSpec = {
   front: number; reach: number; play_half: [number, number]; hole: [number, number, number]; claw_speed: number; play_seconds: number; hold_seconds: number;
 };

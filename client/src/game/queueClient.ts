@@ -44,19 +44,19 @@ export class QueueClient {
   // 줄 끝 빈자리 근처면 그 교환소 번호 (이미 줄에 있으면 null)
   entryNear(pos: Vec2): number | null {
     if (this.counter !== null) return null;
-    const c = COUNTERS.findIndex((k, i) => dist(pos, k.queue[Math.min(this.lengths[i], k.queue.length - 1)]) <= ENTRY_REACH);
+    const c = COUNTERS.findIndex((k, i) => dist(pos, k.window) <= ENTRY_REACH);
     return c >= 0 ? c : null;
   }
 
   // 그 줄 끝의 빈자리(꽉 차면 마지막 자리) — 저절로 걸어갈 곳
   entrySpot(c: number): Vec2 {
-    const k = COUNTERS[c], [x, z] = k.queue[Math.min(this.lengths[c], k.queue.length - 1)];
+    const [x, z] = COUNTERS[c].window;
     return { x, z };
   }
 
   target(): Vec2 | null {
     if (this.counter === null) return null;
-    const [x, z] = COUNTERS[this.counter].queue[this.place];
+    const [x, z] = COUNTERS[this.counter].window;
     return { x, z };
   }
 
@@ -67,7 +67,7 @@ export class QueueClient {
   tick(pos: Vec2, now: number): 'take' | 'unqueue' | 'requeue' | null {
     if (this.counter === null || this.sent) return null;
     const k = COUNTERS[this.counter];
-    if (dist(pos, k.queue[this.place]) > LEAVE_REACH) return (this.sent = 'unqueue');
+    if (dist(pos, k.window) > LEAVE_REACH) return (this.sent = 'unqueue');
     if (this.place === 0 && this.headAt !== null && dist(pos, k.window) <= WINDOW_REACH && now - this.headAt >= TAKE_SECONDS) {
       return (this.sent = 'take');
     }

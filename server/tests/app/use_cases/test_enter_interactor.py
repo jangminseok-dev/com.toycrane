@@ -80,7 +80,7 @@ async def test_welcome_carries_coins_bag_and_machines():
     snap = conns.direct[0][1]
     assert snap["coins"] == 7 and snap["bag"] == 2
     assert len(snap["machines"]) == 24 and all(len(v) == 9 for v in snap["machines"].values())
-    assert snap["queues"] == [[], []] and snap["plays"] == {}
+    assert snap["queues"] == [[], [], [], []] and snap["plays"] == {}
     assert contents.saves == 1
 
 
@@ -97,7 +97,7 @@ async def test_welcome_shows_who_is_in_line_and_playing():
     locks.lock("c-8", "A-3", 0.0)
     await enter_interactor(conns=conns, queues=queues, locks=locks).enter(cmd("c-1", "g-1"))
     snap = conns.direct[0][1]
-    assert snap["queues"] == [[], ["p-9"]] and snap["plays"] == {"A-3": "p-8"}
+    assert snap["queues"] == [[], ["p-9"], [], []] and snap["plays"] == {"A-3": "p-8"}
 
 
 # ---- 최종 리뷰 C1·I1 ----

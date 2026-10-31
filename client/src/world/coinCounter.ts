@@ -46,7 +46,7 @@ const footTex = () => canvasTex(128, 128, (g) => {
 function queueLine(c: CounterSpot, root: THREE.Group, foot: THREE.Material) {
   const brass = toon(0xffc94d), rope = toon(0xff3b6b);
   const post = new THREE.CylinderGeometry(0.03, 0.03, 0.9, 10), base = new THREE.CylinderGeometry(0.13, 0.13, 0.03, 16);
-  const [x0, z0] = c.queue[0], [xn] = c.queue[c.queue.length - 1];
+  const [x0, z0] = c.window, [xn] = c.window; // 5단계 Task 7에서 작은 교환소로 다시 그린다
   const dir = Math.sign(xn - x0);
   const posts = Math.ceil(Math.abs(xn - x0) / 1.1) + 1;
   for (const side of [-1, 1]) {
@@ -59,7 +59,7 @@ function queueLine(c: CounterSpot, root: THREE.Group, foot: THREE.Material) {
     }
   }
   const footGeo = new THREE.PlaneGeometry(0.45, 0.45);
-  for (const [x, z] of c.queue) {
+  for (const [x, z] of [c.window]) {
     const f = new THREE.Mesh(footGeo, foot);
     f.rotation.set(-Math.PI / 2, 0, c.ry + Math.PI); f.position.set(x, 0.013, z);
     root.add(f);

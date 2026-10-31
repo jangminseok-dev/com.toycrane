@@ -1,3 +1,4 @@
+import math
 import json
 from pathlib import Path
 
@@ -43,7 +44,19 @@ def test_front_spot_is_in_front_of_the_machine():
     assert (round(f.x, 2), round(f.z, 2)) == (-9.25, -5.4)
 
 
-def test_counters_have_six_slots_starting_at_the_window():
-    assert len(layout.COUNTERS) == 2
+def test_four_small_counters_spread_out():
+    assert len(layout.COUNTERS) == 4
+    spots = [(c.x, c.z) for c in layout.COUNTERS]
+    for i, a in enumerate(spots):
+        for b in spots[i + 1:]:
+            assert math.hypot(a[0] - b[0], a[1] - b[1]) > 5  # 나란히 붙지 않음 (설계 2026-10-31 교환소 개편 §3.1)
     for c in layout.COUNTERS:
-        assert len(c.queue) == 6 and c.queue[0] == c.window
+        assert c.ry == 0 and c.window.z > c.z  # 카메라 쪽(남쪽)을 보고, 창구는 그 앞
+
+
+# Review Focus 4: 새 교환소가 길을 막지 않는다 — 창구가 장애물 안에 있지 않고 바닥 위다
+def test_every_window_is_reachable_from_the_hub():
+    from toycrane.domain.store_rules import clamp_to_floor
+    for c in layout.COUNTERS:
+        assert not any(x0 < c.window.x < x1 and z0 < c.window.z < z1 for x0, z0, x1, z1 in layout.OBSTACLES)
+        assert clamp_to_floor(c.window) == c.window

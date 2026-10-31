@@ -5,7 +5,7 @@ from toycrane.app.dtos.take_dto import TakeCommand
 from toycrane.app.use_cases.coin_take_interactor import CoinTakeInteractor
 from toycrane.domain.value_objects.position import Position
 
-WINDOW = Position(-2.9, -2.6)  # 교환소 0 창구
+WINDOW = Position(-5.5, -2.15)  # 교환소 0 창구
 
 
 def setup(at: Position = WINDOW, coins: int = 3):
@@ -25,7 +25,7 @@ async def test_take_gives_five_coins_after_two_seconds_at_the_window():
 async def test_take_too_early_or_away_from_window_is_ignored():
     q, conns, wallet, it = setup()
     await it.take(TakeCommand("c-1", now=2.6))
-    q2, conns2, wallet2, it2 = setup(at=Position(-2.9, -1.1))
+    q2, conns2, wallet2, it2 = setup(at=Position(-5.5, -0.65))
     await it2.take(TakeCommand("c-1", now=3.0))
     assert conns.direct == [] and conns2.direct == []
     assert wallet.coins["g-1"] == 3 and wallet2.coins["g-1"] == 3
