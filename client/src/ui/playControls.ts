@@ -1,5 +1,5 @@
 // 기계 한 판 화면(리퀴드 글라스): 위쪽 가운데 남은 시간과 조작 안내. 집게는 기계에 그려진 레버와 하강 버튼으로 움직인다(설계 2026-10-31 §3.10, 3차).
-// 판 사이에는 오른쪽 아래에 "🪙1 한 번 더"(스페이스)와 그 옆 "그만하기"(Esc)
+// 판 사이에는 오른쪽 아래에 "🪙1 한 번 더"(스페이스), 그 위 "🪙5 다섯 판 더", 옆에 "그만하기"(Esc). 여러 판을 이어 하는 중에는 "그만하기"만
 import { backdropBlur } from './glass';
 
 let timerEl: HTMLDivElement | null = null, hintEl: HTMLSpanElement | null = null, timeEl: HTMLSpanElement | null = null;
@@ -39,14 +39,16 @@ export function hidePlayControls(): void {
   if (timerEl) timerEl.style.display = 'none';
 }
 
-export function setTimer(seconds: number): void {
+// run: 여러 판을 이어 하는 중이면 "2/5판"
+export function setTimer(seconds: number, run: string | null = null): void {
   if (!timerEl || !hintEl || !timeEl) return;
-  timeEl.textContent = `${Math.max(0, Math.ceil(seconds))}초`;
+  const text = `${Math.max(0, Math.ceil(seconds))}초${run ? ` · ${run}` : ''}`;
+  if (timeEl.textContent !== text) timeEl.textContent = text;
   if (hintEl.textContent !== HINT) hintEl.textContent = HINT;
 }
 
-let againBtn: HTMLButtonElement | null = null, standBtn: HTMLButtonElement | null = null;
-let onAgain: (() => void) | null = null, onStand: (() => void) | null = null;
+let againBtn: HTMLButtonElement | null = null, moreBtn: HTMLButtonElement | null = null, standBtn: HTMLButtonElement | null = null;
+let onAgain: (() => void) | null = null, onMore: (() => void) | null = null, onStand: (() => void) | null = null;
 
 function buildSeat() {
   againBtn = document.createElement('button');
@@ -59,6 +61,16 @@ function buildSeat() {
   });
   backdropBlur(againBtn, 'blur(12px) saturate(180%)');
   againBtn.addEventListener('click', () => onAgain?.());
+  moreBtn = document.createElement('button');
+  Object.assign(moreBtn.style, {
+    position: 'fixed', zIndex: '15', right: 'calc(env(safe-area-inset-right) + 22px)', bottom: 'calc(env(safe-area-inset-bottom) + 154px)',
+    width: '112px', padding: '10px 0', borderRadius: '999px', cursor: 'pointer', touchAction: 'manipulation',
+    font: '900 14px -apple-system, "Apple SD Gothic Neo", sans-serif', color: '#2a0f1f',
+    background: 'linear-gradient(180deg, rgba(255,226,138,.95), rgba(255,190,90,.88))', border: '1px solid rgba(255,255,255,.6)',
+    boxShadow: 'inset 0 1px 1px rgba(255,255,255,.75), 0 8px 22px rgba(255,170,60,.35)',
+  });
+  backdropBlur(moreBtn, 'blur(12px) saturate(180%)');
+  moreBtn.addEventListener('click', () => onMore?.());
   standBtn = document.createElement('button');
   standBtn.textContent = '그만하기';
   Object.assign(standBtn.style, {
@@ -74,21 +86,33 @@ function buildSeat() {
     if (e.code === 'Space' && onAgain && !playing && !e.repeat) { e.preventDefault(); onAgain(); }
     if (e.code === 'Escape' && onStand) onStand();
   });
-  document.body.append(againBtn, standBtn);
+  document.body.append(againBtn, moreBtn, standBtn);
 }
 
-// again이 null이면 코인이 없어 한 번 더 할 수 없다(버튼은 흐리게, 누르면 안내)
-export function showSeatControls(again: (() => void) | null, stand: () => void, noCoins: () => void): void {
+// again이 null이면 코인이 없어 한 번 더 할 수 없다(버튼은 흐리게, 누르면 안내). more: 여러 판 이어 하기 (코인이 두 개 이상일 때)
+export function showSeatControls(again: (() => void) | null, more: { plays: number; name: string; onPress: () => void } | null, stand: () => void, noCoins: () => void): void {
   if (!againBtn) buildSeat();
-  onAgain = again ?? noCoins; onStand = stand;
+  onAgain = again ?? noCoins; onMore = more?.onPress ?? null; onStand = stand;
   againBtn!.textContent = again ? '🪙1\n한 번 더' : '교환소로\n가기';
   againBtn!.style.opacity = again ? '1' : '.55';
   againBtn!.style.display = 'block';
+  moreBtn!.textContent = more ? `🪙${more.plays} ${more.name} 더` : '';
+  moreBtn!.style.display = more ? 'block' : 'none';
+  standBtn!.style.display = 'block';
+}
+
+// 여러 판을 이어 하는 중 판 사이: 다음 판이 저절로 시작되기 전까지 "그만하기"만
+export function showRunPause(stand: () => void): void {
+  if (!againBtn) buildSeat();
+  onAgain = null; onMore = null; onStand = stand;
+  againBtn!.style.display = 'none';
+  moreBtn!.style.display = 'none';
   standBtn!.style.display = 'block';
 }
 
 export function hideSeatControls(): void {
-  onAgain = null; onStand = null;
+  onAgain = null; onMore = null; onStand = null;
   if (againBtn) againBtn.style.display = 'none';
+  if (moreBtn) moreBtn.style.display = 'none';
   if (standBtn) standBtn.style.display = 'none';
 }

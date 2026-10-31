@@ -26,7 +26,8 @@ import { setAction } from './ui/actionButton';
 import { askNickname, hideEntry, showFull, showMessage, showWelcomeBack } from './ui/entry';
 import { setHud, setInfo, toast } from './ui/hud';
 import { eulReul } from './ui/josa';
-import { hidePlayControls, hideSeatControls, setTimer, showPlayControls, showSeatControls } from './ui/playControls';
+import { hidePlayControls, hideSeatControls, setTimer, showPlayControls, showRunPause, showSeatControls } from './ui/playControls';
+import { PlayRun, runSize } from './game/playRun';
 import { buildMachineControls, type MachineControls } from './world/machineControls';
 import { buildTopView, type TopView } from './world/topView';
 import { showWinCard } from './ui/winCard';
@@ -222,6 +223,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
     case 'play_ok': startPlay(m.m, m.limit, m.coins); break;
     case 'play_no':
       if (m.why !== 'playing') toast({ busy: '다른 사람이 하는 중이에요', coins: '코인이 없어요 · 교환소에서 받아요', far: '기계 앞에 서 주세요' }[m.why]);
+      if (seated === m.m) { run.stop(); nextRunAt = null; showSeat(); } // 이어 하던 판을 못 시작했으면 멈추고 다시 묻는다
       break;
     case 'free':
       busy.clear(m.m);
@@ -291,7 +293,8 @@ function startPlay(machineId: string, limit: number, coins: number) {
   setHud(wallet.coins, wallet.bag);
   busy.set(machineId, myId, clock());
   session = new PlaySession(machineId, limit, clock());
-  seated = null; hideSeatControls();
+  run.began();
+  seated = null; nextRunAt = null; hideSeatControls();
   setAction(null); setInfo(null);
   showPlayControls();
   dropControls();
@@ -327,6 +330,7 @@ function endPlay() {
     if (!showing.has(id)) bigZone.releaseClaw(id);
   }
   session = null; awaiting = null; dropped = null; seated = null;
+  run.stop(); nextRunAt = null;
   dropControls(); letGoOfLever();
   topView?.dispose(); topView = null;
   hidePlayControls(); hideSeatControls(); setInfo(null);
@@ -369,16 +373,26 @@ addEventListener('pointermove', (e) => {
 for (const type of ['pointerup', 'pointercancel'] as const) addEventListener(type, (e) => { if (!leverDrag || e.pointerId === leverDrag.id) letGoOfLever(); });
 addEventListener('blur', letGoOfLever);
 
-// 판 사이: 기계 앞 화면 그대로 "🪙1 한 번 더 / 그만하기" — 그만하기 전까지 계속 뽑는다 (서버가 hold_seconds 동안 자리를 잡아 둔다)
-function sitDown(machineId: string) {
+// 판 사이: 기계 앞 화면 그대로 "🪙1 한 번 더 / 🪙5 다섯 판 더 / 그만하기" — 그만하기 전까지 계속 뽑는다 (서버가 hold_seconds 동안 자리를 잡아 둔다).
+// 여러 판을 이어 하는 중이면 묻지 않고 잠깐 뒤(당첨 카드가 닫힐 즈음) 다음 판을 저절로 시작한다
+const run = new PlayRun();
+let nextRunAt: number | null = null;
+function sitDown(machineId: string, won: boolean) {
   awaiting = null; dropped = null;
   seated = machineId;
-  showSeat();
+  if (run.next(wallet.coins)) { nextRunAt = clock() + (won ? 2.4 : 1.2); showRunPause(standUp); }
+  else { run.stop(); showSeat(); }
+}
+function playAgain(id: string, plays: number) {
+  run.start(plays, wallet.coins);
+  socket?.send(encodePlay(id));
 }
 function showSeat() {
   const id = seated;
-  if (!id) return;
-  showSeatControls(wallet.coins > 0 ? () => socket?.send(encodePlay(id)) : null, standUp, () => { standUp(); startCoinWalk(); });
+  if (!id || nextRunAt !== null) return;
+  const more = runSize(wallet.coins);
+  showSeatControls(wallet.coins > 0 ? () => playAgain(id, 1) : null, more && { ...more, onPress: () => playAgain(id, more.plays) },
+    standUp, () => { standUp(); startCoinWalk(); });
 }
 function standUp() {
   socket?.send(encodeStand());
@@ -402,7 +416,7 @@ async function showResult(m: Result, t: Ticket) {
   const fx = {
     bonk: () => { if (near) sfx.bonk(); },
     claw: () => runClaw({ tw, zone: bigZone, swing: swingOf(m.m), takePending: () => { const p = t.pending; t.pending = undefined; return p; } }, m, near), // 멀리서는 귀·옆 인형 연출 생략
-    afterClaw: () => { if (mine && awaiting === m.m) sitDown(m.m); },
+    afterClaw: () => { if (mine && awaiting === m.m) sitDown(m.m, m.o === 'win'); },
     pop: () => { if (near) sfx.pop(); },
     win: () => {
       bigZone.flash(m.m, rare, 3.2);
@@ -436,7 +450,8 @@ function showMachineUi(): boolean {
   const who = busy.who(near.id, clock());
   if (who && who !== myId) { setAction(null); setInfo('구경 중 · 다른 사람이 하는 중'); return true; }
   setInfo(null);
-  if (wallet.coins > 0) setAction('🪙1 넣고 하기', () => socket?.send(encodePlay(near.id)));
+  const more = runSize(wallet.coins);
+  if (wallet.coins > 0) setAction('🪙1 넣고 하기', () => playAgain(near.id, 1), more && { label: `🪙${more.plays} ${more.name}`, onPress: () => playAgain(near.id, more.plays) });
   else setAction('코인이 없어요 · 교환소로', startCoinWalk);
   return true;
 }
@@ -480,7 +495,7 @@ function frame(now: number) {
       const playId = session.machineId;
       if (session.update(dt, leverInput, now / 1000) === 'drop') sendDrop();
       else {
-        setTimer(session.remaining);
+        setTimer(session.remaining, run.label());
         controls?.update(now / 1000);
         controls?.setLever(leverInput.x, leverInput.z);
         const claw = bigZone.clawOf(session.machineId);
@@ -498,7 +513,10 @@ function frame(now: number) {
       me.autoTarget = frontSpot(spotOf.get(seated)!); // 판 사이에도 기계 앞자리에 그대로
       me.drive({ x: 0, z: 0 }, dt);
       const left = MACHINE_SPEC.hold_seconds - (now / 1000 - holdFrom);
-      setInfo(left > 0 ? `이어서 하기 · ${Math.ceil(left)}초` : null);
+      if (nextRunAt !== null) {
+        setInfo(`다음 판 · ${run.label(true)}`);
+        if (clock() >= nextRunAt) { nextRunAt = null; socket?.send(encodePlay(seated)); }
+      } else setInfo(left > 0 ? `이어서 하기 · ${Math.ceil(left)}초` : null);
     } else if (!awaiting) {
       if (Math.hypot(input.x, input.z) > 0) walker.cancel(); // 손으로 움직이면 저절로 걷기를 멈춘다
       me.autoTarget = queue.target() ?? walker.next(me.pos);
