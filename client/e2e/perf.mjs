@@ -102,7 +102,7 @@ async function measure(mode) {
   await sleep(500);
   if (!(await click('넣고 하기'))) throw new Error('기계 앞에서 시작하지 못함');
   await sleep(2000);
-  const machine = await sample();
+  const machine = await sample(); // 기계 앞 화면(뒷판 모니터 포함)
   await fetch(`http://127.0.0.1:${port}/json/close/${tab.id}`);
   watcher.close();
   return { [`walk_${mode}`]: walk.calls, [`machine_${mode}`]: machine.calls, [`walk_${mode}_tri`]: walk.tri, [`machine_${mode}_tri`]: machine.tri };
