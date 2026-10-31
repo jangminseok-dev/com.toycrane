@@ -49,7 +49,7 @@ class DropInteractor(DropUseCase):
         if grab.outcome == "win":
             stocks[machine_id] = on_taken(stock, grab.index, cmd.now)  # 뽑힌 자리는 비워 두고 30초 뒤부터 채운다
             await self._contents.save(stocks)
-            self._connections.send_bag(cmd.conn_id, await self._bag.add(me.guest_id, doll.kind, ZONE, cmd.now))
+            self._connections.send_bag(cmd.conn_id, await self._bag.add(me.guest_id, doll.kind, doll.color, doll.rare, ZONE, cmd.now))
         elif grab.outcome == "slip":
             stocks[machine_id] = replace(stock, dolls=drop_nearby(stock.dolls, grab.index, self._rng))  # 떨어져 굴러간 자리
             await self._contents.save(stocks)

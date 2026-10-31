@@ -44,7 +44,7 @@ async def test_winning_drop_moves_the_doll_into_the_bag():
     assert machine["m"] == "A-1" and len(machine["dolls"]) == 8  # 뽑힌 자리는 비워 둔다
     after = contents.stored["A-1"].dolls
     assert after == before[1:] and contents.saves == 1  # 뽑힌 인형만 빠지고 나머지는 그대로
-    assert ("c-1", bag_msg(3)) in conns.direct and bag.added == [("g-1", "bunny", "big")]
+    assert ("c-1", bag_msg(3)) in conns.direct and bag.added == [("g-1", "bunny", 2, "", "big")]
 
 
 async def test_after_a_drop_the_player_keeps_the_machine_between_plays():
@@ -120,3 +120,12 @@ async def test_a_win_leaves_the_slot_empty_and_starts_the_refill_clock():
     assert len(machine["dolls"]) == 8
     result = next(m for _, m in conns.broadcasts if m["t"] == "result")
     assert (result["c"], result["rv"]) == (2, "")
+
+
+# 가방에는 캐릭터·색·희귀 단계를 남긴다 — 도감이 "색 n/6 · 희귀 n/8 · 황금"을 센다 (설계 2026-10-31 인형 채우기 §4.6)
+async def test_a_win_bags_the_color_and_rare():
+    locks, conns, bag, contents, it = setup(roll=0.05)  # 머리 성공 0.15 × 희귀 0.5 = 0.075 안
+    stock = contents.stored["A-1"]
+    contents.stored["A-1"] = MachineStock([DollSpot("bear", 0.0, 0.0, 0.0, color=3, rare="star", uid=1)] + stock.dolls[1:], None, 10)
+    await it.drop(DropCommand("c-1", 0.0, 0.0, now=15.0))
+    assert bag.added == [("g-1", "bear", 3, "star", "big")]

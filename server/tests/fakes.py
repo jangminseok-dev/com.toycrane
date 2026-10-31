@@ -167,13 +167,13 @@ class FakeWallet:
 class FakeBag:
     def __init__(self, totals: dict[str, int] | None = None) -> None:
         self.totals = dict(totals or {})
-        self.added: list[tuple[str, str, str]] = []
+        self.added: list[tuple[str, str, int, str, str]] = []
 
     async def total(self, guest_id: str) -> int:
         return self.totals.get(guest_id, 0)
 
-    async def add(self, guest_id: str, doll: str, zone: str, now: float) -> int:
-        self.added.append((guest_id, doll, zone))
+    async def add(self, guest_id: str, doll: str, color: int, rare: str, zone: str, now: float) -> int:
+        self.added.append((guest_id, doll, color, rare, zone))
         self.totals[guest_id] = self.totals.get(guest_id, 0) + 1
         return self.totals[guest_id]
 
