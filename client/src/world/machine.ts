@@ -15,7 +15,7 @@ export const DOLL_FLOOR = 0.87; // 펠트 위 인형 바닥 높이
 export const DOLL_SCALE = 0.3; // 기계 속 인형 크기
 export const HOLE = { size: CLAW.hole.size, lip: CLAW.hole.lip }; // 상품 구멍 네모 한 변·턱 높이 (shared/claw.json, 물리와 같은 값)
 // 조작대(기계 안 좌표): 레버(끌면 집게가 그쪽으로), 큰 빨간 하강 버튼 하나 (설계 §3.10, 3차)
-export const CONTROLS = { lever: [-0.3, 0.92, 0.66], drop: [0.26, 0.925, 0.66] } as const;
+export const CONTROLS = { lever: [-0.3, 0.92, 0.66], drop: [0.26, 0.925, 0.66], stop: [-0.02, 0.925, 0.66] } as const; // stop: 이어 하는 중에만 보이는 작은 '그만' 버튼 (레버와 잡기 사이)
 
 // 기계마다 원색 몸통·펠트 색을 배치 순서대로 돌려 쓴다
 export const MACHINE_COLORS = [0xe8384f, 0xffb81f, 0x2f7cf6, 0xff4f9a, 0x22b36b, 0x8b5cf6, 0xff8a1f, 0x12b5cb];

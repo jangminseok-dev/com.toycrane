@@ -1,4 +1,5 @@
-// 다섯 판 이어 하기 e2e: 이어 하는 중에는 판 도중에도 "그만하기"가 보이고, 누르면 이번 판 뒤에 멈춰 판 사이 버튼이 나온다 (사용자 2026-11-01)
+// 다섯 판 이어 하기 e2e: 이어 하는 중에는 판 도중 조작대에 '그만' 버튼이 보이고, 누르면 이번 판 뒤에 멈춰 판 사이 버튼이 나온다 (사용자 2026-11-01)
+// 사용: `node client/e2e/run.mjs <port> <url> [shot.png]`
 // 브라우저 물리가 한 바퀴를 돌고 done 보고를 보내며, 서버가 result·machine(13칸, y가 채워진 인형)을 돌려주는지 관찰자(웹소켓)가 본다.
 // 사용: 헤드리스 크롬 --remote-debugging-port=<port>, `node client/e2e/play.mjs <port> <url> [out-prefix]`
 const [port, base, out] = process.argv.slice(2);
@@ -72,14 +73,15 @@ const n0 = seen.length;
 const visible = (text) => ev(`[...document.querySelectorAll('button')].some((x) => x.textContent.includes(${JSON.stringify(text)}) && x.getClientRects().length > 0 && x.style.display !== 'none')`);
 const badge = () => ev("(document.body.innerText.match(/\\d\\/5판/) || [''])[0]");
 console.log('press', await click('다섯 판 하기')); await sleep(1500);
-const stop1 = await visible('그만하기');
+const stop1 = !!(await at2('stop'));
+if (process.argv[4]) { const r = await send('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(process.argv[4], Buffer.from(r.result.data, 'base64')); }
 console.log('play 1 badge', await badge(), 'stop visible', stop1);
 await drag(80, 0, 1.0); console.log('drop', await tap('drop'));
 for (let i = 0; i < 300 && (await badge()) !== '2/5판'; i++) await sleep(100); // 결과 뒤 두 번째 판이 저절로 시작된다
 const n1 = seen.length; await sleep(1500);
-const stop2 = await visible('그만하기');
+const stop2 = !!(await at2('stop'));
 console.log('play 2 badge', await badge(), 'stop visible', stop2);
-console.log('stop', await click('그만하기')); await sleep(300);
+console.log('stop', await tap('stop')); await sleep(300);
 await drag(0, -60, 0.6); console.log('drop', await tap('drop'));
 let result2; for (let i = 0; i < 400 && !result2; i++) { result2 = seen.slice(n1).find((m) => m.t === 'result' && m.id === me.id); await sleep(50); }
 await sleep(4000); // 멈췄으면 세 번째 판이 저절로 시작되지 않는다

@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { AIM_ORDER } from './bigZone';
-import { DROP_LABEL } from './copy';
+import { DROP_LABEL, STOP_LABEL } from './copy';
 import { CONTROLS } from './machine';
-import { dropLabelTex } from './signs';
+import { buttonLabelTex, dropLabelTex } from './signs';
 import { part, toonWith } from './toon';
 
 // 하는 기계의 조작대 위에 덧그리는 "살아 있는" 레버·하강 버튼 (설계 2026-10-31 §3.10, 3차): 합쳐 그린 기계 그림 위에 같은 자리로 겹친다.
@@ -11,15 +11,16 @@ import { part, toonWith } from './toon';
 const DOME = new THREE.SphereGeometry(0.055, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2);
 const STICK = new THREE.CylinderGeometry(0.01, 0.01, 0.09, 10).translate(0, 0.045, 0);
 const BALL = new THREE.SphereGeometry(0.04, 16, 12);
-const LEVER_HIT = new THREE.BoxGeometry(0.34, 0.24, 0.34), DROP_HIT = new THREE.BoxGeometry(0.34, 0.18, 0.32);
+const LEVER_HIT = new THREE.BoxGeometry(0.34, 0.24, 0.34), DROP_HIT = new THREE.BoxGeometry(0.34, 0.18, 0.32), STOP_HIT = new THREE.BoxGeometry(0.2, 0.14, 0.26);
 const PRESS_DEPTH = 0.015, GLOW = 0.7, TILT = 0.4;
 const LABEL = new THREE.PlaneGeometry(0.08, 0.08); // 윗면 지름(0.11)의 73% — 글씨가 밖으로 나가지 않게
 
-export type ControlPart = 'lever' | 'drop';
+export type ControlPart = 'lever' | 'drop' | 'stop';
 export type MachineControls = {
   pick(ray: THREE.Raycaster): ControlPart | null;
   setLever(dx: number, dz: number): void; // 레버를 민 쪽 (-1~1, 기계 안 +x 오른쪽 / -z 안쪽)
   setPressed(on: boolean): void;
+  showStop(on: boolean): void; // 이어 하는 중에만 보이는 작은 '그만' 버튼 (보일 때만 눌린다)
   update(t: number): void;
   leverTilt(): THREE.Euler;
   dropY(): number;
@@ -43,19 +44,30 @@ export function buildMachineControls(anchor: THREE.Object3D): MachineControls {
   lever.add(part(STICK, toonWith({ color: 0xd3d6de }), [0, 0, 0], [1.1, 1, 1.1], [0, 0, 0], 0));
   lever.add(part(BALL, toonWith({ color: 0xff3b5c }), [0, 0.09, 0], [1.03, 1.03, 1.03]));
   const leverHit = new THREE.Mesh(LEVER_HIT, hitMat); leverHit.position.set(lx, ly + 0.08, lz); leverHit.userData.part = 'lever';
-  group.add(dome, dropHit, lever, leverHit);
+  // 이어 하는 중 '그만' 버튼: 잡기 버튼의 2/3 크기, 파란색, 글씨만 (사용자 2026-11-01: 화면 구석 글자 버튼 말고 기계 위에)
+  const [sx, sy, sz] = CONTROLS.stop;
+  const stopMat = toonWith({ color: 0x3b82f6 });
+  const stop = part(DOME, stopMat, [sx, sy, sz], [1.0, 0.55, 1.0], [0, 0, 0], 1.04);
+  const stopLabelMat = new THREE.MeshBasicMaterial({ map: buttonLabelTex(STOP_LABEL, '#1e3a8a'), transparent: true, depthWrite: false });
+  const stopLabel = new THREE.Mesh(LABEL, stopLabelMat);
+  stopLabel.name = 'stop-label'; stopLabel.userData.text = STOP_LABEL; stopLabel.rotation.x = -Math.PI / 2; stopLabel.position.y = 0.057;
+  stop.add(stopLabel);
+  const stopHit = new THREE.Mesh(STOP_HIT, hitMat); stopHit.position.set(sx, sy + 0.03, sz); stopHit.userData.part = 'stop';
+  stop.visible = false;
+  group.add(dome, dropHit, lever, leverHit, stop, stopHit);
   group.traverse((o) => { o.castShadow = false; o.renderOrder = AIM_ORDER + 1; }); // 겨냥 고리(깊이 무시) 뒤에 그려 고리를 덮는다
   anchor.add(group);
   return {
     pick(ray) {
-      const hits = ray.intersectObjects([leverHit, dropHit], false);
+      const hits = ray.intersectObjects(stop.visible ? [leverHit, dropHit, stopHit] : [leverHit, dropHit], false);
       return hits.length ? (hits[0].object.userData.part as ControlPart) : null;
     },
     setLever(x, z) { lever.rotation.set(z * TILT, 0, -x * TILT); },
     setPressed(on) { dome.position.y = dy - (on ? PRESS_DEPTH : 0); },
+    showStop(on) { stop.visible = on; },
     update(t) { dropMat.emissiveIntensity = GLOW * (0.55 + 0.45 * Math.sin(t * 6)); },
     leverTilt: () => lever.rotation,
     dropY: () => dome.position.y,
-    dispose() { anchor.remove(group); labelMat.map?.dispose(); labelMat.dispose(); },
+    dispose() { anchor.remove(group); labelMat.map?.dispose(); labelMat.dispose(); stopLabelMat.map?.dispose(); stopLabelMat.dispose(); },
   };
 }

@@ -13,6 +13,7 @@ export const WALL_SIGN = ['toycrane', '게임센터'];
 export const PREP = '준비 중';
 export const COUNTER_SIGN = '코인 교환소';
 export const DROP_LABEL = '잡기'; // 하강 버튼 윗면 (화살표와 함께)
+export const STOP_LABEL = '그만'; // 이어 하는 중 조작대의 작은 버튼 — 이번 판 뒤에 멈춘다
 export const AD_SIGNS = Array.from({ length: 10 }, (_, i) => `광고문의${i + 1}`); // 벽 광고 간판 10장
 export const BEGGING = '조르는 중'; // 조르는 사람 이름표 옆
 export const RARE_TAG = { rare: '★ 희귀', gold: '★★ 황금' }; // 희귀가 든 기계 위 이름표
@@ -40,6 +41,7 @@ export const UI = {
   nextRun: (k: number) => `곧 ${ORDINAL[k] ?? `${k}번째`} 판이 시작돼요`,
   hint: '레버로 집게를 옮기고 잡기 버튼을 눌러요',
   physicsLoading: '준비 중', // 물리 모듈(Rapier)을 아직 받는 중
+  runStopped: '이번 판까지만 해요', // 조작대 '그만' 버튼
   saveFailed: '결과를 저장하지 못했어요', // 서버가 판 보고를 거절(물리 뽑기 설계 §9.7)
   wonMore: (n: number) => `인형 ${n}개가 더 들어왔어요`,
   gotCoins: (n: number) => `코인 ${n}개를 받았어요!`,
@@ -55,4 +57,4 @@ export const UI = {
     full: '그 사람 코인이 가득 찼어요', self: '나에게는 줄 수 없어요', playing: '한 판이 끝나면 줄 수 있어요',
   } as Record<string, string>,
 };
-export const ALL_COPY = [...Object.values(MACHINE_SIGNS), ...POP_CARDS, STICKER, ...WALL_SIGN, PREP, COUNTER_SIGN, DROP_LABEL, ...AD_SIGNS, ...Object.values(RARE_TAG), '0123456789-ABC'].join('');
+export const ALL_COPY = [...Object.values(MACHINE_SIGNS), ...POP_CARDS, STICKER, ...WALL_SIGN, PREP, COUNTER_SIGN, DROP_LABEL, STOP_LABEL, ...AD_SIGNS, ...Object.values(RARE_TAG), '0123456789-ABC'].join('');

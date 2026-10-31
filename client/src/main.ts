@@ -77,8 +77,8 @@ Object.assign(window, { __toycrane: {
   physicsMs: () => (physicsMs.length ? physicsMs.reduce((a, b) => a + b, 0) / physicsMs.length : 0),
   settledIds: () => [...settledHere],
   watching: (id: string) => watches.has(id),
-  controlAt: (part: 'lever' | 'drop') => {
-    if (!session) return null;
+  controlAt: (part: 'lever' | 'drop' | 'stop') => {
+    if (!session || (part === 'stop' && !run.remaining())) return null;
     const [x, y, z] = CONTROLS[part];
     const p = bigZone.worldOf(session.machineId).localToWorld(new THREE.Vector3(x, y + 0.02, z)).project(camera);
     return { x: ((p.x + 1) / 2) * innerWidth, y: ((1 - p.y) / 2) * innerHeight };
@@ -345,11 +345,11 @@ function startPlay(machineId: string, limit: number, coins: number) {
   session = new PlaySession(machineId, limit, clock());
   run.began();
   seated = null; nextRunAt = null; hideSeatControls();
-  if (run.remaining() > 0) showRunPause(stopRun); // 이어 하는 중에는 판 도중에도 "그만하기" — 이번 판 뒤에 멈춘다 (사용자 2026-11-01)
   setAction(null); setInfo(null);
   showPlayControls(); showHint();
   dropControls();
   controls = buildMachineControls(bigZone.worldOf(machineId)); controlsAt = machineId;
+  controls.showStop(run.remaining() > 0); // 이어 하는 중에는 조작대의 '그만' 버튼 — 이번 판 뒤에 멈춘다 (사용자 2026-11-01)
   bigZone.hideControls(machineId, true); // 기계 그림의 고정 레버·버튼은 숨긴다 — 남으면 기울일 때 잔상처럼 하나 더 보인다
   topView?.dispose(); // 뒷판 모니터: 위에서 본 기계 안 (설계 §3.9)
   topView = buildTopView(renderer, scene, bigZone.worldOf(machineId), FELT_COLORS[MACHINES.findIndex((m) => m.id === machineId) % FELT_COLORS.length]);
@@ -492,6 +492,7 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
   if (!part) return;
   e.preventDefault();
   if (part === 'lever') { leverDrag = { id: e.pointerId, x: e.clientX, y: e.clientY }; return; }
+  if (part === 'stop') { navigator.vibrate?.(15); stopRun(); return; }
   controls.setPressed(true);
   navigator.vibrate?.(15);
   if (session.requestDrop(clock())) sendDrop();
@@ -529,7 +530,8 @@ function showSeat() {
     standUp, () => { standUp(); startCoinWalk(); });
 }
 function stopRun() {
-  run.stop(); hideSeatControls();
+  run.stop(); hideSeatControls(); controls?.showStop(false);
+  toast(UI.runStopped);
 }
 function standUp() {
   socket?.send(encodeStand());
