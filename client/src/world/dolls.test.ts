@@ -11,10 +11,6 @@ const meshes = (g: THREE.Object3D) => { let n = 0; g.traverse((o) => { if ((o as
 test('every catalog doll builds a model', () => {
   for (const id of Object.keys(DOLLS)) expect(meshes(makeDoll(id)!)).toBeGreaterThan(5);
 });
-test('rare dolls wear a crown', () => {
-  expect(makeDoll('starbunny')!.getObjectByName('crown')).toBeDefined();
-  expect(makeDoll('bunny')!.getObjectByName('crown')).toBeUndefined();
-});
 test('lite dolls skip small parts', () => {
   expect(meshes(makeDoll('bear', true)!)).toBeLessThan(meshes(makeDoll('bear')!));
 });
@@ -55,9 +51,4 @@ test('bear ears are soft parts the claw can bend', () => {
   expect(ears).toHaveLength(2);
   expect(ears[0].userData.ear.r).toBeCloseTo(0.12);
   expect(dollHits('bear').ears).toHaveLength(2);
-});
-
-test('rare dolls add a crown to their hit spheres', () => {
-  const top = (id: string) => Math.max(...dollHits(id).solid.map((h) => h.c.y + h.r));
-  expect(top('starbunny')).toBeGreaterThan(top('bunny') + 0.1);
 });

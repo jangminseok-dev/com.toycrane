@@ -76,7 +76,7 @@ async def test_welcome_carries_coins_bag_and_machines():
     await it.enter(cmd("c-1", "g-1"))
     snap = conns.direct[0][1]
     assert snap["coins"] == 7 and snap["bag"] == 2
-    assert len(snap["machines"]) == 35 and all(len(v) == 9 for v in snap["machines"].values())
+    assert len(snap["machines"]) == 24 and all(len(v) == 9 for v in snap["machines"].values())
     assert snap["queues"] == [[], []] and snap["plays"] == {}
     assert contents.saves == 1
 

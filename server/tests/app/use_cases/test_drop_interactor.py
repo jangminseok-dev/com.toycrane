@@ -24,7 +24,7 @@ class Rolls(random.Random):
 def setup(roll: float):
     reg, locks, conns, bag = FakeRegistry(), FakeLocks({"c-1": "p1"}), FakeConnections(), FakeBag({"g-1": 2})
     reg.put("c-1", player("p1", guest="g-1"))
-    stored = {m: generate_contents(MACHINES[m].set, random.Random(9)) for m in MACHINE_IDS}
+    stored = {m: generate_contents(MACHINES[m].kind, random.Random(9)) for m in MACHINE_IDS}
     # 가운데 토끼 하나 + 손이 닿지 않는 오른쪽에 8개 (위층 인형이 집게 근처에 오지 않게 고정)
     stored["A-1"] = [DollSpot("bunny", 0.0, 0.0, 0.0)] + [DollSpot("bear", 0.35, -0.3 + i * 0.08, 0.0) for i in range(8)]
     contents = FakeContents(stored)
@@ -86,7 +86,7 @@ async def test_result_reports_where_the_claw_actually_landed():
     """판정은 흔들린 자리로 하고, 모두에게 그 자리를 알려 같은 곳으로 내려가게 한다."""
     reg, locks, conns, bag = FakeRegistry(), FakeLocks({"c-1": "p1"}), FakeConnections(), FakeBag()
     reg.put("c-1", player("p1", guest="g-1"))
-    stored = {m: generate_contents(MACHINES[m].set, random.Random(9)) for m in MACHINE_IDS}
+    stored = {m: generate_contents(MACHINES[m].kind, random.Random(9)) for m in MACHINE_IDS}
     locks.lock("c-1", "A-1", 10.0)
     await DropInteractor(reg, locks, FakeContents(stored), bag, conns, random.Random(2)).drop(DropCommand("c-1", 0.1, -0.1, now=15.0))
     result = next(m for _, m in conns.broadcasts if m["t"] == "result")

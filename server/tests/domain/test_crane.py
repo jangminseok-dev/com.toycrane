@@ -9,23 +9,23 @@ from toycrane.domain.layout import MACHINE_SPEC
 
 
 def test_generated_contents_stay_in_play_area_and_out_of_hole():
-    spots = generate_contents("soft", random.Random(1))
+    spots = generate_contents("bunny", random.Random(1))
     assert len(spots) == 9
     hx, hz, hr = MACHINE_SPEC.hole
     for s in spots:
         assert abs(s.x) <= 0.44 and abs(s.z) <= 0.38
         assert math.hypot(s.x - hx, s.z - hz) >= hr
-        assert DOLLS[s.kind].set == "soft"
+        assert s.kind == "bunny"
 
 
 def test_generated_contents_are_repeatable_for_a_seed():
-    assert generate_contents("water", random.Random(7)) == generate_contents("water", random.Random(7))
+    assert generate_contents("penguin", random.Random(7)) == generate_contents("penguin", random.Random(7))
 
 
 # ---- 겹치지 않는 무더기 (사용자 요청 2026-10-31: 인형이 서로 파고들어 부자연스러움) ----
 @pytest.mark.parametrize("seed", range(20))
 def test_floor_dolls_keep_their_distance(seed):
-    floor = [s for s in generate_contents("forest", random.Random(seed)) if s.y == 0]
+    floor = [s for s in generate_contents("fox", random.Random(seed)) if s.y == 0]
     assert len(floor) == 6
     for i, a in enumerate(floor):
         for b in floor[i + 1:]:
@@ -34,7 +34,7 @@ def test_floor_dolls_keep_their_distance(seed):
 
 @pytest.mark.parametrize("seed", range(20))
 def test_top_dolls_rest_between_two_floor_dolls(seed):
-    spots = generate_contents("dream", random.Random(seed))
+    spots = generate_contents("chick", random.Random(seed))
     floor, top = [s for s in spots if s.y == 0], [s for s in spots if s.y > 0]
     assert len(top) == 3
     for t in top:
@@ -81,11 +81,11 @@ def test_unknown_kind_is_judged_as_normal():
 
 def test_restock_puts_a_new_doll_in_the_same_place():
     """뽑힌 자리에 같은 세트 새 인형이 들어간다 — 위층을 받치던 인형이 빠져도 무더기가 그대로 서 있게."""
-    spots = generate_contents("dream", random.Random(3))
-    after = restock(spots, 0, "dream", random.Random(4))
+    spots = generate_contents("chick", random.Random(3))
+    after = restock(spots, 0, "chick", random.Random(4))
     assert len(after) == 9 and after[1:] == spots[1:]
     assert (after[0].x, after[0].z, after[0].y) == (spots[0].x, spots[0].z, spots[0].y)
-    assert all(DOLLS[s.kind].set == "dream" for s in after)
+    assert all(s.kind == "chick" for s in after)
 
 
 def test_claw_is_clamped_into_the_play_area():
@@ -107,7 +107,7 @@ from toycrane.domain.crane import drop_nearby  # noqa: E402
 
 @pytest.mark.parametrize("seed", range(15))
 def test_slipped_doll_lands_near_where_it_was(seed):
-    spots = generate_contents("soft", random.Random(seed))
+    spots = generate_contents("bunny", random.Random(seed))
     top = next(i for i, s in enumerate(spots) if s.y > 0)
     after = drop_nearby(spots, top, random.Random(seed + 100))
     moved, was = after[top], spots[top]

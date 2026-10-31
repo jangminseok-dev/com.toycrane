@@ -1,14 +1,14 @@
 import { expect, test } from 'vitest';
-import { DOLLS, isRare } from './catalog';
+import { DOLLS } from './catalog';
 import { COUNTERS, MACHINES, frontSpot, nearestMachine } from './storeLayout';
 
 test('catalog and layout match the shared files', () => {
-  expect(Object.keys(DOLLS)).toHaveLength(28);
-  expect(isRare('pearlpenguin')).toBe(true);
-  expect(MACHINES).toHaveLength(35);
-  const b1 = MACHINES.find((m) => m.id === 'B-1')!;
-  const f = frontSpot(b1);
-  expect([+f.x.toFixed(2), +f.z.toFixed(2)]).toEqual([-9.25, -8.75]);
+  expect(Object.keys(DOLLS)).toHaveLength(24);
+  expect(MACHINES).toHaveLength(24); // 캐릭터 하나에 기계 하나
+  expect(new Set(MACHINES.map((m) => m.kind)).size).toBe(24);
+  const c1 = MACHINES.find((m) => m.id === 'C-1')!;
+  const f = frontSpot(c1);
+  expect([+f.x.toFixed(2), +f.z.toFixed(2)]).toEqual([-9.25, -5.4]);
   expect(COUNTERS.map((c) => c.queue.length)).toEqual([6, 6]);
 });
 

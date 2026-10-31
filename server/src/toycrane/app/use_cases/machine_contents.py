@@ -10,7 +10,7 @@ async def ensure_contents(port: MachineContentsPort, rng: random.Random) -> dict
     contents = await port.load()
     missing = [m for m in MACHINE_IDS if m not in contents]
     for m in missing:
-        contents[m] = generate_contents(MACHINES[m].set, rng)
+        contents[m] = generate_contents(MACHINES[m].kind, rng)
     if missing:
         await port.save(contents)
     return contents

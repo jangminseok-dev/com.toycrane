@@ -7,7 +7,7 @@ import { CONTROLS } from './machine';
 
 beforeAll(stubCanvas);
 
-test('big zone builds 35 machines in two fade rows', () => {
+test('big zone builds 24 machines in two fade rows', () => {
   const zone = buildBigZone(new THREE.Scene());
   expect(zone.occluders).toHaveLength(2);
   expect(MACHINES.every((m) => zone.worldOf(m.id))).toBe(true);
@@ -30,7 +30,7 @@ test('aim ring follows the claw and starts hidden', () => {
   expect(aim.visible).toBe(true);
 });
 
-// 기계 하나 결과마다 행 전체(섬 198개 인형)를 다시 합치면 휴대폰이 멈춘다 — 그 기계가 든 묶음만 다시 합친다 (최종 리뷰 I5)
+// 기계 하나 결과마다 행 전체(섬 99개 인형)를 다시 합치면 휴대폰이 멈춘다 — 그 기계가 든 묶음만 다시 합친다 (최종 리뷰 I5)
 test('a contents change rebuilds only its block of machines', () => {
   const scene = new THREE.Scene();
   const zone = buildBigZone(scene);
@@ -45,7 +45,7 @@ test('a contents change rebuilds only its block of machines', () => {
   const after = blocks();
   const changed = before.filter((meshes, i) => meshes.some((m, k) => m !== after[i][k]));
   expect(changed).toHaveLength(1);
-  expect(groups.length).toBeGreaterThanOrEqual(6);
+  expect(groups.length).toBe(5); // 벽 13대 → 3묶음, 섬 11대 → 2묶음 (6대 이하씩)
 });
 
 // 서버가 정한 얹힌 높이(y)대로 그린다 — 위층 인형이 바닥 인형보다 높이 있다

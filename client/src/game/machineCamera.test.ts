@@ -10,7 +10,7 @@ const r = (v: { x: number; y: number; z: number }) => [+v.x.toFixed(2), +v.y.toF
 test('camera faces the glass at eye level', () => {
   expect(r(at('A-1').pos)).toEqual([-11.1, 1.7, -10.35]);
   expect(r(at('A-1').look)).toEqual([-11.1, 1.3, -12.35]);
-  expect(r(at('B-1').pos)).toEqual([-9.25, 1.7, -9.6]); // 벽 쪽을 보는 섬 앞줄
+  expect(r(at('C-1').pos)).toEqual([-9.25, 1.7, -4.55]); // 섬 줄
 });
 
 test('claw shows under the sign', () => {

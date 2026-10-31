@@ -9,7 +9,7 @@ import math
 import random
 from dataclasses import dataclass
 
-from toycrane.domain.catalog import is_rare, set_kinds
+from toycrane.domain.catalog import legacy_kind
 from toycrane.domain.layout import MACHINE_SPEC
 
 DOLLS_PER_MACHINE = 9
@@ -19,7 +19,6 @@ MIN_GAP = 0.22      # 바닥 인형 중심 사이 최소 거리(m) — 인형 �
 VALLEY_MAX = 0.30   # 위층 인형을 받칠 두 바닥 인형 사이 최대 거리
 DOLL_H, DOLL_W = 0.34, 0.16  # 기계 속 인형을 감싸는 타원체: 높이, 가로 반지름
 SINK = 0.06         # 위층 인형이 받침 사이에 파묻히는 깊이
-RARE_CHANCE = 0.06
 PART_RADII = (("head", 0.05), ("body", 0.10), ("arm", 0.14))
 # (성공, 놓침), 나머지는 헛잡음. 보통 난이도(사용자 결정 2026-10-31) — 머리를 맞혀도 7판에 하나꼴, 4단계 근성 게이지가 받쳐 준다
 ODDS = {"head": (0.15, 0.40), "body": (0.08, 0.45), "arm": (0.03, 0.45)}
@@ -38,18 +37,16 @@ class DollSpot:
     y: float = 0.0  # 얹힌 높이(바닥이면 0)
 
 
-def generate_contents(set_id: str, rng: random.Random) -> list[DollSpot]:
-    """그 세트 인형 9개: 바닥 6개(서로 떨어뜨림) + 위층 3개(두 인형 사이 틈에 얹음). 틈이 모자라면 바닥을 다시 깐다."""
+def generate_contents(kind: str, rng: random.Random) -> list[DollSpot]:
+    """그 캐릭터 인형 9개: 바닥 6개(서로 떨어뜨림) + 위층 3개(두 인형 사이 틈에 얹음). 틈이 모자라면 바닥을 다시 깐다."""
     while True:
-        floor = _floor(set_id, rng)
-        top = _top(set_id, floor, rng)
+        floor = _floor(kind, rng)
+        top = _top(kind, floor, rng)
         if len(top) == TOP_DOLLS:
             return floor + top
 
 
-def new_spot(set_id: str, rng: random.Random, x: float, z: float, y: float = 0.0) -> DollSpot:
-    normals, rare = set_kinds(set_id)
-    kind = rare if rng.random() < RARE_CHANCE else rng.choice(normals)
+def new_spot(kind: str, rng: random.Random, x: float, z: float, y: float = 0.0) -> DollSpot:
     return DollSpot(kind, x, z, round(rng.uniform(0, 2 * math.pi), 2), y)
 
 
@@ -58,21 +55,21 @@ def _in_area(x: float, z: float) -> bool:
     return math.hypot(x - hx, z - hz) >= hr
 
 
-def _floor(set_id: str, rng: random.Random) -> list[DollSpot]:
+def _floor(kind: str, rng: random.Random) -> list[DollSpot]:
     w, d = MACHINE_SPEC.play_half
     spots: list[DollSpot] = []
     gap, tries = MIN_GAP, 0
     while len(spots) < FLOOR_DOLLS:
         x, z = round(rng.uniform(-w, w), 3), round(rng.uniform(-d, d), 3)
         if _in_area(x, z) and all(math.hypot(x - s.x, z - s.z) >= gap for s in spots):
-            spots.append(new_spot(set_id, rng, x, z))
+            spots.append(new_spot(kind, rng, x, z))
         tries += 1
         if tries > 400:  # 자리가 안 나면 아주 조금씩 좁힌다
             gap, tries = gap - 0.005, 0
     return spots
 
 
-def _top(set_id: str, floor: list[DollSpot], rng: random.Random) -> list[DollSpot]:
+def _top(kind: str, floor: list[DollSpot], rng: random.Random) -> list[DollSpot]:
     pairs = [(a, b) for i, a in enumerate(floor) for b in floor[i + 1:] if math.hypot(a.x - b.x, a.z - b.z) <= VALLEY_MAX]
     rng.shuffle(pairs)
     top: list[DollSpot] = []
@@ -81,7 +78,7 @@ def _top(set_id: str, floor: list[DollSpot], rng: random.Random) -> list[DollSpo
         z = round((a.z + b.z) / 2 + rng.uniform(-0.01, 0.01), 3)
         if not _in_area(x, z) or any(math.hypot(x - t.x, z - t.z) < 0.18 for t in top):
             continue
-        top.append(new_spot(set_id, rng, x, z, rest_height(floor, x, z)))
+        top.append(new_spot(kind, rng, x, z, rest_height(floor, x, z)))
         if len(top) == TOP_DOLLS:
             break
     return top
@@ -125,16 +122,16 @@ def judge(spots: list[DollSpot], x: float, z: float, roll: float) -> Grab:
     index, distance = max(near, key=lambda c: (spots[c[0]].y, -c[1]))
     part = next(name for name, radius in PART_RADII if distance <= radius)
     win, slip = ODDS[part]
-    if is_rare(spots[index].kind):
+    if legacy_kind(spots[index].kind)[1]:  # 옛 희귀 id — 4단계 Task 2에서 인형의 희귀 단계로 바뀐다
         win, slip = win * RARE_WIN_FACTOR, slip + win * (1 - RARE_WIN_FACTOR)
     outcome = "win" if roll < win else "slip" if roll < win + slip else "miss"
     return Grab(outcome, part, index)
 
 
-def restock(spots: list[DollSpot], index: int, set_id: str, rng: random.Random) -> list[DollSpot]:
-    """뽑힌 자리에 같은 세트 새 인형을 넣는다 — 위층을 받치던 인형이 빠져도 무더기가 무너지지 않게 자리·높이는 그대로."""
+def restock(spots: list[DollSpot], index: int, kind: str, rng: random.Random) -> list[DollSpot]:
+    """뽑힌 자리에 같은 캐릭터 새 인형을 넣는다 — 위층을 받치던 인형이 빠져도 무더기가 무너지지 않게 자리·높이는 그대로."""
     old = spots[index]
-    return [new_spot(set_id, rng, old.x, old.z, old.y) if i == index else s for i, s in enumerate(spots)]
+    return [new_spot(kind, rng, old.x, old.z, old.y) if i == index else s for i, s in enumerate(spots)]
 
 
 def drop_nearby(spots: list[DollSpot], index: int, rng: random.Random) -> list[DollSpot]:

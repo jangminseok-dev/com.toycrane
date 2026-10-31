@@ -46,7 +46,7 @@ class DropInteractor(DropUseCase):
         grab = judge(spots, x, z, self._rng.random())
         kind = spots[grab.index].kind if grab.index is not None else None
         if grab.outcome == "win":
-            contents[machine_id] = restock(spots, grab.index, MACHINES[machine_id].set, self._rng)
+            contents[machine_id] = restock(spots, grab.index, MACHINES[machine_id].kind, self._rng)
             await self._contents.save(contents)
             self._connections.send_bag(cmd.conn_id, await self._bag.add(me.guest_id, kind, ZONE, cmd.now))
         elif grab.outcome == "slip":

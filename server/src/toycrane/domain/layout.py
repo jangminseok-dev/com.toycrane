@@ -1,4 +1,4 @@
-"""매장 배치(shared/store_layout.json): 큰인형 기계 35대, 코인 교환소 2곳과 줄 자리, 걸어서 못 지나가는 상자."""
+"""매장 배치(shared/store_layout.json): 큰인형 기계 24대(캐릭터 하나에 기계 하나), 코인 교환소 2곳과 줄 자리, 걸어서 못 지나가는 상자."""
 
 import math
 from dataclasses import dataclass
@@ -13,7 +13,7 @@ class Machine:
     x: float
     z: float
     ry: float  # 0이면 +z(허브 쪽)를 봄
-    set: str
+    kind: str  # 이 기계에 든 캐릭터
     row: str  # "wall" | "island"
 
 
@@ -43,7 +43,7 @@ MACHINE_SPEC = MachineSpec(
     _spec["front"], _spec["reach"], tuple(_spec["play_half"]), tuple(_spec["hole"]), _spec["claw_speed"], _spec["play_seconds"], _spec["hold_seconds"]
 )
 MACHINE_IDS: tuple[str, ...] = tuple(m["id"] for m in LAYOUT["machines"])
-MACHINES: dict[str, Machine] = {m["id"]: Machine(m["id"], m["x"], m["z"], m["ry"], m["set"], m["row"]) for m in LAYOUT["machines"]}
+MACHINES: dict[str, Machine] = {m["id"]: Machine(m["id"], m["x"], m["z"], m["ry"], m["kind"], m["row"]) for m in LAYOUT["machines"]}
 COUNTERS: tuple[Counter, ...] = tuple(
     Counter(c["id"], c["x"], c["z"], c["ry"], Position(*c["window"]), tuple(Position(*q) for q in c["queue"]))
     for c in LAYOUT["counters"]
