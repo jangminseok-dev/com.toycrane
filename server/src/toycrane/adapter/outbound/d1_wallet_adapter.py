@@ -8,6 +8,11 @@ BEG_SQL = (
     "ON CONFLICT(guest_id) DO UPDATE SET coins = MIN(coins + ?2, ?3), updated_at = ?5, begged_at = ?5 "
     "WHERE (begged_at IS NULL OR begged_at <= ?5 - ?4) AND coins < ?3 RETURNING coins"
 )
+# 코인 더하기(받기·환불): cap까지만 더하되, 이미 cap을 넘은 지갑은 깎지 않는다 (?1 게스트, ?2 개수, ?3 cap, ?4 지금)
+ADD_SQL = (
+    "INSERT INTO wallets (guest_id, coins, updated_at) VALUES (?1, MIN(?2, ?3), ?4) "
+    "ON CONFLICT(guest_id) DO UPDATE SET coins = MAX(coins, MIN(coins + ?2, ?3)), updated_at = ?4 RETURNING coins"
+)
 # 코인 주기: 받는 사람 지갑 행을 먼저 만들어 두고(0개), 두 행을 UPDATE 한 문장으로 함께 바꾼다
 # (?1 주는 사람, ?2 받는 사람, ?3 개수, ?4 cap, ?5 지금). 조건이 안 맞으면 아무 행도 안 바뀐다
 ENSURE_SQL = "INSERT OR IGNORE INTO wallets (guest_id, coins, updated_at) VALUES (?1, 0, ?2)"
@@ -27,10 +32,7 @@ class D1WalletAdapter(WalletPort):
         return int(row["coins"]) if row else 0
 
     async def add(self, guest_id: str, n: int, cap: int, now: float) -> int:
-        row = to_py(await self._db.prepare(
-            "INSERT INTO wallets (guest_id, coins, updated_at) VALUES (?1, MIN(?2, ?3), ?4) "
-            "ON CONFLICT(guest_id) DO UPDATE SET coins = MIN(coins + ?2, ?3), updated_at = ?4 RETURNING coins"
-        ).bind(guest_id, n, cap, now).first())
+        row = to_py(await self._db.prepare(ADD_SQL).bind(guest_id, n, cap, now).first())
         return int(row["coins"])
 
     async def beg(self, guest_id: str, n: int, cap: int, cooldown: float, now: float) -> int | None:

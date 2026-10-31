@@ -61,3 +61,15 @@ def test_give_sql_never_breaks_wallets():
         assert transfer(db, "g1", "g3", 7) is None  # 6 < 7
         assert transfer(db, "g9", "g1", 1) is None  # 지갑 없는 사람은 줄 수 없다
         assert balances(db) == {"g1": 6, "g2": 99, "g3": 0}
+
+
+from toycrane.adapter.outbound.d1_wallet_adapter import ADD_SQL  # noqa: E402
+
+
+# 최종 리뷰 Minor 1: 받기는 잔액을 읽은 뒤 더한다 — 그사이 선물로 15개를 넘었으면 15로 깎지 않는다
+def test_take_never_lowers_a_wallet():
+    db = wallets()
+    db.execute("INSERT INTO wallets (guest_id, coins, updated_at) VALUES ('g-1', 30, 0)")
+    assert db.execute(ADD_SQL, ("g-1", 5, 15, 1.0)).fetchone()[0] == 30
+    assert db.execute(ADD_SQL, ("g-2", 5, 15, 1.0)).fetchone()[0] == 5
+    assert db.execute(ADD_SQL, ("g-2", 15, 15, 1.0)).fetchone()[0] == 15

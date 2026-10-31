@@ -165,7 +165,8 @@ class FakeWallet:
         at = self.begged.get(guest_id)
         if (at is not None and at > now - cooldown) or self.coins.get(guest_id, 0) >= cap:
             return None
-        self.coins[guest_id] = min(self.coins.get(guest_id, 0) + n, cap)
+        have = self.coins.get(guest_id, 0)
+        self.coins[guest_id] = max(have, min(have + n, cap))  # ADD_SQL처럼 이미 넘은 지갑은 깎지 않는다
         self.begged[guest_id] = now
         return self.coins[guest_id]
 
@@ -183,7 +184,8 @@ class FakeWallet:
         return self.coins.get(guest_id, 0)
 
     async def add(self, guest_id: str, n: int, cap: int, now: float) -> int:
-        self.coins[guest_id] = min(self.coins.get(guest_id, 0) + n, cap)
+        have = self.coins.get(guest_id, 0)
+        self.coins[guest_id] = max(have, min(have + n, cap))  # ADD_SQL처럼 이미 넘은 지갑은 깎지 않는다
         return self.coins[guest_id]
 
     async def spend_one(self, guest_id: str, now: float) -> int | None:

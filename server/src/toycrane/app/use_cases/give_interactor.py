@@ -21,28 +21,35 @@ class GiveInteractor(GiveUseCase):
         self._locks = locks
 
     async def give(self, cmd: GiveCommand) -> None:
-        entries = dict(self._registry.entries())
-        me = entries.get(cmd.conn_id)
+        me, target = self._look(cmd)
         if me is None:
             return
-        target = next(((c, p) for c, p in entries.items() if p.player_id == cmd.to), None)
         why = self._refusal(cmd, me, target)
         if why is None:
-            to_conn, to = target
-            have, theirs = await self._wallet.balance(me.guest_id), await self._wallet.balance(to.guest_id)
+            have, theirs = await self._wallet.balance(me.guest_id), await self._wallet.balance(target[1].guest_id)
             why = "poor" if cmd.n > have else "full" if cmd.n > give_limit(have, theirs) else None
+            if why is None:  # 기다리는 사이 조르기를 그만뒀거나 멀어졌거나 다른 사람이 먼저 줬을 수 있다 — 다시 본다 (최종 리뷰 I1)
+                me, target = self._look(cmd)
+                if me is None:
+                    return
+                why = self._refusal(cmd, me, target)
         if why is not None:
             self._connections.send_give_no(cmd.conn_id, why)
             return
+        to_conn, to = target
+        self._registry.put(to_conn, replace(to, beg_room=None))  # 기다리기 전에 끝내 둔다 — 같은 순간 주려던 사람은 'stopped'
         moved = await self._wallet.transfer(me.guest_id, to.guest_id, cmd.n, WALLET_CAP, cmd.now)
-        if moved is None:  # 그 사이 다른 사람이 먼저 줬다
+        self._connections.broadcast_beg(to.player_id, None)
+        if moved is None:  # 그 사이 지갑이 바뀌었다
             self._connections.send_give_no(cmd.conn_id, "full")
             return
-        self._registry.put(to_conn, replace(to, beg_room=None))
-        self._connections.broadcast_beg(to.player_id, None)
         self._connections.broadcast_gave(me.player_id, to.player_id, cmd.n)
         self._connections.send_coins(cmd.conn_id, moved[0], -cmd.n)
         self._connections.send_coins(to_conn, moved[1], cmd.n)
+
+    def _look(self, cmd: GiveCommand):
+        entries = dict(self._registry.entries())
+        return entries.get(cmd.conn_id), next(((c, p) for c, p in entries.items() if p.player_id == cmd.to), None)
 
     def _refusal(self, cmd: GiveCommand, me, target) -> str | None:
         if target is None:

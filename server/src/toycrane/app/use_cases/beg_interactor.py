@@ -7,11 +7,12 @@ from toycrane.app.ports.output.play_lock_port import PlayLockPort
 from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
 from toycrane.app.ports.output.wallet_port import WalletPort
 from toycrane.domain.coins import WALLET_CAP
+from toycrane.domain.value_objects.heading import Heading
 
 
 class BegInteractor(BegUseCase):
     """맵 조르기 켜고 끄기 (설계 2026-10-31 교환소 개편 §4.3): 조르는 중이면 모두에게 보이고, 주는 사람 화면이
-    줄 수 있는 최대를 알게 더 받을 수 있는 코인 수(room)를 함께 알린다. 기계를 하는 동안은 조를 수 없다."""
+    줄 수 있는 최대를 알게 더 받을 수 있는 코인 수(room)를 함께 알린다. 기계를 하는 동안이나 걷는 중에는 조를 수 없다."""
 
     def __init__(self, registry: PlayerRegistryPort, wallet: WalletPort, connections: ConnectionsPort, locks: PlayLockPort) -> None:
         self._registry = registry
@@ -28,8 +29,9 @@ class BegInteractor(BegUseCase):
                 self._registry.put(cmd.conn_id, replace(me, beg_room=None))
                 self._connections.broadcast_beg(me.player_id, None)
             return
-        if self._locks.lock_of(cmd.conn_id) is not None:
-            return
         room = max(0, WALLET_CAP - await self._wallet.balance(me.guest_id))
+        me = dict(self._registry.entries()).get(cmd.conn_id)  # 기다리는 사이 움직였거나 나갔을 수 있다 (최종 리뷰 I1)
+        if me is None or me.heading != Heading.STOP or self._locks.lock_of(cmd.conn_id) is not None:
+            return
         self._registry.put(cmd.conn_id, replace(me, beg_room=room))
         self._connections.broadcast_beg(me.player_id, room)
