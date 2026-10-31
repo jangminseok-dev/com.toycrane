@@ -1,0 +1,94 @@
+<h2>어느 쪽이 "진짜 일본 뽑기방"에 가까워요?</h2>
+<p class="subtitle">매장 분위기만 보는 스케치예요 (실제 3D 품질은 다음 단계에서 시제품으로 보여 드릴게요). 마음에 드는 것을 눌러 주세요.</p>
+
+<div class="cards" id="moods"></div>
+
+<script>
+(() => {
+  const faces = ['#f2a7c3', '#ffd36b', '#8fd3ff', '#c9a27a', '#b7e4a8', '#ffffff', '#d9b8ff'];
+  const signs = ['곰돌이', '토끼 마을', '펭귄', '인기!', '여우'];
+  function machine(x, m, s, i) {
+    const prizes = Array.from({ length: 6 }, (_, k) => {
+      const cx = 14 + k * 11 + (k % 2) * 3, cy = 166 - (k % 3) * 9, r = 9 + (k % 2) * 2, c = faces[(i + k) % faces.length];
+      return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${c}" stroke="rgba(0,0,0,.15)"/><circle cx="${cx - 3}" cy="${cy - 1}" r="1.3" fill="#333"/><circle cx="${cx + 3}" cy="${cy - 1}" r="1.3" fill="#333"/>`;
+    }).join('');
+    const bulbs = Array.from({ length: 9 }, (_, k) => `<circle cx="${6 + k * 9}" cy="71" r="2" fill="${s.bulb}" opacity="${k % 2 ? 1 : .55}"/><circle cx="${6 + k * 9}" cy="95" r="2" fill="${s.bulb}" opacity="${k % 2 ? .55 : 1}"/>`).join('');
+    const pop = s.pop ? `<g transform="translate(52 104) rotate(-7)"><rect width="28" height="15" rx="2" fill="${s.pop[0]}"/><text x="14" y="11" font-size="7.5" font-weight="900" text-anchor="middle" fill="${s.pop[1]}">${['NEW!', '잘 뽑혀요', '인기', '대형!', '신상'][i]}</text></g>` : '';
+    const bridge = s.bridge && i % 2 === 1 ? `<rect x="10" y="150" width="64" height="3" fill="#ddd"/><rect x="10" y="158" width="64" height="3" fill="#ddd"/><rect x="26" y="128" width="32" height="24" rx="2" fill="${faces[i]}" stroke="#555" stroke-width=".8"/><text x="42" y="143" font-size="6" text-anchor="middle" fill="#333" font-weight="800">피규어</text>` : '';
+    const flag = s.flag ? `<path d="M38 68 L38 54 L50 58 L38 62" fill="none" stroke="#999"/><path d="M38 54 L50 58 L38 62Z" fill="url(#chk)"/>` : '';
+    return `<g transform="translate(${x} 0)">
+      ${flag}
+      <rect x="0" y="66" width="84" height="32" rx="6" fill="${m.header}" ${s.glowHeader ? 'filter="url(#glow' + s.id + ')"' : ''}/>
+      ${bulbs}
+      <text x="42" y="87" font-size="11" font-weight="900" text-anchor="middle" fill="${s.signText}">${signs[i]}</text>
+      <rect x="2" y="98" width="80" height="80" fill="${s.inside}" stroke="${m.trim}" stroke-width="3"/>
+      <rect x="6" y="100" width="72" height="5" fill="#fff" opacity=".7"/>
+      ${bridge || prizes}
+      <rect x="6" y="150" width="20" height="26" fill="#fff" opacity=".25" stroke="#fff" stroke-opacity=".6"/>
+      <polygon points="58,100 80,100 40,176 18,176" fill="#fff" opacity=".13"/>
+      ${pop}
+      <path d="M38 98 L38 ${s.clawY}" stroke="#bbb"/><g transform="translate(38 ${s.clawY})"><rect x="-5" y="0" width="10" height="6" rx="2" fill="#c9c9d2"/><path d="M-4 6 L-8 15 M0 6 L0 16 M4 6 L8 15" stroke="#c9c9d2" stroke-width="2"/></g>
+      <rect x="0" y="178" width="84" height="62" fill="${m.body}"/>
+      <rect x="0" y="178" width="84" height="11" fill="${m.trim}"/>
+      <circle cx="58" cy="184" r="4" fill="${s.btn[0]}"/><circle cx="70" cy="184" r="4" fill="${s.btn[1]}"/>
+      <rect x="8" y="198" width="26" height="24" rx="2" fill="#1b1b22"/>
+      <rect x="60" y="200" width="8" height="12" rx="1" fill="#333"/>
+      ${s.led ? `<rect x="0" y="236" width="84" height="4" fill="${s.led}" filter="url(#glow${s.id})"/><rect x="8" y="198" width="26" height="24" rx="2" fill="none" stroke="${s.led}" stroke-width="1.5" filter="url(#glow${s.id})"/>` : ''}
+    </g>`;
+  }
+  function scene(s) {
+    const row = s.machines.map((m, i) => machine(14 + i * 92, m, s, i)).join('');
+    return `<svg viewBox="0 0 480 300" width="100%" style="display:block;border-radius:10px" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="glow${s.id}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${s.glow}" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <linearGradient id="floor${s.id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${s.floor[0]}"/><stop offset="1" stop-color="${s.floor[1]}"/></linearGradient>
+        <linearGradient id="fade${s.id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="${s.reflect}"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/></linearGradient>
+        <mask id="m${s.id}"><rect x="0" y="240" width="480" height="60" fill="url(#fade${s.id})"/></mask>
+        <pattern id="chk" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="4" height="4" fill="#fff"/><rect width="2" height="2" fill="#e0447c"/><rect x="2" y="2" width="2" height="2" fill="#e0447c"/></pattern>
+        <g id="row${s.id}">${row}</g>
+      </defs>
+      <rect width="480" height="300" fill="${s.wall}"/>
+      <rect width="480" height="56" fill="${s.ceil}"/>
+      ${s.ceilDeco}
+      <rect y="240" width="480" height="60" fill="url(#floor${s.id})"/>
+      ${s.floorDeco}
+      <use href="#row${s.id}"/>
+      <g mask="url(#m${s.id})"><use href="#row${s.id}" transform="translate(0 480) scale(1 -1)"/></g>
+    </svg>`;
+  }
+  const lightPanels = Array.from({ length: 6 }, (_, k) => `<rect x="${18 + k * 78}" y="14" width="60" height="9" rx="3" fill="#fff" filter="url(#glowA)"/>`).join('');
+  const banners = Array.from({ length: 5 }, (_, k) => `<path d="M${50 + k * 92} 30 L${50 + k * 92} 56" stroke="#999"/><rect x="${38 + k * 92}" y="36" width="26" height="20" rx="2" fill="${['#e8384f', '#ffc93c', '#2f80ed', '#ff5fa2', '#27ae60'][k]}"/><text x="${51 + k * 92}" y="49" font-size="7" font-weight="900" fill="#fff" text-anchor="middle">${['인기', '대박', 'NEW', '확정', '이벤트'][k]}</text>`).join('');
+  const tiles = Array.from({ length: 9 }, (_, k) => `<line x1="${k * 60}" y1="240" x2="${k * 60 - 40 + k * 10}" y2="300" stroke="#fff" stroke-opacity=".5"/>`).join('');
+  const neon = `<path d="M0 12 H480" stroke="#2ff3ff" stroke-width="2.5" filter="url(#glowB)"/><path d="M0 46 H480" stroke="#ff3fb4" stroke-width="2.5" filter="url(#glowB)"/>
+    <text x="240" y="36" font-size="18" font-weight="900" text-anchor="middle" fill="none" stroke="#ff7ad9" stroke-width="1.6" filter="url(#glowB)">뽑기 천국 ★ 24시</text>`;
+  const neonFloor = Array.from({ length: 5 }, (_, k) => `<ellipse cx="${56 + k * 92}" cy="252" rx="34" ry="5" fill="${['#2ff3ff', '#ff3fb4', '#ffe14d', '#2ff3ff', '#ff3fb4'][k]}" opacity=".35" filter="url(#glowB)"/>`).join('');
+  const pinkNeon = `<path d="M0 20 H480" stroke="#ff4fa8" stroke-width="2" filter="url(#glowC)"/><path d="M0 40 H480" stroke="#ff4fa8" stroke-width="2" filter="url(#glowC)"/>`;
+  const veins = `<path d="M0 262 C80 250 120 280 220 266 S380 250 480 270" stroke="#fff" stroke-opacity=".35" fill="none"/><path d="M0 288 C120 276 200 298 300 284 S420 280 480 292" stroke="#fff" stroke-opacity=".25" fill="none"/><line x1="160" y1="240" x2="140" y2="300" stroke="#fff" stroke-opacity=".3"/><line x1="320" y1="240" x2="340" y2="300" stroke="#fff" stroke-opacity=".3"/>`;
+
+  const moods = [
+    {
+      key: 'bright', title: 'A. 밝은 대형 게임센터', desc: '하얀 천장 조명이 쫙, 반짝이는 밝은 바닥, 빨강·노랑·파랑 원색 기계가 빽빽하게. 천장에 매달린 홍보 깃발, 유리에 붙은 손글씨 안내 카드. 낮에 큰 체인 게임센터에 들어간 느낌.',
+      s: { id: 'A', glow: 3, ceil: '#f7f7fa', wall: '#ecebf1', floor: ['#f1eef6', '#d4cfde'], reflect: .45, inside: '#fdfdff', signText: '#fff', bulb: '#fff8c4', btn: ['#ff3b5c', '#3b8bff'], pop: ['#ffe14d', '#e8384f'], bridge: true, clawY: 108,
+        ceilDeco: lightPanels + banners, floorDeco: tiles,
+        machines: [{ header: '#e8384f', body: '#e8384f', trim: '#ffffff' }, { header: '#ffb300', body: '#ffc93c', trim: '#ffffff' }, { header: '#2f80ed', body: '#2f80ed', trim: '#ffffff' }, { header: '#ff5fa2', body: '#ff5fa2', trim: '#ffffff' }, { header: '#27ae60', body: '#27ae60', trim: '#ffffff' }] },
+    },
+    {
+      key: 'neon', title: 'B. 밤거리 네온 게임센터', desc: '어두운 천장에 하늘·분홍 네온관과 네온 간판, 기계마다 테두리가 빛나고 간판 전구가 깜빡깜빡. 빛이 비치는 까만 광택 바닥. 밤에 번화가 게임센터에 들어간 느낌.',
+      s: { id: 'B', glow: 3.5, ceil: '#0e0818', wall: '#170e26', floor: ['#1a1030', '#0a0612'], reflect: .6, inside: '#fff3e6', signText: '#fff', bulb: '#ffe14d', btn: ['#ff3fb4', '#2ff3ff'], pop: ['#ff3fb4', '#fff'], bridge: true, clawY: 108, led: '#2ff3ff', glowHeader: true,
+        ceilDeco: neon, floorDeco: neonFloor,
+        machines: [{ header: '#ff3fb4', body: '#24173a', trim: '#3a2a58' }, { header: '#2fb8ff', body: '#24173a', trim: '#3a2a58' }, { header: '#ffb300', body: '#24173a', trim: '#3a2a58' }, { header: '#a45cff', body: '#24173a', trim: '#3a2a58' }, { header: '#ff3fb4', body: '#24173a', trim: '#3a2a58' }] },
+    },
+    {
+      key: 'current-plus', title: 'C. 지금 매장 + 일본식 디테일', desc: '지금의 보랏빛 천장·분홍 네온·회색 대리석·흰 기계와 파란 LED는 그대로 두고, 손글씨 안내 카드, 상자 피규어를 올린 두 줄 막대 기계, 깜빡이는 간판 전구, 체크 깃발 같은 일본 게임센터 디테일을 더한 느낌.',
+      s: { id: 'C', glow: 3, ceil: '#1d1030', wall: '#3a2850', floor: ['#a7a3ad', '#86828e'], reflect: .35, inside: '#f7e9f4', signText: '#fff', bulb: '#fff3b0', btn: ['#ff4fa8', '#ff4fa8'], pop: ['#ffe14d', '#e0447c'], bridge: true, clawY: 108, led: '#3aa0ff', flag: true,
+        ceilDeco: pinkNeon, floorDeco: veins,
+        machines: Array.from({ length: 5 }, (_, k) => ({ header: ['#ff6fae', '#8a7cff', '#ff6fae', '#8a7cff', '#ff6fae'][k], body: '#f4f2f8', trim: '#ffffff' })) },
+    },
+  ];
+  document.getElementById('moods').innerHTML = moods.map((m) => `
+    <div class="card" data-choice="${m.key}" onclick="toggleSelect(this)">
+      <div class="card-image">${scene(m.s)}</div>
+      <div class="card-body"><h3>${m.title}</h3><p>${m.desc}</p></div>
+    </div>`).join('');
+})();
+</script>

@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>그림체 비교 시제품</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@700&family=Jua&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #f4f1f7; font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; -webkit-user-select: none; user-select: none; }
+  canvas { display: block; touch-action: none; }
+  .bar { position: fixed; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; padding: 6px; border-radius: 999px; background: rgba(255,255,255,.55); backdrop-filter: blur(14px) saturate(1.6); -webkit-backdrop-filter: blur(14px) saturate(1.6); box-shadow: 0 6px 24px rgba(40,20,60,.18), inset 0 1px 0 rgba(255,255,255,.9); }
+  #modes { bottom: 72px; } #views { bottom: 16px; }
+  .bar button { border: 0; border-radius: 999px; padding: 10px 14px; font: 700 14px -apple-system, "Apple SD Gothic Neo", sans-serif; color: #4a3550; background: transparent; cursor: pointer; white-space: nowrap; }
+  .bar button.on { background: linear-gradient(180deg, #ff7ab8, #ff4f9a); color: #fff; box-shadow: 0 2px 10px rgba(255,79,154,.45); }
+  #hud { position: fixed; top: 10px; right: 10px; font: 600 12px ui-monospace, Menlo, monospace; color: #4a3550; background: rgba(255,255,255,.65); padding: 6px 10px; border-radius: 10px; }
+  #note { position: fixed; top: 10px; left: 10px; max-width: min(380px, 58vw); font-size: 13px; line-height: 1.5; color: #3a2840; background: rgba(255,255,255,.65); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); padding: 8px 12px; border-radius: 12px; }
+  #loading { position: fixed; inset: 0; display: grid; place-items: center; font: 700 16px -apple-system, sans-serif; color: #7a5a86; }
+</style>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/" } }</script>
+</head>
+<body>
+<div id="loading">불러오는 중…</div>
+<div id="note"></div>
+<div id="hud"></div>
+<div class="bar" id="modes"><button data-mode="toon">① 만화 고급화</button><button data-mode="real" class="on">② 실제 재질·조명</button></div>
+<div class="bar" id="views"><button data-view="play" class="on">기계 앞 (뽑기 화면)</button><button data-view="figure">피규어 기계</button><button data-view="aisle">매장 통로</button></div>
+<script type="module">
+// 버리는 시제품: 기계·뽑기는 아주 높은 품질, 매장·캐릭터는 적당한 품질로 두 그림체를 비교한다
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
+import { Reflector } from 'three/addons/objects/Reflector.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const TEXTS = '대형인형곰돌이왕국토끼마을피규어존말랑친구들펭귄섬신상입고잘뽑혀요오늘의기계회코인게임센터한정인기위컬렉션나다른사람별빛곰돌이주의세이상전용경품종★♪!→0123456789toycrane';
+await Promise.race([
+  Promise.all([document.fonts.load('80px Jua', TEXTS), document.fonts.load('700 80px Gaegu', TEXTS)]),
+  new Promise((r) => setTimeout(r, 3000)),
+]).catch(() => {});
+
+const mobile = matchMedia('(pointer: coarse)').matches;
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, mobile ? 1.5 : 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.info.autoReset = false;
+document.body.appendChild(renderer.domElement);
+RectAreaLightUniformsLib.init();
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf4f1f7);
+scene.fog = new THREE.Fog(0xf4f1f7, 9, 22);
+const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.03, 60);
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+// ---------- 재료 ----------
+let seed = 7;
+const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+const WHITE = new THREE.Color(0xffffff);
+const cache = new Map();
+const G = (key, make) => { if (!cache.has(key)) cache.set(key, make()); return cache.get(key); };
+const sphere = (r) => G('s' + r, () => new THREE.SphereGeometry(r, 32, 24));
+const rbox = (w, h, d, r = 0.02, s = 4) => G(`b${w}|${h}|${d}|${r}`, () => new RoundedBoxGeometry(w, h, d, s, Math.min(r, Math.min(w, h, d) / 2 - 0.0005)));
+const capsule = (r, l) => G(`c${r}|${l}`, () => new THREE.CapsuleGeometry(r, l, 8, 20));
+const cyl = (rt, rb, h, n = 32) => G(`y${rt}|${rb}|${h}|${n}`, () => new THREE.CylinderGeometry(rt, rb, h, n));
+const plane = (w, h) => G(`p${w}|${h}`, () => new THREE.PlaneGeometry(w, h));
+const cone = (r, h) => G(`k${r}|${h}`, () => new THREE.ConeGeometry(r, h, 24));
+
+function tex(w, h, draw, { rep, srgb = true } = {}) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  if (rep) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep[0], rep[1]); }
+  return t;
+}
+function rr(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+function star(g, x, y, r, fill) { g.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, q = i % 2 ? r * 0.45 : r; g.lineTo(x + Math.cos(a) * q, y + Math.sin(a) * q); } g.closePath(); g.fillStyle = fill; g.fill(); }
+function fitText(g, text, font, size, maxW) { g.font = `${font.replace('$', size)}`; const w = g.measureText(text).width; if (w > maxW) g.font = font.replace('$', Math.floor(size * maxW / w)); }
+
+const fabricBump = tex(256, 256, (g, w, h) => {
+  const img = g.createImageData(w, h);
+  for (let i = 0; i < w * h; i++) { const v = 170 + rnd() * 85; img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v; img.data[i * 4 + 3] = 255; }
+  g.putImageData(img, 0, 0);
+  g.globalAlpha = 0.18; g.strokeStyle = '#000';
+  for (let k = -h; k < w; k += 3) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k + h, h); g.stroke(); }
+}, { rep: [5, 5], srgb: false });
+
+const toonGrad = (() => { const t = new THREE.DataTexture(new Uint8Array([90, 165, 220, 255]), 4, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
+const toon = (color, extra = {}) => new THREE.MeshToonMaterial({ color, gradientMap: toonGrad, ...extra });
+const pair = (real, t) => ({ real, toon: t });
+const M = {
+  paint: (c) => pair(new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.05 }), toon(c)),
+  plastic: (c, r = 0.42) => pair(new THREE.MeshStandardMaterial({ color: c, roughness: r }), toon(c)),
+  chrome: (c = 0xeeeef4) => pair(new THREE.MeshStandardMaterial({ color: c, metalness: 1, roughness: 0.13 }), toon(0xd3d6de)),
+  fabric: (c) => pair(new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.95, sheen: 1, sheenRoughness: 0.45, sheenColor: new THREE.Color(c).lerp(WHITE, 0.6), bumpMap: fabricBump, bumpScale: 0.9 }), toon(c)),
+  felt: (c) => pair(new THREE.MeshStandardMaterial({ color: c, roughness: 1, bumpMap: fabricBump, bumpScale: 0.6 }), toon(c)),
+  eye: () => pair(new THREE.MeshPhysicalMaterial({ color: 0x120e16, roughness: 0.05, clearcoat: 1 }), new THREE.MeshBasicMaterial({ color: 0x241c28 })),
+  sign: (map, k = 0.75, side = THREE.FrontSide) => pair(new THREE.MeshStandardMaterial({ map, roughness: 0.3, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: k, side }), new THREE.MeshBasicMaterial({ map, side })),
+  print: (map, r = 0.55) => pair(new THREE.MeshStandardMaterial({ map, roughness: r }), toon(0xffffff, { map })),
+  card: (map) => pair(new THREE.MeshStandardMaterial({ map, roughness: 0.6, alphaTest: 0.5, side: THREE.DoubleSide }), new THREE.MeshBasicMaterial({ map, alphaTest: 0.5, side: THREE.DoubleSide })),
+  // 진짜 유리: 바탕은 안 칠하고 비친 빛만 더한다 / 만화: 아주 옅은 하늘빛
+  glass: () => pair(new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 0.03, envMapIntensity: 0.4, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
+    new THREE.MeshBasicMaterial({ color: 0xdff3ff, transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide })),
+};
+const glow = (hex, k = 3) => new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(k) });
+
+// 만화용 외곽선: 화면에서 일정한 굵기로 부풀린 뒷면
+const outlineU = { uW: { value: 0 }, uAsp: { value: 1 } };
+const outlineMat = new THREE.MeshBasicMaterial({ color: 0x3b2a3f, side: THREE.BackSide });
+outlineMat.onBeforeCompile = (s) => {
+  s.uniforms.uW = outlineU.uW; s.uniforms.uAsp = outlineU.uAsp;
+  s.vertexShader = 'uniform float uW;\nuniform float uAsp;\n' + s.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+    vec4 nc = projectionMatrix * vec4(normalize(normalMatrix * normal), 0.0);
+    vec2 od = nc.xy; float ol = length(od);
+    if (ol > 1e-5) { od /= ol; od.x /= uAsp; gl_Position.xy += od * uW * gl_Position.w; }`);
+};
+
+const pairs = [], outlines = [], toonOnly = [], realOnly = [];
+function mk(geo, mp, { outline = true, cast = true, receive = true } = {}) {
+  const isPair = !!(mp && mp.real);
+  const m = new THREE.Mesh(geo, isPair ? mp.real : mp);
+  m.castShadow = cast; m.receiveShadow = receive;
+  if (isPair) {
+    pairs.push([m, mp]);
+    if (outline) { const o = new THREE.Mesh(geo, outlineMat); o.visible = false; m.add(o); outlines.push(o); }
+  }
+  return m;
+}
+function put(parent, obj, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, s) {
+  obj.position.set(x, y, z); obj.rotation.set(rx, ry, rz); if (s) obj.scale.set(s[0], s[1], s[2]); parent.add(obj); return obj;
+}
+
+// ---------- 그림(캔버스) ----------
+const signTex = (text, c1, c2) => tex(1024, 320, (g, w, h) => {
+  const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, c1); gr.addColorStop(1, c2); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 30; i++) star(g, rnd() * w, rnd() * h, 6 + rnd() * 14, 'rgba(255,255,255,.35)');
+  g.lineWidth = 10; g.strokeStyle = 'rgba(255,255,255,.95)'; rr(g, 20, 20, w - 40, h - 40, 44); g.stroke();
+  fitText(g, text, '$px Jua, "Apple SD Gothic Neo", sans-serif', 160, w - 140);
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  g.lineWidth = 24; g.strokeStyle = 'rgba(80,20,60,.5)'; g.strokeText(text, w / 2, h / 2 + 10);
+  g.fillStyle = '#fff'; g.fillText(text, w / 2, h / 2 + 10);
+});
+const popTex = (text, bg, fg) => tex(320, 220, (g, w, h) => {
+  g.fillStyle = bg; rr(g, 8, 8, w - 16, h - 16, 26); g.fill();
+  g.setLineDash([14, 9]); g.lineWidth = 5; g.strokeStyle = fg; rr(g, 24, 24, w - 48, h - 48, 16); g.stroke(); g.setLineDash([]);
+  fitText(g, text, '700 $px Gaegu, sans-serif', 92, w - 70);
+  g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, w / 2, h / 2 + 8);
+  star(g, 48, 50, 15, fg); star(g, w - 46, h - 46, 11, fg);
+});
+const backArt = (c1, c2) => tex(512, 512, (g, w, h) => {
+  const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, c1); gr.addColorStop(1, c2); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  g.fillStyle = 'rgba(255,255,255,.55)';
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) { g.font = '34px sans-serif'; g.fillText(['♥', '★', '●'][(x + y) % 3], x * 64 + (y % 2) * 32 + 8, y * 64 + 44); }
+  g.fillStyle = 'rgba(255,255,255,.9)';
+  for (const [cx, cy, s] of [[120, 120, 1], [380, 200, 0.8]]) { g.beginPath(); g.arc(cx, cy, 40 * s, 0, 7); g.arc(cx + 45 * s, cy - 15 * s, 50 * s, 0, 7); g.arc(cx + 95 * s, cy, 38 * s, 0, 7); g.fill(); }
+});
+const tilesT = tex(1024, 1024, (g, w, h) => {
+  // 큰 판 대리석: 판마다 밝기를 조금씩 다르게, 회색 결은 부드러운 곡선 여러 겹, 판 사이 가는 줄눈
+  for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) {
+    const gr = g.createLinearGradient(x * 512, y * 512, x * 512 + 512, y * 512 + 512);
+    const base = 236 - ((x + y) % 2) * 6;
+    gr.addColorStop(0, `rgb(${base},${base - 1},${base + 3})`); gr.addColorStop(1, `rgb(${base - 10},${base - 11},${base - 6})`);
+    g.fillStyle = gr; g.fillRect(x * 512, y * 512, 512, 512);
+  }
+  const img = g.getImageData(0, 0, w, h);
+  for (let i = 0; i < img.data.length; i += 4) { const n = (rnd() - 0.5) * 7; img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n; }
+  g.putImageData(img, 0, 0);
+  for (let k = 0; k < 26; k++) {
+    let x = rnd() * w, y = rnd() * h;
+    g.strokeStyle = `rgba(${120 + rnd() * 40},${118 + rnd() * 40},${130 + rnd() * 40},${0.1 + rnd() * 0.25})`;
+    g.lineWidth = 0.6 + rnd() * (k < 6 ? 3.2 : 1.4);
+    g.beginPath(); g.moveTo(x, y);
+    for (let s = 0; s < 6; s++) { const nx = x + (rnd() - 0.3) * 220, ny = y + (rnd() - 0.5) * 160; g.quadraticCurveTo(x + (rnd() - 0.5) * 120, y + (rnd() - 0.5) * 120, nx, ny); x = nx; y = ny; }
+    g.stroke();
+  }
+  g.strokeStyle = 'rgba(150,145,160,.55)'; g.lineWidth = 3;
+  for (const k of [0, 512, 1024]) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k, h); g.moveTo(0, k); g.lineTo(w, k); g.stroke(); }
+}, { rep: [1.5, 3.5] });
+const ceilT = tex(512, 512, (g, w, h) => { g.fillStyle = '#fafafc'; g.fillRect(0, 0, w, h); g.strokeStyle = '#e4e1ea'; g.lineWidth = 3; for (let k = 0; k <= 4; k++) { g.beginPath(); g.moveTo(k * 128, 0); g.lineTo(k * 128, h); g.moveTo(0, k * 128); g.lineTo(w, k * 128); g.stroke(); } }, { rep: [2, 5.25] });
+const shadowT = tex(256, 256, (g, w, h) => { const gr = g.createRadialGradient(w / 2, h / 2, 30, w / 2, h / 2, w / 2); gr.addColorStop(0, 'rgba(40,25,50,.5)'); gr.addColorStop(1, 'rgba(40,25,50,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
+const shadowMat = new THREE.MeshBasicMaterial({ map: shadowT, transparent: true, depthWrite: false });
+const stickerT = tex(256, 128, (g, w, h) => { g.fillStyle = '#fff'; rr(g, 6, 6, w - 12, h - 12, 18); g.fill(); g.lineWidth = 6; g.strokeStyle = '#ff3b5c'; rr(g, 10, 10, w - 20, h - 20, 14); g.stroke(); g.font = '62px Jua, sans-serif'; g.fillStyle = '#ff3b5c'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('1회 🪙1', w / 2, h / 2 + 4); });
+const plateT = (t) => tex(256, 110, (g, w, h) => { g.fillStyle = '#26214a'; rr(g, 4, 4, w - 8, h - 8, 20); g.fill(); g.font = '78px Jua, sans-serif'; g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(t, w / 2, h / 2 + 4); });
+const wallSignT = tex(1024, 512, (g, w, h) => {
+  g.fillStyle = '#fbf8ff'; g.fillRect(0, 0, w, h);
+  ['#ff3b5c', '#ff9f1c', '#ffd84d', '#22b36b', '#2f7cf6', '#8b5cf6'].forEach((c, i) => { g.fillStyle = c; g.fillRect(0, 380 + i * 14, w, 14); });
+  for (let i = 0; i < 24; i++) star(g, rnd() * w, rnd() * 340, 8 + rnd() * 16, ['#ffd84d', '#ff6fb5', '#5ec8ff'][i % 3]);
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  g.font = '170px Jua, sans-serif'; g.lineWidth = 26; g.strokeStyle = '#fff'; g.strokeText('toycrane', w / 2, 150); g.fillStyle = '#ff4f9a'; g.fillText('toycrane', w / 2, 150);
+  g.font = '96px Jua, sans-serif'; g.fillStyle = '#4a3a8c'; g.fillText('게임센터', w / 2, 290);
+});
+const sideWallT = tex(1024, 256, (g, w, h) => {
+  g.fillStyle = '#fbf9fd'; g.fillRect(0, 0, w, h);
+  ['#ff6fb5', '#ffd84d', '#5ec8ff'].forEach((c, i) => { g.fillStyle = c; g.fillRect(0, 150 + i * 16, w, 16); });
+  for (let i = 0; i < 16; i++) star(g, rnd() * w, 40 + rnd() * 90, 10 + rnd() * 10, ['#ff6fb5', '#ffd84d', '#5ec8ff'][i % 3]);
+}, { rep: [4, 1] });
+function bearArt(g, cx, cy, r, c) {
+  g.fillStyle = c; for (const s of [-1, 1]) { g.beginPath(); g.arc(cx + s * r * 0.72, cy - r * 0.72, r * 0.34, 0, 7); g.fill(); }
+  g.beginPath(); g.ellipse(cx, cy + r * 1.25, r * 0.78, r * 0.62, 0, 0, 7); g.fill();
+  g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill();
+  g.fillStyle = '#fff3f8'; g.beginPath(); g.ellipse(cx, cy + r * 0.28, r * 0.42, r * 0.3, 0, 0, 7); g.fill();
+  g.fillStyle = '#2a1e2e'; for (const s of [-1, 1]) { g.beginPath(); g.arc(cx + s * r * 0.36, cy - r * 0.05, r * 0.11, 0, 7); g.fill(); }
+  g.beginPath(); g.ellipse(cx, cy + r * 0.18, r * 0.1, r * 0.07, 0, 0, 7); g.fill();
+  g.fillStyle = '#fff'; for (const s of [-1, 1]) { g.beginPath(); g.arc(cx + s * r * 0.36 + r * 0.04, cy - r * 0.1, r * 0.035, 0, 7); g.fill(); }
+  g.fillStyle = 'rgba(255,120,160,.55)'; for (const s of [-1, 1]) { g.beginPath(); g.ellipse(cx + s * r * 0.62, cy + r * 0.2, r * 0.14, r * 0.08, 0, 0, 7); g.fill(); }
+}
+// 피규어 상자 앞면: 빛살 배경 + 캐릭터 + 이름 띠 + "1종" 딱지
+const figArtT = (w, h, c1, c2, name) => tex(w, h, (g) => {
+  const gr = g.createRadialGradient(w / 2, h * 0.42, 10, w / 2, h * 0.42, h * 0.75); gr.addColorStop(0, c1); gr.addColorStop(1, c2); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  g.save(); g.translate(w / 2, h * 0.42); for (let i = 0; i < 18; i++) { g.rotate(Math.PI / 9); g.fillStyle = 'rgba(255,255,255,.08)'; g.beginPath(); g.moveTo(0, 0); g.lineTo(h, -h * 0.09); g.lineTo(h, h * 0.09); g.fill(); } g.restore();
+  for (let i = 0; i < 14; i++) star(g, rnd() * w, rnd() * h * 0.7, 4 + rnd() * 9, 'rgba(255,240,160,.8)');
+  bearArt(g, w / 2, h * 0.4, w * 0.2, '#ffc6dc');
+  g.fillStyle = 'rgba(255,255,255,.95)'; rr(g, w * 0.07, h * 0.74, w * 0.86, h * 0.19, 18); g.fill();
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#3a2a6a';
+  fitText(g, name, `$px Jua, sans-serif`, Math.round(h * 0.08), w * 0.78); g.fillText(name, w / 2, h * 0.81);
+  g.font = `${Math.round(h * 0.042)}px Jua, sans-serif`; g.fillStyle = '#8a7ab0'; g.fillText('toycrane 피규어 컬렉션', w / 2, h * 0.885);
+  g.textAlign = 'left'; g.font = `${Math.round(h * 0.06)}px Jua, sans-serif`; g.fillStyle = '#fff'; g.fillText('toycrane', w * 0.06, h * 0.07);
+  g.fillStyle = '#ffd84d'; g.beginPath(); g.arc(w * 0.86, h * 0.68, w * 0.07, 0, 7); g.fill();
+  g.fillStyle = '#7a3b00'; g.textAlign = 'center'; g.font = `${Math.round(w * 0.06)}px Jua, sans-serif`; g.fillText('1종', w * 0.86, h * 0.685);
+});
+const figSideT = tex(512, 128, (g, w, h) => {
+  const gr = g.createLinearGradient(0, 0, w, 0); gr.addColorStop(0, '#2c2470'); gr.addColorStop(1, '#4b3aa8'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#ffd84d'; g.fillRect(0, h - 12, w, 6);
+  g.font = '58px Jua, sans-serif'; g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('toycrane 피규어', w / 2, h / 2 - 4);
+});
+const figLabelT = tex(512, 180, (g, w, h) => {
+  g.fillStyle = '#fbfbfd'; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#e8384f'; g.fillRect(14, 14, 250, 34); g.fillStyle = '#ffd84d'; g.fillRect(14, 96, 250, 30);
+  g.font = '26px Jua, sans-serif'; g.fillStyle = '#fff'; g.fillText('⚠ 주의', 24, 40); g.fillStyle = '#3a2a2a'; g.fillText('⚠ 8세 이상', 24, 120);
+  g.fillStyle = '#9a96a6'; for (let i = 0; i < 5; i++) g.fillRect(14, 56 + i * 7, 230 - i * 20, 3);
+  g.strokeStyle = '#3a2a2a'; g.lineWidth = 2; g.strokeRect(290, 14, 205, 40); g.font = '20px Jua, sans-serif'; g.fillStyle = '#3a2a2a'; g.fillText('게임 전용 경품', 318, 41);
+  for (let x = 300; x < 490; x += 3) if (rnd() > 0.35) g.fillRect(x, 70, rnd() > 0.5 ? 2 : 1, 70);
+});
+const bridgeFloorT = tex(512, 512, (g, w, h) => {
+  g.fillStyle = '#ffe3f0'; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#ffc2dc'; for (let k = -h; k < w; k += 64) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k + 32, 0); g.lineTo(k + 32 + h, h); g.lineTo(k + h, h); g.fill(); }
+  g.font = '150px Jua, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  g.lineWidth = 22; g.strokeStyle = '#fff'; g.strokeText('GET!', w / 2, h * 0.62); g.fillStyle = '#ff4f9a'; g.fillText('GET!', w / 2, h * 0.62);
+});
+const clawStickerT = tex(256, 112, (g, w, h) => {
+  g.fillStyle = '#ffe14d'; rr(g, 4, 4, w - 8, h - 8, 14); g.fill(); g.strokeStyle = '#2a2a32'; g.lineWidth = 5; rr(g, 6, 6, w - 12, h - 12, 12); g.stroke();
+  bearArt(g, 46, 48, 22, '#ffc6dc');
+  g.fillStyle = '#2a2a32'; g.font = '34px Jua, sans-serif'; g.textBaseline = 'middle'; g.fillText('피규어 상품', 86, 40); g.font = '26px Jua, sans-serif'; g.fillStyle = '#e8384f'; g.fillText('1판 1코인', 88, 78);
+});
+const nameT = (t) => tex(256, 80, (g, w, h) => { g.fillStyle = 'rgba(255,255,255,.85)'; rr(g, 4, 4, w - 8, h - 8, 36); g.fill(); g.font = '46px Jua, sans-serif'; g.fillStyle = '#4a3550'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(t, w / 2, h / 2 + 3); });
+
+// ---------- 인형 (보송한 천 인형) ----------
+function plush(kind, c, a) {
+  const g = new THREE.Group();
+  const hits = []; const hit = (x, y, z, r) => hits.push([new THREE.Vector3(x, y, z), r]);
+  const ears = []; // { parts, base, c, r, out, cur }: 손가락에 닿으면 바깥으로 휘는 귀
+  const ear = (parts, x, y, z, r, s) => ears.push({ parts, base: parts.map((p) => p.position.clone()), baseRz: parts.map((p) => p.rotation.z), c: new THREE.Vector3(x, y, z), r, out: new THREE.Vector3(s, 0.5, 0).normalize(), cur: 0 });
+  g.userData.hits = hits; g.userData.ears = ears;
+  const F = M.fabric(c), A = M.fabric(a), E = M.eye(), N = M.fabric(0x3a2a2a), P = M.fabric(0xff9fb6), O = M.fabric(0xff9a3c);
+  const hl = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const eyes = (y, z, dx = 0.033, r = 0.012) => { for (const s of [-1, 1]) { put(g, mk(sphere(r), E, { outline: false }), s * dx, y, z); put(g, new THREE.Mesh(sphere(r * 0.32), hl), s * dx + 0.004, y + 0.005, z + r * 0.86); } };
+  const cheeks = (y, z, dx = 0.058) => { for (const s of [-1, 1]) put(g, mk(sphere(0.016), P, { outline: false }), s * dx, y, z, 0, 0, 0, [1, 0.6, 0.4]); };
+  if (kind === 'chick') {
+    hit(0, 0.1, 0, 0.104); hit(0, 0.205, 0, 0.024);
+    put(g, mk(sphere(0.105), F), 0, 0.1, 0, 0, 0, 0, [1, 0.95, 0.95]);
+    eyes(0.125, 0.092); cheeks(0.105, 0.088, 0.06);
+    put(g, mk(cone(0.02, 0.04), O), 0, 0.105, 0.11, Math.PI / 2, 0, 0);
+    for (const s of [-1, 1]) { put(g, mk(sphere(0.04), F), s * 0.1, 0.09, 0, 0, 0, s * 0.5, [0.45, 1, 0.8]); put(g, mk(sphere(0.026), O), s * 0.04, 0.012, 0.05, 0, 0, 0, [1, 0.5, 1.4]); }
+    put(g, mk(sphere(0.022), F), 0, 0.205, 0, 0, 0, 0.4, [0.6, 1.2, 0.6]);
+  } else if (kind === 'penguin') {
+    hit(0, 0.08, 0, 0.1); hit(0, 0.17, 0, 0.1);
+    put(g, mk(sphere(0.1), F), 0, 0.13, 0, 0, 0, 0, [1, 1.3, 0.95]);
+    put(g, mk(sphere(0.086), A), 0, 0.11, 0.045, 0, 0, 0, [0.95, 1.15, 0.65]);
+    eyes(0.19, 0.084, 0.034); cheeks(0.165, 0.08);
+    put(g, mk(cone(0.018, 0.035), O), 0, 0.17, 0.1, Math.PI / 2, 0, 0);
+    for (const s of [-1, 1]) { put(g, mk(capsule(0.022, 0.07), F), s * 0.1, 0.12, 0, 0, 0, s * 0.45, [0.7, 1, 1]); put(g, mk(sphere(0.026), O), s * 0.04, 0.012, 0.05, 0, 0, 0, [1, 0.5, 1.4]); }
+  } else {
+    hit(0, 0.075, 0, 0.074); hit(0, 0.2, 0, 0.088); hit(0, 0.18, 0.074, 0.03);
+    put(g, mk(sphere(0.075), F), 0, 0.075, 0, 0, 0, 0, [1, 1.02, 0.9]);
+    put(g, mk(sphere(0.05), A), 0, 0.07, 0.042, 0, 0, 0, [1, 1.1, 0.5]);
+    put(g, mk(sphere(0.092), F), 0, 0.2, 0, 0, 0, 0, [1, 0.92, 0.95]);
+    eyes(0.207, 0.083); cheeks(0.18, 0.072);
+    if (kind === 'bear' || kind === 'cat') {
+      put(g, mk(sphere(0.036), A, { outline: false }), 0, 0.18, 0.074, 0, 0, 0, [1.25, 0.85, 0.7]);
+      put(g, mk(sphere(0.011), N, { outline: false }), 0, 0.19, 0.098, 0, 0, 0, [1.3, 1, 1]);
+    } else put(g, mk(sphere(0.008), P, { outline: false }), 0, 0.188, 0.088);
+    for (const s of [-1, 1]) {
+      if (kind === 'bear') ear([put(g, mk(sphere(0.032), F), s * 0.062, 0.272, -0.005), put(g, mk(sphere(0.019), A, { outline: false }), s * 0.062, 0.27, 0.018, 0, 0, 0, [1, 1, 0.5])], s * 0.062, 0.272, -0.005, 0.032, s);
+      if (kind === 'bunny') ear([put(g, mk(capsule(0.022, 0.09), F), s * 0.036, 0.33, -0.005, 0, 0, s * -0.12), put(g, mk(capsule(0.012, 0.07), A, { outline: false }), s * 0.038, 0.33, 0.013, 0, 0, s * -0.12, [1, 1, 0.4])], s * 0.038, 0.33, -0.005, 0.03, s);
+      if (kind === 'cat') ear([put(g, mk(cone(0.034, 0.06), F), s * 0.058, 0.278, 0, 0, 0, s * -0.3)], s * 0.058, 0.272, 0, 0.028, s);
+      put(g, mk(capsule(0.022, 0.035), F), s * 0.075, 0.095, 0.02, 0, 0, s * 0.95);
+      put(g, mk(sphere(0.03), F), s * 0.038, 0.022, 0.045, 0, 0, 0, [1, 0.8, 1.25]);
+      put(g, mk(sphere(0.016), A, { outline: false }), s * 0.038, 0.022, 0.08, 0, 0, 0, [1, 1, 0.4]);
+    }
+    if (kind === 'bunny') put(g, mk(sphere(0.026), A), 0, 0.06, -0.07);
+  }
+  // 진짜 인형처럼 옆구리 품질 표시 택
+  put(g, new THREE.Mesh(plane(0.022, 0.032), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, side: THREE.DoubleSide })), 0.07, 0.04, -0.035, 0, 1.2, 0.2);
+  return g;
+}
+const KINDS = {
+  bear: [[0xb07a52, 0xf0d2b0], [0xf5a8c5, 0xffe3ee], [0xf2ede6, 0xffd1dc], [0x9c9aa6, 0xffffff]],
+  bunny: [[0xf6eef0, 0xffb7c9], [0xa9d8ff, 0xffffff], [0xffd1e3, 0xffffff]],
+  cat: [[0xf2a35e, 0xfff1df], [0x8e8e98, 0xffffff]],
+  chick: [[0xffd84d, 0xff9a3c]],
+  penguin: [[0x2d3a66, 0xffffff], [0x6fb6ff, 0xffffff]],
+};
+const doll = (kind, v = 0) => plush(kind, KINDS[kind][v][0], KINDS[kind][v][1]);
+
+// 피규어 상자: BoxGeometry 면 순서 +x, -x, +y, -y, +z, -z
+function figBox(w, h, d, faces) {
+  const m = mk(new THREE.BoxGeometry(w, h, d), { real: faces.map((f) => f.real), toon: faces.map((f) => f.toon) }, { outline: false });
+  const o = new THREE.Mesh(rbox(w, h, d, 0.004, 2), outlineMat); o.visible = false; m.add(o); outlines.push(o);
+  return m;
+}
+
+// ---------- 캐릭터 (적당한 품질) ----------
+function avatar(shirt, hair, name) {
+  const g = new THREE.Group();
+  const skin = M.plastic(0xffdcc6, 0.6), S = M.plastic(shirt, 0.7), Hm = M.plastic(hair, 0.55), E = M.eye();
+  put(g, mk(capsule(0.17, 0.16), S), 0, 0.42, 0);
+  put(g, mk(sphere(0.24), skin), 0, 0.9, 0);
+  put(g, mk(sphere(0.255), Hm), 0, 0.97, -0.03, 0, 0, 0, [1, 0.78, 1]);
+  for (const s of [-1, 1]) {
+    put(g, mk(sphere(0.026), E, { outline: false }), s * 0.08, 0.88, 0.215);
+    put(g, mk(sphere(0.03), M.plastic(0xffa3b5, 0.8), { outline: false }), s * 0.13, 0.83, 0.19, 0, 0, 0, [1, 0.6, 0.4]);
+    put(g, mk(sphere(0.07), skin), s * 0.27, 0.45, 0.05);
+    put(g, mk(sphere(0.08), M.plastic(0x4a3a5c, 0.6)), s * 0.09, 0.05, 0.03, 0, 0, 0, [1, 0.6, 1.3]);
+  }
+  const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: nameT(name), depthWrite: false }));
+  tag.scale.set(0.42, 0.13, 1); tag.position.y = 1.32; g.add(tag);
+  return g;
+}
+
+// ---------- 기계 (아주 높은 품질) ----------
+const W = 0.92, D = 0.86, CAB = 0.84, GL = 0.92, TOP = CAB + GL;
+const bulbs = []; // [기계 그룹, 로컬 위치]
+function ledFrame(parent, x, y, z, w, h, hex) {
+  const m = glow(hex, 2.4), t = 0.012;
+  put(parent, new THREE.Mesh(rbox(w + t, t, t, 0.004), m), x, y + h / 2, z);
+  put(parent, new THREE.Mesh(rbox(w + t, t, t, 0.004), m), x, y - h / 2, z);
+  put(parent, new THREE.Mesh(rbox(t, h, t, 0.004), m), x - w / 2, y, z);
+  put(parent, new THREE.Mesh(rbox(t, h, t, 0.004), m), x + w / 2, y, z);
+}
+function machine(o) {
+  const g = new THREE.Group();
+  const paint = M.paint(o.color), white = M.plastic(0xf8f6fb, 0.32), dark = M.plastic(0x1b1820, 0.5), ch = M.chrome();
+  // 아래 캐비닛
+  put(g, mk(rbox(W, CAB, D, 0.035), paint), 0, CAB / 2, 0);
+  put(g, mk(rbox(W - 0.12, 0.46, 0.02, 0.008), white), 0, 0.4, D / 2 + 0.004);
+  put(g, mk(rbox(0.3, 0.24, 0.03, 0.01), dark), -0.22, 0.3, D / 2 + 0.012);
+  put(g, mk(rbox(0.26, 0.012, 0.05, 0.004), M.glass(), { outline: false, cast: false }), -0.22, 0.4, D / 2 + 0.03, 0.5, 0, 0);
+  ledFrame(g, -0.22, 0.3, D / 2 + 0.03, 0.3, 0.24, 0xff6fb5);
+  put(g, mk(rbox(0.12, 0.18, 0.03, 0.01), ch), 0.25, 0.42, D / 2 + 0.014);
+  put(g, new THREE.Mesh(rbox(0.012, 0.07, 0.006, 0.002), glow(0x66ffcc, 2.5)), 0.25, 0.45, D / 2 + 0.031);
+  put(g, mk(plane(0.16, 0.08), M.card(stickerT), { outline: false, cast: false }), 0.25, 0.64, D / 2 + 0.016);
+  put(g, new THREE.Mesh(rbox(W - 0.02, 0.022, 0.02, 0.008), glow(0x7fd6ff, 2.2)), 0, 0.03, D / 2 + 0.006);
+  // 조작대: 레버 + 버튼 두 개
+  const deck = put(g, new THREE.Group(), 0, CAB + 0.012, D / 2 + 0.085, 0.2, 0, 0);
+  deck.add(mk(rbox(W - 0.02, 0.06, 0.2, 0.02), white));
+  put(deck, mk(cyl(0.042, 0.048, 0.016), ch), -0.24, 0.036, 0);
+  put(deck, mk(cyl(0.008, 0.008, 0.08, 16), ch), -0.24, 0.07, 0);
+  put(deck, mk(sphere(0.032), M.plastic(0xff3b5c, 0.18)), -0.24, 0.112, 0);
+  for (const [x, c] of [[0.08, 0xff3b5c], [0.24, 0x3b8bff]]) {
+    put(deck, mk(cyl(0.05, 0.052, 0.02), ch), x, 0.036, 0);
+    put(deck, mk(sphere(0.042), M.plastic(c, 0.12)), x, 0.042, 0, 0, 0, 0, [1, 0.45, 1]);
+  }
+  // 유리 칸
+  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) put(g, mk(rbox(0.045, GL, 0.045, 0.012), ch), sx * (W / 2 - 0.022), CAB + GL / 2, sz * (D / 2 - 0.022));
+  for (const sx of [-1, 1]) put(g, new THREE.Mesh(rbox(0.012, GL - 0.06, 0.012, 0.005), glow(o.led ?? 0xffffff, 1.8)), sx * (W / 2 - 0.052), CAB + GL / 2, D / 2 - 0.012);
+  put(g, mk(rbox(W - 0.06, 0.03, D - 0.06, 0.01), o.bridge ? M.print(bridgeFloorT, 0.6) : M.felt(o.felt)), 0, CAB + 0.015, 0);
+  put(g, mk(plane(W - 0.06, GL - 0.02), M.print(backArt(o.back[0], o.back[1]), 0.7), { outline: false, cast: false }), 0, CAB + GL / 2, -D / 2 + 0.03);
+  for (const sx of [-1, 1]) put(g, mk(plane(D - 0.06, GL - 0.02), M.print(backArt(o.back[1], o.back[0]), 0.7), { outline: false, cast: false }), sx * (W / 2 - 0.035), CAB + GL / 2, 0, 0, -sx * Math.PI / 2, 0, [1, 1, 1]).visible = !!o.sideArt;
+  // 상품 구멍 + 투명 가림막
+  const hx = -0.27, hz = 0.25;
+  const gm = M.glass();
+  if (!o.bridge) {
+    put(g, mk(rbox(0.24, 0.034, 0.24, 0.006), dark, { outline: false }), hx, CAB + 0.018, hz);
+    put(g, mk(plane(0.26, 0.12), gm, { outline: false, cast: false, receive: false }), hx, CAB + 0.09, hz - 0.125);
+    put(g, mk(plane(0.26, 0.12), gm, { outline: false, cast: false, receive: false }), hx + 0.125, CAB + 0.09, hz, 0, Math.PI / 2, 0);
+    put(g, mk(rbox(0.26, 0.01, 0.01, 0.004), ch, { outline: false }), hx, CAB + 0.15, hz - 0.125);
+    put(g, mk(rbox(0.01, 0.01, 0.26, 0.004), ch, { outline: false }), hx + 0.125, CAB + 0.15, hz);
+  }
+  // 천장 조명판과 레일
+  put(g, new THREE.Mesh(plane(W - 0.1, D - 0.1), glow(0xffffff, 2.2)), 0, TOP - 0.045, 0, Math.PI / 2, 0, 0);
+  for (const sz of [-1, 1]) put(g, mk(rbox(W - 0.08, 0.02, 0.02, 0.006), ch, { cast: false }), 0, TOP - 0.07, sz * (D / 2 - 0.07));
+  // 유리판
+  put(g, mk(plane(W - 0.05, GL - 0.02), gm, { outline: false, cast: false, receive: false }), 0, CAB + GL / 2, D / 2 - 0.02);
+  for (const sx of [-1, 1]) put(g, mk(plane(D - 0.05, GL - 0.02), gm, { outline: false, cast: false, receive: false }), sx * (W / 2 - 0.02), CAB + GL / 2, 0, 0, Math.PI / 2, 0);
+  const streakMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false });
+  for (const [x, w] of [[0.18, 0.05], [0.27, 0.02]]) toonOnly.push(put(g, new THREE.Mesh(plane(w, 0.5), streakMat), x, CAB + GL / 2 + 0.1, D / 2 - 0.015, 0, 0, -0.5));
+  // 안내 카드
+  put(g, mk(plane(0.17, 0.117), M.card(popTex(...o.pop)), { outline: false, cast: false }), 0.29, TOP - 0.2, D / 2 - 0.03, 0, 0, -0.12);
+  // 위 간판 + 전구
+  put(g, mk(rbox(W + 0.02, 0.4, D + 0.02, 0.04), paint, { cast: false }), 0, TOP + 0.2, 0);
+  put(g, mk(plane(W - 0.1, 0.3), M.sign(signTex(o.sign, o.signC[0], o.signC[1])), { outline: false, cast: false }), 0, TOP + 0.2, D / 2 + 0.012);
+  const bw = W / 2 - 0.02, bh = 0.18, step = 0.042;
+  for (let x = -bw; x <= bw + 1e-6; x += step) { bulbs.push([g, new THREE.Vector3(x, TOP + 0.2 + bh, D / 2 + 0.02)]); bulbs.push([g, new THREE.Vector3(x, TOP + 0.2 - bh, D / 2 + 0.02)]); }
+  for (let y = -bh + step; y < bh - 1e-6; y += step) { bulbs.push([g, new THREE.Vector3(-bw, TOP + 0.2 + y, D / 2 + 0.02)]); bulbs.push([g, new THREE.Vector3(bw, TOP + 0.2 + y, D / 2 + 0.02)]); }
+  put(g, mk(plane(0.14, 0.06), M.sign(plateT(o.plate), 0.3, THREE.DoubleSide), { outline: false, cast: false }), W / 2 - 0.12, TOP + 0.44, D / 2 - 0.08);
+  // 바닥 접지 그림자
+  const sh = put(g, new THREE.Mesh(plane(1.3, 1.25), shadowMat), 0, 0.004, 0, -Math.PI / 2, 0, 0); sh.renderOrder = 2;
+  // 상품
+  const dolls = [];
+  for (const d of o.dolls ?? []) {
+    const p = doll(d[0], d[1]);
+    put(g, p, d[2], CAB + 0.03 + (d[5] ?? 0), d[3], d[6] ?? 0, d[4], d[7] ?? 0);
+    dolls.push(p);
+  }
+  if (o.bridge) {
+    const yr = CAB + 0.3, rods = [0.15, -0.05]; // 앞·뒤 막대 (사이가 상자 깊이보다 조금 좁다)
+    const rodM = pair(new THREE.MeshStandardMaterial({ color: 0xf2cfe0, metalness: 1, roughness: 0.18 }), toon(0xe9c3d6));
+    const frameM = M.plastic(0xfafafc, 0.35), capM = M.plastic(0x3a3440, 0.4), clampM = M.plastic(0xffffff, 0.3);
+    for (const z of rods) {
+      put(g, mk(cyl(0.012, 0.012, 0.8, 24), rodM), 0, yr, z, 0, 0, Math.PI / 2);
+      for (const sx of [-1, 1]) {
+        put(g, mk(rbox(0.032, 0.3, 0.032, 0.008), frameM), sx * 0.415, CAB + 0.15, z);
+        put(g, mk(rbox(0.05, 0.052, 0.055, 0.012), clampM), sx * 0.392, yr, z);
+        put(g, mk(cyl(0.015, 0.015, 0.012, 16), capM, { outline: false }), sx * 0.362, yr, z, 0, 0, Math.PI / 2);
+      }
+    }
+    put(g, mk(rbox(0.012, 0.012, 0.24, 0.004), frameM), -0.415, CAB + 0.02, 0.05);
+    put(g, mk(rbox(0.012, 0.012, 0.24, 0.004), frameM), 0.415, CAB + 0.02, 0.05);
+    const art = (c1, c2, name, w, h) => M.print(figArtT(w, h, c1, c2, name), 0.4);
+    const side = M.print(figSideT, 0.4), label = M.print(figLabelT, 0.5), navy = M.plastic(0x2c2470, 0.4);
+    // 막대 위 상자: 앞면(그림)이 위를 보게 눕혀 걸쳤다
+    const prizeArt = art('#8f7bff', '#2c2470', '★ 별빛 곰돌이 ★', 512, 640);
+    put(g, figBox(0.24, 0.085, 0.3, [side, side, prizeArt, navy, label, side]), -0.03, yr + 0.012 + 0.0425, 0.05, 0, 0.12, 0.025);
+    // 뒤쪽 계단 진열대에 같은 상자를 세워 쌓았다 (실제 기계의 재고 진열)
+    put(g, mk(rbox(W - 0.1, 0.33, 0.2, 0.012), M.plastic(0xffeef6, 0.4)), 0, CAB + 0.165, -0.3);
+    put(g, mk(rbox(W - 0.1, 0.12, 0.1, 0.012), M.plastic(0xffeef6, 0.4)), 0, CAB + 0.39, -0.355);
+    const standArt = art('#8f7bff', '#2c2470', '★ 별빛 곰돌이 ★', 384, 512);
+    for (const x of [-0.3, -0.1, 0.1, 0.3]) put(g, figBox(0.13, 0.17, 0.07, [side, side, navy, navy, standArt, standArt]), x, CAB + 0.33 + 0.085, -0.235, 0, (rnd() - 0.5) * 0.12, 0);
+    for (const x of [-0.2, 0, 0.2]) put(g, figBox(0.13, 0.17, 0.07, [side, side, navy, navy, standArt, standArt]), x, CAB + 0.45 + 0.085, -0.355, 0, (rnd() - 0.5) * 0.12, 0);
+    // 피규어 기계 집게(사용자 사진 기준): 각진 흰 캡슐 몸통 + 검은·빨간 띠 + 앞 스티커,
+    // 몸통 양옆 경첩에서 납작한 반투명 판 팔이 바깥으로 → 곧게 아래로 → 끝이 안쪽으로 꺾인다
+    const claw = put(g, new THREE.Group(), 0.16, TOP - 0.1, 0.05);
+    put(claw, mk(rbox(0.08, 0.03, 0.08, 0.008), ch), 0, 0.015, 0);
+    put(claw, mk(rbox(0.016, 0.05, 0.016, 0.004), ch, { outline: false }), 0, -0.02, 0);
+    const head = put(claw, new THREE.Group(), 0, -0.085, 0);
+    put(head, mk(rbox(0.18, 0.09, 0.11, 0.016), M.plastic(0xfbfbfd, 0.28)), 0, 0, 0);
+    put(head, mk(rbox(0.182, 0.014, 0.112, 0.005), M.plastic(0x2a2a32, 0.4), { outline: false }), 0, 0.024, 0);
+    put(head, mk(rbox(0.184, 0.006, 0.114, 0.003), M.plastic(0xe8384f, 0.4), { outline: false }), 0, 0.013, 0);
+    put(head, mk(plane(0.1, 0.044), M.card(clawStickerT), { outline: false, cast: false }), 0, -0.012, 0.0562);
+    put(head, mk(rbox(0.13, 0.012, 0.085, 0.004), M.plastic(0xd9dde6, 0.3)), 0, -0.051, 0);
+    const armM = pair(new THREE.MeshPhysicalMaterial({ color: 0xf4f8ff, roughness: 0.15, transparent: true, opacity: 0.72 }), toon(0xeaf2ff, { transparent: true, opacity: 0.85 }));
+    const hingeM = M.plastic(0xd9dde6, 0.3);
+    for (const sx of [-1, 1]) {
+      put(head, mk(rbox(0.026, 0.04, 0.06, 0.005), hingeM), sx * 0.097, -0.012, 0);
+      const arm = put(head, new THREE.Group(), sx * 0.1, -0.022, 0);
+      put(arm, mk(rbox(0.012, 0.07, 0.045, 0.003), armM), sx * 0.012, -0.033, 0, 0, 0, sx * 0.35);
+      put(arm, mk(rbox(0.012, 0.11, 0.045, 0.003), armM), sx * 0.024, -0.12, 0);
+      put(arm, mk(rbox(0.012, 0.055, 0.045, 0.003), armM), sx * 0.0052, -0.1951, 0, 0, 0, -sx * 0.75);
+      put(arm, mk(rbox(0.018, 0.01, 0.05, 0.003), hingeM), -sx * 0.014, -0.216, 0);
+    }
+  }
+  return { g, dolls, ch };
+}
+
+// 집게: 레일 위 가로대 + 줄 + 캡 + 관절 손가락 3개
+function clawRig(ch) {
+  const gantry = mk(rbox(0.024, 0.024, D - 0.12, 0.006), ch, { cast: false });
+  const carriage = new THREE.Group();
+  carriage.add(mk(rbox(0.07, 0.035, 0.07, 0.01), ch));
+  const hang = new THREE.Group(); carriage.add(hang);
+  const cable = mk(cyl(0.0035, 0.0035, 1, 8), M.plastic(0x2a2a30, 0.3), { outline: false });
+  hang.add(cable);
+  const head = new THREE.Group(); hang.add(head);
+  head.add(mk(cyl(0.03, 0.036, 0.045), ch));
+  put(head, mk(cyl(0.043, 0.043, 0.013), M.plastic(0xff4f9a, 0.25)), 0, -0.03, 0);
+  put(head, mk(cyl(0.022, 0.024, 0.04), ch), 0, -0.054, 0); // 가는 허브: 귀 사이로 머리 위에 얹힌다
+  const points = [];
+  const probe = (parent, x, y, z) => { const p = new THREE.Object3D(); p.position.set(x, y, z); parent.add(p); points.push(p); };
+  probe(head, 0, -0.074, 0);
+  for (let k = 0; k < 4; k++) probe(head, Math.cos(k * Math.PI / 2) * 0.022, -0.074, Math.sin(k * Math.PI / 2) * 0.022);
+  for (let k = 0; k < 6; k++) probe(head, Math.cos(k * Math.PI / 3) * 0.043, -0.036, Math.sin(k * Math.PI / 3) * 0.043);
+  const fingers = [], fingerPoints = [];
+  // 손가락 모양(경첩 기준, x는 바깥쪽): 옆으로 나가 머리 둘레 밖으로 → 곧게 아래로 → 머리 밑 목 쪽으로 안으로 굽는다.
+  // 다 오므린(0) 모양이 큰 인형 머리를 감싸는 모양이고, 닿는 데까지만 오므린다
+  const P = [[0, 0], [0.077, -0.04], [0.08, -0.15], [0.03, -0.2]];
+  for (let k = 0; k < 3; k++) {
+    const yaw = new THREE.Group(); yaw.rotation.y = (k * Math.PI * 2) / 3 + Math.PI / 2; head.add(yaw);
+    const hinge = new THREE.Group(); hinge.position.set(0.03, -0.04, 0); yaw.add(hinge);
+    put(hinge, mk(sphere(0.011), ch), 0, 0, 0);
+    for (let n = 0; n < 3; n++) {
+      const [x1, y1] = P[n], [x2, y2] = P[n + 1], len = Math.hypot(x2 - x1, y2 - y1);
+      put(hinge, mk(rbox(n === 2 ? 0.012 : 0.013, len + 0.008, n === 2 ? 0.016 : 0.018, 0.005), ch), (x1 + x2) / 2, (y1 + y2) / 2, 0, 0, 0, Math.atan2(x2 - x1, y1 - y2));
+      if (n < 2) put(hinge, mk(sphere(0.0115), ch), x2, y2, 0);
+      for (const f of [0.25, 0.5, 0.75, 1]) probe(hinge, x1 + (x2 - x1) * f, y1 + (y2 - y1) * f, 0);
+    }
+    put(hinge, mk(sphere(0.011), M.plastic(0xff4f9a, 0.3)), P[3][0], P[3][1], 0, 0, 0, 0, [1, 0.75, 1.3]);
+    fingers.push(hinge);
+  }
+  for (const f of fingers) for (const p of points) if (p.parent === f) fingerPoints.push(p);
+  return {
+    gantry, carriage, hang, head, points, fingerPoints,
+    setOpen(t) { for (const f of fingers) f.rotation.z = THREE.MathUtils.lerp(-0.3, 0.35, t); },
+    setDrop(len) { head.position.y = -len; cable.scale.y = len; cable.position.y = -len / 2; },
+  };
+}
+
+// ---------- 매장 (적당한 품질) ----------
+const reflector = new Reflector(new THREE.PlaneGeometry(3.6, 8.4), { textureWidth: Math.round(innerWidth * 0.5), textureHeight: Math.round(innerHeight * 0.5), color: 0x9a9aa0, clipBias: 0.003 });
+reflector.rotation.x = -Math.PI / 2; reflector.position.set(0, -0.001, 0.6); scene.add(reflector);
+const floorMats = pair(new THREE.MeshPhysicalMaterial({ map: tilesT, roughness: 0.28, clearcoat: 0.6, clearcoatRoughness: 0.1, transparent: true, opacity: 0.84 }), toon(0xffffff, { map: tilesT }));
+const floor = put(scene, mk(new THREE.PlaneGeometry(3.6, 8.4), floorMats, { outline: false, cast: false }), 0, 0, 0.6, -Math.PI / 2, 0, 0); floor.renderOrder = 1;
+put(scene, mk(new THREE.PlaneGeometry(3.6, 8.4), M.print(ceilT, 0.9), { outline: false, cast: false }), 0, 3.0, 0.6, Math.PI / 2, 0, 0);
+for (let z = 4; z >= -2.5; z -= 1) put(scene, new THREE.Mesh(rbox(0.9, 0.02, 0.42, 0.006), glow(0xffffff, 2.4)), 0, 2.985, z);
+for (const sx of [-1, 1]) put(scene, mk(new THREE.PlaneGeometry(8.4, 3), M.print(sideWallT, 0.8), { outline: false, cast: false }), sx * 1.75, 1.5, 0.6, 0, -sx * Math.PI / 2, 0);
+put(scene, mk(new THREE.PlaneGeometry(3.5, 1.75), M.sign(wallSignT, 0.35), { outline: false, cast: false }), 0, 2.0, -2.85);
+put(scene, mk(new THREE.PlaneGeometry(3.5, 3), M.plastic(0xfbf8ff, 0.8), { outline: false, cast: false }), 0, 1.5, -2.86);
+
+// 기계 6대: 왼쪽 줄은 +x, 오른쪽 줄은 -x를 본다. 가운데 왼쪽이 주인공 기계
+const SETS = {
+  a: [['bear', 0, 0.1, -0.15, 0.3], ['bunny', 0, -0.18, -0.2, -0.5], ['bear', 1, 0.28, -0.05, -0.2], ['cat', 0, 0.05, 0.12, 0.6], ['bear', 2, 0.27, 0.27, 0.1]],
+  b: [['bunny', 1, 0.1, -0.15, 0.2], ['bunny', 2, -0.18, -0.2, -0.3], ['bunny', 0, 0.28, -0.05, 0.4], ['bear', 3, 0.05, 0.12, -0.2], ['chick', 0, 0.27, 0.27, 0.3]],
+  c: [['chick', 0, 0.1, -0.15, 0.2], ['cat', 1, -0.18, -0.2, -0.3], ['bear', 0, 0.28, -0.05, 0.4], ['penguin', 1, 0.05, 0.12, -0.2], ['bunny', 1, 0.27, 0.27, 0.3]],
+  d: [['penguin', 0, 0.1, -0.15, 0.2], ['penguin', 1, -0.18, -0.2, -0.3], ['chick', 0, 0.28, -0.05, 0.4], ['penguin', 0, 0.05, 0.12, -0.2], ['bear', 1, 0.27, 0.27, 0.3]],
+  hero: [['bear', 0, 0.08, -0.08, 0.25], ['bunny', 0, -0.2, -0.22, -0.4], ['cat', 0, 0.28, -0.24, 0.5], ['chick', 0, 0.24, 0.12, -0.3], ['penguin', 0, -0.06, 0.18, 0.2],
+    ['bear', 1, 0.3, 0.3, 0.9], ['bunny', 1, -0.27, -0.0, 0.8], ['cat', 1, 0.05, -0.27, -0.2, 0.06, 1.25, 0.2]],
+};
+const CONF = [
+  { at: [-1.2, 0], ry: Math.PI / 2, color: 0xe8384f, sign: '곰돌이 왕국', signC: ['#ff8193', '#e8384f'], pop: ['NEW!', '#ffe14d', '#e8384f'], felt: 0xff9ec7, back: ['#ffe8ee', '#ffc6d4'], plate: 'A-1', dolls: SETS.a },
+  { at: [-1.2, -1], ry: Math.PI / 2, hero: true, color: 0xff4f9a, sign: '대형 인형', signC: ['#ff92c9', '#ff3d8e'], pop: ['잘 뽑혀요♪', '#fff36b', '#e8384f'], felt: 0x8fd3ff, back: ['#e8f7ff', '#c6e7ff'], plate: 'A-2', dolls: SETS.hero, led: 0xffb3d9, sideArt: false },
+  { at: [-1.2, -2], ry: Math.PI / 2, color: 0x2f7cf6, sign: '피규어 존', signC: ['#71adff', '#2f6fe0'], pop: ['한정', '#ffffff', '#2f6fe0'], felt: 0xffe08a, back: ['#eef3ff', '#d2deff'], plate: 'A-3', bridge: true },
+  { at: [1.2, 0], ry: -Math.PI / 2, color: 0xffb81f, sign: '토끼 마을', signC: ['#ffd765', '#ffa400'], pop: ['인기 1위', '#ff4f9a', '#ffffff'], felt: 0xb7e4a8, back: ['#fff8de', '#ffeaa8'], plate: 'B-1', dolls: SETS.b },
+  { at: [1.2, -1], ry: -Math.PI / 2, color: 0x22b36b, sign: '말랑 친구들', signC: ['#5bd895', '#16a05b'], pop: ['대형!', '#fff36b', '#16a05b'], felt: 0xffb7d5, back: ['#ebfbf1', '#c9f2da'], plate: 'B-2', dolls: SETS.c },
+  { at: [1.2, -2], ry: -Math.PI / 2, color: 0x8b5cf6, sign: '펭귄 섬', signC: ['#b598ff', '#7c4ff0'], pop: ['NEW!', '#ffe14d', '#7c4ff0'], felt: 0x9fe3ff, back: ['#f4efff', '#ded2ff'], plate: 'B-3', dolls: SETS.d },
+];
+let hero, figure;
+for (const c of CONF) {
+  const m = machine(c);
+  m.g.position.set(c.at[0], 0, c.at[1]); m.g.rotation.y = c.ry;
+  scene.add(m.g);
+  if (c.hero) hero = m;
+  if (c.bridge) figure = m;
+}
+
+// 주인공 기계: 안쪽 면광원 + 움직이는 집게
+const heroLight = new THREE.RectAreaLight(0xffffff, 2.5, W - 0.12, D - 0.12);
+hero.g.add(heroLight); heroLight.position.set(0, TOP - 0.06, 0);
+scene.updateMatrixWorld(true);
+{ const p = heroLight.getWorldPosition(new THREE.Vector3()); heroLight.lookAt(p.x, p.y - 1, p.z); }
+const rig = clawRig(hero.ch);
+hero.g.add(rig.gantry, rig.carriage);
+rig.setOpen(0.3); rig.setDrop(0.08);
+
+// 전구: 기계 전체를 한 번에 그리고, 켜졌다 꺼지며 돌아간다
+const bulbGeo = new THREE.SphereGeometry(0.011, 12, 8);
+const bulbMesh = new THREE.InstancedMesh(bulbGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }), bulbs.length);
+{ const mtx = new THREE.Matrix4(), v = new THREE.Vector3(); bulbs.forEach(([g, p], i) => { v.copy(p).applyMatrix4(g.matrixWorld); mtx.makeTranslation(v.x, v.y, v.z); bulbMesh.setMatrixAt(i, mtx); }); }
+scene.add(bulbMesh);
+const BULB_ON = new THREE.Color(0xfff0b0).multiplyScalar(3.4), BULB_OFF = new THREE.Color(0xfff0b0).multiplyScalar(0.55);
+function chase(tick) { for (let i = 0; i < bulbs.length; i++) bulbMesh.setColorAt(i, (i + tick) % 3 === 0 ? BULB_OFF : BULB_ON); bulbMesh.instanceColor.needsUpdate = true; }
+chase(0);
+
+const me = avatar(0x5b8cff, 0x5a3a2a, '나');
+put(scene, me, -0.42, 0, -1.0, 0, -Math.PI / 2, 0);
+put(scene, avatar(0xffb02e, 0x2a2238, '다른 사람'), 0.42, 0, 0.0, 0, Math.PI / 2, 0);
+
+// ---------- 빛 ----------
+const hemi = new THREE.HemisphereLight(0xffffff, 0xeee6f2, 0.6);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+sun.position.set(2.2, 6, 3.2); sun.target.position.set(0, 0, -0.8);
+sun.castShadow = true; sun.shadow.mapSize.set(mobile ? 1024 : 2048, mobile ? 1024 : 2048);
+Object.assign(sun.shadow.camera, { left: -3.5, right: 3.5, top: 5, bottom: -5, near: 1, far: 14 });
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02;
+scene.add(sun, sun.target);
+
+// ---------- 화면 처리 ----------
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.4, 0.3, 1.5);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.minDistance = 0.45; controls.maxDistance = 9; controls.maxPolarAngle = 1.52;
+
+let mode = 'real', view = 'play';
+const NOTES = {
+  real: '<b>② 실제 재질·조명</b><br>유리에 비친 빛, 크롬 집게, 보송한 천 인형, 반짝이는 바닥에 비친 기계, 전구 빛 번짐. 손가락으로 돌려 보고 두 손가락으로 확대해 보세요.',
+  toon: '<b>① 만화 고급화</b><br>지금 그림체(단계 칠 + 외곽선)를 유지하면서 디테일만 늘린 버전. 반사·빛 번짐 없이 깔끔하고 가볍습니다.',
+};
+function setMode(m) {
+  mode = m;
+  for (const [mesh, p] of pairs) mesh.material = p[m];
+  for (const o of outlines) o.visible = m === 'toon';
+  for (const o of toonOnly) o.visible = m === 'toon';
+  scene.environment = m === 'real' ? envTex : null;
+  reflector.visible = m === 'real';
+  heroLight.visible = m === 'real';
+  hemi.intensity = m === 'real' ? 0.35 : 1.25;
+  scene.environmentIntensity = 0.65;
+  sun.intensity = m === 'real' ? 1.6 : 1.7;
+  renderer.toneMappingExposure = m === 'real' ? 0.9 : 1.05;
+  document.getElementById('note').innerHTML = NOTES[m];
+  document.querySelectorAll('#modes button').forEach((b) => b.classList.toggle('on', b.dataset.mode === m));
+}
+function pose(name) {
+  camera.fov = camera.aspect < 1 ? (name === 'aisle' ? 58 : 66) : 46; camera.updateProjectionMatrix();
+  if (name === 'play' || name === 'figure') {
+    const c = (name === 'play' ? hero : figure).g.getWorldPosition(new THREE.Vector3());
+    const look = new THREE.Vector3(c.x, 1.3, c.z);
+    const vt = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    const dist = Math.min(1.85, Math.max(1.5 / 2 / vt, 1.0 / 2 / (vt * camera.aspect)) + 0.25); // 맞은편 기계 안으로 들어가지 않게
+    return { pos: look.clone().add(new THREE.Vector3(1, 0.16, 0.16).normalize().multiplyScalar(dist)), look };
+  }
+  const back = camera.aspect < 1 ? 1.6 : 0;
+  return { pos: new THREE.Vector3(0, 2.9 + back * 0.4, 4.0 + back), look: new THREE.Vector3(0, 0.9, -0.9) };
+}
+let camTween = null;
+function setView(v, instant = false) {
+  view = v;
+  const p = pose(v);
+  camTween = instant ? null : { t: 0, p0: camera.position.clone(), l0: controls.target.clone(), p };
+  if (instant) { camera.position.copy(p.pos); controls.target.copy(p.look); }
+  me.visible = v === 'aisle';
+  document.querySelectorAll('#views button').forEach((b) => b.classList.toggle('on', b.dataset.view === v));
+}
+document.querySelectorAll('#modes button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+document.querySelectorAll('#views button').forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
+function resize() {
+  renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  outlineU.uW.value = (2 * (mobile ? 1.8 : 2.2)) / innerHeight; outlineU.uAsp.value = camera.aspect;
+}
+addEventListener('resize', () => { resize(); setView(view, true); });
+resize();
+const q = new URLSearchParams(location.hash.slice(1) || location.search);
+setMode(q.get('mode') === 'real' ? 'real' : 'toon');
+setView(['aisle', 'figure'].includes(q.get('view')) ? q.get('view') : 'play', true);
+
+// ---------- 집게 한 판 반복 ----------
+const ease = (k) => k * k * k * (k * (k * 6 - 15) + 10); // 시작·끝이 아주 부드러운 곡선
+const easeOut = (k) => 1 - (1 - k) ** 3;
+const L = THREE.MathUtils.lerp;
+const H = { at: new THREE.Vector2(-0.27, 0.25), home: new THREE.Vector2(-0.27, 0.25), len: 0.08, open: 0.3, prev: new THREE.Vector2(-0.27, 0.25), tilt: new THREE.Vector2(), tiltV: new THREE.Vector2() };
+const prize = hero.dolls[0];
+const prizeHome = { p: prize.position.clone(), r: prize.rotation.clone() };
+const tgt = new THREE.Vector2(prize.position.x, prize.position.z);
+let fallFrom = null, plan = { len: 0.44, close: 0.16 }, scoop0 = 0;
+const tA = new THREE.Vector3(), tB = new THREE.Vector3();
+function touches(margin, pts = rig.points, dolls = hero.dolls) {
+  hero.g.updateMatrixWorld(true);
+  for (const d of dolls) {
+    if (!d.visible || d.parent !== hero.g) continue;
+    const sc = d.getWorldScale(tB).x;
+    for (const p of pts) {
+      p.getWorldPosition(tA);
+      for (const [c, r] of d.userData.hits) if (tA.distanceTo(d.localToWorld(tB.copy(c))) < r * sc + margin) return true;
+    }
+  }
+  return false;
+}
+function bendEars(d, dt) {
+  const ears = d.userData.ears;
+  if (!ears?.length) return;
+  hero.g.updateMatrixWorld(true);
+  for (const e of ears) {
+    const c = d.localToWorld(tB.copy(e.c));
+    let push = 0;
+    for (const p of rig.points) { p.getWorldPosition(tA); push = Math.max(push, e.r + 0.006 - tA.distanceTo(c)); }
+    const target = d.visible ? Math.min(0.05, push * 1.4) : 0;
+    e.cur += (target - e.cur) * Math.min(1, dt * 14);
+    e.parts.forEach((p, i) => { p.position.copy(e.base[i]).addScaledVector(e.out, e.cur); p.rotation.z = e.baseRz[i] - Math.sign(e.out.x) * e.cur * 5; });
+  }
+}
+// 인형 위에서 미리 재 본다: 벌린 채 어디까지 내려가면 닿는지, 거기서 어디까지 오므리면 닿는지
+function planGrip() {
+  const keep = { len: H.len, open: H.open, tilt: rig.hang.rotation.clone() };
+  rig.hang.rotation.set(0, 0, 0); rig.setOpen(1);
+  let len = 0.08;
+  while (len < 0.7) { rig.setDrop(len + 0.003); if (touches(0.004)) break; len += 0.003; }
+  rig.setDrop(len); // 닿기 바로 전 높이에서 오므려 본다 (손가락만 잰다 — 허브는 머리 위에 얹혀 있다)
+  let close = 0;
+  for (let t = 1; t >= 0; t -= 0.01) { rig.setOpen(t); if (touches(0.002, rig.fingerPoints, [prize])) { close = Math.min(1, t + 0.01); break; } }
+  rig.setDrop(keep.len); rig.setOpen(keep.open); rig.hang.rotation.copy(keep.tilt);
+  return { len, close };
+}
+const phases = [
+  { d: 1.2 },
+  { d: 1.7, f: (k) => H.at.lerpVectors(H.home, tgt, ease(k)) },
+  { d: 0.5, f: (k) => (H.open = L(0.3, 1, ease(k))) },
+  { d: 1.2, start: () => { plan = planGrip(); }, f: (k) => (H.len = L(0.08, plan.len, ease(k))) },
+  // 오므리며 머리를 감싸고, 닿는 순간부터 인형이 말랑하게 살짝 눌린다
+  { d: 0.7, start: () => { scoop0 = prize.position.y; }, f: (k) => {
+    H.open = L(1, plan.close, easeOut(k));
+    const grip = Math.max(0, (k - 0.5) / 0.5);
+    const sq = grip * 0.04;
+    prize.scale.set(1 - sq, 1 + sq * 0.8, 1 - sq);
+    prize.position.y = scoop0 + ease(grip) * 0.008;
+  }, end: () => rig.head.attach(prize) },
+  { d: 0.25 },
+  // 들어 올리기: 줄이 무게를 받는 처음은 천천히, 눌림은 들리면서 풀린다
+  { d: 1.4, f: (k) => {
+    H.len = L(plan.len, 0.08, ease(k));
+    const sq = 0.035 * (1 - Math.min(1, k * 2.5));
+    prize.scale.set(1 - sq, 1 + sq * 0.8, 1 - sq);
+  } },
+  { d: 1.7, f: (k) => H.at.lerpVectors(tgt, H.home, ease(k)) },
+  { d: 0.7, start: () => { hero.g.attach(prize); fallFrom = prize.position.clone(); }, f: (k) => {
+    H.open = L(plan.close, 1, Math.min(1, k * 3));
+    const t = k * 0.7; prize.position.y = Math.max(CAB - 0.4, fallFrom.y - 4.9 * t * t); prize.rotation.x += 0.05;
+  }, end: () => { prize.visible = false; } },
+  { d: 0.6, f: (k) => (H.open = L(1, 0.3, ease(k))) },
+  { d: 1.3 },
+  { d: 0.35, start: () => { prize.position.copy(prizeHome.p); prize.rotation.copy(prizeHome.r); prize.scale.setScalar(0.01); prize.visible = true; },
+    f: (k) => prize.scale.setScalar(Math.max(0.01, 1 + 2.7 * (k - 1) ** 3 + 1.7 * (k - 1) ** 2)) },
+];
+let pi = 0, pt = 0;
+function stepClaw(dt) {
+  const ph = phases[pi];
+  if (pt === 0 && ph.start) ph.start();
+  pt += dt;
+  const k = Math.min(1, pt / ph.d);
+  ph.f?.(k);
+  if (k >= 1) { ph.end?.(); pi = (pi + 1) % phases.length; pt = 0; }
+  window.__pi = pi; window.__plan = plan;
+  bendEars(prize, dt);
+  // 움직임 반대로 기울었다가 출렁이며 돌아오는 흔들림
+  if (dt > 0) {
+    const vx = (H.at.x - H.prev.x) / dt, vz = (H.at.y - H.prev.y) / dt;
+    H.tiltV.x += ((-vx * 0.45 - H.tilt.x) * 26 - H.tiltV.x * 2.6) * dt; H.tilt.x += H.tiltV.x * dt;
+    H.tiltV.y += ((vz * 0.45 - H.tilt.y) * 26 - H.tiltV.y * 2.6) * dt; H.tilt.y += H.tiltV.y * dt;
+    H.prev.copy(H.at);
+  }
+  rig.gantry.position.set(H.at.x, TOP - 0.07, 0);
+  rig.carriage.position.set(H.at.x, TOP - 0.09, H.at.y);
+  rig.hang.rotation.set(H.tilt.y, 0, H.tilt.x);
+  rig.setDrop(H.len); rig.setOpen(H.open);
+}
+
+// ---------- 그리기 ----------
+const hud = document.getElementById('hud');
+let last = performance.now(), frames = 0, acc = 0, chaseT = 0, tick = 0;
+renderer.setAnimationLoop((now) => {
+  const dt = Math.min((now - last) / 1000, 0.05); last = now;
+  stepClaw(dt);
+  chaseT += dt; if (chaseT > 0.12) { chaseT = 0; chase(++tick); }
+  if (camTween) {
+    camTween.t = Math.min(1, camTween.t + dt / 0.9); const k = ease(camTween.t);
+    camera.position.lerpVectors(camTween.p0, camTween.p.pos, k); controls.target.lerpVectors(camTween.l0, camTween.p.look, k);
+    if (camTween.t >= 1) camTween = null;
+  }
+  controls.update();
+  renderer.info.reset();
+  if (mode === 'real') composer.render(); else renderer.render(scene, camera);
+  frames++; acc += dt;
+  if (acc > 0.5) { hud.textContent = `${Math.round(frames / acc)} fps · 그리기 ${renderer.info.render.calls}회`; frames = 0; acc = 0; }
+  document.getElementById('loading')?.remove();
+});
+</script>
+</body>
+</html>
