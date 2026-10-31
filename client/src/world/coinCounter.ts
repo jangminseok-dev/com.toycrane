@@ -3,7 +3,7 @@ import { COUNTERS, type CounterSpot } from '../data/storeLayout';
 import type { Occluder } from '../game/occlusion';
 import { bakeByMaterial, fadeMaterials, materialCloner } from './bake';
 import { COUNTER_SIGN } from './copy';
-import { marqueeTex } from './signs';
+import { signTex } from './signs';
 import { SPH_LO, canvasTex, part, toon } from './toon';
 
 // 코인 교환소: 창살 달린 전당포 카운터 + 줄 서기 차단봉 + 줄 자리 발자국 (시제품 spike-arcade-big-v3.html 815~850행).
@@ -14,8 +14,8 @@ function booth(): THREE.Group {
   const b = new THREE.Group(); // 앞 = 로컬 +z, 길이는 로컬 x
   const brass = toon(0xffc94d), body = toon(BODY);
   b.add(part(new THREE.BoxGeometry(3.0, 1.05, 0.6), body, [0, 0.525, 0], [1, 1, 1], [0, 0, 0], 1.02));
-  b.add(new THREE.Mesh(new THREE.BoxGeometry(2.96, 0.03, 0.02), new THREE.MeshBasicMaterial({ color: 0x4fd8ff })).translateY(0.06).translateZ(0.305));
-  b.add(part(new THREE.BoxGeometry(3.1, 0.06, 0.72), toon(0x3b2a5a), [0, 1.08, 0.03], [1, 1, 1], [0, 0, 0], 0));
+  b.add(new THREE.Mesh(new THREE.BoxGeometry(2.96, 0.03, 0.02), new THREE.MeshBasicMaterial({ color: 0xff6fb5 })).translateY(0.06).translateZ(0.305));
+  b.add(part(new THREE.BoxGeometry(3.1, 0.06, 0.72), toon(0xe8384f), [0, 1.08, 0.03], [1, 1, 1], [0, 0, 0], 0));
   b.add(part(new THREE.BoxGeometry(3.0, 2.6, 0.08), toon(0xffe6f0), [0, 1.3, -0.85], [1, 1, 1], [0, 0, 0], 0));
   for (const s of [-1, 1]) b.add(part(new THREE.BoxGeometry(0.08, 2.6, 0.95), body, [s * 1.5, 1.3, -0.42], [1, 1, 1], [0, 0, 0], 1.02));
   for (let x = -1.42; x <= 1.43; x += 0.12) {
@@ -26,7 +26,7 @@ function booth(): THREE.Group {
   b.add(part(new THREE.BoxGeometry(0.84, 0.04, 0.04), brass, [0, 1.6, 0.25], [1, 1, 1], [0, 0, 0], 0));
   b.add(part(new THREE.CylinderGeometry(0.14, 0.12, 0.04, 20), toon(0xc9c9d6), [0, 1.13, 0.2]));
   b.add(part(new THREE.BoxGeometry(3.1, 0.38, 1.0), body, [0, 2.45, -0.3], [1, 1, 1], [0, 0, 0], 1.02));
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.32), new THREE.MeshBasicMaterial({ map: marqueeTex(COUNTER_SIGN, 0xffb84d) }));
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.32), new THREE.MeshBasicMaterial({ map: signTex(COUNTER_SIGN, 0xffb81f) }));
   sign.position.set(0, 2.45, 0.205); b.add(sign);
   b.scale.set(SHRINK, 1, SHRINK); b.position.z = DEPTH_SHIFT * SHRINK;
   return b;
