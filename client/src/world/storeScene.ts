@@ -5,7 +5,7 @@ import { wallSignTex } from './signs';
 import { canvasTex, outlineMat, part, toon, toonWith } from './toon';
 
 // 매장 겉모습(밝은 대형 일본 게임센터): 큰 판 대리석 바닥 · 흰 벽 + 색 띠·별 · "toycrane 게임센터" 벽 간판 ·
-// 흰 격자 천장 + 조명판 · 구역 바닥 색 · 허브 4면 전광판 탑 · 스폰 링
+// 구역 바닥 색 · 허브 4면 전광판 탑 · 스폰 링. 카메라가 위에서 내려다보므로 천장은 없다(설계 §3.7 2차)
 // (설계 2026-10-31-toycrane-graphics-a-design.md §3.1·§4.4, 시제품 docs/reference/prototypes/spike-look-a.html)
 // 탑이 내 캐릭터를 가릴 때 흐리게 하려고 탑 상자와 투명도 조절을 돌려준다
 export type HubTower = {
@@ -100,21 +100,6 @@ function addWallsAndCeiling(scene: THREE.Scene) {
   const sign = new THREE.Mesh(signs, new THREE.MeshBasicMaterial({ map: wallSignTex() }));
   sign.name = 'wall-signs';
   scene.add(sign);
-  // 천장: 연한 격자 + 2m마다 밝은 조명판 (낮춘 카메라에서 보인다)
-  const ceilTex = canvasTex(256, 256, (g) => {
-    g.fillStyle = '#ebe8f1'; g.fillRect(0, 0, 256, 256);
-    g.strokeStyle = '#d6d1df'; g.lineWidth = 4; g.strokeRect(0, 0, 256, 256);
-  }, [size / 1, size / 1]);
-  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ map: ceilTex }));
-  ceiling.rotation.x = Math.PI / 2; ceiling.position.y = h;
-  scene.add(ceiling);
-  const panels: THREE.BufferGeometry[] = [];
-  for (let x = -12; x <= 12; x += 2) for (let z = -12; z <= 12; z += 2) {
-    panels.push(new THREE.PlaneGeometry(0.9, 0.42).rotateX(Math.PI / 2).translate(x, h - 0.01, z));
-  }
-  const lights = new THREE.Mesh(mergeGeometries(panels)!, new THREE.MeshBasicMaterial({ color: 0xffffff }));
-  lights.name = 'ceiling-lights';
-  scene.add(lights);
 }
 
 function addZones(scene: THREE.Scene) {

@@ -447,9 +447,10 @@ function frame(now: number) {
       camera.position.lerp(pose.pos, Math.min(1, dt * 5));
       camLook.lerp(pose.look, Math.min(1, dt * 5));
       camera.lookAt(camLook);
+      fader.clear(dt);
     } else {
       followCamera(camera, me.pos, dt);
-      camLook.set(me.pos.x, 1.1, me.pos.z - 1.6); // 걷기 카메라가 보는 곳 (기계 카메라로 넘어갈 때 이어지게)
+      camLook.set(me.pos.x, 0.8, me.pos.z - 0.6); // 걷기 카메라가 보는 곳 (기계 카메라로 넘어갈 때 이어지게)
       fader.update(dt, camera.position, me.pos);
     }
   }

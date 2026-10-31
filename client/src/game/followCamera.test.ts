@@ -4,18 +4,20 @@ import { ROOM_HEIGHT } from '../world/layout';
 import { CAMERA_OFFSETS, followCamera } from './followCamera';
 import { OcclusionFader } from './occlusion';
 
-// 걷기 카메라는 천장 아래, 캐릭터 뒤 조금 위에서 통로를 바라본다 (설계 2026-10-31 §3.7)
-for (const aspect of [16 / 9, 9 / 19.5]) test(`aisle camera stays under the ceiling (aspect ${aspect.toFixed(2)})`, () => {
+// 걷기 카메라는 동물의 숲처럼 캐릭터 뒤 위에서 대각선으로 내려다본다 (설계 2026-10-31 §3.7, 2차 결정)
+for (const aspect of [16 / 9, 9 / 19.5]) test(`walking camera looks down diagonally from above (aspect ${aspect.toFixed(2)})`, () => {
   const cam = new THREE.PerspectiveCamera(50, aspect);
   for (let i = 0; i < 120; i++) followCamera(cam, { x: 1, z: -3 }, 0.1);
-  expect(cam.position.y).toBeLessThanOrEqual(ROOM_HEIGHT - 0.4);
-  expect(cam.position.z - -3).toBeGreaterThanOrEqual(3.5);
   const dir = cam.getWorldDirection(new THREE.Vector3());
+  const pitch = Math.asin(-dir.y) * 180 / Math.PI;
+  expect(pitch).toBeGreaterThan(35);
+  expect(pitch).toBeLessThan(55);
+  expect(cam.position.y).toBeGreaterThan(ROOM_HEIGHT + 2); // 천장 높이보다 훨씬 위 (천장은 없다)
   expect(dir.z).toBeLessThan(0);
-  expect(dir.y).toBeLessThan(0);
+  expect(Math.hypot(cam.position.x - 1, cam.position.y, cam.position.z + 3)).toBeLessThan(13);
 });
 
-// 낮은 카메라에서는 섬 줄이 캐릭터를 자주 가린다 — 가리면 흐려져야 캐릭터가 보인다
+// 섬 줄 뒤(북쪽)를 걸으면 섬 줄이 캐릭터를 가린다 — 가리면 흐려져야 캐릭터가 보인다
 test('the island row fades when it hides the player from the aisle camera', () => {
   const island = new THREE.Box3(new THREE.Vector3(-9.9, 0, -8.4), new THREE.Vector3(9.9, 2.7, -5.75));
   let opacity = 1;

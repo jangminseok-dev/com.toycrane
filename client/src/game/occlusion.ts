@@ -31,12 +31,18 @@ export class OcclusionFader {
 
   update(dt: number, eye: THREE.Vector3, at: { x: number; z: number }): void {
     this.head.set(at.x, 1.2, at.z); this.body.set(at.x, 0.4, at.z);
-    this.occluders.forEach((o, i) => {
-      const goal = blocksView(eye, this.head, o.box) || blocksView(eye, this.body, o.box) ? FADED : 1;
-      let v = this.opacity[i] + (goal - this.opacity[i]) * Math.min(1, dt * 8);
-      if (Math.abs(goal - v) < 0.01) v = goal;
-      o.setOpacity(v);
-      this.opacity[i] = v;
-    });
+    this.occluders.forEach((o, i) => this.ease(i, blocksView(eye, this.head, o.box) || blocksView(eye, this.body, o.box) ? FADED : 1, dt));
+  }
+
+  // 기계 앞 화면(한 판 중)에서는 모두 원래대로 — 걸어오다 흐려진 내 기계 줄이 반투명하게 남지 않게
+  clear(dt: number): void {
+    this.occluders.forEach((_, i) => this.ease(i, 1, dt));
+  }
+
+  private ease(i: number, goal: number, dt: number): void {
+    let v = this.opacity[i] + (goal - this.opacity[i]) * Math.min(1, dt * 8);
+    if (Math.abs(goal - v) < 0.01) v = goal;
+    this.occluders[i].setOpacity(v);
+    this.opacity[i] = v;
   }
 }

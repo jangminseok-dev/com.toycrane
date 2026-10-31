@@ -14,13 +14,13 @@ test('the bright store uses one sun and a sky light, no coloured point lights', 
   expect(lights.filter((l) => (l as THREE.DirectionalLight).isDirectionalLight)).toHaveLength(1);
 });
 
-// 낮춘 카메라에서 보이는 천장 조명판은 한 덩어리로 (그리기 한 번)
-test('ceiling light panels are one merged mesh under the ceiling', () => {
+// 동물의 숲처럼 위에서 내려다보므로 천장은 없다 (설계 2026-10-31 §3.7, 2차 결정)
+test('there is no ceiling over the store', () => {
   const scene = new THREE.Scene(); buildStore(scene);
-  const panels = scene.getObjectByName('ceiling-lights') as THREE.Mesh;
-  panels.geometry.computeBoundingBox();
-  expect(panels.position.y + panels.geometry.boundingBox!.max.y).toBeLessThan(ROOM_HEIGHT);
-  expect(panels.geometry.attributes.position.count).toBeGreaterThan(100 * 4);
+  const high: THREE.Object3D[] = [];
+  scene.updateMatrixWorld(true);
+  scene.traverse((o) => { if ((o as THREE.Mesh).isMesh && new THREE.Box3().setFromObject(o).min.y >= ROOM_HEIGHT - 0.1) high.push(o); });
+  expect(high).toHaveLength(0);
 });
 
 test('the store stays a handful of draw calls', () => {

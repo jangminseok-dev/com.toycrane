@@ -32,3 +32,14 @@ test('fader fades only the occluder that blocks', () => {
   expect(ops.tower).toBeCloseTo(0.25);
   expect(ops.far).toBe(1);
 });
+
+// 기계 앞 화면(한 판 중)에서는 흐림을 모두 푼다 — 걸어오다 흐려진 내 기계 줄이 반투명하게 남으면 안 된다
+test('clearing restores every faded occluder', () => {
+  let opacity = 1;
+  const box = new THREE.Box3(new THREE.Vector3(-1, 0, -1), new THREE.Vector3(1, 3, 1));
+  const fader = new OcclusionFader([{ box, setOpacity: (o) => { opacity = o; } }]);
+  for (let i = 0; i < 30; i++) fader.update(0.05, new THREE.Vector3(0, 2, 5), { x: 0, z: -5 });
+  expect(opacity).toBeLessThan(0.5);
+  for (let i = 0; i < 30; i++) fader.clear(0.05);
+  expect(opacity).toBe(1);
+});
