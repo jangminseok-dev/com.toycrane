@@ -4,6 +4,7 @@ import type { Occluder } from '../game/occlusion';
 import { bakeByMaterial, fadeMaterials, materialCloner, mergeBuckets } from './bake';
 import { BODY_W, makeDoll } from './dolls';
 import { dollPose } from './dollPose';
+import { rareTagTex, twinkleTex } from './signs';
 import { toonWith } from './toon';
 import { TOP_LAYER } from './topView';
 import { CHROME, idleClawGeometry, makeClawRig, type ClawRig } from './claw';
@@ -96,9 +97,15 @@ function liteParts(spot: DollSpot): Part[] | null {
 // 새로 채워진 인형: 위 0.6m에서 0.6초 동안 떨어져 한 번 톡 튄다
 const FALL_SECONDS = 0.6, FALL_HEIGHT = 0.6;
 const fallOffset = (k: number) => (k < 0.7 ? FALL_HEIGHT * (1 - (k / 0.7) ** 2) : 0.05 * Math.sin(Math.PI * ((k - 0.7) / 0.3)));
-// 희귀가 든 기계 간판 위에서 도는 반짝임 (황금은 금빛, 더 많이·크게)
-const sparkleGeo = new THREE.OctahedronGeometry(0.045);
-const SPARKLE = { rare: { n: 4, scale: 1, color: new THREE.Color(0xffa8e0) }, gold: { n: 6, scale: 1.5, color: new THREE.Color(0xffd75a) } };
+// 희귀가 든 기계 표시 (교환소 개편 설계 §4.7.1): 간판 위 이름표('★ 희귀'·'★★ 황금', 천천히 위아래로)와 둘레 별 3개가 제자리에서 반짝
+// — 4단계의 도는 반짝이는 날벌레처럼 보였다. 이름표 그림 위·아래 절반이 희귀·황금
+const tagGeo = (half: 0 | 1) => {
+  const geo = new THREE.PlaneGeometry(0.62, 0.155), uv = geo.getAttribute('uv') as THREE.BufferAttribute;
+  for (let k = 0; k < uv.count; k++) uv.setY(k, (half === 0 ? 0.5 : 0) + uv.getY(k) * 0.5);
+  return geo;
+};
+const TWINKLE = { rare: new THREE.Color(0xffa8e0), gold: new THREE.Color(0xffd75a) };
+const TWINKLE_SPOTS: [number, number, number][] = [[-0.42, 2.7, 0.32], [0.42, 2.64, 0.32], [0.05, 2.86, 0.3]];
 
 // 위쪽 큰인형 구역: 벽 줄 13대 + 등 맞댄 섬 22대 (shared/store_layout.json).
 // 그리기 호출을 줄이려고 행마다 고정 부분·기계 속 인형을 재질별로 합치고, LED·집게는 기계마다 한 덩어리로 둔다.
@@ -167,13 +174,22 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     return { row, meshes };
   });
   const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
-  const sparkleRows = rows.map((row) => {
-    const mesh = new THREE.InstancedMesh(sparkleGeo, row.cloner.remap(new THREE.MeshBasicMaterial({ color: 0xffffff })), row.spots.length * SPARKLE.gold.n);
-    mesh.name = `rare-sparkles-${row.group.name}`; mesh.count = 0; mesh.frustumCulled = false; // 처음엔 하나도 없어 경계 구가 비므로
+  // 행마다 희귀 이름표·황금 이름표·별 반짝이 InstancedMesh (없으면 그리지 않는다)
+  const tagMat = new THREE.MeshBasicMaterial({ map: rareTagTex(), transparent: true, depthWrite: false });
+  const twinkleMat = new THREE.MeshBasicMaterial({ map: twinkleTex(), transparent: true, depthWrite: false });
+  const instanced = (row: Row, geo: THREE.BufferGeometry, mat: THREE.Material, n: number, name: string) => {
+    const mesh = new THREE.InstancedMesh(geo, row.cloner.remap(mat), n);
+    mesh.name = `${name}-${row.group.name}`; mesh.count = 0; mesh.visible = false; mesh.frustumCulled = false; mesh.renderOrder = 2;
     row.group.add(mesh);
-    return { row, mesh };
-  });
-  const sparkleAt = new THREE.Matrix4(), sparklePos = new THREE.Vector3(), sparkleTurn = new THREE.Quaternion(), sparkleSize = new THREE.Vector3();
+    return mesh;
+  };
+  const markRows = rows.map((row) => ({
+    row,
+    rare: instanced(row, tagGeo(0), tagMat, row.spots.length, 'rare-tags-rare'),
+    gold: instanced(row, tagGeo(1), tagMat, row.spots.length, 'rare-tags-gold'),
+    twinkle: instanced(row, new THREE.PlaneGeometry(0.16, 0.16), twinkleMat, row.spots.length * TWINKLE_SPOTS.length, 'rare-twinkles'),
+  }));
+  const markAt = new THREE.Matrix4(), markPos = new THREE.Vector3(), markTurn = new THREE.Quaternion(), markSize = new THREE.Vector3();
   let bulbKey = '';
   const flashMats = new Map(rows.map((r) => [r, { hot: r.cloner.remap(ledFlashMat().hot), gold: r.cloner.remap(ledFlashMat().gold) }]));
 
@@ -275,20 +291,26 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
         else f.obj.position.y = f.y + fallOffset(k);
       }
       for (const block of blocks) if (block.dirty) rebuild(block);
-      for (const { row, mesh } of sparkleRows) {
-        let n = 0;
-        row.spots.forEach((spot) => {
+      for (const m of markRows) {
+        const n = { rare: 0, gold: 0, twinkle: 0 };
+        m.row.spots.forEach((spot, j) => {
           const u = units.get(spot.id)!;
           if (!u.rare) return;
-          const look = SPARKLE[u.rare];
-          for (let i = 0; i < look.n; i++) {
-            const a = t * 1.4 + (i / look.n) * Math.PI * 2;
-            sparklePos.set(Math.cos(a) * 0.4, 2.62 + Math.sin(t * 3 + i) * 0.05, 0.25 + Math.sin(a) * 0.15);
-            sparkleAt.compose(sparklePos, sparkleTurn.setFromAxisAngle(UP, a * 2), sparkleSize.setScalar(look.scale)).premultiply(machineAt(spot));
-            mesh.setMatrixAt(n, sparkleAt); mesh.setColorAt(n, look.color); n++;
-          }
+          const mesh = m[u.rare], big = u.rare === 'gold' ? 1.3 : 1;
+          markAt.compose(markPos.set(0, 2.62 + Math.sin(t * 2 + j) * 0.03, 0.3), markTurn.identity(), markSize.setScalar(big)).premultiply(machineAt(spot));
+          mesh.setMatrixAt(n[u.rare]++, markAt);
+          TWINKLE_SPOTS.forEach(([x, y, z], k) => {
+            const pulse = 0.6 + 0.4 * Math.abs(Math.sin(t * 3 + j * 1.7 + k * 2.1)); // 제자리에서 커졌다 작아짐
+            markAt.compose(markPos.set(x * big, y, z), markTurn.identity(), markSize.setScalar(pulse * big)).premultiply(machineAt(spot));
+            m.twinkle.setMatrixAt(n.twinkle, markAt); m.twinkle.setColorAt(n.twinkle++, TWINKLE[u.rare as 'rare' | 'gold']);
+          });
         });
-        if (n || mesh.count) { mesh.count = n; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
+        for (const key of ['rare', 'gold', 'twinkle'] as const) {
+          const mesh = m[key];
+          if (!n[key] && !mesh.count) continue;
+          mesh.count = n[key]; mesh.visible = n[key] > 0; mesh.instanceMatrix.needsUpdate = true;
+          if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        }
       }
       const now = performance.now() / 1000, blink = Math.floor(t * 10) % 2 === 0;
       for (const u of units.values()) {

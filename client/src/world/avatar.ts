@@ -28,6 +28,7 @@ export interface Avatar {
   update(t: number): void;
   dispose(): void; // 장면에서 뺄 때 이 아바타만의 GPU 자원(이름표) 해제
   setTag(text: string | null): void; // 이름표 아래 작은 꼬리표 ('조르는 중'), null이면 뗀다
+  setFade(opacity: number): void; // 한 판 중 내 화면을 가릴 때 거의 투명하게 (1이면 원래대로)
 }
 
 const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
@@ -58,6 +59,8 @@ export function makeAvatar(color: number, nickname: string): Avatar {
   root.add(...hands);
   const label = makeLabel(nickname); label.position.set(0, 2.25, 0); root.add(label);
   let tag: THREE.Sprite | null = null;
+  // 흐릴 때만 이 아바타 재질을 복제해 쓴다 (툰 재질은 모두가 함께 쓰므로 원본을 흐리면 다른 사람도 흐려진다)
+  let faded: { originals: Map<THREE.Mesh, THREE.Material>; clones: Map<THREE.Material, THREE.Material> } | null = null;
   root.scale.setScalar(0.85);
 
   const phase = Math.random() * 6;
@@ -67,7 +70,29 @@ export function makeAvatar(color: number, nickname: string): Avatar {
   return {
     root,
     rig,
-    dispose() { disposeLabel(label); if (tag) disposeLabel(tag); },
+    dispose() { disposeLabel(label); if (tag) disposeLabel(tag); faded?.clones.forEach((m) => m.dispose()); },
+    setFade(opacity) {
+      if (opacity >= 1) {
+        if (faded) for (const [m, mat] of faded.originals) m.material = mat;
+        label.material.opacity = 1; if (tag) tag.material.opacity = 1;
+        if (faded) faded.originals.clear();
+        return;
+      }
+      faded ??= { originals: new Map(), clones: new Map() };
+      const f = faded;
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        if (!f.originals.has(m)) {
+          const mat = m.material as THREE.Material;
+          let clone = f.clones.get(mat);
+          if (!clone) { clone = mat.clone(); clone.transparent = true; clone.depthWrite = false; f.clones.set(mat, clone); }
+          f.originals.set(m, mat); m.material = clone;
+        }
+        (m.material as THREE.Material).opacity = opacity;
+      });
+      label.material.opacity = opacity; if (tag) tag.material.opacity = opacity;
+    },
     setTag(text) {
       if (tag) { root.remove(tag); disposeLabel(tag); tag = null; }
       if (!text) return;

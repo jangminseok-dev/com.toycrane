@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { AD_SIGNS, PREP, STICKER, WALL_SIGN } from './copy';
+import { AD_SIGNS, PREP, RARE_TAG, STICKER, WALL_SIGN } from './copy';
 import { canvasTex } from './toon';
 
 // 간판·안내 카드·스티커·뒷판·번호판·벽 간판·준비 중 그림 (시제품 docs/reference/prototypes/spike-look-a.html의 그림을 따름).
@@ -109,6 +109,29 @@ export function adSignsTex(): THREE.CanvasTexture {
       const size = fit(g, text, (sz) => `${sz}px ${SIGN_FONT}`, 92, 440);
       outlined(g, text, x + 256, y + 158, '#ffffff', size * 0.14, color);
     });
+  });
+}
+
+// 희귀가 든 기계 위 이름표: 위 절반 분홍 '★ 희귀', 아래 절반 금색 '★★ 황금' (교환소 개편 설계 §4.7.1)
+export function rareTagTex(): THREE.CanvasTexture {
+  return canvasTex(512, 256, (g) => {
+    ([[RARE_TAG.rare, '#ff5fa2', '#ffe3f0', 0], [RARE_TAG.gold, '#c98a1c', '#fff3c4', 128]] as const).forEach(([text, edge, fill, y]) => {
+      g.fillStyle = fill; rounded(g, 8, y + 10, 496, 108, 54); g.fill();
+      g.lineWidth = 8; g.strokeStyle = edge; rounded(g, 8, y + 10, 496, 108, 54); g.stroke();
+      g.font = `72px ${SIGN_FONT}`; outlined(g, text, 256, y + 66, '#ffffff', 12, edge);
+    });
+  });
+}
+
+// 네 갈래 별 반짝이 (흰색 — 인스턴스 색으로 분홍·금빛)
+export function twinkleTex(): THREE.CanvasTexture {
+  return canvasTex(128, 128, (g) => {
+    const glow = g.createRadialGradient(64, 64, 0, 64, 64, 60);
+    glow.addColorStop(0, 'rgba(255,255,255,.9)'); glow.addColorStop(0.25, 'rgba(255,255,255,.35)'); glow.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = glow; g.fillRect(0, 0, 128, 128);
+    g.fillStyle = '#ffffff'; g.beginPath();
+    for (let k = 0; k < 8; k++) { const a = (k * Math.PI) / 4 - Math.PI / 2, r = k % 2 ? 9 : 58; g.lineTo(64 + Math.cos(a) * r, 64 + Math.sin(a) * r); }
+    g.closePath(); g.fill();
   });
 }
 

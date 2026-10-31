@@ -19,3 +19,15 @@ test('begging remotes show a tag and can be found nearby', () => {
   expect(remotes.roomOf('p2')).toBeNull();
   expect(remotes.beggarNear({ x: 0, z: 0 }, 1.3)).toBeNull();
 });
+
+// 한 판 중 내 카메라를 가리는 사람만 0.2초에 걸쳐 거의 투명하게, 벗어나면 돌아온다 (교환소 개편 설계 §4.7.2)
+test('remotes blocking my view fade out and come back', () => {
+  const remotes = new RemotePlayers(new THREE.Scene());
+  remotes.add(view('p2', 0, 0), 0); remotes.add(view('p3', 5, 0), 0);
+  const blocking = (p: { x: number; z: number }) => Math.abs(p.x) < 1;
+  for (let i = 0; i < 20; i++) remotes.fade(blocking, 1 / 30);
+  expect(remotes.fadeOf('p2')).toBeCloseTo(0.15);
+  expect(remotes.fadeOf('p3')).toBe(1);
+  for (let i = 0; i < 20; i++) remotes.fade(null, 1 / 30);
+  expect(remotes.fadeOf('p2')).toBe(1);
+});

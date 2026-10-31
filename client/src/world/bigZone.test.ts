@@ -174,22 +174,23 @@ test('a doll put back after the claw show does not fall in again', () => {
   expect(zone.pileOf('C-6')).toHaveLength(9);
 });
 
-// 희귀가 든 기계는 간판 위에 반짝임이 떠 있어 멀리서도 보인다 (황금은 금빛, 더 크게)
-test('machines holding a rare show sparkles above them', () => {
+// 희귀가 든 기계 위에는 '★ 희귀'/'★★ 황금' 이름표와 제자리 별 반짝임 — 날벌레처럼 도는 점은 없다 (교환소 개편 설계 §4.7.1)
+test('machines holding a rare show a name tag and twinkles above them', () => {
   const scene = new THREE.Scene();
   const zone = buildBigZone(scene);
-  const sparkles = () => { let n = 0; scene.traverse((o) => { if (o.name.startsWith('rare-sparkles')) n += (o as THREE.InstancedMesh).count; }); return n; };
+  const count = (prefix: string) => { let n = 0; scene.traverse((o) => { if (o.name.startsWith(prefix) && o.visible) n += (o as THREE.InstancedMesh).count; }); return n; };
   zone.setContents('A-1', [spot('bunny', 0, 0, 0, 0, { rare: 'star' })]);
   zone.update(0);
-  const one = sparkles();
-  expect(one).toBeGreaterThan(0);
+  expect([count('rare-tags-rare'), count('rare-tags-gold')]).toEqual([1, 0]);
+  expect(count('rare-twinkles')).toBe(3);
   zone.setContents('A-2', [spot('fox', 0, 0, 0, 0, { rare: 'gold' })]);
   zone.update(0.1);
-  expect(sparkles()).toBeGreaterThan(one * 2 - 1);
+  expect([count('rare-tags-rare'), count('rare-tags-gold')]).toEqual([1, 1]);
   zone.setContents('A-1', [spot('bunny', 0, 0, 0)]);
   zone.setContents('A-2', [spot('fox', 0, 0, 0)]);
   zone.update(0.2);
-  expect(sparkles()).toBe(0);
+  expect(count('rare-tags') + count('rare-twinkles')).toBe(0);
+  expect(scene.getObjectByName('rare-sparkles-big-wall')).toBeUndefined();
 });
 
 test('chubby dolls are drawn wider', () => {

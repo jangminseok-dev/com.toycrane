@@ -4,7 +4,7 @@ import { CAMERA_OFFSETS, followCamera } from './game/followCamera';
 import { InputSampler } from './game/inputSampler';
 import { LocalPlayer } from './game/localPlayer';
 import { aimHeight, aimVisible } from './game/aim';
-import { machineCameraPose } from './game/machineCamera';
+import { blocksView, machineCameraPose } from './game/machineCamera';
 import { MachineBusy } from './game/machineBusy';
 import { PlaySession } from './game/playSession';
 import { Swing } from './game/swing';
@@ -581,6 +581,8 @@ function frame(now: number) {
     if (dropped && awaiting && dropped.resultOverdue(now / 1000)) { endPlay(); toast('결과를 받지 못했어요'); }
     const atMachine = session?.machineId ?? awaiting ?? seated; // 기계 카메라를 쓰는 동안
     joystick.setEnabled(!atMachine); // 기계 앞에서는 기계 버튼으로 — 걷기 조이스틱은 숨긴다
+    const myMachine = atMachine ? spotOf.get(atMachine) : undefined;
+    remotes.fade(myMachine ? (p) => blocksView(myMachine, p) : null, dt); // 한 판 중 내 카메라를 가리는 사람은 거의 투명하게
     if (session) {
       // 기계 레버가 집게를 움직이고 캐릭터는 기계 앞에 서 있다.
       // 시간이 다 되면 여기서 내리고(sendDrop이 session을 비운다) — 그 뒤엔 session을 읽지 않는다 (읽으면 그리기 고리가 멈춘다)
