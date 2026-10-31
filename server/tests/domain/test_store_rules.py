@@ -75,3 +75,10 @@ def test_decor_keeps_every_spot_reachable():
     goals = [front_spot(m) for m in MACHINES.values()] + [q for c in COUNTERS for q in c.queue]
     reach = reachable_from(Position(SPAWN_RADIUS, 0.0), step=0.25)
     assert all(reach(g) for g in goals)
+
+
+def test_coin_counters_face_the_camera():
+    """걷기 카메라는 늘 북쪽(-z)을 보므로 두 교환소 모두 남쪽(+z, ry 0)을 보고 창구가 그 앞에 있어야 등을 보이지 않는다 (설계 2026-10-31 §3.12)."""
+    from toycrane.domain.layout import COUNTERS
+
+    assert all(c.ry == 0 and c.window.z > c.z for c in COUNTERS)
