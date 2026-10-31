@@ -52,3 +52,15 @@ test('between plays it knows which play comes next', () => {
   run.start(5, 9); run.began();
   expect(run.upcoming()).toBe(2);
 });
+
+// 이어 하는 중 판 도중에도 "그만하기"가 보이게 — 이번 판 뒤에 더 할 판이 남았는지 (사용자 2026-11-01)
+test('remaining counts the plays still to come after the current one', () => {
+  const run = new PlayRun();
+  expect(run.remaining()).toBe(0);
+  run.start(5, 5); run.began();
+  expect(run.remaining()).toBe(4);
+  run.began(); run.began(); run.began(); run.began();
+  expect(run.remaining()).toBe(0);
+  run.start(5, 5); run.began(); run.stop();
+  expect(run.remaining()).toBe(0);
+});

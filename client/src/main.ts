@@ -345,6 +345,7 @@ function startPlay(machineId: string, limit: number, coins: number) {
   session = new PlaySession(machineId, limit, clock());
   run.began();
   seated = null; nextRunAt = null; hideSeatControls();
+  if (run.remaining() > 0) showRunPause(stopRun); // 이어 하는 중에는 판 도중에도 "그만하기" — 이번 판 뒤에 멈춘다 (사용자 2026-11-01)
   setAction(null); setInfo(null);
   showPlayControls(); showHint();
   dropControls();
@@ -526,6 +527,9 @@ function showSeat() {
   const more = runSize(wallet.coins);
   showSeatControls(wallet.coins > 0 ? () => playAgain(id, 1) : null, more && { ...more, onPress: () => playAgain(id, more.plays) },
     standUp, () => { standUp(); startCoinWalk(); });
+}
+function stopRun() {
+  run.stop(); hideSeatControls();
 }
 function standUp() {
   socket?.send(encodeStand());
