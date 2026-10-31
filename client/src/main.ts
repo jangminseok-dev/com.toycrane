@@ -1,6 +1,6 @@
 // toycrane 화면: 게스트 확인 → 매장 배정 → 매장 웹소켓 → 함께 걷기. 끊기면 다시 배정부터.
 import * as THREE from 'three';
-import { followCamera } from './game/followCamera';
+import { CAMERA_OFFSETS, followCamera } from './game/followCamera';
 import { InputSampler } from './game/inputSampler';
 import { LocalPlayer } from './game/localPlayer';
 import { aimHeight } from './game/aim';
@@ -60,7 +60,7 @@ await loadFonts(ALL_COPY); // 간판 글꼴(2.5초 안에 못 오면 시스템 �
 const scene = new THREE.Scene();
 const tower = buildStore(scene);
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-camera.position.set(0, 7, 11.4);
+camera.position.copy(CAMERA_OFFSETS.WIDE); // 입장 후 내 자리로 따라간다
 const remotes = new RemotePlayers(scene);
 const joystick = installJoystick(renderer.domElement);
 let sampler = new InputSampler();
@@ -441,7 +441,7 @@ renderer.setAnimationLoop((now) => {
       camera.lookAt(camLook);
     } else {
       followCamera(camera, me.pos, dt);
-      camLook.set(me.pos.x, 0.9, me.pos.z);
+      camLook.set(me.pos.x, 1.1, me.pos.z - 1.6); // 걷기 카메라가 보는 곳 (기계 카메라로 넘어갈 때 이어지게)
       fader.update(dt, camera.position, me.pos);
     }
   }
