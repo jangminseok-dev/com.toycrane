@@ -1,7 +1,10 @@
 import * as THREE from 'three';
-import { expect, test } from 'vitest';
+import { beforeAll, expect, test } from 'vitest';
+import { stubCanvas } from '../test/canvasStub';
 import { CONTROLS } from './machine';
 import { buildMachineControls } from './machineControls';
+
+beforeAll(stubCanvas);
 
 // 기계에 그려진 레버·하강 버튼을 직접 누른다 (설계 2026-10-31 §3.10, 3차): 휴대폰 손가락을 위해 그림보다 넉넉하게
 function pickAt(controls: ReturnType<typeof buildMachineControls>, anchor: THREE.Object3D, local: readonly [number, number, number], dx = 0) {
@@ -30,4 +33,16 @@ test('the lever tilts where it is pushed and the drop button sinks when pressed'
   expect(controls.dropY()).toBeLessThan(y0);
   controls.dispose();
   expect(anchor.children).toHaveLength(0);
+});
+
+// 하강 버튼이 무엇을 하는지 바로 알게: 윗면에 '잡기'와 흰 아래 화살표, 버튼과 함께 눌려 들어간다
+test('the drop button reads 잡기 with a down arrow and sinks with the button', () => {
+  const anchor = new THREE.Group();
+  const controls = buildMachineControls(anchor);
+  const label = anchor.getObjectByName('drop-label')!;
+  expect(label.userData.text).toBe('잡기');
+  anchor.updateMatrixWorld(true);
+  const y0 = label.getWorldPosition(new THREE.Vector3()).y;
+  controls.setPressed(true); anchor.updateMatrixWorld(true);
+  expect(label.getWorldPosition(new THREE.Vector3()).y).toBeLessThan(y0 - 0.01);
 });

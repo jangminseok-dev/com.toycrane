@@ -114,3 +114,14 @@ export function prepTex(): THREE.CanvasTexture {
     g.font = `120px ${SIGN_FONT}`; outlined(g, PREP, 256, 150, '#ffffff', 16, '#5a3a1a');
   });
 }
+
+// 하강 버튼 윗면 글씨: 흰 '잡기'와 그 아래 흰 화살표(▼), 진한 빨강 테두리. 밖은 투명
+export function dropLabelTex(text: string): THREE.CanvasTexture {
+  return canvasTex(256, 256, (g) => {
+    g.font = `96px ${SIGN_FONT}`;
+    outlined(g, text, 128, 104, '#8a0f2a', 16, '#ffffff');
+    g.beginPath(); g.moveTo(84, 150); g.lineTo(172, 150); g.lineTo(128, 214); g.closePath();
+    g.lineJoin = 'round'; g.lineWidth = 16; g.strokeStyle = '#8a0f2a'; g.stroke();
+    g.fillStyle = '#ffffff'; g.fill();
+  });
+}

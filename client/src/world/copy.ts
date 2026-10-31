@@ -6,4 +6,5 @@ export const STICKER = '1회 🪙1';
 export const WALL_SIGN = ['toycrane', '게임센터'];
 export const PREP = '준비 중';
 export const COUNTER_SIGN = '코인 교환소';
-export const ALL_COPY = [...MACHINE_NAMES, ...POP_CARDS, STICKER, ...WALL_SIGN, PREP, COUNTER_SIGN, '0123456789-ABC'].join('');
+export const DROP_LABEL = '잡기'; // 하강 버튼 윗면 (화살표와 함께)
+export const ALL_COPY = [...MACHINE_NAMES, ...POP_CARDS, STICKER, ...WALL_SIGN, PREP, COUNTER_SIGN, DROP_LABEL, '0123456789-ABC'].join('');

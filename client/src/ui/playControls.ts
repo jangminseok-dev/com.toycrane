@@ -5,7 +5,7 @@ import { backdropBlur } from './glass';
 let timerEl: HTMLDivElement | null = null, hintEl: HTMLSpanElement | null = null, timeEl: HTMLSpanElement | null = null;
 let playing = false;
 
-const HINT = '레버를 끌어 움직이고 · 하강 버튼으로 잡아요';
+const HINT = '레버로 움직이고 · 잡기 버튼을 눌러요';
 
 function build() {
   const pill = (top: string, font: string) => {
