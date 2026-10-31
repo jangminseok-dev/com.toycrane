@@ -11,7 +11,7 @@ import { CHROME, idleClawGeometry, makeClawRig, type ClawRig } from './claw';
 import { CLAW_REST, DOLL_FLOOR, DOLL_SCALE, bulbSpots, ledBaseMat, ledFlashMat, makeControlParts, makeMachineParts } from './machine';
 
 // 기계 속 인형 한 칸: [캐릭터, x, z, 몸 돌림, 얹힌 높이, 색, 체형, 표정, 희귀, 번호] — 서버 welcome·machine 메시지와 같은 모양
-import { lookOf, type DollSpot } from '../net/protocol';
+import { lookOf, uidOf, type DollPose, type DollSpot } from '../net/protocol';
 export type { DollSpot };
 
 export interface BigZone {
@@ -25,9 +25,11 @@ export interface BigZone {
   rigOf(machineId: string): ClawRig | null;
   releaseClaw(machineId: string): void;
   hideControls(machineId: string, hidden: boolean): void; // 내가 하는 동안 기계 그림의 레버·하강 버튼을 숨긴다 (움직이는 것을 따로 그리므로)
-  pileOf(machineId: string): number[]; // 지금 무더기에 합쳐 그린 인형 번호 (떨어지는 중인 새 인형은 빠짐)
-  resetSeen(): void; // 다시 접속한 welcome 앞에: 다음에 받는 내용을 처음 받는 것처럼 (그사이 채워진 인형을 한꺼번에 떨어뜨리지 않게)
-  update(t: number): void; // 깜빡임, 바뀐 행의 인형 다시 합치기, 새 인형 떨어지기, 희귀 반짝임
+  pileOf(machineId: string): number[]; // 지금 무더기에 합쳐 그린 인형 번호 (live 모드인 기계는 빠짐)
+  unsettled(machineId: string): DollSpot[]; // 아직 안 앉은(y null) 인형들 — 물리가 앉힐 차례
+  settleWith(machineId: string, poses: DollPose[]): void; // 물리가 앉힌 자리·돌림을 입힌다
+  live(machineId: string): LiveDolls; // 한 판 동안 그 기계의 인형을 무더기에서 빼 따로 그린다 (물리·중계 자세를 입히려고)
+  update(t: number): void; // 깜빡임, 바뀐 행의 인형 다시 합치기, 희귀 반짝임
   occluders: Occluder[]; // 행 2개: 벽 줄, 섬
 }
 
@@ -40,12 +42,12 @@ const aimMat = new THREE.MeshBasicMaterial({ color: 0xff3b8f, depthWrite: false,
 const BLOCK_MAX = 6;
 type Row = { group: THREE.Group; cloner: ReturnType<typeof materialCloner>; spots: MachineSpot[] };
 type Block = { row: Row; group: THREE.Group; spots: MachineSpot[]; dirty: boolean };
-type Falling = { obj: THREE.Object3D; y: number; start: number | null };
+// live 모드: 인형 하나하나를 따로 그리는 메시 (set으로 자세를 입히고, 없어진 번호는 지운다)
+export type LiveDolls = { set(uid: number, p: [number, number, number], q: [number, number, number, number]): void; remove(uid: number): void; dispose(): void };
 type Unit = {
   row: Row; block: Block; anchor: THREE.Group; claw: THREE.Group; idle: THREE.Mesh; rig: ClawRig | null;
   led: THREE.Mesh; contents: DollSpot[]; flashUntil: number; gold: boolean; bulbStart: number;
-  seen: Set<number> | null; // 이 화면이 본 적 있는 인형 번호 (처음 받기 전엔 null — 처음 받은 인형은 떨어뜨리지 않는다)
-  falling: Map<number, Falling>; baked: number[]; rare: '' | 'rare' | 'gold';
+  live: Map<number, THREE.Object3D> | null; baked: number[]; rare: '' | 'rare' | 'gold';
 };
 // 간판 둘레 전구: 행마다 InstancedMesh 하나, 켜졌다 꺼지며 돈다(3개 중 하나가 어둡게, 초당 8칸). 당첨 땐 그 기계 전구가 분홍·금색으로 깜빡
 const BULB = { bright: new THREE.Color(0xfff4c8), dim: new THREE.Color(0x8a8070), hot: new THREE.Color(0xff5fa2), gold: new THREE.Color(0xffd36b) };
@@ -94,9 +96,6 @@ function liteParts(spot: DollSpot): Part[] | null {
   }
   return parts;
 }
-// 새로 채워진 인형: 위 0.6m에서 0.6초 동안 떨어져 한 번 톡 튄다
-const FALL_SECONDS = 0.6, FALL_HEIGHT = 0.6;
-const fallOffset = (k: number) => (k < 0.7 ? FALL_HEIGHT * (1 - (k / 0.7) ** 2) : 0.05 * Math.sin(Math.PI * ((k - 0.7) / 0.3)));
 // 희귀가 든 기계 표시 (교환소 개편 설계 §4.7.1): 간판 위 이름표('★ 희귀'·'★★ 황금', 천천히 위아래로)와 둘레 별 3개가 제자리에서 반짝
 // — 4단계의 도는 반짝이는 날벌레처럼 보였다. 이름표 그림 위·아래 절반이 희귀·황금
 const tagGeo = (half: 0 | 1) => {
@@ -145,7 +144,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     row.group.add(anchor);
     units.set(spot.id, {
       row, block, anchor, claw, idle, rig: null, led, contents: [], flashUntil: 0, gold: false, bulbStart: row.spots.indexOf(spot) * bulbSpots().length,
-      seen: null, falling: new Map(), baked: [], rare: '',
+      live: null, baked: [], rare: '',
     });
   });
   const bulbRows = rows.map((row) => {
@@ -205,12 +204,13 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
       holder.compose(at.set(spot.x, 0, spot.z), turn.setFromAxisAngle(UP, spot.ry), new THREE.Vector3(1, 1, 1));
       const u = units.get(spot.id)!;
       u.baked = [];
+      if (u.live) return; // 한 판 중인 기계는 따로 그린다
       u.contents.forEach((dollSpot) => {
         const parts = liteParts(dollSpot);
-        if (!parts || u.falling.has(dollSpot[9])) return; // 목록에 없는 인형, 아직 떨어지는 중인 새 인형
-        u.baked.push(dollSpot[9]);
-        // 서버가 정한 얹힌 높이, r에서 정한 기울기, 머리 가운데가 인형 자리 위 (world/dollPose.ts), 체형만큼 옆으로 넓거나 좁게
-        const pose = dollPose(dollSpot), w = BODY_W[dollSpot[6]];
+        if (!parts) return; // 목록에 없는 인형
+        u.baked.push(uidOf(dollSpot));
+        // 서버가 기록한 자리·돌림(안 앉은 인형은 임시 자세, world/dollPose.ts), 체형만큼 옆으로 넓거나 좁게
+        const pose = dollPose(dollSpot, u.contents), w = BODY_W[dollSpot[9]];
         local.compose(pose.position, pose.quaternion, size.set(DOLL_SCALE * w, DOLL_SCALE, DOLL_SCALE * w));
         world.multiplyMatrices(holder, local);
         for (const { geo, mat } of parts) {
@@ -233,30 +233,51 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     if (!u) throw new Error(`모르는 기계 ${id}`);
     return u;
   };
+  // 따로 그리는 인형 하나 (가벼운 모양, 기계 안 좌표) — live 모드
+  function liveDoll(u: Unit, d: DollSpot): void {
+    const obj = makeDoll(d[0], lookOf(d), true);
+    if (!obj || !u.live) return;
+    const pose = dollPose(d, u.contents), w = BODY_W[d[9]];
+    obj.position.copy(pose.position); obj.quaternion.copy(pose.quaternion); obj.scale.set(DOLL_SCALE * w, DOLL_SCALE, DOLL_SCALE * w);
+    obj.userData.uid = uidOf(d);
+    obj.traverse((o) => { o.castShadow = false; });
+    u.anchor.add(obj);
+    u.live.set(uidOf(d), obj);
+  }
   return {
     occluders,
     setContents(id, dolls) {
       const u = units.get(id);
       if (!u) return;
-      const uids = new Set(dolls.map((d) => d[9]));
-      for (const [uid, f] of u.falling) if (!uids.has(uid)) { f.obj.removeFromParent(); u.falling.delete(uid); }
-      // 처음 받은 뒤로 처음 보는 번호 = 새로 채워진 인형 → 위에서 떨어뜨린다 (집게 연출이 잠깐 뺐다 넣은 인형은 이미 본 번호)
-      if (u.seen) for (const d of dolls) if (!u.seen.has(d[9])) {
-        const obj = makeDoll(d[0], lookOf(d), true);
-        if (!obj) continue;
-        const pose = dollPose(d), w = BODY_W[d[6]];
-        obj.position.copy(pose.position); obj.quaternion.copy(pose.quaternion); obj.scale.set(DOLL_SCALE * w, DOLL_SCALE, DOLL_SCALE * w);
-        obj.position.y += FALL_HEIGHT; obj.userData.uid = d[9];
-        obj.traverse((o) => { o.castShadow = false; });
-        u.anchor.add(obj);
-        u.falling.set(d[9], { obj, y: pose.position.y, start: null });
-      }
-      u.seen = new Set([...(u.seen ?? []), ...uids]);
-      u.rare = dolls.some((d) => d[8] === 'gold') ? 'gold' : dolls.some((d) => d[8]) ? 'rare' : '';
+      u.rare = dolls.some((d) => d[11] === 'gold') ? 'gold' : dolls.some((d) => d[11]) ? 'rare' : '';
       u.contents = dolls; u.block.dirty = true;
+      if (u.live) { // 한 판 중에 새 배치가 오면(판 끝 machine) 따로 그리는 인형도 맞춘다
+        const uids = new Set(dolls.map(uidOf));
+        for (const [uid, obj] of u.live) if (!uids.has(uid)) { obj.removeFromParent(); u.live.delete(uid); }
+        for (const d of dolls) if (!u.live.has(uidOf(d))) liveDoll(u, d);
+      }
     },
     pileOf: (id) => units.get(id)?.baked ?? [],
-    resetSeen() { for (const u of units.values()) u.seen = null; },
+    unsettled: (id) => (units.get(id)?.contents ?? []).filter((d) => d[2] === null),
+    settleWith(id, poses) {
+      const u = units.get(id);
+      if (!u) return;
+      const by = new Map(poses.map((p) => [p.uid, p]));
+      this.setContents(id, u.contents.map((d) => {
+        const p = by.get(uidOf(d));
+        return p ? ([d[0], p.p[0], p.p[1], p.p[2], p.q[0], p.q[1], p.q[2], p.q[3], d[8], d[9], d[10], d[11], d[12]] as DollSpot) : d;
+      }));
+    },
+    live(id) {
+      const u = unit(id);
+      if (!u.live) { u.live = new Map(); for (const d of u.contents) liveDoll(u, d); u.block.dirty = true; }
+      const live = u.live;
+      return {
+        set(uid, p, q) { const o = live.get(uid); if (o) { o.position.set(p[0], p[1], p[2]); o.quaternion.set(q[0], q[1], q[2], q[3]); } },
+        remove(uid) { const o = live.get(uid); if (o) { o.removeFromParent(); live.delete(uid); } },
+        dispose() { if (u.live !== live) return; for (const o of live.values()) o.removeFromParent(); u.live = null; u.block.dirty = true; },
+      };
+    },
     contentsOf: (id) => units.get(id)?.contents ?? [],
     clawOf: (id) => unit(id).claw,
     worldOf: (id) => unit(id).anchor,
@@ -284,12 +305,6 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
       }
     },
     update(t) {
-      for (const u of units.values()) for (const [uid, f] of u.falling) {
-        f.start ??= t;
-        const k = (t - f.start) / FALL_SECONDS;
-        if (k >= 1) { f.obj.removeFromParent(); u.falling.delete(uid); u.block.dirty = true; } // 같은 프레임에 무더기로 합친다
-        else f.obj.position.y = f.y + fallOffset(k);
-      }
       for (const block of blocks) if (block.dirty) rebuild(block);
       for (const m of markRows) {
         const n = { rare: 0, gold: 0, twinkle: 0 };

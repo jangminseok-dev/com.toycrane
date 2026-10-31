@@ -3,7 +3,7 @@ import { beforeAll, expect, test } from 'vitest';
 import { MACHINES } from '../data/storeLayout';
 import { stubCanvas } from '../test/canvasStub';
 import { bakeByMaterial } from './bake';
-import { MACHINE_COLORS, bulbSpots, makeMachineParts } from './machine';
+import { HOLE, MACHINE_COLORS, bulbSpots, makeMachineParts } from './machine';
 
 beforeAll(stubCanvas);
 
@@ -45,4 +45,13 @@ test('one machine stays light in triangles', () => {
     if ((o as THREE.Mesh).isMesh && geo) tris += (geo.index ? geo.index.count : geo.attributes.position.count) / 3;
   });
   expect(tris).toBeLessThan(9000);
+});
+
+// 물리 뽑기 설계 §9.3: 구멍은 34cm 네모, 둘레는 6cm 낮은 턱 (20cm 가림막은 '조금 들어서 넘기기'를 막았다)
+test('the prize hole has a low lip', () => {
+  expect(HOLE).toEqual({ size: 0.34, lip: 0.06 });
+  const statics = makeMachineParts(MACHINES[0], 0).statics;
+  let lip: THREE.Mesh | undefined;
+  statics.traverse((o) => { const g = (o as THREE.Mesh).geometry as THREE.BoxGeometry | undefined; if (g?.type === 'BoxGeometry' && g.parameters.width === 0.34 && g.parameters.depth === 0.34) lip = o as THREE.Mesh; });
+  expect((lip!.geometry as THREE.BoxGeometry).parameters.height).toBeCloseTo(0.06);
 });

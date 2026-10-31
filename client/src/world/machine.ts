@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CLAW } from '../data/claw';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MachineSpot } from '../data/storeLayout';
@@ -12,6 +13,7 @@ import { part, toon } from './toon';
 export const CLAW_REST = new THREE.Vector3(-0.36, 1.95, 0.27); // 기계 안 좌표 — 상품 구멍 위(앞 왼쪽): 한 판은 여기서 시작한다(설계 §3.10)
 export const DOLL_FLOOR = 0.87; // 펠트 위 인형 바닥 높이
 export const DOLL_SCALE = 0.3; // 기계 속 인형 크기
+export const HOLE = { size: CLAW.hole.size, lip: CLAW.hole.lip }; // 상품 구멍 네모 한 변·턱 높이 (shared/claw.json, 물리와 같은 값)
 // 조작대(기계 안 좌표): 레버(끌면 집게가 그쪽으로), 큰 빨간 하강 버튼 하나 (설계 §3.10, 3차)
 export const CONTROLS = { lever: [-0.3, 0.92, 0.66], drop: [0.26, 0.925, 0.66] } as const;
 
@@ -37,7 +39,7 @@ const G = once(() => ({
   deck: rbox(1.2, 0.07, 0.28, 0.02), leverBase: new THREE.CylinderGeometry(0.05, 0.055, 0.02, 20), stick: new THREE.CylinderGeometry(0.01, 0.01, 0.09, 10),
   ball: new THREE.SphereGeometry(0.04, 16, 12), ring: new THREE.CylinderGeometry(0.065, 0.068, 0.025, 24), dome: new THREE.SphereGeometry(0.055, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2),
   pillar: rbox(0.06, 1.1, 0.06, 0.015), felt: new THREE.BoxGeometry(1.12, 0.02, 0.98), back: new THREE.PlaneGeometry(1.12, 1.08),
-  hole: new THREE.PlaneGeometry(0.3, 0.3), acryl: new THREE.BoxGeometry(0.34, 0.2, 0.34), rim: rbox(0.34, 0.012, 0.012, 0.004),
+  hole: new THREE.PlaneGeometry(HOLE.size, HOLE.size), acryl: new THREE.BoxGeometry(HOLE.size, HOLE.lip, HOLE.size), rim: rbox(HOLE.size, 0.012, 0.012, 0.004),
   ceilingLight: new THREE.PlaneGeometry(1.0, 0.85), rail: rbox(1.08, 0.022, 0.022, 0.008), glass: new THREE.BoxGeometry(1.14, 1.1, 1.0),
   streak: new THREE.PlaneGeometry(0.06, 0.55), streakThin: new THREE.PlaneGeometry(0.025, 0.55), pop: new THREE.PlaneGeometry(0.2, 0.14),
   header: rbox(1.26, 0.5, 1.11, 0.04), sign: new THREE.PlaneGeometry(1.0, 0.31), plate: new THREE.PlaneGeometry(0.26, 0.11), plateBox: rbox(0.3, 0.15, 0.04, 0.012),
@@ -114,10 +116,11 @@ export function makeMachineParts(spot: MachineSpot, index: number): MachineParts
   for (const z of [-0.42, 0.42]) add(part(g.rail, chrome, [0, 1.9, z], [1, 1, 1], [0, 0, 0], 0));
   // 상품 구멍 + 투명 아크릴 가림막 + 크롬 테두리 (앞 왼쪽 구석)
   add(flat(g.hole, mat.hole, [-0.36, 0.875, 0.27], [-Math.PI / 2, 0, 0]));
-  add(flat(g.acryl, mat.acryl, [-0.36, 0.97, 0.27]));
-  add(new THREE.LineSegments(EDGES().acryl, mat.acrylEdge)).position.set(-0.36, 0.97, 0.27);
-  add(part(g.rim, chrome, [-0.36, 1.07, 0.1], [1, 1, 1], [0, 0, 0], 0));
-  add(part(g.rim, chrome, [-0.19, 1.07, 0.27], [1, 1, 1], [0, Math.PI / 2, 0], 0));
+  // 구멍 둘레 낮은 턱(6cm) — 인형 키의 2/3였던 20cm 가림막은 '조금 들어서 넘기기'가 안 됐다 (물리 뽑기 설계 §9.3)
+  add(flat(g.acryl, mat.acryl, [-0.36, DOLL_FLOOR + HOLE.lip / 2, 0.27]));
+  add(new THREE.LineSegments(EDGES().acryl, mat.acrylEdge)).position.set(-0.36, DOLL_FLOOR + HOLE.lip / 2, 0.27);
+  add(part(g.rim, chrome, [-0.36, DOLL_FLOOR + HOLE.lip, 0.27 - HOLE.size / 2], [1, 1, 1], [0, 0, 0], 0));
+  add(part(g.rim, chrome, [-0.36 + HOLE.size / 2, DOLL_FLOOR + HOLE.lip, 0.27], [1, 1, 1], [0, Math.PI / 2, 0], 0));
   // 유리 + 테두리 + 만화식 대각 반사 줄 + 손글씨 안내 카드
   add(flat(g.glass, mat.glass, [0, 1.4, 0]));
   add(new THREE.LineSegments(EDGES().glass, mat.edge)).position.y = 1.4;

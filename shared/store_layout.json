@@ -1,5 +1,5 @@
 {
-  "machine": {"front": 1.15, "reach": 1.2, "play_half": [0.44, 0.38], "hole": [-0.36, 0.27, 0.24], "claw_speed": 0.35, "play_seconds": 20, "hold_seconds": 20},
+  "machine": {"front": 1.15, "reach": 1.2, "play_half": [0.44, 0.38], "hole": [-0.36, 0.27, 0.2], "claw_speed": 0.35, "play_seconds": 20, "hold_seconds": 20},
   "machines": [
     {"id": "A-1", "x": -11.1, "z": -12.35, "ry": 0, "kind": "bunny", "row": "wall"},
     {"id": "A-2", "x": -9.25, "z": -12.35, "ry": 0, "kind": "fox", "row": "wall"},

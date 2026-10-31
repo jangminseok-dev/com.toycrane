@@ -142,35 +142,39 @@ test('six machines of different colors still bake into few materials', () => {
   expect(materialsIn(scene, 'dolls-big-wall-0')).toBeLessThanOrEqual(6);
 });
 
-// 새로 채워진 인형은 위에서 톡 떨어져 한 번 튀고 무더기에 들어간다 — 그동안 정확히 한 번만 보인다
-test('a doll that appears in a refill falls in and is drawn exactly once', () => {
-  const scene = new THREE.Scene();
-  const zone = buildBigZone(scene);
-  const first = nineDolls('octopus', 0).slice(0, 8);
-  zone.setContents('C-6', first);
-  zone.update(0);
-  const fresh = spot('octopus', 0.3, 0.3, 1, 0, { color: 2 }), uid = fresh[9];
-  zone.setContents('C-6', [...first, fresh]);
-  const flying = () => { const found: THREE.Object3D[] = []; scene.traverse((o) => { if (o.userData.uid === uid) found.push(o); }); return found; };
-  const drawn = () => (zone.pileOf('C-6').includes(uid) ? 1 : 0) + flying().length;
-  zone.update(1);
-  const startY = flying()[0].position.y;
-  for (let t = 1.05; t < 1.58; t += 0.05) { zone.update(t); expect(drawn()).toBe(1); }
-  expect(flying()[0].position.y).toBeLessThan(startY);
-  zone.update(1.7);
-  expect(drawn()).toBe(1);
-  expect(zone.pileOf('C-6')).toContain(uid);
+// 물리 뽑기 설계 §4.5·§9.2: 안 앉은 인형(y null)은 물리가 앉힐 차례이고, 앉힌 자리·돌림을 입히면 y가 채워진다
+test('unsettled dolls are listed and settleWith fills their poses', () => {
+  const zone = buildBigZone(new THREE.Scene());
+  const dolls = [spot('octopus', 0, 0, 0, 0), spot('octopus', 0.2, 0.1, 0, null), spot('octopus', -0.2, 0.1, 0, null)];
+  zone.setContents('C-6', dolls);
+  expect(zone.unsettled('C-6').map((d) => d[12])).toEqual([dolls[1][12], dolls[2][12]]);
+  zone.settleWith('C-6', [{ uid: dolls[1][12], p: [0.21, 0.9, 0.11], q: [0, 0.707, 0, 0.707] }]);
+  expect(zone.unsettled('C-6').map((d) => d[12])).toEqual([dolls[2][12]]);
+  const settled = zone.contentsOf('C-6').find((d) => d[12] === dolls[1][12])!;
+  expect(settled.slice(1, 8)).toEqual([0.21, 0.9, 0.11, 0, 0.707, 0, 0.707]);
 });
 
-test('a doll put back after the claw show does not fall in again', () => {
+// 한 판 동안 그 기계의 인형은 무더기에서 빠져 따로 그려지고(자세를 매 프레임 입힌다), 끝나면 무더기로 돌아간다
+test('live mode draws a machine\'s dolls one by one and returns them to the pile', () => {
   const scene = new THREE.Scene();
   const zone = buildBigZone(scene);
   const dolls = nineDolls('octopus', 0);
   zone.setContents('C-6', dolls);
   zone.update(0);
-  zone.setContents('C-6', dolls.filter((_, i) => i !== 2)); // 집게가 꺼내 따로 그리는 동안
-  zone.setContents('C-6', dolls);
+  expect(zone.pileOf('C-6')).toHaveLength(9);
+  const live = zone.live('C-6');
   zone.update(0.1);
+  expect(zone.pileOf('C-6')).toHaveLength(0);
+  const uid = dolls[3][12];
+  live.set(uid, [0.1, 1.5, 0.2], [0, 0, 0, 1]);
+  let found: THREE.Object3D | undefined;
+  scene.traverse((o) => { if (o.userData.uid === uid) found = o; });
+  expect(found!.position.y).toBeCloseTo(1.5);
+  live.remove(uid);
+  found = undefined; scene.traverse((o) => { if (o.userData.uid === uid) found = o; });
+  expect(found).toBeUndefined();
+  live.dispose();
+  zone.update(0.2);
   expect(zone.pileOf('C-6')).toHaveLength(9);
 });
 
@@ -215,19 +219,6 @@ test('squirrels of every color share one striped material', () => {
     return materialsIn(scene, 'dolls-big-wall-1');
   };
   expect(count([0, 1, 2, 3, 4, 5])).toBe(count([0, 0, 0, 0, 0, 0]));
-});
-
-// 다시 접속한 welcome은 처음 받는 것처럼 — 그사이 채워진 인형이 한꺼번에 떨어지지 않게 (최종 리뷰 M2)
-test('a reconnect does not drop every doll refilled meanwhile', () => {
-  const scene = new THREE.Scene();
-  const zone = buildBigZone(scene);
-  const dolls = nineDolls('octopus', 0);
-  zone.setContents('C-6', dolls.slice(0, 5));
-  zone.update(0);
-  zone.resetSeen();
-  zone.setContents('C-6', dolls);
-  zone.update(0.1);
-  expect(zone.pileOf('C-6')).toHaveLength(9);
 });
 
 // 인형 겉모습마다 합쳐 둔 모양은 끝없이 쌓이지 않는다 — 오래 하면 휴대폰 메모리가 넘친다 (최종 리뷰 M7)
