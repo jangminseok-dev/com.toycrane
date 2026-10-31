@@ -343,7 +343,7 @@ async function showResult(m: Result, t: Ticket) {
   if (doll) spinners.push(...doll.userData.spin);
   const fx = {
     bonk: () => { if (near) sfx.bonk(); },
-    claw: () => runClaw({ tw, zone: bigZone, swing: swingOf(m.m), takePending: () => { const p = t.pending; t.pending = undefined; return p; } }, m),
+    claw: () => runClaw({ tw, zone: bigZone, swing: swingOf(m.m), takePending: () => { const p = t.pending; t.pending = undefined; return p; } }, m, near), // 멀리서는 귀·옆 인형 연출 생략
     afterClaw: () => { if (mine && awaiting === m.m) sitDown(m.m); },
     pop: () => { if (near) sfx.pop(); },
     win: () => {

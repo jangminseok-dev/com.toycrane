@@ -286,8 +286,9 @@ export function dollHits(id: string): { solid: Hit[]; ears: Hit[] } {
   if (known) return known;
   const shape = DOLLS[id]?.base ?? id, round = isRoundDoll(id);
   const hit = (x: number, y: number, z: number, r: number): Hit => ({ c: new THREE.Vector3(x, y, z), r });
+  // 동글이형 몸통 타원체(0.45, 0.52, 0.43)는 가운데 공 + 조금 위 공 두 개로 감싼다 — 옆은 몸통 폭, 꼭대기는 몸통 꼭대기(1.02)에 맞게
   const solid: Hit[] = round
-    ? [shape === 'octopus' ? hit(0, 0.62, 0, 0.43) : hit(0, 0.5, 0, 0.47)]
+    ? (shape === 'octopus' ? [hit(0, 0.62, 0, 0.42), hit(0, 0.66, 0, 0.41)] : [hit(0, 0.5, 0, 0.45), hit(0, 0.6, 0, 0.42)])
     : [hit(0, 0.3, 0, 0.29), hit(0, HEAD.standing.c, 0, 0.34), hit(0, 0.66, 0.29, 0.1)];
   const top = Math.max(...solid.map((h) => h.c.y + h.r));
   const ears: Hit[] = [];
@@ -295,14 +296,20 @@ export function dollHits(id: string): { solid: Hit[]; ears: Hit[] } {
   if (doll) {
     doll.updateMatrixWorld(true);
     const box = new THREE.Box3(), size = new THREE.Vector3(), mid = new THREE.Vector3();
+    // 외곽선(자식, 1.06배)을 빼고 메시 자체 도형으로만 잰다 — 외곽선까지 재면 몸통이 '솟은 부품'으로 잡혀 큰 공이 생긴다
     const walk = (o: THREE.Object3D) => {
       if (o.name === 'ear') { ears.push({ c: o.userData.ear.c.clone(), r: o.userData.ear.r }); return; }
       if (o.name === 'tail' || o.name === 'crown' || o.name === 'aura') return;
       const m = o as THREE.Mesh;
       if (m.isMesh && m.material !== outlineMat) {
-        box.setFromObject(m, true);
-        // 상자를 감싸는 구는 큰 타원체에서 너무 커진다 — 가장 긴 반지름을 쓴다
-        if (box.max.y > top + 0.02) { box.getCenter(mid); box.getSize(size); solid.push(hit(mid.x, mid.y, mid.z, Math.max(size.x, size.y, size.z) / 2)); }
+        if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+        box.copy(m.geometry.boundingBox!).applyMatrix4(m.matrixWorld);
+        // 머리 위로 솟은 부품(뿔·가시·깃털·물줄기): 부품 폭만 한 공을 부품 꼭대기에 닿게 놓는다
+        if (box.max.y > top + 0.02) {
+          box.getCenter(mid); box.getSize(size);
+          const r = Math.max(size.x, size.z) / 2;
+          solid.push(hit(mid.x, Math.max(mid.y, box.max.y - r), mid.z, r));
+        }
       }
       o.children.forEach(walk);
     };
