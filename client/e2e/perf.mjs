@@ -2,7 +2,7 @@
 // 각 지점에서 30프레임 평균. 그래픽 개편 전후를 같은 방법으로 비교한다(설계 2026-10-31 §7: 1.5배 이하).
 // 사용: 헤드리스 크롬을 --remote-debugging-port=9461로 띄운 뒤
 //   node client/e2e/perf.mjs <base-url> <out.json> [port=9461]
-// 출력: { walk_pc, machine_pc, walk_phone, machine_phone, walk_pc_tri, … }
+// 출력: { walk_pc, machine_pc, cycle_pc(집게 한 바퀴 중), physics_pc_ms(프레임당 물리), walk_phone, …, walk_pc_tri, … }
 const [base, out, port = '9461'] = process.argv.slice(2);
 const fs = await import('node:fs');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -101,12 +101,22 @@ async function measure(mode) {
   await sleep(1500);
   await goTo(FRONT_C6);
   await sleep(500);
+  for (let i = 0; i < 100 && (await evaluate("document.body.innerText.includes('준비 중')")); i++) await sleep(300); // 물리 모듈을 받는 중이면 기다린다
   if (!(await click('한 판 하기'))) throw new Error('기계 앞에서 시작하지 못함');
   await sleep(2000);
   const machine = await sample(); // 기계 앞 화면(뒷판 모니터 포함)
+  // 잡기 → 집게 한 바퀴(물리) 동안: 그리기 호출(live 모드)과 프레임당 물리 시간(ms). 휴대폰 흉내는 CPU 4배 느리게
+  if (mode === 'phone') await send('Emulation.setCPUThrottlingRate', { rate: 4 });
+  const drop = JSON.parse(await evaluate("JSON.stringify(window.__toycrane.controlAt('drop'))"));
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: drop.x, y: drop.y, button: 'left', clickCount: 1 }); await sleep(80);
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: drop.x, y: drop.y, button: 'left', clickCount: 1 });
+  await sleep(1500);
+  const cycle = await sample();
+  const physics = Number((await evaluate('window.__toycrane.physicsMs()')).toFixed(2));
+  if (mode === 'phone') await send('Emulation.setCPUThrottlingRate', { rate: 1 });
   await fetch(`http://127.0.0.1:${port}/json/close/${tab.id}`);
   watcher.close();
-  return { [`walk_${mode}`]: walk.calls, [`machine_${mode}`]: machine.calls, [`walk_${mode}_tri`]: walk.tri, [`machine_${mode}_tri`]: machine.tri };
+  return { [`walk_${mode}`]: walk.calls, [`machine_${mode}`]: machine.calls, [`cycle_${mode}`]: cycle.calls, [`physics_${mode}_ms`]: physics, [`walk_${mode}_tri`]: walk.tri, [`machine_${mode}_tri`]: machine.tri };
 }
 
 const result = { ...(await measure('pc')), ...(await measure('phone')) };

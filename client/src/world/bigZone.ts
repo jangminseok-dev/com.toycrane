@@ -47,8 +47,13 @@ export type LiveDolls = { set(uid: number, p: [number, number, number], q: [numb
 type Unit = {
   row: Row; block: Block; anchor: THREE.Group; claw: THREE.Group; idle: THREE.Mesh; rig: ClawRig | null;
   led: THREE.Mesh; contents: DollSpot[]; flashUntil: number; gold: boolean; bulbStart: number;
-  live: Map<number, THREE.Object3D> | null; baked: number[]; rare: '' | 'rare' | 'gold';
+  live: Live | null; baked: number[]; rare: '' | 'rare' | 'gold';
 };
+// live 모드의 속: 인형마다 자세(빈 Object3D, userData.uid)와 재질별로 합쳐 둔 꼭짓점 범위. 매 프레임 바뀐 인형의 범위만 다시 옮겨 쓴다 —
+// 인형 9개를 따로 그리면 메시 70여 개(뒷판 모니터까지 두 번)라 휴대폰 그리기 예산을 넘긴다. 합치면 재질 수(2~4)만큼만 그린다
+type LiveRange = { uid: number; start: number; count: number; pos: Float32Array; nor: Float32Array };
+type LiveBucket = { mesh: THREE.Mesh; ranges: LiveRange[] };
+type Live = { poses: Map<number, THREE.Object3D>; buckets: LiveBucket[]; dirty: Set<number>; scale: Map<number, number> };
 // 간판 둘레 전구: 행마다 InstancedMesh 하나, 켜졌다 꺼지며 돈다(3개 중 하나가 어둡게, 초당 8칸). 당첨 땐 그 기계 전구가 분홍·금색으로 깜빡
 const BULB = { bright: new THREE.Color(0xfff4c8), dim: new THREE.Color(0x8a8070), hot: new THREE.Color(0xff5fa2), gold: new THREE.Color(0xffd36b) };
 const bulbGeo = new THREE.IcosahedronGeometry(0.024, 0); // 2.4cm라 각진 작은 구로 충분 (35대 × 58개)
@@ -233,16 +238,68 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     if (!u) throw new Error(`모르는 기계 ${id}`);
     return u;
   };
-  // 따로 그리는 인형 하나 (가벼운 모양, 기계 안 좌표) — live 모드
-  function liveDoll(u: Unit, d: DollSpot): void {
-    const obj = makeDoll(d[0], lookOf(d), true);
-    if (!obj || !u.live) return;
-    const pose = dollPose(d, u.contents), w = BODY_W[d[9]];
-    obj.position.copy(pose.position); obj.quaternion.copy(pose.quaternion); obj.scale.set(DOLL_SCALE * w, DOLL_SCALE, DOLL_SCALE * w);
-    obj.userData.uid = uidOf(d);
-    obj.traverse((o) => { o.castShadow = false; });
-    u.anchor.add(obj);
-    u.live.set(uidOf(d), obj);
+  // live 모드 만들기: 지금 배치의 인형들을 재질별로 한 덩어리씩(꼭짓점만 모아) 만들고, 인형마다 자세 Object3D를 둔다
+  function buildLive(u: Unit): Live {
+    const live: Live = { poses: new Map(), buckets: [], dirty: new Set(), scale: new Map() };
+    const perMat = new Map<THREE.Material, { pos: Float32Array[]; nor: Float32Array[]; col: (Float32Array | null)[]; uv: (Float32Array | null)[]; uids: number[] }>();
+    for (const d of u.contents) {
+      const parts = liteParts(d);
+      if (!parts) continue;
+      const uid = uidOf(d), pose = dollPose(d, u.contents);
+      const obj = new THREE.Object3D(); obj.userData.uid = uid; obj.position.copy(pose.position); obj.quaternion.copy(pose.quaternion);
+      u.anchor.add(obj); live.poses.set(uid, obj); live.scale.set(uid, BODY_W[d[9]]); live.dirty.add(uid);
+      for (const { geo, mat } of parts) {
+        const g = geo.index ? geo.toNonIndexed() : geo;
+        const b = perMat.get(mat) ?? { pos: [], nor: [], col: [], uv: [], uids: [] };
+        b.pos.push(g.getAttribute('position').array as Float32Array); b.nor.push(g.getAttribute('normal').array as Float32Array);
+        b.col.push(g.hasAttribute('color') ? (g.getAttribute('color').array as Float32Array) : null);
+        b.uv.push(g.hasAttribute('uv') ? (g.getAttribute('uv').array as Float32Array) : null);
+        b.uids.push(uid);
+        perMat.set(mat, b);
+      }
+    }
+    for (const [mat, b] of perMat) {
+      const total = b.pos.reduce((n, a) => n + a.length / 3, 0);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(total * 3), 3).setUsage(THREE.DynamicDrawUsage));
+      geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(total * 3), 3).setUsage(THREE.DynamicDrawUsage));
+      if (b.col.some((c) => c)) { const col = new Float32Array(total * 3).fill(1); let o = 0; b.col.forEach((c, i) => { if (c) col.set(c, o); o += b.pos[i].length; }); geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); }
+      if (b.uv.some((c) => c)) { const uv = new Float32Array(total * 2); let o = 0; b.uv.forEach((c, i) => { if (c) uv.set(c, o); o += (b.pos[i].length / 3) * 2; }); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); }
+      geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1.4, 0), 1.6); // 기계 유리 칸 — 다시 재지 않는다
+      const ranges: LiveRange[] = []; let start = 0;
+      b.pos.forEach((pos, i) => { ranges.push({ uid: b.uids[i], start, count: pos.length / 3, pos, nor: b.nor[i] }); start += pos.length / 3; });
+      const mesh = new THREE.Mesh(geo, u.row.cloner.remap(mat)); mesh.castShadow = false; mesh.frustumCulled = false; mesh.layers.enable(TOP_LAYER);
+      u.anchor.add(mesh);
+      live.buckets.push({ mesh, ranges });
+    }
+    return live;
+  }
+  const liveM = new THREE.Matrix4(), liveN = new THREE.Matrix3(), liveV = new THREE.Vector3(), liveS = new THREE.Vector3();
+  // 바뀐 인형의 꼭짓점을 자세에 맞춰 옮겨 쓴다
+  function refreshLive(u: Unit): void {
+    const live = u.live;
+    if (!live || !live.dirty.size) return;
+    for (const { mesh, ranges } of live.buckets) {
+      const pos = mesh.geometry.getAttribute('position') as THREE.BufferAttribute, nor = mesh.geometry.getAttribute('normal') as THREE.BufferAttribute;
+      for (const r of ranges) {
+        if (!live.dirty.has(r.uid)) continue;
+        const obj = live.poses.get(r.uid)!, w = live.scale.get(r.uid) ?? 1;
+        liveM.compose(obj.position, obj.quaternion, liveS.set(DOLL_SCALE * w, DOLL_SCALE, DOLL_SCALE * w).multiplyScalar(obj.visible ? 1 : 0));
+        liveN.getNormalMatrix(liveM);
+        for (let i = 0; i < r.count; i++) {
+          liveV.set(r.pos[i * 3], r.pos[i * 3 + 1], r.pos[i * 3 + 2]).applyMatrix4(liveM); pos.setXYZ(r.start + i, liveV.x, liveV.y, liveV.z);
+          liveV.set(r.nor[i * 3], r.nor[i * 3 + 1], r.nor[i * 3 + 2]).applyMatrix3(liveN).normalize(); nor.setXYZ(r.start + i, liveV.x, liveV.y, liveV.z);
+        }
+      }
+      pos.needsUpdate = true; nor.needsUpdate = true;
+    }
+    live.dirty.clear();
+  }
+  function disposeLive(u: Unit): void {
+    if (!u.live) return;
+    for (const { mesh } of u.live.buckets) { mesh.removeFromParent(); mesh.geometry.dispose(); }
+    for (const o of u.live.poses.values()) o.removeFromParent();
+    u.live = null; u.block.dirty = true;
   }
   return {
     occluders,
@@ -251,10 +308,10 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
       if (!u) return;
       u.rare = dolls.some((d) => d[11] === 'gold') ? 'gold' : dolls.some((d) => d[11]) ? 'rare' : '';
       u.contents = dolls; u.block.dirty = true;
-      if (u.live) { // 한 판 중에 새 배치가 오면(판 끝 machine) 따로 그리는 인형도 맞춘다
+      if (u.live) { // 한 판 중에 새 배치가 오면(판 끝 machine): 없어진 인형은 숨기고 자리를 맞춘다 (새 인형은 live가 끝난 뒤 무더기에)
         const uids = new Set(dolls.map(uidOf));
-        for (const [uid, obj] of u.live) if (!uids.has(uid)) { obj.removeFromParent(); u.live.delete(uid); }
-        for (const d of dolls) if (!u.live.has(uidOf(d))) liveDoll(u, d);
+        for (const [uid, obj] of u.live.poses) if (!uids.has(uid)) { obj.visible = false; u.live.dirty.add(uid); }
+        for (const d of dolls) { const o = u.live.poses.get(uidOf(d)); if (o && d[2] !== null) { o.position.set(d[1], d[2], d[3]); o.quaternion.set(d[4], d[5], d[6], d[7]); u.live.dirty.add(uidOf(d)); } }
       }
     },
     pileOf: (id) => units.get(id)?.baked ?? [],
@@ -270,12 +327,12 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     },
     live(id) {
       const u = unit(id);
-      if (!u.live) { u.live = new Map(); for (const d of u.contents) liveDoll(u, d); u.block.dirty = true; }
+      if (!u.live) { u.live = buildLive(u); u.block.dirty = true; }
       const live = u.live;
       return {
-        set(uid, p, q) { const o = live.get(uid); if (o) { o.position.set(p[0], p[1], p[2]); o.quaternion.set(q[0], q[1], q[2], q[3]); } },
-        remove(uid) { const o = live.get(uid); if (o) { o.removeFromParent(); live.delete(uid); } },
-        dispose() { if (u.live !== live) return; for (const o of live.values()) o.removeFromParent(); u.live = null; u.block.dirty = true; },
+        set(uid, p, q) { const o = live.poses.get(uid); if (o) { o.position.set(p[0], p[1], p[2]); o.quaternion.set(q[0], q[1], q[2], q[3]); live.dirty.add(uid); } },
+        remove(uid) { const o = live.poses.get(uid); if (o) { o.visible = false; live.dirty.add(uid); } },
+        dispose() { if (u.live === live) disposeLive(u); },
       };
     },
     contentsOf: (id) => units.get(id)?.contents ?? [],
@@ -306,6 +363,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     },
     update(t) {
       for (const block of blocks) if (block.dirty) rebuild(block);
+      for (const u of units.values()) refreshLive(u);
       for (const m of markRows) {
         const n = { rare: 0, gold: 0, twinkle: 0 };
         m.row.spots.forEach((spot, j) => {

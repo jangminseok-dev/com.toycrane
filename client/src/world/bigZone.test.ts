@@ -170,9 +170,8 @@ test('live mode draws a machine\'s dolls one by one and returns them to the pile
   let found: THREE.Object3D | undefined;
   scene.traverse((o) => { if (o.userData.uid === uid) found = o; });
   expect(found!.position.y).toBeCloseTo(1.5);
-  live.remove(uid);
-  found = undefined; scene.traverse((o) => { if (o.userData.uid === uid) found = o; });
-  expect(found).toBeUndefined();
+  live.remove(uid); // 구멍에 빠진 인형: 숨긴다 (꼭짓점 범위가 0으로 접힌다)
+  expect(found!.visible).toBe(false);
   live.dispose();
   zone.update(0.2);
   expect(zone.pileOf('C-6')).toHaveLength(9);

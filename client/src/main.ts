@@ -73,6 +73,8 @@ document.body.appendChild(renderer.domElement);
 Object.assign(window, { __toycrane: {
   drawCalls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles,
   contents: (id: string) => bigZone.contentsOf(id), // e2e: 이 화면이 아는 기계 속 배치
+  physicsMs: () => (physicsMs.length ? physicsMs.reduce((a, b) => a + b, 0) / physicsMs.length : 0),
+  settledIds: () => [...settledHere],
   watching: (id: string) => watches.has(id),
   controlAt: (part: 'lever' | 'drop') => {
     if (!session) return null;
@@ -369,10 +371,13 @@ function dropCycle() {
   cycle.claw?.dispose(); cycle.world.dispose(); cycle.live.dispose();
   cycle = null;
 }
+const physicsMs: number[] = []; // 최근 프레임의 물리 계산 시간(ms) — e2e perf가 읽는다
 function runCycleFrame(dt: number) {
   if (!cycle?.runner || !cycle.claw || !dropped) return;
   const { runner, claw, world, live, machineId } = cycle;
+  const t0 = performance.now();
   const done = runner.advance(dt);
+  physicsMs.push(performance.now() - t0); if (physicsMs.length > 120) physicsMs.shift();
   const rig = bigZone.rigOf(machineId), group = bigZone.clawOf(machineId);
   group.position.set(claw.x, claw.y, claw.z);
   rig?.setCable(TOP_Y - claw.y); rig?.setOpen(claw.open);
@@ -396,9 +401,11 @@ function onDoneNo(machineId: string) {
 
 // 채우기 앉히기 (물리 뽑기 설계 §9.2): 8m 안의 기계에 안 앉은 인형이 있고 물리가 준비됐으면 그 화면이 1초 안쪽 계산으로 앉힌다 (프레임당 한 대)
 const SETTLE_REACH = 8;
+const settledHere = new Set<string>(); // 이 화면이 앉힌 기계 (e2e 결정성 확인)
 function settleMachine(id: string): void {
   const R = rapierNow();
   if (!R || !bigZone.unsettled(id).length) return;
+  settledHere.add(id);
   const world = new MachineWorld(R, bigZone.contentsOf(id));
   world.settle(CLAW.settle_seconds);
   bigZone.settleWith(id, world.poses());
