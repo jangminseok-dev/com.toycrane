@@ -51,6 +51,7 @@ export async function runClaw(d: ClawShowDeps, m: Result, detail = true): Promis
     if (!doll) return null;
     const pose = dollPose(before[i]);
     doll.scale.setScalar(DOLL_SCALE); doll.position.copy(pose.position); doll.quaternion.copy(pose.quaternion);
+    doll.userData.spot = i; // 무더기 몇 번째 인형인지 (따로 그리는 동안)
     anchor.add(doll); lifted.add(i);
     return doll;
   };
@@ -139,7 +140,7 @@ export async function runClaw(d: ClawShowDeps, m: Result, detail = true): Promis
     soft();
   }, ease.smooth);
   if (fell) await fell;
-  if (m.o === 'miss' && doll) { anchor.remove(doll); lifted.delete(index!); doll = null; } // 헛잡음: 꺼냈던 인형은 무더기 제자리로
+  if (m.o === 'miss' && doll) { anchor.remove(doll); lifted.delete(index!); syncPile(); doll = null; } // 헛잡음: 꺼냈던 인형은 바로 무더기 제자리로 (쉬는 자리로 돌아갈 때까지 비어 보이지 않게)
 
   if (m.o === 'win' && held) {
     // 5) 상품 구멍 위로 옮겨 가서 놓는다 (뽑힌 자리는 결과 연출 뒤 새 배치로 채워진다)
