@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 
-from toycrane.app.dtos.drop_dto import ResultView
 from toycrane.app.dtos.player_view import PlayerView
 from toycrane.app.dtos.store_snapshot import StoreSnapshot
 from toycrane.domain.crane import DollSpot
@@ -65,7 +64,7 @@ class ConnectionsPort(ABC):
     def broadcast_play(self, except_conn: str, machine_id: str, player_id: str) -> None: ...
 
     @abstractmethod
-    def broadcast_result(self, view: ResultView) -> None:
+    def broadcast_result(self, machine_id: str, player_id: str, won: list[tuple[str, int, str, int]]) -> None:
         """본인 포함 모두에게."""
 
     @abstractmethod

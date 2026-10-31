@@ -5,11 +5,31 @@ from toycrane.adapter.outbound.do_storage_machine_contents import DoStorageMachi
 from toycrane.app.use_cases.machine_contents import ensure_contents
 
 
-# Review Focus 5: 옛 저장(machines_v2)은 읽지 않고 새로 채운다
+# 옛 저장(machines_v2)은 읽지 않고 새로 채운다
 async def test_old_storage_is_replaced_by_fresh_stock():
     storage = FakeStorage({"machines_v2": '{"A-1": [["bunny",0,0,0,0]]}'})
     stocks = await ensure_contents(DoStorageMachineContents(storage, "s-old", object()), random.Random(1))
     assert len(stocks) == 24 and all(len(s.dolls) == 9 for s in stocks.values())
+
+
+# 물리 뽑기 설계 §6: v3(x, z, 돌림, 높이)는 자리만 남기고 모두 안 앉은 인형으로 읽는다 — 첫 화면이 물리로 앉힌다
+async def test_v3_contents_are_read_as_unsettled_v4():
+    v3 = '{"A-1": {"d": [["bunny", 0.12, -0.05, 1.57, 0.0, 2, "n", 1, "", 1], ["bunny", -0.2, 0.1, 3.1, 0.21, 0, "c", 3, "star", 2]], "n": 30.0, "u": 10}}'
+    storage = FakeStorage({"machines_v3": v3})
+    stocks = await DoStorageMachineContents(storage, "s-v3", object()).load()
+    dolls = stocks["A-1"].dolls
+    assert [(d.uid, d.x, d.z, d.y, d.q, d.color, d.rare) for d in dolls] == [(1, 0.12, -0.05, None, (0, 0, 0, 1), 2, ""), (2, -0.2, 0.1, None, (0, 0, 0, 1), 0, "star")]
+    assert stocks["A-1"].next_at == 30.0 and stocks["A-1"].next_uid == 10
+
+
+async def test_save_writes_thirteen_fields_and_v4_wins_over_v3():
+    storage, owner = FakeStorage({"machines_v3": '{"A-1": {"d": [], "n": null, "u": 1}}'}), object()
+    stocks = stocks_with_empty("A-1", next_at=30.0)
+    await DoStorageMachineContents(storage, "s-13", owner).save(stocks)
+    import json
+    saved = json.loads(storage.data["machines_v4"])
+    assert all(len(d) == 13 for v in saved.values() for d in v["d"])
+    assert await DoStorageMachineContents(storage, "s-13", owner).load() == stocks
 
 
 async def test_stock_round_trips_with_variants_and_refill_time():

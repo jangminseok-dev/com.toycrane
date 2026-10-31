@@ -2,7 +2,6 @@ import json
 
 from toycrane.adapter.inbound.ws.schemas import server_messages
 from toycrane.adapter.outbound import ws_attachment
-from toycrane.app.dtos.drop_dto import ResultView
 from toycrane.app.dtos.player_view import PlayerView
 from toycrane.app.dtos.store_snapshot import StoreSnapshot
 from toycrane.app.ports.output.connections_port import ConnectionsPort
@@ -81,10 +80,8 @@ class WsConnectionsAdapter(ConnectionsPort):
     def broadcast_play(self, except_conn: str, machine_id: str, player_id: str) -> None:
         self._to_all_except(except_conn, server_messages.play(machine_id, player_id))
 
-    def broadcast_result(self, view: ResultView) -> None:
-        # Task 4(done 슬라이스)까지의 다리: 옛 판정 결과를 새 result 형식으로
-        won = [(view.kind, view.color, view.rare, view.index)] if view.outcome == "win" else []
-        self._to_all_except(None, server_messages.result(view.machine_id, view.player_id, won))
+    def broadcast_result(self, machine_id: str, player_id: str, won: list[tuple[str, int, str, int]]) -> None:
+        self._to_all_except(None, server_messages.result(machine_id, player_id, won))
 
     def broadcast_machine(self, machine_id: str, spots: list[DollSpot]) -> None:
         self._to_all_except(None, server_messages.machine(machine_id, spots))
