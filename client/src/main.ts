@@ -79,7 +79,7 @@ const queue = new QueueClient();
 let session: PlaySession | null = null;
 let awaiting: string | null = null;
 let seated: string | null = null;
-let seatedAt = 0;
+let holdFrom = 0; // 서버가 내 자리를 잡아 둔 시각(내 결과를 받은 때 = 내린 때) — 판 사이 남은 시간은 여기서 센다
 const busy = new MachineBusy(MACHINE_SPEC.play_seconds, MACHINE_SPEC.hold_seconds);
 let dropped: PlaySession | null = null; // 내리고 결과를 기다리는 판 (8초 넘게 못 받으면 포기)
 const clock = () => performance.now() / 1000;
@@ -218,6 +218,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       break;
     case 'result': {
       busy.hold(m.m, m.id, now / 1000); // 서버가 그 사람이 이어서 할 수 있게 자리를 잡아 둔다
+      if (m.id === myId) holdFrom = now / 1000; // 집게 연출이 길어도 남은 시간은 서버와 같게
       const t: Ticket = { done: false };
       tickets.set(m.m, t);
       after(m.m, () => showResult(m, t));
@@ -313,7 +314,7 @@ function endPlay() {
 // 판 사이: 기계 앞 화면 그대로 "🪙1 한 번 더 / 그만하기" — 그만하기 전까지 계속 뽑는다 (서버가 hold_seconds 동안 자리를 잡아 둔다)
 function sitDown(machineId: string) {
   awaiting = null; dropped = null;
-  seated = machineId; seatedAt = clock();
+  seated = machineId;
   showSeat();
 }
 function showSeat() {
@@ -417,7 +418,7 @@ renderer.setAnimationLoop((now) => {
     } else if (seated) {
       me.autoTarget = frontSpot(spotOf.get(seated)!); // 판 사이에도 기계 앞자리에 그대로
       me.drive({ x: 0, z: 0 }, dt);
-      const left = MACHINE_SPEC.hold_seconds - (now / 1000 - seatedAt);
+      const left = MACHINE_SPEC.hold_seconds - (now / 1000 - holdFrom);
       setInfo(left > 0 ? `이어서 하기 · ${Math.ceil(left)}초` : null);
     } else if (!awaiting) {
       me.autoTarget = queue.target();
