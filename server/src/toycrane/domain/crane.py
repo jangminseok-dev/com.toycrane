@@ -10,6 +10,7 @@ import random
 from dataclasses import dataclass, replace
 
 from toycrane.domain.layout import MACHINE_SPEC
+from toycrane.domain.shared_data import CLAW
 
 FLOOR_DOLLS = 6
 MIN_GAP = 0.22      # 바닥 인형 중심 사이 최소 거리(m) — 인형 지름이 25~30cm
@@ -25,7 +26,6 @@ TIER_WIN = {"rare": 0.5, "gold": 0.3}  # 희귀·황금은 성공 확률 × 배�
 BODY_W = {"n": 1.0, "c": 1.15, "s": 0.88}
 BODY_REACH = {"n": 1.0, "c": 1.25, "s": 0.8}
 BODY_SLIP = {"n": 0.0, "c": 0.10, "s": -0.10}
-STRENGTH_SPREAD = 0.25  # 집게 힘이 평균에서 ±25%까지 (claw_strength)
 SWAY_MAX = 0.07  # 내려갈 때 집게가 흔들려 노린 자리에서 벗어나는 최대 거리(m) — 머리(5cm)를 노려도 몸통에 걸릴 수 있게
 
 
@@ -137,7 +137,7 @@ def claw_strength(x: float, z: float) -> float:
     w, d = MACHINE_SPEC.play_half
     far = max(math.hypot(cx - hx, cz - hz) for cx in (-w, w) for cz in (-d, d))
     t = min(max((math.hypot(x - hx, z - hz) - hr) / (far - hr), 0.0), 1.0)
-    return 1.0 + STRENGTH_SPREAD * (2 * t - 1)
+    return 1.0 + CLAW["spread"] * (2 * t - 1)
 
 
 def judge(spots: list[DollSpot], x: float, z: float, roll: float) -> Grab:

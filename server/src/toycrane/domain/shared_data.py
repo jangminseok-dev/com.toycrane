@@ -1,4 +1,4 @@
-"""생성 파일 — shared/catalog.json·shared/store_layout.json을 고치고 scripts/gen_shared.py로 다시 생성한다."""
+"""생성 파일 — shared/catalog.json·shared/store_layout.json·shared/claw.json을 고치고 scripts/gen_shared.py로 다시 생성한다."""
 
 CATALOG = {'sets': [{'id': 'soft', 'name': '말랑 동물', 'color': '#ff7ab6'},
           {'id': 'forest', 'name': '숲속 친구들', 'color': '#2fbf8f'},
@@ -288,3 +288,12 @@ LAYOUT = {'machine': {'front': 1.15,
            {'kind': 'figure', 'rect': [11.75, -4.6, 14, 11.6], 'ry': -1.570796},
            {'kind': 'figure', 'rect': [1.6, 11.75, 11.2, 14], 'ry': 3.141593},
            {'kind': 'shelf', 'rect': [8.2, 0, 9.2, 6], 'ry': -1.570796}]}
+
+CLAW = {'base_force': 6.0,
+ 'spread': 0.25,
+ 'quality': {'three': 1.0, 'two': 0.6},
+ 'rare': {'rare': 0.5, 'gold': 0.3},
+ 'hole': {'size': 0.34, 'lip': 0.06},
+ 'max_wins': 3,
+ 'cycle_seconds': 12,
+ 'settle_seconds': 3}
