@@ -8,7 +8,7 @@ from toycrane.app.ports.output.queue_registry_port import QueueRegistryPort
 from toycrane.app.ports.output.wallet_port import WalletPort
 from toycrane.app.use_cases.queue_settle import settle_queue
 from toycrane.domain.coin_queue import can_take
-from toycrane.domain.coins import COINS_PER_TAKE, WALLET_CAP, WINDOW_REACH
+from toycrane.domain.coins import COINS_PER_TAKE, TAKE_LIMIT, WINDOW_REACH
 from toycrane.domain.layout import COUNTERS
 
 
@@ -33,7 +33,7 @@ class CoinTakeInteractor(CoinTakeUseCase):
         if math.hypot(me.position.x - window.x, me.position.z - window.z) > WINDOW_REACH:
             return
         before = await self._wallet.balance(me.guest_id)
-        total = await self._wallet.add(me.guest_id, COINS_PER_TAKE, WALLET_CAP, cmd.now)
+        total = await self._wallet.add(me.guest_id, COINS_PER_TAKE, TAKE_LIMIT, cmd.now)
         self._connections.send_coins(cmd.conn_id, total, total - before)
         self._queues.remove(cmd.conn_id)
         settle_queue(self._queues, self._connections, counter, cmd.now)
