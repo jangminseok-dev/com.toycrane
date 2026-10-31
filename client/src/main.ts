@@ -59,12 +59,12 @@ Object.assign(document.body.style, { margin: '0', overflow: 'hidden', background
 Object.assign(renderer.domElement.style, { position: 'fixed', inset: '0', width: '100%', height: '100%', display: 'block', touchAction: 'none' });
 document.body.appendChild(renderer.domElement);
 // 성능 측정용(client/e2e/perf.mjs): 마지막으로 그린 화면의 그리기 호출·삼각형 수
-// buttonAt(1|2): 하는 기계의 ①·② 버튼 화면 자리(e2e가 누를 곳)
+// controlAt('lever'|'drop'): 하는 기계의 레버·하강 버튼 화면 자리(e2e가 누를 곳)
 Object.assign(window, { __toycrane: {
   drawCalls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles,
-  buttonAt: (i: 1 | 2) => {
+  controlAt: (part: 'lever' | 'drop') => {
     if (!session) return null;
-    const [x, y, z] = i === 1 ? CONTROLS.one : CONTROLS.two;
+    const [x, y, z] = CONTROLS[part];
     const p = bigZone.worldOf(session.machineId).localToWorld(new THREE.Vector3(x, y + 0.02, z)).project(camera);
     return { x: ((p.x + 1) / 2) * innerWidth, y: ((1 - p.y) / 2) * innerHeight };
   },
@@ -310,7 +310,7 @@ function startPlay(machineId: string, limit: number, coins: number) {
 function sendDrop() {
   if (!session) return;
   socket?.send(encodeDrop(session.claw.x, session.claw.z));
-  controls?.dispose(); controls = null; heldButton = null;
+  controls?.dispose(); controls = null; letGoOfLever();
   topView?.dispose(); topView = null;
   bigZone.showAim(session.machineId, false);
   awaiting = session.machineId;
@@ -326,43 +326,42 @@ function endPlay() {
     if (!showing.has(id)) bigZone.releaseClaw(id);
   }
   session = null; awaiting = null; dropped = null; seated = null;
-  controls?.dispose(); controls = null; heldButton = null;
+  controls?.dispose(); controls = null; letGoOfLever();
   topView?.dispose(); topView = null;
   hidePlayControls(); hideSeatControls(); setInfo(null);
   if (myAvatar) myAvatar.root.visible = true;
 }
 
-// 기계 버튼 누르기 (설계 §3.10): PC는 마우스로, 휴대폰은 손가락으로 기계에 그려진 ①·② 버튼을 누르고 있는다(숫자 1·2 키도).
-// ①을 떼면 멈추고, ②를 떼면 내린다
+// 기계 조작 (설계 §3.10, 3차): PC는 마우스로, 휴대폰은 손가락으로 기계에 그려진 레버를 잡고 끌면 집게가 그쪽으로 자유롭게 가고(놓으면 멈춤),
+// 하강 버튼을 누르면 내린다. 레버는 처음 누른 곳에서 60px 끌면 최고 속도
 let controls: MachineControls | null = null;
 let topView: TopView | null = null;
-let heldButton: 1 | 2 | null = null;
+let leverDrag: { id: number; x: number; y: number } | null = null;
+let leverInput = { x: 0, z: 0 };
+const LEVER_PX = 60, LEVER_DEAD = 0.12;
 const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
-function pressButton(button: 1 | 2) {
-  if (!session || heldButton) return;
-  session.press(button);
-  if (!session.phase.startsWith('moving')) return; // 지금 누를 수 없는 버튼
-  heldButton = button;
-  controls?.setPressed(button);
-  navigator.vibrate?.(12);
-}
-function releaseButton(button: 1 | 2) {
-  if (!session || heldButton !== button) return;
-  heldButton = null;
-  controls?.setPressed(null);
-  if (session.release(button, clock()) === 'drop') sendDrop();
-}
+function letGoOfLever() { leverDrag = null; leverInput = { x: 0, z: 0 }; controls?.setPressed(false); }
 renderer.domElement.addEventListener('pointerdown', (e) => {
   if (!session || !controls) return;
   ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   raycaster.setFromCamera(ndc, camera);
-  const button = controls.pick(raycaster);
-  if (button) { e.preventDefault(); pressButton(button); }
+  const part = controls.pick(raycaster);
+  if (!part) return;
+  e.preventDefault();
+  if (part === 'lever') { leverDrag = { id: e.pointerId, x: e.clientX, y: e.clientY }; return; }
+  controls.setPressed(true);
+  navigator.vibrate?.(15);
+  if (session.requestDrop(clock())) sendDrop();
 });
-for (const type of ['pointerup', 'pointercancel'] as const) addEventListener(type, () => { if (heldButton) releaseButton(heldButton); });
-addEventListener('blur', () => { if (heldButton) releaseButton(heldButton); });
-addEventListener('keydown', (e) => { if (!e.repeat && (e.code === 'Digit1' || e.code === 'Digit2')) pressButton(e.code === 'Digit1' ? 1 : 2); });
-addEventListener('keyup', (e) => { if (e.code === 'Digit1' || e.code === 'Digit2') releaseButton(e.code === 'Digit1' ? 1 : 2); });
+addEventListener('pointermove', (e) => {
+  if (!leverDrag || e.pointerId !== leverDrag.id) return;
+  let x = (e.clientX - leverDrag.x) / LEVER_PX, z = (e.clientY - leverDrag.y) / LEVER_PX; // 화면 위 = 기계 안쪽(-z)
+  const len = Math.hypot(x, z);
+  if (len > 1) { x /= len; z /= len; }
+  leverInput = len < LEVER_DEAD ? { x: 0, z: 0 } : { x, z };
+});
+for (const type of ['pointerup', 'pointercancel'] as const) addEventListener(type, (e) => { if (!leverDrag || e.pointerId === leverDrag.id) letGoOfLever(); });
+addEventListener('blur', letGoOfLever);
 
 // 판 사이: 기계 앞 화면 그대로 "🪙1 한 번 더 / 그만하기" — 그만하기 전까지 계속 뽑는다 (서버가 hold_seconds 동안 자리를 잡아 둔다)
 function sitDown(machineId: string) {
@@ -470,15 +469,14 @@ function frame(now: number) {
     const atMachine = session?.machineId ?? awaiting ?? seated; // 기계 카메라를 쓰는 동안
     joystick.setEnabled(!atMachine); // 기계 앞에서는 기계 버튼으로 — 걷기 조이스틱은 숨긴다
     if (session) {
-      // 기계 버튼이 집게를 움직이고 캐릭터는 기계 앞에 서 있다.
+      // 기계 레버가 집게를 움직이고 캐릭터는 기계 앞에 서 있다.
       // 시간이 다 되면 여기서 내리고(sendDrop이 session을 비운다) — 그 뒤엔 session을 읽지 않는다 (읽으면 그리기 고리가 멈춘다)
       const playId = session.machineId;
-      if (session.update(dt, now / 1000) === 'drop') sendDrop();
+      if (session.update(dt, leverInput, now / 1000) === 'drop') sendDrop();
       else {
-        setTimer(session.remaining, session.phase);
-        controls?.setPhase(session.phase);
+        setTimer(session.remaining);
         controls?.update(now / 1000);
-        controls?.setLever(session.phase === 'moving-one' ? 1 : 0, session.phase === 'moving-two' ? -1 : 0);
+        controls?.setLever(leverInput.x, leverInput.z);
         const claw = bigZone.clawOf(session.machineId);
         swingOf(session.machineId);
         claw.position.set(session.claw.x, CLAW_REST.y, session.claw.z);

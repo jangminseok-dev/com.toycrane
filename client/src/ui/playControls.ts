@@ -1,18 +1,11 @@
-// 기계 한 판 화면(리퀴드 글라스): 위쪽 가운데 남은 시간과 지금 누를 버튼 안내. 집게는 기계에 그려진 ①·② 버튼으로 움직인다(설계 2026-10-31 §3.10).
+// 기계 한 판 화면(리퀴드 글라스): 위쪽 가운데 남은 시간과 조작 안내. 집게는 기계에 그려진 레버와 하강 버튼으로 움직인다(설계 2026-10-31 §3.10, 3차).
 // 판 사이에는 오른쪽 아래에 "🪙1 한 번 더"(스페이스)와 그 옆 "그만하기"(Esc)
-import type { PlayPhase } from '../game/playSession';
 import { backdropBlur } from './glass';
 
 let timerEl: HTMLDivElement | null = null, hintEl: HTMLSpanElement | null = null, timeEl: HTMLSpanElement | null = null;
 let playing = false;
 
-const HINTS: Record<PlayPhase, string> = {
-  one: '① 빨간 버튼을 누르고 있으면 → 오른쪽으로',
-  'moving-one': '→ 떼면 멈춰요',
-  two: '② 파란 버튼을 누르고 있으면 ↑ 안쪽으로',
-  'moving-two': '↑ 떼면 내려가요',
-  done: '',
-};
+const HINT = '레버를 끌어 움직이고 · 하강 버튼으로 잡아요';
 
 function build() {
   const pill = (top: string, font: string) => {
@@ -46,11 +39,10 @@ export function hidePlayControls(): void {
   if (timerEl) timerEl.style.display = 'none';
 }
 
-export function setTimer(seconds: number, phase: PlayPhase): void {
+export function setTimer(seconds: number): void {
   if (!timerEl || !hintEl || !timeEl) return;
   timeEl.textContent = `${Math.max(0, Math.ceil(seconds))}초`;
-  if (hintEl.textContent !== HINTS[phase]) hintEl.textContent = HINTS[phase];
-  hintEl.style.display = HINTS[phase] ? 'inline' : 'none';
+  if (hintEl.textContent !== HINT) hintEl.textContent = HINT;
 }
 
 let againBtn: HTMLButtonElement | null = null, standBtn: HTMLButtonElement | null = null;

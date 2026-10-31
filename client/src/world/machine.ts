@@ -12,8 +12,8 @@ import { part, toon } from './toon';
 export const CLAW_REST = new THREE.Vector3(-0.36, 1.95, 0.27); // 기계 안 좌표 — 상품 구멍 위(앞 왼쪽): 한 판은 여기서 시작한다(설계 §3.10)
 export const DOLL_FLOOR = 0.87; // 펠트 위 인형 바닥 높이
 export const DOLL_SCALE = 0.3; // 기계 속 인형 크기
-// 조작대(기계 안 좌표): 장식 레버, ① 빨강(누르는 동안 오른쪽), ② 파랑(누르는 동안 안쪽, 떼면 내림)
-export const CONTROLS = { lever: [-0.3, 0.92, 0.66], one: [0.12, 0.925, 0.66], two: [0.32, 0.925, 0.66] } as const;
+// 조작대(기계 안 좌표): 레버(끌면 집게가 그쪽으로), 큰 빨간 하강 버튼 하나 (설계 §3.10, 3차)
+export const CONTROLS = { lever: [-0.3, 0.92, 0.66], drop: [0.26, 0.925, 0.66] } as const;
 
 // 기계마다 원색 몸통·펠트 색을 배치 순서대로 돌려 쓴다
 export const MACHINE_COLORS = [0xe8384f, 0xffb81f, 0x2f7cf6, 0xff4f9a, 0x22b36b, 0x8b5cf6, 0xff8a1f, 0x12b5cb];
@@ -96,10 +96,9 @@ export function makeMachineParts(spot: MachineSpot, index: number): MachineParts
   add(part(g.leverBase, chrome, [lx, ly, lz], [1, 1, 1], [0, 0, 0], 0));
   add(part(g.stick, chrome, [lx, ly + 0.04, lz], [1, 1, 1], [0, 0, 0], 0));
   add(part(g.ball, toon(0xff3b5c), [lx, ly + 0.1, lz]));
-  for (const [[x, y, z], c] of [[CONTROLS.one, 0xff3b5c], [CONTROLS.two, 0x3b8bff]] as const) {
-    add(part(g.ring, chrome, [x, y - 0.01, z], [1, 1, 1], [0, 0, 0], 0));
-    add(part(g.dome, toon(c), [x, y, z], [1, 0.45, 1], [0, 0, 0], 1.04));
-  }
+  const [dx, dy, dz] = CONTROLS.drop;
+  add(part(g.ring, chrome, [dx, dy - 0.01, dz], [1.45, 1, 1.45], [0, 0, 0], 0));
+  add(part(g.dome, toon(0xff3b5c), [dx, dy, dz], [1.45, 0.6, 1.45], [0, 0, 0], 1.04));
   // 유리 칸: 크롬 기둥 · 펠트 · 뒷판 그림 · 천장 조명판 · 레일
   for (const [x, z] of [[-0.57, -0.5], [0.57, -0.5], [-0.57, 0.5], [0.57, 0.5]]) add(part(g.pillar, chrome, [x, 1.4, z], [1, 1, 1], [0, 0, 0], 1.04));
   add(part(g.felt, toon(FELT_COLORS[felt]), [0, 0.86, 0], [1, 1, 1], [0, 0, 0], 0));
