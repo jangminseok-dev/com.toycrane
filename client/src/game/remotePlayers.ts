@@ -38,6 +38,7 @@ export class RemotePlayers {
   remove(id: string): void {
     const r = this.remotes.get(id);
     if (!r) return;
+    void r.begging?.stop(); // 조르기 모션은 stop()까지 되풀이한다 (최종 리뷰 I2)
     this.scene.remove(r.avatar.root);
     r.avatar.dispose();
     this.remotes.delete(id);

@@ -13,11 +13,12 @@ import { Tweens, ease } from './game/tween';
 import { sfx, unlockAudio } from './audio/sfx';
 import { AutoWalk, nearestCounter } from './game/autoWalk';
 import { OcclusionFader } from './game/occlusion';
+import { CoinShow } from './game/coinShow';
 import { RemotePlayers } from './game/remotePlayers';
 import { installJoystick } from './input/joystick';
 import { readKeyboard } from './input/keyboard';
 import { admit, createGuest, getGuest, type Guest } from './net/api';
-import { encodeBeg, encodeCounterBeg, encodeDrop, encodeGive, encodeMove, encodePlay, encodeStand, encodeTake, encodeTick, lookOf, type DollSpot, type Result, type ServerMsg } from './net/protocol';
+import { encodeBeg, encodeCounterBeg, encodeDrop, encodeGive, encodeMove, encodePlay, encodeStand, encodeTake, encodeTick, lookOf, type Coins, type DollSpot, type Result, type ServerMsg } from './net/protocol';
 import { closeAction, nextDelay, retrying } from './net/reconnect';
 import { safeStorage } from './net/storage';
 import { StoreSocket, storeUrl } from './net/storeSocket';
@@ -199,6 +200,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       setStatus(null);
       hideEntry();
       remotes.clear();
+      setMyBegging(false); coinShow.reset(); // 다시 들어오면 서버에는 조르기가 없다 (최종 리뷰 I2)
       me = new LocalPlayer({ x: m.you.x, z: m.you.z });
       sampler = new InputSampler(); // 새로 들어오면 스폰 위치부터 다시 보낸다
       if (myAvatar) { scene.remove(myAvatar.root); myAvatar.dispose(); }
@@ -264,17 +266,23 @@ function onMessage(m: ServerMsg, guest: Guest) {
       if (m.id === myId) setMyBegging(m.room !== null);
       else remotes.setBegging(m.id, m.room, tw);
       break;
-    case 'gave': void gaveShow(m.from, m.to, m.n); break;
+    case 'gave':
+      if (m.to === myId) coinShow.gaveMe();
+      void gaveShow(m.from, m.to, m.n);
+      break;
     case 'give_no': toast(UI.giveNo[m.why] ?? UI.giveNo.poor); break;
-    case 'cbeg_no':
-      counterNote = { text: m.why === 'wait' ? UI.begWait(Math.max(1, Math.ceil(m.wait / 60))) : m.why === 'full' ? UI.full : UI.giveNo.far, until: now / 1000 + 4 };
+    case 'cbeg_no': {
+      const text = m.why === 'wait' ? UI.begWait(Math.max(1, Math.ceil(m.wait / 60))) : m.why === 'full' ? UI.full : UI.giveNo.far;
+      if (m.why === 'wait') coinShow.holdNote(text); // 바로 앞의 cbeg(0개)로 시작한 조르는 모션이 끝나면 보인다
+      else { counterNote = { text, until: now / 1000 + 4 }; endCounterBeg(); }
       break;
-    case 'coins':
-      wallet.coins = m.n;
-      setHud(wallet.coins, wallet.bag);
-      if (m.got > 0) toast(`🪙 +${m.got}`); // 준 사람(got<0)에게는 '줬어요' 알림이 따로 간다
-      if (seated) showSeat();
+    }
+    case 'coins': {
+      const { show, toast: plus } = coinShow.coins(m);
+      if (show) showCoins(show);
+      if (plus) toast(`🪙 +${m.got}`); // 준 사람(got<0)·받은 사람에게는 '줬어요' 알림이 따로 간다
       break;
+    }
     case 'join': remotes.add(m.p, now); if (m.p.beg != null) remotes.setBegging(m.p.id, m.p.beg, tw); break;
     case 'move': remotes.move(m, now); break;
     case 'leave':
@@ -289,6 +297,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
 function onClose(code: number, guest: Guest) {
   socket = null;
   remotes.clear();
+  setMyBegging(false); coinShow.reset();
   const action = closeAction(code);
   if (action === 'stop') return showMessage('이 창은 멈췄어요', '다른 창에서 접속해서 이 창은 멈췄어요. 새로 고침하면 이 창으로 다시 들어와요.');
   if (action === 'restart') return void restart();
@@ -492,6 +501,7 @@ function showMachineUi(): boolean {
 
 // ---------- 조르기·주기 (교환소 개편 설계 §4.3·§4.4·§4.8) ----------
 let myBegging = false, myBeg: { stop(): Promise<void> } | null = null;
+const coinShow = new CoinShow();
 const rigOfPlayer = (id: string) => (id === myId ? myAvatar?.rig ?? null : remotes.rigOf(id));
 function setMyBegging(on: boolean) {
   myBegging = on;
@@ -510,12 +520,28 @@ async function counterBegShow(id: string, counter: number, n: number) {
     await tw.wait(3);
     await beg.stop();
   }
+  const mine = id === myId; // 내 결과(코인 수·안내)는 조르는 모션이 끝난 지금 보인다 (최종 리뷰 I3)
   if (n > 0) {
     const c = COUNTERS[counter];
     burst(scene, new THREE.Vector3(c.window[0], 1.4, c.window[1]), [0xffd36b, 0xfff6b0, 0xff9fd8], 26);
+    if (mine) { endCounterBeg(); toast(UI.gotCoins(n)); }
     if (rig) await playHappy(rig, tw);
-    if (id === myId) toast(UI.gotCoins(n));
-  } else if (rig) await playSulk(rig, tw);
+  } else {
+    if (mine) endCounterBeg();
+    if (rig) await playSulk(rig, tw);
+  }
+}
+
+function endCounterBeg() {
+  const { coins, note } = coinShow.endBeg();
+  if (coins) showCoins(coins);
+  if (note) counterNote = { text: note, until: performance.now() / 1000 + 4 };
+}
+
+function showCoins(m: Coins) {
+  wallet.coins = m.n;
+  setHud(wallet.coins, wallet.bag);
+  if (seated) showSeat();
 }
 
 // 코인 주기: 주는 사람이 건네고 받는 사람이 기뻐한다 (모두의 화면), 두 사람에게 알림
@@ -539,7 +565,10 @@ function showMapUi() {
     const max = Math.min(wallet.coins, beggar.room);
     setAction(UI.give, () => {
       if (max > 0) openGiveSheet({ nick: beggar.nick, max, onGive: (n) => socket?.send(encodeGive(beggar.id, n)) });
-    }, { status: max > 0 ? UI.someoneBegs(beggar.nick) : wallet.coins > 0 ? UI.giveNo.full : UI.giveNo.poor, dim: max === 0 });
+    }, {
+      status: max > 0 ? UI.someoneBegs(beggar.nick) : wallet.coins > 0 ? UI.giveNo.full : UI.giveNo.poor, dim: max === 0,
+      extra: { label: UI.beg, onPress: () => socket?.send(encodeBeg(true)) }, // 조르기는 늘 있다 (설계 §4.3)
+    });
     return;
   }
   setAction(myBegging ? UI.stopBeg : UI.beg, () => socket?.send(encodeBeg(!myBegging)));
@@ -562,7 +591,7 @@ function showCounterUi(nowSec: number): boolean {
   const enough = wallet.coins >= TAKE_LIMIT;
   setAction(UI.takeCoins, () => { if (!enough) socket?.send(encodeTake(near.id)); }, {
     status: counterNote?.text ?? (enough ? UI.enough : null), dim: enough,
-    extra: { label: UI.beg, onPress: () => socket?.send(encodeCounterBeg(near.id)) },
+    extra: { label: UI.beg, onPress: () => { if (coinShow.startBeg()) socket?.send(encodeCounterBeg(near.id)); } },
   });
   return true;
 }

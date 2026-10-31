@@ -31,3 +31,18 @@ test('remotes blocking my view fade out and come back', () => {
   for (let i = 0; i < 20; i++) remotes.fade(null, 1 / 30);
   expect(remotes.fadeOf('p2')).toBe(1);
 });
+
+// 조르던 사람이 나가거나 다시 접속해 목록을 비우면 그 사람의 조르기 모션도 멈춘다 (최종 리뷰 I2)
+test('removing a begging remote stops its begging loop', async () => {
+  const remotes = new RemotePlayers(new THREE.Scene()), tw = new Tweens();
+  remotes.add(view('p2', 1, 0), 0);
+  remotes.setBegging('p2', 40, tw);
+  const rig = remotes.rigOf('p2')!;
+  const run = async (secs: number) => { for (let t = 0; t < secs; t += 0.05) { tw.update(0.05); await new Promise((r) => setTimeout(r)); } };
+  await run(1);
+  remotes.clear();
+  await run(1);
+  const seen: number[] = [];
+  for (let i = 0; i < 10; i++) { await run(0.05); seen.push(rig.crouch); }
+  expect(seen).toEqual(Array(10).fill(0));
+});
