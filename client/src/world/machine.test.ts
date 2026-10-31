@@ -36,3 +36,13 @@ test('six machines bake into a small number of materials', () => {
   for (let i = 0; i < 6; i++) g.add(makeMachineParts(MACHINES[i], i).statics);
   expect(bakeByMaterial(g).length).toBeLessThanOrEqual(30 + 3 * 6);
 });
+
+// 휴대폰: 기계 35대라 한 대의 삼각형 수가 그대로 곱해진다 — 둥근 상자 마디·외곽선이 과하지 않게 (최종 리뷰 I5)
+test('one machine stays light in triangles', () => {
+  let tris = 0;
+  makeMachineParts(MACHINES[0], 0).statics.traverse((o) => {
+    const geo = (o as THREE.Mesh).geometry;
+    if ((o as THREE.Mesh).isMesh && geo) tris += (geo.index ? geo.index.count : geo.attributes.position.count) / 3;
+  });
+  expect(tris).toBeLessThan(9000);
+});

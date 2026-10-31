@@ -36,7 +36,9 @@ function outlined(g: CanvasRenderingContext2D, text: string, x: number, y: numbe
 
 // 기계 위 간판: 위는 밝고 아래는 기계 색인 그라데이션 + 흰 별 + 흰 둥근 테두리 + 둥근 글씨
 export function signTex(text: string, color: number): THREE.CanvasTexture {
-  return canvasTex(1024, 320, (g) => {
+  // 기계마다 하나라 35장 — 1024×320로 그린 그림을 반 크기 캔버스에 담는다 (휴대폰 메모리)
+  return canvasTex(512, 160, (g) => {
+    g.scale(0.5, 0.5);
     const c = new THREE.Color(color), light = c.clone().lerp(new THREE.Color(0xffffff), 0.35);
     const grd = g.createLinearGradient(0, 0, 0, 320); grd.addColorStop(0, css(light.getHex())); grd.addColorStop(1, css(color));
     g.fillStyle = grd; g.fillRect(0, 0, 1024, 320);

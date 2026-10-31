@@ -80,3 +80,12 @@ test('marquee bulbs chase around over time', () => {
   zone.update(0.2);
   expect(Array.from(bulbs.instanceColor!.array)).not.toEqual(a);
 });
+
+// 간판 전구는 2.4cm짜리라 각진 작은 구로 충분하다 — 35대 × 58개 (최종 리뷰 I5)
+test('marquee bulbs are cheap little gems', () => {
+  const scene = new THREE.Scene();
+  buildBigZone(scene);
+  const bulbs = scene.getObjectByName('bulbs-big-island') as THREE.InstancedMesh;
+  const geo = bulbs.geometry;
+  expect((geo.index ? geo.index.count : geo.attributes.position.count) / 3).toBeLessThanOrEqual(40);
+});

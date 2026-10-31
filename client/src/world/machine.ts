@@ -27,7 +27,7 @@ type V3 = [number, number, number];
 const flat = (geo: THREE.BufferGeometry, mat: THREE.Material, pos: V3, rot: V3 = [0, 0, 0]) => {
   const m = new THREE.Mesh(geo, mat); m.position.set(...pos); m.rotation.set(...rot); return m;
 };
-const rbox = (w: number, h: number, d: number, r: number) => new RoundedBoxGeometry(w, h, d, 3, r);
+const rbox = (w: number, h: number, d: number, r: number) => new RoundedBoxGeometry(w, h, d, 1, r); // 모서리 마디 1 — 툰 칠·외곽선에서는 차이가 안 보이고 삼각형은 훨씬 적다
 
 const G = once(() => ({
   cabinet: rbox(1.2, 0.85, 1.05, 0.04), front: rbox(1.04, 0.5, 0.02, 0.008), chute: rbox(0.32, 0.24, 0.03, 0.01),

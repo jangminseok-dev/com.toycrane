@@ -38,7 +38,7 @@ type Unit = {
 };
 // 간판 둘레 전구: 행마다 InstancedMesh 하나, 켜졌다 꺼지며 돈다(3개 중 하나가 어둡게, 초당 8칸). 당첨 땐 그 기계 전구가 분홍·금색으로 깜빡
 const BULB = { bright: new THREE.Color(0xfff4c8), dim: new THREE.Color(0x8a8070), hot: new THREE.Color(0xff5fa2), gold: new THREE.Color(0xffd36b) };
-const bulbGeo = new THREE.SphereGeometry(0.024, 10, 8);
+const bulbGeo = new THREE.IcosahedronGeometry(0.024, 0); // 2.4cm라 각진 작은 구로 충분 (35대 × 58개)
 const rigPool: ClawRig[] = [];
 
 // 인형 종류마다 lite 모양을 재질별로 한 번만 합쳐 두고, 다시 합칠 때는 옮겨 붙이기만 한다
