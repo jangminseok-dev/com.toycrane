@@ -1,6 +1,7 @@
 import { beforeAll, expect, test } from 'vitest';
 import { MACHINE_SPEC } from '../data/storeLayout';
 import type { DollSpot } from '../net/protocol';
+import { fillMachine, seededRandom, settleSpots } from '../../sim/world';
 import { stubCanvas } from '../test/canvasStub';
 import { DOLL_FLOOR } from '../world/machine';
 import { ClawBody } from './clawBody';
@@ -72,4 +73,20 @@ test('a slow frame catches up with several steps', () => {
   runner.advance(0.1);
   expect(world.time - t0).toBeCloseTo(12 / 120, 5);
   world.dispose();
+});
+
+// 집게에 맞은 인형이 탱탱볼처럼 튕겨 나가지 않는다 (사용자 2026-11-01): 기본 접촉 강성(30Hz)에서는 내려가는 손가락이 인형을 2.3m/s로 쳐 냈다 — 접촉을 부드럽게(8Hz)
+test('a doll knocked by the descending claw never flies off', () => {
+  let worst = 0;
+  // 채워진 기계(시뮬의 무작위 배치) 속 두 인형 사이로 내려간다 — 손가락이 인형을 밀며 들어가는 흔한 자리
+  for (let seed = 1; seed <= 3; seed++) {
+    const spots = settleSpots(R, fillMachine('bear', seededRandom(seed)));
+    const world = new MachineWorld(R, spots);
+    const [x, z] = [(spots[0][1] + spots[1][1]) / 2, (spots[0][3] + spots[1][3]) / 2];
+    runCycle(world, new ClawBody(R, world), x, z, {
+      frame: (_c, _m, phase) => { if (phase === 'descend' || phase === 'close') for (const uid of world.uids()) { const v = world.bodyOf(uid)!.linvel(); worst = Math.max(worst, Math.hypot(v.x, v.y, v.z)); } },
+    });
+    world.dispose();
+  }
+  expect(worst).toBeLessThan(0.8);
 });

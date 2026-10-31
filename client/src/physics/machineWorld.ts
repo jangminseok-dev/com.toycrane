@@ -27,6 +27,7 @@ const REDROP_GAP = 0.2;
 const HOLE_HALF = CLAW.hole.size / 2;
 const STRADDLE_ROUNDS = 3; // 걸친 인형을 다시 떨어뜨리는 횟수 한도 (먼 칸으로 가니 보통 한 번이면 된다)
 const REFILL_SETTLE = 6; // 채우기 앉히기: 마지막 인형이 떨어진 뒤 이만큼(물리 시간) — 무더기는 5초쯤 걸린다
+const CONTACT_HZ = 12; // 접촉 강성(기본 30Hz): 봉제 인형은 푹신해서 쇠 집게에 맞아도 튕겨 나가지 않는다 — 30Hz면 2.3m/s로 튕기고, 8Hz는 무더기가 앉는 데 7초가 걸린다
 const STILL_V = 0.02, STILL_W = 0.1; // 이보다 느리면 멈춘 것 (m/s, rad/s) — 무더기 속 인형은 아주 천천히 기어 오래 안 잠든다 // 채우기 중 구멍에 빠진 인형을 다시 떨어뜨릴 때 다른 인형과 띄우는 거리
 
 export class MachineWorld {
@@ -42,6 +43,7 @@ export class MachineWorld {
   constructor(readonly R: Rapier, spots: DollSpot[]) {
     this.world = new R.World({ x: 0, y: -9.81, z: 0 });
     this.world.timestep = STEP;
+    this.world.integrationParameters.contact_natural_frequency = CONTACT_HZ;
     this.buildBox();
     let drops = 0;
     for (const s of [...spots].sort((a, b) => a[12] - b[12])) {

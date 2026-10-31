@@ -289,7 +289,7 @@ LAYOUT = {'machine': {'front': 1.15,
            {'kind': 'figure', 'rect': [1.6, 11.75, 11.2, 14], 'ry': 3.141593},
            {'kind': 'shelf', 'rect': [8.2, 0, 9.2, 6], 'ry': -1.570796}]}
 
-CLAW = {'base_force': 5.0,
+CLAW = {'base_force': 4.8,
  'spread': 0.4,
  'quality': {'three': 1.0, 'two': 0.5},
  'carry_relax': 0.6,

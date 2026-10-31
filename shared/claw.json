@@ -1,5 +1,5 @@
 {
-  "base_force": 5.0,
+  "base_force": 4.8,
   "spread": 0.4,
   "quality": {"three": 1.0, "two": 0.5},
   "carry_relax": 0.6,

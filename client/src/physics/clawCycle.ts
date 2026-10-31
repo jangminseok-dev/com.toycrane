@@ -19,7 +19,7 @@ export type CycleResult = { won: number[]; poses: DollPose[]; held: number | nul
 
 const DESCEND_SPEED = 0.35, LIFT_SPEED = 0.25, CARRY_SPEED = MACHINE_SPEC.claw_speed;
 const CATCH_UP_STEPS = 12;
-const CLOSE_SECONDS = 0.6, RELEASE_SECONDS = 0.3, AFTER_RELEASE = 0.2, FLOOR_GAP = 0.01, LIFT_EASE = 1.0, LIFT_PAUSE = 0.15;
+const CLOSE_SECONDS = 0.6, RELEASE_SECONDS = 0.3, AFTER_RELEASE = 0.2, FLOOR_GAP = 0.01, LIFT_EASE = 0.5, LIFT_PAUSE = 0; // 쥔 뒤 멈춤 없이 바로 서서히 — 멈추면 프레임이 끊긴 것처럼 보인다 (사용자 2026-11-01)
 const CARRY_TO = { x: MACHINE_SPEC.hole[0], z: MACHINE_SPEC.hole[1] };
 
 export class CycleRunner {
