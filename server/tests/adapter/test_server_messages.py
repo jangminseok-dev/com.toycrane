@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from toycrane.adapter.inbound.ws.schemas.server_messages import (
-    bag, coins, correct, free, join, leave, machine, move, play, play_no, play_ok, queue, queue_no, result, spawn, stock, welcome,
+    bag, coins, correct, free, join, leave, machine, move, play, play_no, play_ok, result, spawn, stock, take_no, cbeg, cbeg_no, welcome,
 )
 from toycrane.app.dtos.drop_dto import ResultView
 from toycrane.app.dtos.player_view import PlayerView
@@ -21,7 +21,7 @@ def test_welcome_matches_fixture():
     snap = StoreSnapshot(
         coins=5, bag=2,
         machines={"A-1": [DollSpot("bunny", 0.1204, -0.0501, 1.5703, 0.0, 2, "n", 1, "", 1), DollSpot("bunny", -0.2, 0.1, 3.1, 0.21, 0, "c", 3, "star", 2)]},
-        queues=[["p2"], []], plays={"A-3": "p2"},
+        plays={"A-3": "p2"},
     )
     assert welcome(fx["store"], view(fx["you"]), [view(p) for p in fx["players"]], snap) == fx
 
@@ -46,9 +46,10 @@ def test_positions_are_rounded_for_the_wire():
     }
 
 
-def test_queue_and_coin_messages_match_fixtures():
-    assert queue(0, ["p1", "p2"]) == FX["server_queue"]
-    assert queue_no(0, "full") == FX["server_queue_no"]
+def test_counter_and_coin_messages_match_fixtures():
+    assert take_no(0, "enough") == FX["server_take_no"]
+    assert cbeg("p1", 0, 37) == FX["server_cbeg"]
+    assert cbeg_no(0, "wait", 299.2) == FX["server_cbeg_no"]  # 남은 초는 올림
     assert coins(10, 5) == FX["server_coins"]
 
 

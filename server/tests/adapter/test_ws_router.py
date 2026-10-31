@@ -20,3 +20,8 @@ def test_stand_message_has_a_handler():
 def test_tick_message_has_a_handler():
     from toycrane.adapter.inbound.ws.ws_router import HANDLERS
     assert "tick" in HANDLERS
+
+
+def test_counter_messages_replace_the_old_queue():
+    from toycrane.adapter.inbound.ws.ws_router import HANDLERS
+    assert {"take", "cbeg"} <= HANDLERS.keys() and not {"queue", "unqueue"} & HANDLERS.keys()

@@ -28,11 +28,16 @@ class ConnectionsPort(ABC):
     def kick(self, conn_id: str, code: int, reason: str) -> None: ...
 
     @abstractmethod
-    def broadcast_queue(self, counter: int, player_ids: list[str]) -> None:
-        """교환소 줄 순서를 모두에게(맨 앞이 0번)."""
+    def send_take_no(self, conn_id: str, counter: int, why: str) -> None:
+        """코인 받기 거절: "far"(창구에서 멂) | "enough"(15개 이상)."""
 
     @abstractmethod
-    def send_queue_no(self, conn_id: str, counter: int, why: str) -> None: ...
+    def broadcast_counter_beg(self, player_id: str, counter: int, n: int) -> None:
+        """교환소 조르기 결과를 모두에게 — n개를 받음, 0이면 쿨타임 거절(시무룩)."""
+
+    @abstractmethod
+    def send_counter_beg_no(self, conn_id: str, counter: int, why: str, wait: float) -> None:
+        """교환소 조르기 거절(본인에게): "wait"(wait초 뒤) | "full"(99개) | "far"."""
 
     @abstractmethod
     def send_coins(self, conn_id: str, total: int, got: int) -> None: ...

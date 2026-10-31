@@ -13,7 +13,7 @@ export type DollLook = { color: number; body: Body; face: number; rare: string }
 export const lookOf = (s: DollSpot): DollLook => ({ color: s[5], body: s[6], face: s[7], rare: s[8] });
 export type Welcome = {
   t: 'welcome'; v: number; store: number; you: PlayerView; players: PlayerView[];
-  coins: number; bag: number; machines: Record<string, DollSpot[]>; queues: string[][]; plays: Record<string, string>;
+  coins: number; bag: number; machines: Record<string, DollSpot[]>; queues?: string[][]; plays: Record<string, string>; // queues: 옛 줄 — 5단계 Task 5에서 지움
 };
 export type Join = { t: 'join'; p: PlayerView };
 export type Move = { t: 'move'; id: string; x: number; z: number; dx: number; dz: number };
@@ -62,7 +62,7 @@ export function decode(raw: string): ServerMsg | null {
   if (!m || typeof m !== 'object') return null;
   switch (m.t) {
     case 'welcome': return m.v === PROTOCOL && num(m.store) && isPlayer(m.you) && Array.isArray(m.players) && m.players.every(isPlayer)
-      && num(m.coins) && num(m.bag) && isMachines(m.machines) && Array.isArray(m.queues) && !!m.plays && typeof m.plays === 'object' ? (m as Welcome) : null;
+      && num(m.coins) && num(m.bag) && isMachines(m.machines) && !!m.plays && typeof m.plays === 'object' ? (m as Welcome) : null;
     case 'join': return isPlayer(m.p) ? (m as Join) : null;
     case 'move': return str(m.id) && pose(m) ? (m as Move) : null;
     case 'correct': return num(m.x) && num(m.z) ? (m as Correct) : null;
@@ -92,7 +92,7 @@ export function encodeMove(p: Vec2, d: Vec2): string {
 
 export const encodeQueue = (c: number) => JSON.stringify({ t: 'queue', c });
 export const encodeUnqueue = () => JSON.stringify({ t: 'unqueue' });
-export const encodeTake = () => JSON.stringify({ t: 'take' });
+export const encodeTake = (c = 0) => JSON.stringify({ t: 'take', c }); // 5단계 Task 5·7에서 교환소 번호를 꼭 넘기게
 export const encodePlay = (m: string) => JSON.stringify({ t: 'play', m });
 export const encodeDrop = (x: number, z: number) => JSON.stringify({ t: 'drop', x: round(x, 3), z: round(z, 3) });
 export const encodeStand = () => JSON.stringify({ t: 'stand' }); // 판 사이에 "그만하기"

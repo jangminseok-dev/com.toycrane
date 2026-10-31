@@ -51,11 +51,14 @@ class WsConnectionsAdapter(ConnectionsPort):
     def send_correction(self, conn_id: str, x: float, z: float) -> None:
         self._to_one(conn_id, server_messages.correct(x, z))
 
-    def broadcast_queue(self, counter: int, player_ids: list[str]) -> None:
-        self._to_all_except(None, server_messages.queue(counter, player_ids))
+    def send_take_no(self, conn_id: str, counter: int, why: str) -> None:
+        self._to_one(conn_id, server_messages.take_no(counter, why))
 
-    def send_queue_no(self, conn_id: str, counter: int, why: str) -> None:
-        self._to_one(conn_id, server_messages.queue_no(counter, why))
+    def broadcast_counter_beg(self, player_id: str, counter: int, n: int) -> None:
+        self._to_all_except(None, server_messages.cbeg(player_id, counter, n))
+
+    def send_counter_beg_no(self, conn_id: str, counter: int, why: str, wait: float) -> None:
+        self._to_one(conn_id, server_messages.cbeg_no(counter, why, wait))
 
     def send_coins(self, conn_id: str, total: int, got: int) -> None:
         self._to_one(conn_id, server_messages.coins(total, got))

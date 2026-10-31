@@ -12,14 +12,12 @@ from toycrane.app.ports.output.machine_contents_port import MachineContentsPort
 from toycrane.app.ports.output.occupancy_port import OccupancyPort
 from toycrane.app.ports.output.play_lock_port import PlayLockPort
 from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
-from toycrane.app.ports.output.queue_registry_port import QueueRegistryPort
 from toycrane.app.ports.output.wallet_port import WalletPort
 from toycrane.app.use_cases.connection_cleanup import release_connection
 from toycrane.app.use_cases.machine_contents import ensure_contents
 from toycrane.app.use_cases.occupancy_note import note_occupancy
 from toycrane.domain.coins import WALLET_CAP
 from toycrane.domain.entities.player import Player
-from toycrane.domain.layout import COUNTERS
 from toycrane.domain.store_rules import STORE_CAPACITY, spawn_position
 from toycrane.domain.value_objects.heading import Heading
 
@@ -28,7 +26,7 @@ KICK_OTHER_TAB = 4003
 
 class EnterInteractor(EnterUseCase):
     """매장에 들어오기: 같은 게스트의 이전 접속은 내보내고, 정원 안이면 스폰 링에 세운다.
-    welcome에는 내 코인·가방, 기계 속 인형, 교환소 줄, 하는 중인 기계를 함께 담는다."""
+    welcome에는 내 코인·가방, 기계 속 인형, 하는 중인 기계를 함께 담는다."""
 
     def __init__(
         self,
@@ -40,7 +38,6 @@ class EnterInteractor(EnterUseCase):
         wallet: WalletPort,
         bag: BagPort,
         contents: MachineContentsPort,
-        queues: QueueRegistryPort,
         locks: PlayLockPort,
         rng: random.Random,
     ) -> None:
@@ -51,7 +48,6 @@ class EnterInteractor(EnterUseCase):
         self._wallet = wallet
         self._bag = bag
         self._contents = contents
-        self._queues = queues
         self._locks = locks
         self._rng = rng
 
@@ -64,7 +60,7 @@ class EnterInteractor(EnterUseCase):
         for conn_id, old in self._registry.entries():
             if old.guest_id == cmd.guest_id:
                 # 같은 게스트의 이전 접속(네트워크가 바뀜·다른 탭): 하던 기계·줄을 정리하고 내보낸다
-                refund += release_connection(conn_id, self._queues, self._locks, self._connections, cmd.now)
+                refund += release_connection(conn_id, self._locks, self._connections)
                 self._registry.remove(conn_id)
                 self._connections.kick(conn_id, KICK_OTHER_TAB, "다른 창에서 접속")
                 self._connections.broadcast_leave(cmd.conn_id, old.player_id)
@@ -84,7 +80,6 @@ class EnterInteractor(EnterUseCase):
             coins=min(coins + refund, WALLET_CAP),
             bag=bag,
             machines={m: s.dolls for m, s in stocks.items()},
-            queues=[[m.player_id for m in self._queues.members(c.id)] for c in COUNTERS],
             plays=self._locks.plays(),
         )
         self._connections.send_welcome(cmd.conn_id, cmd.store_no, you, list(result.others), snapshot)

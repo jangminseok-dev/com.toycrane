@@ -2,7 +2,6 @@
 
 from toycrane.adapter.inbound.ws.schemas import server_messages
 from toycrane.app.dtos.guest_dto import GuestView
-from toycrane.app.dtos.queue_dto import QueueMember
 from toycrane.domain.entities.player import Player
 from toycrane.domain.value_objects.heading import Heading
 from toycrane.domain.value_objects.position import Position
@@ -102,11 +101,14 @@ class FakeConnections:
     def kick(self, conn_id: str, code: int, reason: str) -> None:
         self.kicked.append((conn_id, code))
 
-    def broadcast_queue(self, counter, player_ids) -> None:
-        self.broadcasts.append((None, server_messages.queue(counter, player_ids)))
+    def send_take_no(self, conn_id, counter, why) -> None:
+        self.direct.append((conn_id, server_messages.take_no(counter, why)))
 
-    def send_queue_no(self, conn_id, counter, why) -> None:
-        self.direct.append((conn_id, server_messages.queue_no(counter, why)))
+    def broadcast_counter_beg(self, player_id, counter, n) -> None:
+        self.broadcasts.append((None, server_messages.cbeg(player_id, counter, n)))
+
+    def send_counter_beg_no(self, conn_id, counter, why, wait) -> None:
+        self.direct.append((conn_id, server_messages.cbeg_no(counter, why, wait)))
 
     def send_coins(self, conn_id, total, got) -> None:
         self.direct.append((conn_id, server_messages.coins(total, got)))
@@ -147,7 +149,19 @@ class FakeWallet:
 
     def __init__(self, balances: dict[str, int] | None = None) -> None:
         self.coins = dict(balances or {})
+        self.begged: dict[str, float] = {}
         self.spent = 0
+
+    async def beg(self, guest_id: str, n: int, cap: int, cooldown: float, now: float) -> int | None:
+        at = self.begged.get(guest_id)
+        if (at is not None and at > now - cooldown) or self.coins.get(guest_id, 0) >= cap:
+            return None
+        self.coins[guest_id] = min(self.coins.get(guest_id, 0) + n, cap)
+        self.begged[guest_id] = now
+        return self.coins[guest_id]
+
+    async def begged_at(self, guest_id: str) -> float | None:
+        return self.begged.get(guest_id)
 
     async def balance(self, guest_id: str) -> int:
         return self.coins.get(guest_id, 0)
@@ -228,34 +242,6 @@ def stocks_with_empty(machine_id: str, next_at: float) -> dict:
     full = stocks[machine_id]
     stocks[machine_id] = MachineStock(full.dolls[1:], next_at, full.next_uid)
     return stocks
-
-
-class FakeQueues:
-    """교환소 줄(attachment) 가짜. player_ids: 접속 → player_id."""
-
-    def __init__(self, player_ids: dict[str, str] | None = None) -> None:
-        self.player_ids = dict(player_ids or {})
-        self.rows: dict[str, dict] = {}
-
-    def members(self, counter: int) -> list[QueueMember]:
-        rows = sorted((r["at"], c) for c, r in self.rows.items() if r["c"] == counter)
-        return [QueueMember(c, self.player_ids.get(c, c.replace("c-", "p")), at, self.rows[c]["head"]) for at, c in rows]
-
-    def counter_of(self, conn_id: str) -> int | None:
-        row = self.rows.get(conn_id)
-        return row["c"] if row else None
-
-    def join(self, conn_id: str, counter: int, now: float) -> None:
-        self.rows[conn_id] = {"c": counter, "at": now, "head": None}
-
-    def remove(self, conn_id: str) -> None:
-        self.rows.pop(conn_id, None)
-
-    def mark_head(self, conn_id: str, now: float) -> None:
-        self.rows[conn_id]["head"] = now
-
-    def head_since(self, conn_id: str) -> float | None:
-        return self.rows[conn_id]["head"]
 
 
 class FakeLocks:

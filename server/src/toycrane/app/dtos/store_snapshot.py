@@ -10,5 +10,4 @@ class StoreSnapshot:
     coins: int
     bag: int
     machines: dict[str, list[DollSpot]]  # 기계 id → 기계 속 인형
-    queues: list[list[str]]              # 교환소 순서대로 줄 선 player_id (맨 앞이 0번)
     plays: dict[str, str]                # 기계 id → 하는 사람 player_id

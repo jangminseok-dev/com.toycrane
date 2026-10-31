@@ -5,7 +5,7 @@ import random
 import pytest
 
 from fakes import (
-    BrokenOccupancy, FakeBag, FakeConnections, FakeContents, FakeLocks, FakeOccupancy, FakeQueues, FakeRegistry, FakeWallet, player,
+    BrokenOccupancy, FakeBag, FakeConnections, FakeContents, FakeLocks, FakeOccupancy, FakeRegistry, FakeWallet, player,
     stocks_with_empty,
 )
 from toycrane.adapter.inbound.ws.schemas.server_messages import join, leave
@@ -15,11 +15,11 @@ from toycrane.app.use_cases.enter_interactor import EnterInteractor
 from toycrane.app.use_cases.stock_interactor import StockInteractor
 
 
-def enter_interactor(reg=None, conns=None, occ=None, new_id=lambda: "p-1", wallet=None, bag=None, contents=None, queues=None, locks=None):
+def enter_interactor(reg=None, conns=None, occ=None, new_id=lambda: "p-1", wallet=None, bag=None, contents=None, locks=None):
     return EnterInteractor(
         reg or FakeRegistry(), conns or FakeConnections(), occ or FakeOccupancy(), new_player_id=new_id,
         wallet=wallet or FakeWallet(), bag=bag or FakeBag(), contents=contents or FakeContents(),
-        queues=queues or FakeQueues(), locks=locks or FakeLocks(), rng=random.Random(1),
+        locks=locks or FakeLocks(), rng=random.Random(1),
     )
 
 
@@ -80,7 +80,7 @@ async def test_welcome_carries_coins_bag_and_machines():
     snap = conns.direct[0][1]
     assert snap["coins"] == 7 and snap["bag"] == 2
     assert len(snap["machines"]) == 24 and all(len(v) == 9 for v in snap["machines"].values())
-    assert snap["queues"] == [[], [], [], []] and snap["plays"] == {}
+    assert "queues" not in snap and snap["plays"] == {}
     assert contents.saves == 1
 
 
@@ -92,29 +92,26 @@ async def test_second_enter_reuses_saved_machines():
 
 
 async def test_welcome_shows_who_is_in_line_and_playing():
-    conns, queues, locks = FakeConnections(), FakeQueues({"c-9": "p-9"}), FakeLocks({"c-8": "p-8"})
-    queues.join("c-9", 1, 0.0)
+    conns, locks = FakeConnections(), FakeLocks({"c-8": "p-8"})
     locks.lock("c-8", "A-3", 0.0)
-    await enter_interactor(conns=conns, queues=queues, locks=locks).enter(cmd("c-1", "g-1"))
+    await enter_interactor(conns=conns, locks=locks).enter(cmd("c-1", "g-1"))
     snap = conns.direct[0][1]
-    assert snap["queues"] == [[], ["p-9"], [], []] and snap["plays"] == {"A-3": "p-8"}
+    assert snap["plays"] == {"A-3": "p-8"}
 
 
 # ---- 최종 리뷰 C1·I1 ----
 from toycrane.adapter.inbound.ws.schemas.server_messages import free  # noqa: E402
-from toycrane.adapter.inbound.ws.schemas.server_messages import queue as queue_msg  # noqa: E402
 
 
 async def test_kicked_tab_mid_play_is_refunded_and_freed():
-    """같은 게스트가 다시 들어오면(네트워크 바뀜·두 번째 탭) 이전 접속이 쥔 기계와 줄도 정리한다 (최종 리뷰 C1)."""
-    reg, conns, locks, q, wallet = FakeRegistry(), FakeConnections(), FakeLocks(), FakeQueues(), FakeWallet({"g-1": 2})
+    """같은 게스트가 다시 들어오면(네트워크 바뀜·두 번째 탭) 이전 접속이 쥔 기계를 정리한다 (최종 리뷰 C1)."""
+    reg, conns, locks, wallet = FakeRegistry(), FakeConnections(), FakeLocks(), FakeWallet({"g-1": 2})
     reg.put("c-old", player("p-old", guest="g-1"))
     locks.lock("c-old", "A-1", 3.0)
-    q.join("c-old", 0, 1.0); q.mark_head("c-old", 1.0)
-    reg.put("c-2", player("p2", guest="g-2")); q.join("c-2", 0, 2.0)
-    await enter_interactor(reg, conns, wallet=wallet, queues=q, locks=locks, new_id=lambda: "p-new").enter(cmd("c-new", "g-1", now=5.0))
+    reg.put("c-2", player("p2", guest="g-2"))
+    await enter_interactor(reg, conns, wallet=wallet, locks=locks, new_id=lambda: "p-new").enter(cmd("c-new", "g-1", now=5.0))
     assert wallet.coins["g-1"] == 3 and locks.holder("A-1") is None
-    assert (None, free("A-1")) in conns.broadcasts and (None, queue_msg(0, ["p2"])) in conns.broadcasts
+    assert (None, free("A-1")) in conns.broadcasts
     welcome_msg = next(m for c, m in conns.direct if c == "c-new")
     assert welcome_msg["coins"] == 3 and welcome_msg["plays"] == {}
 

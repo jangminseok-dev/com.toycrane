@@ -1,7 +1,6 @@
 import json
 
 from toycrane.adapter.outbound.attachment_play_locks import AttachmentPlayLocks
-from toycrane.adapter.outbound.attachment_queue_registry import AttachmentQueueRegistry
 
 
 class FakeWs:
@@ -27,18 +26,6 @@ class FakeCtx:
 
 def conn(conn_id: str, player_id: str) -> FakeWs:
     return FakeWs({"conn": conn_id, "store": 1, "player": {"id": player_id}})
-
-
-def test_queue_members_come_in_join_order():
-    ctx = FakeCtx(conn("c-1", "p1"), conn("c-2", "p2"))
-    q = AttachmentQueueRegistry(ctx)
-    q.join("c-2", 0, 5.0)
-    q.join("c-1", 0, 6.0)
-    assert [m.player_id for m in q.members(0)] == ["p2", "p1"]
-    q.mark_head("c-2", 7.0)
-    assert q.members(0)[0].head_since == 7.0 and q.counter_of("c-1") == 0
-    q.remove("c-2")
-    assert [m.conn_id for m in q.members(0)] == ["c-1"] and q.counter_of("c-2") is None
 
 
 def test_play_lock_round_trip():

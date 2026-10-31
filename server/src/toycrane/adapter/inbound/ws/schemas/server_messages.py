@@ -28,7 +28,7 @@ def welcome(store_no: int, you: PlayerView, players: list[PlayerView], snapshot:
         "t": "welcome", "v": PROTOCOL, "store": store_no, "you": _player(you), "players": [_player(p) for p in players],
         "coins": snapshot.coins, "bag": snapshot.bag,
         "machines": {m: _spots(spots) for m, spots in snapshot.machines.items()},
-        "queues": snapshot.queues, "plays": snapshot.plays,
+        "plays": snapshot.plays,
     }
 
 
@@ -48,12 +48,16 @@ def correct(x: float, z: float) -> dict:
     return {"t": "correct", "x": round(x, 2), "z": round(z, 2)}
 
 
-def queue(counter: int, player_ids: list[str]) -> dict:
-    return {"t": "queue", "c": counter, "ids": player_ids}
+def take_no(counter: int, why: str) -> dict:
+    return {"t": "take_no", "c": counter, "why": why}
 
 
-def queue_no(counter: int, why: str) -> dict:
-    return {"t": "queue_no", "c": counter, "why": why}
+def cbeg(player_id: str, counter: int, n: int) -> dict:
+    return {"t": "cbeg", "id": player_id, "c": counter, "n": n}
+
+
+def cbeg_no(counter: int, why: str, wait: float) -> dict:
+    return {"t": "cbeg_no", "c": counter, "why": why, "wait": math.ceil(wait)}
 
 
 def coins(total: int, got: int) -> dict:

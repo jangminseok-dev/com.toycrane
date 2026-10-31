@@ -3,7 +3,6 @@ import uuid
 
 from toycrane.adapter.outbound.attachment_play_locks import AttachmentPlayLocks
 from toycrane.adapter.outbound.attachment_player_registry import AttachmentPlayerRegistry
-from toycrane.adapter.outbound.attachment_queue_registry import AttachmentQueueRegistry
 from toycrane.adapter.outbound.d1_bag_adapter import D1BagAdapter
 from toycrane.adapter.outbound.d1_occupancy_adapter import D1OccupancyAdapter
 from toycrane.adapter.outbound.d1_wallet_adapter import D1WalletAdapter
@@ -22,7 +21,6 @@ def get_enter_use_case(ctx, env) -> EnterUseCase:
         wallet=D1WalletAdapter(env.DB),
         bag=D1BagAdapter(env.DB),
         contents=DoStorageMachineContents(ctx.storage, str(ctx.id), ctx),
-        queues=AttachmentQueueRegistry(ctx),
         locks=AttachmentPlayLocks(ctx),
         rng=random.Random(),
     )

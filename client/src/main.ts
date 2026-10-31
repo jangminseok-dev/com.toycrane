@@ -210,7 +210,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       myNick = guest.nickname;
       playing.clear(); showing.clear(); tickets.clear(); chains.clear(); showingMe = false;
       queue.reset();
-      m.queues.forEach((ids, c) => queue.onQueue(c, ids, myId, now / 1000));
+      (m.queues ?? []).forEach((ids, c) => queue.onQueue(c, ids, myId, now / 1000));
       busy.reset();
       for (const [id, who] of Object.entries(m.plays)) busy.set(id, who, now / 1000);
       endPlay();
@@ -548,7 +548,7 @@ function frame(now: number) {
       }
       const queueAction = queue.tick(me.pos, now / 1000);
       if (queueAction && socket) {
-        socket.send(queueAction === 'take' ? encodeTake() : queueAction === 'unqueue' ? encodeUnqueue() : encodeQueue(queue.currentCounter!));
+        socket.send(queueAction === 'take' ? encodeTake(queue.currentCounter ?? 0) : queueAction === 'unqueue' ? encodeUnqueue() : encodeQueue(queue.currentCounter!));
       }
       if (!showMachineUi()) showQueueUi(now / 1000);
     }
