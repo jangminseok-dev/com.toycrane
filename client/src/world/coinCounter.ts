@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { COUNTERS, type CounterSpot } from '../data/storeLayout';
 import type { Occluder } from '../game/occlusion';
 import { bakeByMaterial, fadeMaterials, materialCloner } from './bake';
-import { marqueeTex } from './machine';
+import { COUNTER_SIGN } from './copy';
+import { marqueeTex } from './signs';
 import { SPH_LO, canvasTex, part, toon } from './toon';
 
 // 코인 교환소: 창살 달린 전당포 카운터 + 줄 서기 차단봉 + 줄 자리 발자국 (시제품 spike-arcade-big-v3.html 815~850행).
@@ -25,7 +26,7 @@ function booth(): THREE.Group {
   b.add(part(new THREE.BoxGeometry(0.84, 0.04, 0.04), brass, [0, 1.6, 0.25], [1, 1, 1], [0, 0, 0], 0));
   b.add(part(new THREE.CylinderGeometry(0.14, 0.12, 0.04, 20), toon(0xc9c9d6), [0, 1.13, 0.2]));
   b.add(part(new THREE.BoxGeometry(3.1, 0.38, 1.0), body, [0, 2.45, -0.3], [1, 1, 1], [0, 0, 0], 1.02));
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.32), new THREE.MeshBasicMaterial({ map: marqueeTex('코인 교환소', 0xffb84d) }));
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.32), new THREE.MeshBasicMaterial({ map: marqueeTex(COUNTER_SIGN, 0xffb84d) }));
   sign.position.set(0, 2.45, 0.205); b.add(sign);
   b.scale.set(SHRINK, 1, SHRINK); b.position.z = DEPTH_SHIFT * SHRINK;
   return b;

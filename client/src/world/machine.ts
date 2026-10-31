@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MachineSpot } from '../data/storeLayout';
+import { MACHINE_NAMES } from './copy';
+import { marqueeTex, plateTex } from './signs';
 import { SPH_LO, canvasTex, part, toon, toonWith } from './toon';
 
 // 큰인형 기계 (시제품 docs/reference/prototypes/spike-arcade-big-v3.html makeMachine, 578~711행).
@@ -10,9 +12,7 @@ export const CLAW_REST = new THREE.Vector3(0.1, 1.95, 0); // 기계 안 좌표
 export const DOLL_FLOOR = 0.87; // 펠트 위 인형 바닥 높이
 export const DOLL_SCALE = 0.3; // 기계 속 인형 크기
 
-// 기계 이름표(오리지널 이름)와 간판 색: 배치 순서대로 돌려 쓴다
-const NAMES = ['곰돌이 대작전', '병아리 파티', '말랑 토끼', '포근 곰', '두근 크레인', '왕큰 인형', '행운 상자',
-  '삐약 삐약', '한 번 더!', '인형 천국', '럭키 크레인', '토끼 마을', '꿀잼 뽑기'];
+// 간판 색: 배치 순서대로 돌려 쓴다 (기계 이름표는 copy.ts)
 const TOPS = [0xff7ab6, 0xb48cff, 0xff9fcf, 0x8f7bff];
 const LED_COLORS = { white: new THREE.Color(0xffffff), pink: new THREE.Color(0xff8fe0), blue: new THREE.Color(0x4fd8ff) };
 
@@ -63,32 +63,6 @@ const M = once(() => {
   };
 });
 
-function fitFont(g: CanvasRenderingContext2D, text: string, size: number, weight: number, maxW: number): number {
-  const font = () => `${weight} ${size}px -apple-system, "Apple SD Gothic Neo", sans-serif`;
-  g.font = font();
-  while (g.measureText(text).width > maxW && size > 8) { size -= 4; g.font = font(); }
-  return size;
-}
-export function marqueeTex(text: string, color: number, h = 160): THREE.CanvasTexture {
-  return canvasTex(512, h, (g) => {
-    const c = '#' + new THREE.Color(color).getHexString();
-    const grd = g.createLinearGradient(0, 0, 0, h);
-    grd.addColorStop(0, '#ffffff'); grd.addColorStop(0.3, c); grd.addColorStop(1, c);
-    g.fillStyle = grd; g.fillRect(0, 0, 512, h);
-    const fs = fitFont(g, text, h * 0.5, 900, 450);
-    g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.lineJoin = 'round'; g.lineWidth = fs * 0.18; g.strokeStyle = '#3b2a5a'; g.strokeText(text, 256, h / 2 + 4);
-    g.fillStyle = '#ffffff'; g.fillText(text, 256, h / 2 + 4);
-  });
-}
-function plateTex(text: string): THREE.CanvasTexture {
-  return canvasTex(128, 64, (g) => {
-    g.fillStyle = '#ffffff'; g.beginPath(); g.roundRect(2, 2, 124, 60, 10); g.fill();
-    g.fillStyle = '#3b2a5a'; g.font = '900 40px -apple-system, sans-serif';
-    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 64, 34);
-  });
-}
-
 export type MachineParts = {
   statics: THREE.Group; // 움직이지 않는 부분 (기계 자리·방향에 놓임, 행마다 합침)
   ledGeo: THREE.BufferGeometry; // 기계의 LED 전부를 꼭짓점 색으로 한 덩어리 (기계 안 좌표)
@@ -126,7 +100,7 @@ export function makeMachineParts(spot: MachineSpot, index: number): MachineParts
   for (const [x, z] of [[-0.57, -0.5], [0.57, -0.5], [-0.57, 0.5], [0.57, 0.5]]) add(part(g.pillar, toon(BODY), [x, 1.4, z], [1, 1, 1], [0, 0, 0], 0));
   // 위 간판 + 이름판 + 번호판
   add(part(g.header, toon(BODY), [0, 2.2, 0], [1, 1, 1], [0, 0, 0], 1.02));
-  add(flat(g.marquee, new THREE.MeshBasicMaterial({ map: marqueeTex(NAMES[index % NAMES.length], TOPS[index % TOPS.length]) }), [0, 2.2, 0.558]));
+  add(flat(g.marquee, new THREE.MeshBasicMaterial({ map: marqueeTex(MACHINE_NAMES[index % MACHINE_NAMES.length], TOPS[index % TOPS.length]) }), [0, 2.2, 0.558]));
   add(flat(g.plate, new THREE.MeshBasicMaterial({ map: plateTex(spot.id) }), [-0.42, 2.55, 0.5]));
   add(part(g.plateBox, toon(BODY), [-0.42, 2.55, 0.47], [1, 1, 1], [0, 0, 0], 1.04));
   if (index % 2 === 1) {

@@ -38,6 +38,8 @@ import { CLAW_REST } from './world/machine';
 import { playResult, startPlaying } from './world/motions';
 import { buildCoinCounters } from './world/coinCounter';
 import { buildStore } from './world/storeScene';
+import { ALL_COPY } from './world/copy';
+import { loadFonts } from './ui/fonts';
 
 const GUEST_KEY = 'toycrane.guestId';
 const storage = safeStorage();
@@ -54,6 +56,7 @@ Object.assign(renderer.domElement.style, { position: 'fixed', inset: '0', width:
 document.body.appendChild(renderer.domElement);
 // 성능 측정용(client/e2e/perf.mjs): 마지막으로 그린 화면의 그리기 호출·삼각형 수
 Object.assign(window, { __toycrane: { drawCalls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles } });
+await loadFonts(ALL_COPY); // 간판 글꼴(2.5초 안에 못 오면 시스템 글꼴)
 const scene = new THREE.Scene();
 const tower = buildStore(scene);
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
