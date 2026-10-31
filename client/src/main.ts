@@ -78,9 +78,9 @@ Object.assign(window, { __toycrane: {
   settledIds: () => [...settledHere],
   watching: (id: string) => watches.has(id),
   controlAt: (part: 'lever' | 'drop' | 'stop') => {
-    if (!session || (part === 'stop' && !run.remaining())) return null;
+    if (!controlsAt || (part === 'stop' && !run.remaining())) return null;
     const [x, y, z] = CONTROLS[part];
-    const p = bigZone.worldOf(session.machineId).localToWorld(new THREE.Vector3(x, y + 0.02, z)).project(camera);
+    const p = bigZone.worldOf(controlsAt).localToWorld(new THREE.Vector3(x, y + 0.02, z)).project(camera);
     return { x: ((p.x + 1) / 2) * innerWidth, y: ((1 - p.y) / 2) * innerHeight };
   },
 } });
@@ -439,7 +439,7 @@ function scheduleRapier(): void {
 
 function sendDrop() {
   if (!session) return;
-  dropControls(); letGoOfLever();
+  letGoOfLever(); // 레버·잡기는 그대로 둔다(집게가 도는 동안·판 사이에도 '그만'을 누를 수 있게) — 다음 판 시작이나 일어설 때 걷는다
   bigZone.showAim(session.machineId, false);
   awaiting = session.machineId;
   dropped = session;
@@ -485,14 +485,15 @@ const LEVER_PX = 60, LEVER_DEAD = 0.12;
 const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
 function letGoOfLever() { leverDrag = null; leverInput = { x: 0, z: 0 }; controls?.setPressed(false); }
 renderer.domElement.addEventListener('pointerdown', (e) => {
-  if (!session || !controls) return;
+  if (!controls) return;
   ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   raycaster.setFromCamera(ndc, camera);
   const part = controls.pick(raycaster);
   if (!part) return;
   e.preventDefault();
-  if (part === 'lever') { leverDrag = { id: e.pointerId, x: e.clientX, y: e.clientY }; return; }
   if (part === 'stop') { navigator.vibrate?.(15); stopRun(); return; }
+  if (!session) return; // 집게가 도는 동안·판 사이에는 레버·잡기가 듣지 않는다
+  if (part === 'lever') { leverDrag = { id: e.pointerId, x: e.clientX, y: e.clientY }; return; }
   controls.setPressed(true);
   navigator.vibrate?.(15);
   if (session.requestDrop(clock())) sendDrop();
@@ -530,8 +531,9 @@ function showSeat() {
     standUp, () => { standUp(); startCoinWalk(); });
 }
 function stopRun() {
-  run.stop(); hideSeatControls(); controls?.showStop(false);
-  toast(UI.runStopped);
+  run.stop(); controls?.showStop(false);
+  if (seated) { nextRunAt = null; hideSeatControls(); showSeat(); } // 판 사이에 눌렀으면 다음 판을 안 시작하고 바로 묻는다
+  else { hideSeatControls(); toast(UI.runStopped); }
 }
 function standUp() {
   socket?.send(encodeStand());

@@ -76,17 +76,18 @@ console.log('press', await click('다섯 판 하기')); await sleep(1500);
 const stop1 = !!(await at2('stop'));
 if (process.argv[4]) { const r = await send('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(process.argv[4], Buffer.from(r.result.data, 'base64')); }
 console.log('play 1 badge', await badge(), 'stop visible', stop1);
-await drag(80, 0, 1.0); console.log('drop', await tap('drop'));
+await drag(80, 0, 1.0); console.log('drop', await tap('drop')); await sleep(2500);
+const stopMid1 = !!(await at2('stop')); console.log('play 1 mid-cycle stop visible', stopMid1); // 잡기를 누른 뒤 집게가 도는 동안에도 (사용자 2026-11-01)
 for (let i = 0; i < 300 && (await badge()) !== '2/5판'; i++) await sleep(100); // 결과 뒤 두 번째 판이 저절로 시작된다
 const n1 = seen.length; await sleep(1500);
 const stop2 = !!(await at2('stop'));
 console.log('play 2 badge', await badge(), 'stop visible', stop2);
-console.log('stop', await tap('stop')); await sleep(300);
-await drag(0, -60, 0.6); console.log('drop', await tap('drop'));
+await drag(0, -60, 0.6); console.log('drop', await tap('drop')); await sleep(2500);
+console.log('stop mid-cycle', await tap('stop')); await sleep(300); // 집게가 도는 동안 그만
 let result2; for (let i = 0; i < 400 && !result2; i++) { result2 = seen.slice(n1).find((m) => m.t === 'result' && m.id === me.id); await sleep(50); }
 await sleep(4000); // 멈췄으면 세 번째 판이 저절로 시작되지 않는다
 const again = await visible('한 판 더'), badge3 = await badge();
 console.log('after stop: again visible', again, 'badge', badge3, 'plays sent', seen.slice(n1).filter((m) => m.t === 'play' && m.id === me.id).length, 'result2', JSON.stringify(result2?.won), 'buttons', JSON.stringify(await buttons()));
-const ok = stop1 && stop2 && !!result2 && again && badge3 === '';
+const ok = stop1 && stopMid1 && stop2 && !!result2 && again && badge3 === '';
 console.log(ok ? 'PASS run' : 'FAIL run');
 await fetch(`http://127.0.0.1:${port}/json/close/${t.id}`); watcher.close(); process.exit(ok ? 0 : 1);
