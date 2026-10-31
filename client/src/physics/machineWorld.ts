@@ -1,7 +1,9 @@
 import type RAPIER from '@dimforge/rapier3d-compat';
+import * as THREE from 'three';
 import { CLAW } from '../data/claw';
 import { MACHINE_SPEC } from '../data/storeLayout';
 import type { DollPose, DollSpot } from '../net/protocol';
+import type { Hit } from '../world/dolls';
 import { DOLL_FLOOR } from '../world/machine';
 import { ANGULAR_DAMPING, FRICTION, LINEAR_DAMPING, RESTITUTION, dollColliders, type Ball } from './dollBody';
 import type { Rapier } from './rapier';
@@ -134,11 +136,9 @@ export class MachineWorld {
     return this.holeOpen;
   }
 
-  // 구멍 네모 안에서 바닥보다 아래로 떨어진 인형 번호
+  // 바닥보다 아래로 떨어진 인형 번호 — 구멍 말고는 내려갈 길이 없다 (빠진 뒤 받는 바닥에서 굴러가도 센다)
   fallen(): number[] {
-    const [hx, hz] = MACHINE_SPEC.hole, reach = CLAW.hole.size / 2 + 0.1;
-    return [...this.bodies].filter(([, b]) => { const t = b.translation(); return t.y < DOLL_FLOOR - FALL_DEPTH && Math.abs(t.x - hx) < reach && Math.abs(t.z - hz) < reach; })
-      .map(([uid]) => uid);
+    return [...this.bodies].filter(([, b]) => b.translation().y < DOLL_FLOOR - FALL_DEPTH).map(([uid]) => uid);
   }
 
   bodyOf(uid: number): Body | undefined {
@@ -151,6 +151,15 @@ export class MachineWorld {
 
   uids(): number[] {
     return [...this.bodies.keys()];
+  }
+
+  // 그 인형의 부위 공들(세계 좌표) — 집게가 닿는지 재는 데 쓴다
+  balls(uid: number): Hit[] {
+    const b = this.bodies.get(uid);
+    if (!b) return [];
+    const out: Hit[] = [];
+    for (let i = 0; i < b.numColliders(); i++) { const c = b.collider(i), t = c.translation(); out.push({ c: new THREE.Vector3(t.x, t.y, t.z), r: c.radius() }); }
+    return out;
   }
 
   remove(uid: number): void {
