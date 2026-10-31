@@ -4,10 +4,10 @@ import { clawPath } from '../game/clawPath';
 import { contactPull, planGrip, probesAt } from '../game/gripPlan';
 import type { Swing } from '../game/swing';
 import { Tweens, ease } from '../game/tween';
-import type { DollSpot, Result } from '../net/protocol';
+import { lookOf, type DollSpot, type Result } from '../net/protocol';
 import type { BigZone } from './bigZone';
 import { CABLE_TOP } from './claw';
-import { dollHits, makeDoll } from './dolls';
+import { BODY_W, dollHits, makeDoll } from './dolls';
 import { dollPose, solidsOf } from './dollPose';
 import { CLAW_REST, DOLL_SCALE } from './machine';
 import { pushAway, squeezeAboutTop, type Yielding } from './plush';
@@ -30,7 +30,7 @@ const TOP_Y = CLAW_REST.y + CABLE_TOP; // 집게가 매달린 곳
 const SQUISH = 0.04, SCOOP = 0.008; // 쥘 때 가로로 눌리는 비율, 집게와 인형이 함께 떠오르는 높이(m)
 const NEIGHBOUR_REACH = 0.32; // 이 거리 안의 옆 인형은 손가락에 밀릴 수 있게 따로 그린다
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-type Rest = { position: THREE.Vector3; quaternion: THREE.Quaternion; scale: number };
+type Rest = { position: THREE.Vector3; quaternion: THREE.Quaternion; scale: number; width: number };
 
 export async function runClaw(d: ClawShowDeps, m: Result, detail = true): Promise<void> {
   const { tw, zone } = d;
@@ -47,10 +47,11 @@ export async function runClaw(d: ClawShowDeps, m: Result, detail = true): Promis
   let latest = before;
   const syncPile = () => zone.setContents(m.m, latest.filter((_, i) => !lifted.has(i)));
   const liftOut = (i: number) => {
-    const doll = makeDoll(before[i][0]);
+    const doll = makeDoll(before[i][0], lookOf(before[i]));
     if (!doll) return null;
-    const pose = dollPose(before[i]);
-    doll.scale.setScalar(DOLL_SCALE); doll.position.copy(pose.position); doll.quaternion.copy(pose.quaternion);
+    const pose = dollPose(before[i]), w = BODY_W[before[i][6]];
+    doll.scale.set(DOLL_SCALE * w, DOLL_SCALE, DOLL_SCALE * w); doll.position.copy(pose.position); doll.quaternion.copy(pose.quaternion);
+    doll.userData.width = w; // 체형 폭 (눌림·떨어짐이 지킨다)
     doll.userData.spot = i; // 무더기 몇 번째 인형인지 (따로 그리는 동안)
     anchor.add(doll); lifted.add(i);
     return doll;
@@ -86,8 +87,8 @@ export async function runClaw(d: ClawShowDeps, m: Result, detail = true): Promis
   await tw.tween(1.2, (k) => { setY(lerp(CLAW_REST.y, plan.y, k)); soft(); }, ease.smooth);
 
   // 3) 오므려 감싸 쥔다: 닿는 순간부터 머리 꼭대기 기준으로 눌리고, 집게와 함께 살짝 떠오르고, 틈이 있으면 손가락 쪽으로 끌려온다
-  const topLocal = target ? Math.max(...dollHits(target[0]).solid.map((h) => h.c.y + h.r)) : 0;
-  const rest: Rest | null = doll ? { position: doll.position.clone(), quaternion: doll.quaternion.clone(), scale: doll.scale.x } : null;
+  const topLocal = target ? Math.max(...dollHits(target[0], target[6], target[8]).solid.map((h) => h.c.y + h.r)) : 0;
+  const rest: Rest | null = doll ? { position: doll.position.clone(), quaternion: doll.quaternion.clone(), scale: doll.scale.y, width: doll.userData.width } : null;
   const pull = target && index !== null ? contactPull(probesAt(m.x, plan.y, m.z, plan.open).fingers, solids[index]) : new THREE.Vector3();
   let lift = 0;
   const shape = (amount: number, pullK: number) => {
@@ -113,7 +114,7 @@ export async function runClaw(d: ClawShowDeps, m: Result, detail = true): Promis
     rig.grip.attach(doll);
     const topInGrip = rig.grip.worldToLocal(topWorld);
     // 눌리기 전 크기였을 때의 자리 (squeezeAboutTop이 그 크기 기준으로 머리 꼭대기를 맞춘다)
-    heldRest = { position: topInGrip.sub(new THREE.Vector3(0, topLocal * rest.scale, 0).applyQuaternion(doll.quaternion)), quaternion: doll.quaternion.clone(), scale: rest.scale };
+    heldRest = { position: topInGrip.sub(new THREE.Vector3(0, topLocal * rest.scale, 0).applyQuaternion(doll.quaternion)), quaternion: doll.quaternion.clone(), scale: rest.scale, width: rest.width };
     held = doll;
   }
   await tw.tween(0.25, () => soft(), ease.lin);
@@ -150,8 +151,8 @@ export async function runClaw(d: ClawShowDeps, m: Result, detail = true): Promis
     await tw.tween(0.25, (k) => setOpen(lerp(plan.open, 1, k)), ease.out);
     const prize = held;
     anchor.attach(prize);
-    const p0 = prize.position.clone(), s0 = prize.scale.x;
-    await tw.tween(0.4, (k) => { prize.position.y = p0.y - k * k * 0.9; prize.scale.setScalar(lerp(s0, s0 * 0.6, k)); soft(); }, ease.lin);
+    const p0 = prize.position.clone(), s0 = prize.scale.clone();
+    await tw.tween(0.4, (k) => { prize.position.y = p0.y - k * k * 0.9; prize.scale.copy(s0).multiplyScalar(lerp(1, 0.6, k)); soft(); }, ease.lin);
     anchor.remove(prize);
   }
   // 6) 쉬는 자리로 돌아간다 — 그동안 밀렸던 옆 인형이 제자리로 돌아오고, 다 돌아오면 무더기에 다시 넣는다
@@ -181,7 +182,7 @@ function hangDown(doll: THREE.Object3D, grip: THREE.Object3D): THREE.Quaternion 
 function fallAndRoll(tw: Tweens, doll: THREE.Object3D, anchor: THREE.Object3D, land: { position: THREE.Vector3; quaternion: THREE.Quaternion }): Promise<void> {
   const x1 = land.position.x, z1 = land.position.z;
   anchor.attach(doll);
-  doll.scale.setScalar(DOLL_SCALE);
+  doll.scale.set(DOLL_SCALE * (doll.userData.width ?? 1), DOLL_SCALE, DOLL_SCALE * (doll.userData.width ?? 1));
   const p0 = doll.position.clone(), q0 = doll.quaternion.clone();
   const ground = land.position.y;
   const dir = new THREE.Vector3(x1 - p0.x, 0, z1 - p0.z);

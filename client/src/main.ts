@@ -18,14 +18,14 @@ import { RemotePlayers } from './game/remotePlayers';
 import { installJoystick } from './input/joystick';
 import { readKeyboard } from './input/keyboard';
 import { admit, createGuest, getGuest, type Guest } from './net/api';
-import { encodeDrop, encodeMove, encodePlay, encodeQueue, encodeStand, encodeTake, encodeUnqueue, type DollSpot, type Result, type ServerMsg } from './net/protocol';
+import { encodeDrop, encodeMove, encodePlay, encodeQueue, encodeStand, encodeTake, encodeTick, encodeUnqueue, lookOf, type DollSpot, type Result, type ServerMsg } from './net/protocol';
 import { closeAction, nextDelay, retrying } from './net/reconnect';
 import { safeStorage } from './net/storage';
 import { StoreSocket, storeUrl } from './net/storeSocket';
 import { setAction } from './ui/actionButton';
 import { askNickname, hideEntry, showFull, showMessage, showWelcomeBack } from './ui/entry';
 import { setHud, setInfo, toast } from './ui/hud';
-import { eulReul } from './ui/josa';
+import { eulReul, iGa } from './ui/josa';
 import { hidePlayControls, hideSeatControls, setTimer, showPlayControls, showRunPause, showSeatControls } from './ui/playControls';
 import { PlayRun, runSize } from './game/playRun';
 import { buildMachineControls, type MachineControls } from './world/machineControls';
@@ -33,10 +33,10 @@ import { buildTopView, type TopView } from './world/topView';
 import { showWinCard } from './ui/winCard';
 import { setStatus } from './ui/status';
 import { makeAvatar, type Avatar } from './world/avatar';
-import { DOLLS, SETS } from './data/catalog';
+import { DOLLS, GOLD, SETS, dollName } from './data/catalog';
 import { COUNTERS, MACHINES, MACHINE_SPEC, frontSpot, nearestMachine } from './data/storeLayout';
 import { buildBigZone } from './world/bigZone';
-import { makeDoll } from './world/dolls';
+import { PLAIN, makeDoll } from './world/dolls';
 import { burst, updateEffects } from './world/effects';
 import { CLAW_REST, CONTROLS, FELT_COLORS } from './world/machine';
 import { playResult, startPlaying } from './world/motions';
@@ -85,6 +85,7 @@ const fader = new OcclusionFader([tower, ...bigZone.occluders, ...buildCoinCount
 
 let me: LocalPlayer | null = null;
 let wallet = { coins: 0, bag: 0 }; // 코인·가방 수 (서버가 알려 준 값)
+let tickTimer = 0; // 다음 채울 시각에 서버를 깨우는 tick (stock 메시지)
 let myId = '';
 const queue = new QueueClient();
 const walker = new AutoWalk(); // "코인이 없어요 · 교환소로": 가까운 교환소 줄 끝까지 저절로 걷기
@@ -246,6 +247,12 @@ function onMessage(m: ServerMsg, guest: Guest) {
       break;
     }
     case 'bag': wallet.bag = m.n; setHud(wallet.coins, wallet.bag); break;
+    case 'spawn': announceSpawn(m.m, m.k, m.rv); break;
+    case 'stock':
+      // 다음 채울 시각이 지나면 서버를 깨운다 (아무도 움직이지 않아도 제때 채우게) — 매장 사람들이 한꺼번에 보내지 않게 조금씩 흩는다
+      clearTimeout(tickTimer);
+      if (m.in !== null) tickTimer = window.setTimeout(() => socket?.send(encodeTick()), (m.in + Math.random() * 1.5) * 1000);
+      break;
     case 'queue': queue.onQueue(m.c, m.ids, myId, now / 1000); break;
     case 'queue_no': toast('줄이 꽉 찼어요'); break;
     case 'coins':
@@ -399,6 +406,16 @@ function standUp() {
   endPlay();
 }
 
+// 희귀·황금이 채워졌다 (설계 2026-10-31 인형 채우기 §4.2 알림): 전광판에 기계 번호와 이름, 그 기계 간판 전구가 깜빡인다
+function announceSpawn(machineId: string, kind: string, rare: string) {
+  const name = dollName(kind, 0, rare);
+  if (rare === GOLD.id) {
+    tower.showMessage('★ 매우 희귀 등장! ★', `${machineId}에 ${name}${iGa(name)} 나타났어요`, true, 8);
+    sfx.rare();
+  } else tower.showMessage('희귀 등장!', `${machineId}에 ${name} 등장!`, false, 5);
+  bigZone.flash(machineId, rare === GOLD.id, 3);
+}
+
 // 결과 연출. 남의 화면: 그 사람 캐릭터가 쾅 → 두근두근(집게가 내려갔다 올라옴) → 성공(꺼내기·번쩍·가방에 쏙) / 실패(털썩).
 // 내 화면: 기계 앞 화면 그대로 집게 → 성공(번쩍·카드)/실패(소리) → 판 사이 버튼 (내 캐릭터는 숨어 있어 몸동작은 남의 화면에만)
 async function showResult(m: Result, t: Ticket) {
@@ -407,11 +424,13 @@ async function showResult(m: Result, t: Ticket) {
   if (mine) showingMe = true;
   await playing.get(m.m)?.stop(); playing.delete(m.m);
   const spot = spotOf.get(m.m)!, face = spot.ry + Math.PI;
-  const info = m.k ? DOLLS[m.k] : undefined, rare = !!m.rv;
+  const info = m.k ? DOLLS[m.k] : undefined, rare = !!m.rv, tier = m.rv === GOLD.id ? 'gold' : rare ? 'rare' : '';
+  const name = m.k ? dollName(m.k, m.c ?? 0, m.rv ?? '') : '';
   const front = frontSpot(spot);
   const near = mine || (!!me && Math.hypot(me.pos.x - front.x, me.pos.z - front.z) < 6);
   const rig = mine ? null : remotes.rigOf(m.id);
-  const doll = rig && m.o === 'win' && m.k ? makeDoll(m.k) : null;
+  const won = m.i != null ? bigZone.contentsOf(m.m)[m.i] : undefined; // 잡은 인형 (연출 전 무더기 그대로)
+  const doll = rig && m.o === 'win' && m.k ? makeDoll(m.k, won ? lookOf(won) : { ...PLAIN, color: m.c ?? 0, rare: m.rv ?? '' }) : null;
   if (doll) spinners.push(...doll.userData.spin);
   const fx = {
     bonk: () => { if (near) sfx.bonk(); },
@@ -419,16 +438,17 @@ async function showResult(m: Result, t: Ticket) {
     afterClaw: () => { if (mine && awaiting === m.m) sitDown(m.m, m.o === 'win'); },
     pop: () => { if (near) sfx.pop(); },
     win: () => {
-      bigZone.flash(m.m, rare, 3.2);
+      bigZone.flash(m.m, tier === 'gold', 3.2);
       const at = new THREE.Vector3();
       (doll ?? bigZone.worldOf(m.m)).getWorldPosition(at); at.y += doll ? 0.3 : 1.2; // 캐릭터가 든 인형, 없으면 기계 유리 칸
-      burst(scene, at, rare ? [0xffd36b, 0xfff6b0, 0xff9f43, 0xffffff] : [0xff7ab6, 0x8fd3ff, 0xffe066, 0x8fe3c8], rare ? 80 : 36);
+      const colors = tier === 'gold' ? [0xffd36b, 0xfff6b0, 0xff9f43, 0xffffff] : rare ? [0xff9fd8, 0xffe0f4, 0xc9a8ff, 0xffffff] : [0xff7ab6, 0x8fd3ff, 0xffe066, 0x8fe3c8];
+      burst(scene, at, colors, tier === 'gold' ? 90 : rare ? 60 : 36);
       if (rare) sfx.rare(); else if (near) sfx.win();
       if (rare && info) {
         const nick = mine ? myNick : remotes.nickOf(m.id);
-        tower.showMessage('★ 희귀 등장! ★', `${nick} 님이 ${info.name}${eulReul(info.name)} 뽑았어요`, true, 6);
+        tower.showMessage(tier === 'gold' ? '★★ 매우 희귀! ★★' : '★ 희귀 뽑기! ★', `${nick} 님이 ${name}${eulReul(name)} 뽑았어요`, true, tier === 'gold' ? 8 : 6);
       }
-      if (mine && info) showWinCard(info.name, SETS.find((x) => x.id === info.set)?.name ?? '', rare, wallet.bag);
+      if (mine && info) showWinCard(name, SETS.find((x) => x.id === info.set)?.name ?? '', tier, wallet.bag);
       return rare ? 1.7 : 1.0;
     },
     fail: () => { if (mine) sfx.fail(); },

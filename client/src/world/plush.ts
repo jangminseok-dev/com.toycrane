@@ -4,10 +4,12 @@ import type { Hit } from './dolls';
 // 말랑한 인형 다루기 (설계 2026-10-31 §3.6)
 
 // 쥘 때 말랑하게 눌림: 가로로 amount만큼 줄고 세로로 0.75배만큼 늘되, 머리 꼭대기(인형 모양 좌표 높이 topLocal)는 제자리에 둔다 —
-// 발 기준으로 늘리면 머리가 그 위에 얹힌 허브 속으로 들어간다
+// 발 기준으로 늘리면 머리가 그 위에 얹힌 허브 속으로 들어간다. width: 체형 폭(뚱뚱 1.15·마른 0.88) — 눌림은 그 위에 얹힌다
 const top = new THREE.Vector3();
-export function squeezeAboutTop(doll: THREE.Object3D, rest: { position: THREE.Vector3; quaternion: THREE.Quaternion; scale: number }, topLocal: number, amount: number): void {
-  const sx = rest.scale * (1 - amount), sy = rest.scale * (1 + amount * 0.75);
+export function squeezeAboutTop(
+  doll: THREE.Object3D, rest: { position: THREE.Vector3; quaternion: THREE.Quaternion; scale: number; width?: number }, topLocal: number, amount: number,
+): void {
+  const sx = rest.scale * (rest.width ?? 1) * (1 - amount), sy = rest.scale * (1 + amount * 0.75);
   doll.scale.set(sx, sy, sx);
   // 머리 꼭대기 = 자리 + 회전·크기를 입힌 (0, topLocal, 0) — 크기가 바뀐 만큼 자리를 옮겨 그대로 둔다
   top.set(0, topLocal * (rest.scale - sy), 0).applyQuaternion(rest.quaternion);

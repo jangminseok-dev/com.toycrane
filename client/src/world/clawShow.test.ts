@@ -52,3 +52,26 @@ for (const o of ['miss', 'slip', 'win'] as const) test(`every doll stays drawn e
   expect(Math.min(...worst)).toBe(o === 'win' ? 0 : 1); // 성공한 인형만 구멍으로 사라진다
   expect(Math.max(...worst)).toBe(1);
 });
+
+// 뚱뚱 인형은 집게에 잡혀 들려도 뚱뚱하다 — 눌림(4%)은 체형 폭 위에 얹힌다 (설계 2026-10-31 인형 채우기 §4.4)
+test('a chubby doll keeps its width through the claw show', async () => {
+  const spots: DollSpot[] = [spot('bear', 0, 0, 0, 0, { body: 'c', color: 3 })];
+  const { zone, anchor } = fakeZone(spots);
+  const tw = new Tweens();
+  const m: Result = { t: 'result', m: 'C-6', id: 'p1', x: 0.02, z: 0, o: 'win', part: 'head', k: 'bear', i: 0 };
+  let done = false;
+  void runClaw({ tw, zone, swing: new Swing(), takePending: () => undefined }, m, true).then(() => { done = true; });
+  const ratios: number[] = [];
+  for (let f = 0; f < 400 && !done; f++) {
+    tw.update(1 / 30);
+    for (let k = 0; k < 5; k++) await Promise.resolve();
+    anchor.traverse((c) => {
+      if (c.userData.spot !== 0) return;
+      expect(c.scale.x).toBeCloseTo(c.scale.z, 6);
+      ratios.push(c.scale.x / c.scale.y);
+    });
+  }
+  expect(ratios.length).toBeGreaterThan(10);
+  expect(Math.min(...ratios)).toBeGreaterThan(1.15 * 0.96 / 1.03 - 1e-6);
+  expect(Math.max(...ratios)).toBeLessThan(1.15 + 1e-6);
+});
