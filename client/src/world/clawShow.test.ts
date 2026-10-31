@@ -8,6 +8,7 @@ import type { BigZone } from './bigZone';
 import { makeClawRig, type ClawRig } from './claw';
 import { runClaw } from './clawShow';
 import { CLAW_REST } from './machine';
+import { spot } from '../test/spots';
 
 beforeAll(stubCanvas);
 
@@ -28,12 +29,12 @@ function fakeZone(spots: DollSpot[]) {
 
 // 연출 내내 매 프레임: 원래 인형마다 무더기에 있거나 따로 그려지거나 — 정확히 한 번 (없어지거나 둘로 보이면 안 된다)
 async function drawnCounts(o: Outcome) {
-  const spots: DollSpot[] = [['bear', 0, 0, 0, 0], ['cat', 0.22, 0, 1, 0], ['bunny', -0.22, 0, 2, 0]];
+  const spots: DollSpot[] = [spot('bear', 0, 0, 0, 0), spot('cat', 0.22, 0, 1, 0), spot('bunny', -0.22, 0, 2, 0)];
   const { zone, anchor, pile } = fakeZone(spots);
   const tw = new Tweens();
   const m: Result = { t: 'result', m: 'C-6', id: 'p1', x: 0.02, z: 0, o, part: 'head', k: 'bear', i: 0 };
   let done = false;
-  void runClaw({ tw, zone, swing: new Swing(), takePending: () => (o === 'slip' ? [['bear', 0.1, 0.12, 0, 0], spots[1], spots[2]] : undefined) }, m, true).then(() => { done = true; });
+  void runClaw({ tw, zone, swing: new Swing(), takePending: () => (o === 'slip' ? [spot('bear', 0.1, 0.12, 0, 0), spots[1], spots[2]] : undefined) }, m, true).then(() => { done = true; });
   const worst: number[] = [];
   for (let f = 0; f < 400 && !done; f++) {
     tw.update(1 / 30);

@@ -3,6 +3,7 @@ import { beforeAll, expect, test } from 'vitest';
 import { stubCanvas } from '../test/canvasStub';
 import { buildBigZone } from './bigZone';
 import { TOP_LAYER, buildTopView, topViewCamera } from './topView';
+import { spot } from '../test/spots';
 
 beforeAll(stubCanvas);
 
@@ -22,7 +23,7 @@ test('the top view looks straight down with the machine back at the top', () => 
 test('doll piles are drawn on the top-view layer', () => {
   const scene = new THREE.Scene();
   const zone = buildBigZone(scene);
-  zone.setContents('C-6', [['bear', 0, 0, 0]]);
+  zone.setContents('C-6', [spot('bear', 0, 0, 0)]);
   zone.update(0);
   const piles: THREE.Object3D[] = [];
   scene.traverse((o) => { if (o.parent?.name.startsWith('dolls-') && (o as THREE.Mesh).isMesh) piles.push(o); });

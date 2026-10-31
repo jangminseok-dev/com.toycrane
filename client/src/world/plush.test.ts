@@ -5,6 +5,7 @@ import { stubCanvas } from '../test/canvasStub';
 import { solidsOf } from './dollPose';
 import { CLAW_REST } from './machine';
 import { pushAway, squeezeAboutTop, type Yielding } from './plush';
+import { spot } from '../test/spots';
 
 beforeAll(stubCanvas);
 
@@ -23,7 +24,7 @@ test('squeezing keeps the head top in place', () => {
 // 옆 인형은 말랑해서 손가락에 밀려 비켜 주고(손가락이 속으로 들어가 보이지 않게), 집게가 떠나면 제자리로 (최종 리뷰 I2)
 test('a neighbour pressed by fingers yields and springs back', () => {
   // 집게가 머리 가운데에서 이웃 쪽으로 5cm 비껴 내려왔다(서버 '머리' 판정 안) — 실제 무더기에서 흔한 경우
-  const spots: Parameters<typeof solidsOf>[0] = [['bear', 0, 0, 0, 0], ['bear', 0.22, 0, 1.2, 0]];
+  const spots: Parameters<typeof solidsOf>[0] = [spot('bear', 0, 0, 0, 0), spot('bear', 0.22, 0, 1.2, 0)];
   const solids = solidsOf(spots);
   const p = planGrip(0.05, 0, CLAW_REST.y, solids, 0);
   const doll = new THREE.Object3D();
@@ -39,7 +40,7 @@ test('a neighbour pressed by fingers yields and springs back', () => {
 });
 
 test('contact pull is zero when the fingers already touch', () => {
-  const solids = solidsOf([['bear', 0, 0, 0, 0]]);
+  const solids = solidsOf([spot('bear', 0, 0, 0, 0)]);
   const p = planGrip(0, 0, CLAW_REST.y, solids, 0);
   expect(contactPull(probesAt(0, p.y, 0, p.open).fingers, solids[0]).length()).toBeLessThan(0.004);
 });

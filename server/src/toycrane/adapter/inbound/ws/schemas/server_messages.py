@@ -6,6 +6,8 @@ from toycrane.app.dtos.player_view import PlayerView
 from toycrane.app.dtos.store_snapshot import StoreSnapshot
 from toycrane.domain.crane import DollSpot
 
+PROTOCOL = 2  # 메시지 형식 버전 — 화면(net/protocol.ts PROTOCOL)과 다르면 화면이 새로고침한다
+
 
 def _player(p: PlayerView) -> dict:
     return {"id": p.id, "nick": p.nick, "color": p.color, **_pose(p)}
@@ -21,7 +23,7 @@ def _spots(spots: list[DollSpot]) -> list[list]:
 
 def welcome(store_no: int, you: PlayerView, players: list[PlayerView], snapshot: StoreSnapshot) -> dict:
     return {
-        "t": "welcome", "store": store_no, "you": _player(you), "players": [_player(p) for p in players],
+        "t": "welcome", "v": PROTOCOL, "store": store_no, "you": _player(you), "players": [_player(p) for p in players],
         "coins": snapshot.coins, "bag": snapshot.bag,
         "machines": {m: _spots(spots) for m, spots in snapshot.machines.items()},
         "queues": snapshot.queues, "plays": snapshot.plays,
