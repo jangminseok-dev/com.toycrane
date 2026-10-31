@@ -5,7 +5,7 @@ import json
 import time
 
 from toycrane.adapter.inbound.ws import (
-    beg_handler, counter_beg_handler, counter_take_handler, done_handler, give_handler, move_handler, play_start_handler, stand_handler,
+    beg_handler, counter_beg_handler, counter_take_handler, done_handler, give_handler, move_handler, play_start_handler, pose_handler, stand_handler,
     tick_handler,
 )
 from toycrane.app.dtos.stock_dto import StockCommand
@@ -19,6 +19,7 @@ HANDLERS = {
     "give": give_handler.handle,
     "play": play_start_handler.handle,
     "done": done_handler.handle,
+    "pose": pose_handler.handle,
     "stand": stand_handler.handle,
     "tick": tick_handler.handle,
 }
@@ -38,5 +39,6 @@ async def dispatch(ctx, env, ws, raw) -> None:
     data = decode(raw)
     handler = HANDLERS.get(data["t"]) if data else None
     if handler is not None:
-        await get_stock_use_case(ctx, env).refill(StockCommand(time.time()))
+        if data["t"] != "pose":  # 중계는 초당 10번 — 채우기 확인을 거치지 않는다
+            await get_stock_use_case(ctx, env).refill(StockCommand(time.time()))
         await handler(ctx, env, ws, data)
