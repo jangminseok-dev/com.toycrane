@@ -7,7 +7,7 @@ import { aimHeight, aimVisible } from './game/aim';
 import { blocksView, machineCameraPose } from './game/machineCamera';
 import { MachineBusy } from './game/machineBusy';
 import { PlaySession } from './game/playSession';
-import { hugOpen } from './game/clawHug';
+import { HoldLook } from './game/holdLook';
 import { Swing } from './game/swing';
 import { Tweens, ease } from './game/tween';
 import { sfx, unlockAudio } from './audio/sfx';
@@ -18,7 +18,7 @@ import { RemotePlayers } from './game/remotePlayers';
 import { installJoystick } from './input/joystick';
 import { readKeyboard } from './input/keyboard';
 import { admit, createGuest, getGuest, type Guest } from './net/api';
-import { encodeBeg, encodeCounterBeg, encodeDone, encodeGive, encodeMove, encodePlay, encodeStand, encodeTake, encodeTick, lookOf, uidOf, type Coins, type DollSpot, type Result, type ServerMsg } from './net/protocol';
+import { encodeBeg, encodeCounterBeg, encodeDone, encodeGive, encodeMove, encodePlay, encodeStand, encodeTake, encodeTick, lookOf, uidOf, type Coins, type DollPose, type DollSpot, type Result, type ServerMsg } from './net/protocol';
 import { loadRapier, rapierNow, rapierReady } from './physics/rapier';
 import { MachineWorld } from './physics/machineWorld';
 import { ClawBody } from './physics/clawBody';
@@ -364,13 +364,13 @@ function startPlay(machineId: string, limit: number, coins: number) {
     settleMachine(machineId);
     dropCycle(); stopWatch(machineId);
     const world = new MachineWorld(R, bigZone.contentsOf(machineId));
-    cycle = { machineId, gen: genOf(machineId), world, runner: null, claw: null, live: bigZone.live(machineId), before: bigZone.contentsOf(machineId), reported: false, shown: 1 };
+    cycle = { machineId, gen: genOf(machineId), world, runner: null, claw: null, live: bigZone.live(machineId), before: bigZone.contentsOf(machineId), reported: false, look: new HoldLook(), wasHolding: false };
   }
   if (me && socket) { me.dir = { x: 0, z: 0 }; socket.send(encodeMove(me.pos, me.dir)); }
 }
 
 // 내 판의 물리: 레버 동안은 세계만 들고 있다가, 내리면 집게 한 바퀴(CycleRunner)를 프레임마다 돌린다. 끝나면 done 보고
-type Cycle = { machineId: string; gen: number; world: MachineWorld; runner: CycleRunner | null; claw: ClawBody | null; live: LiveDolls; before: DollSpot[]; reported: boolean; shown: number };
+type Cycle = { machineId: string; gen: number; world: MachineWorld; runner: CycleRunner | null; claw: ClawBody | null; live: LiveDolls; before: DollSpot[]; reported: boolean; look: HoldLook; wasHolding: boolean };
 let cycle: Cycle | null = null;
 const TOP_Y = CLAW_REST.y + CABLE_TOP;
 function dropCycle() {
@@ -386,12 +386,18 @@ function runCycleFrame(dt: number) {
   const done = runner.advance(dt);
   physicsMs.push(performance.now() - t0); if (physicsMs.length > 120) physicsMs.shift();
   const rig = bigZone.rigOf(machineId), group = bigZone.clawOf(machineId);
-  cycle.shown = hugOpen(claw.open, claw.held() !== null, cycle.shown, dt); // 쥔 손가락은 화면에서 조금 더 감싼다
+  // 쥔 모습은 화면·중계에서만 다듬는다 (game/holdLook): 손가락은 공을 감싸는 벌림, 인형은 손가락 우리 안으로
+  const hold = claw.heldBall(), holding = hold !== null;
+  if (holding && !cycle.wasHolding) swingOf(machineId).kick(0, -0.5); // 쥐는 순간 몸통이 살짝 출렁
+  cycle.wasHolding = holding;
+  cycle.look.update(dt, holding);
+  const shown = cycle.look.open(claw.open, hold), shift = cycle.look.shift(claw, hold), heldUid = claw.held();
+  const shifted = (p: DollPose): DollPose => (p.uid === heldUid ? { uid: p.uid, p: [p.p[0] + shift[0], p.p[1] + shift[1], p.p[2] + shift[2]], q: p.q } : p);
   group.position.set(claw.x, claw.y, claw.z);
-  rig?.setCable(TOP_Y - claw.y); rig?.setOpen(cycle.shown);
-  for (const p of world.poses()) live.set(p.uid, p.p, p.q);
+  rig?.setCable(TOP_Y - claw.y); rig?.setOpen(shown);
+  for (const p of world.poses()) { const d = shifted(p); live.set(d.uid, d.p, d.q); }
   topView?.update({ x: claw.x, z: claw.z });
-  poseSender.frame(machineId, { x: claw.x, y: claw.y, z: claw.z, open: cycle.shown }, world.movingPoses(), clock());
+  poseSender.frame(machineId, { x: claw.x, y: claw.y, z: claw.z, open: shown }, world.movingPoses().map(shifted), clock());
   if (!done) return;
   const r = runner.done();
   for (const uid of r.won) live.remove(uid);

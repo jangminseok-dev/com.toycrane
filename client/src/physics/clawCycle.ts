@@ -19,7 +19,7 @@ export type CycleResult = { won: number[]; poses: DollPose[]; held: number | nul
 
 const DESCEND_SPEED = 0.35, LIFT_SPEED = 0.25, CARRY_SPEED = MACHINE_SPEC.claw_speed;
 const CATCH_UP_STEPS = 12;
-const CLOSE_SECONDS = 0.6, RELEASE_SECONDS = 0.3, AFTER_RELEASE = 0.2, FLOOR_GAP = 0.01, LIFT_EASE = 0.5, LIFT_PAUSE = 0; // 쥔 뒤 멈춤 없이 바로 서서히 — 멈추면 프레임이 끊긴 것처럼 보인다 (사용자 2026-11-01)
+const CLOSE_SECONDS = 0.6, RELEASE_SECONDS = 0.3, AFTER_RELEASE = 0.2, FLOOR_GAP = 0.01, LIFT_MIN_SECONDS = 0.8;
 const CARRY_TO = { x: MACHINE_SPEC.hole[0], z: MACHINE_SPEC.hole[1] };
 
 export class CycleRunner {
@@ -52,7 +52,10 @@ export class CycleRunner {
     return this.phase === 'done';
   }
 
+  private liftFrom = 0; // 들어 올리기 시작 높이
+
   private go(next: CyclePhase): void {
+    if (next === 'lift') this.liftFrom = this.claw.y;
     this.phase = next; this.clock = 0;
     this.opts.phase?.(next);
   }
@@ -84,10 +87,12 @@ export class CycleRunner {
         break;
       }
       case 'lift': {
-        // 서서히 빨라진다 — 갑자기 당기면 스프링이 튀어 힘이 넉넉해도 끊어진다
-        const y = this.clock < LIFT_PAUSE ? c.y : Math.min(CLAW_REST.y, c.y + LIFT_SPEED * Math.min(1, (this.clock - LIFT_PAUSE) / LIFT_EASE) * STEP); // 쥔 뒤 잠깐 멈춰 인형이 가라앉게
+        // 꼭대기까지 한 번에 부드럽게(시작·끝만 느리게, smoothstep) — 갑자기 당기면 스프링이 튀어 끊어지고, 멈칫하면 놓는 것처럼 보인다
+        const total = Math.max(LIFT_MIN_SECONDS, (CLAW_REST.y - this.liftFrom) / LIFT_SPEED);
+        const k = Math.min(1, this.clock / total), e = k * k * (3 - 2 * k);
+        const y = this.liftFrom + (CLAW_REST.y - this.liftFrom) * e;
         c.setPose(this.x, y, this.z, c.open);
-        if (y >= CLAW_REST.y - 1e-6) this.go('carry');
+        if (k >= 1) this.go('carry');
         break;
       }
       case 'carry': {

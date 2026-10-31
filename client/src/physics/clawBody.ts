@@ -25,6 +25,8 @@ export class ClawBody {
   private loadAvg = 0; // 드는 힘(위쪽 성분)의 0.1초 평균 — 출렁이는 순간값이 아니라 버티는 힘으로 끊김을 판단
   private anchorDoll = new THREE.Vector3();
   private anchorClaw = new THREE.Vector3();
+  private ballLocal = new THREE.Vector3(); // 쥔 공의 중심 (인형 몸 좌표) — 화면이 따라가게
+  private ballR = 0;
   x = CLAW_REST.x; y = CLAW_REST.y; z = CLAW_REST.z; open = 0.35;
   private vel = new THREE.Vector3(); // 집게 속도 (한 걸음 전과의 차이 / STEP) — 감쇠는 인형과 집게의 상대 속도에만
 
@@ -119,8 +121,11 @@ export class ClawBody {
     const at = touching.length ? touching.reduce((a, t) => a.add(t), new THREE.Vector3()).divideScalar(touching.length) : new THREE.Vector3(this.x, this.y - 0.2, this.z);
     const gripped = touching.length ? balls.slice().sort((p, q) => (at.distanceTo(p.c) - p.r) - (at.distanceTo(q.c) - q.r))[0] : undefined; // 접촉점들의 가운데가 표면에 가장 가까운 공 = 손가락이 감싼 공
     if (gripped) at.lerp(gripped.c, ANCHOR_IN);
+    this.ballR = gripped?.r ?? 0;
     const bt = body.translation(), br = body.rotation();
-    this.anchorDoll.copy(at).sub(new THREE.Vector3(bt.x, bt.y, bt.z)).applyQuaternion(new THREE.Quaternion(br.x, br.y, br.z, br.w).invert());
+    const toBody = new THREE.Quaternion(br.x, br.y, br.z, br.w).invert();
+    this.anchorDoll.copy(at).sub(new THREE.Vector3(bt.x, bt.y, bt.z)).applyQuaternion(toBody);
+    if (gripped) this.ballLocal.copy(gripped.c).sub(new THREE.Vector3(bt.x, bt.y, bt.z)).applyQuaternion(toBody);
     this.anchorClaw.copy(at).sub(new THREE.Vector3(this.x, this.y, this.z));
     this.heldUid = uid;
     this.relax = 1;
@@ -163,6 +168,16 @@ export class ClawBody {
     const bt = body.translation(), br = body.rotation();
     const onDoll = this.anchorDoll.clone().applyQuaternion(new THREE.Quaternion(br.x, br.y, br.z, br.w)).add(new THREE.Vector3(bt.x, bt.y, bt.z));
     return { onDoll, onClaw: this.anchorClaw.clone().add(new THREE.Vector3(this.x, this.y, this.z)) };
+  }
+
+  // 쥔 공(머리)의 반지름과 지금 중심 (기계 안 좌표) — 화면·중계의 '감싸는 모습'용. 안 쥐었으면 null
+  heldBall(): { r: number; c: [number, number, number] } | null {
+    if (this.heldUid === null || this.ballR === 0) return null;
+    const body = this.world.bodyOf(this.heldUid);
+    if (!body) return null;
+    const bt = body.translation(), br = body.rotation();
+    const c = this.ballLocal.clone().applyQuaternion(new THREE.Quaternion(br.x, br.y, br.z, br.w)).add(new THREE.Vector3(bt.x, bt.y, bt.z));
+    return { r: this.ballR, c: [c.x, c.y, c.z] };
   }
 
   loadAvgNow(): number {

@@ -58,3 +58,20 @@ test('the grip anchors inside the gripped ball', () => {
   expect(Math.hypot(+m[1] - head.c.x, +m[2] - head.c.y, +m[3] - head.c.z)).toBeLessThan(head.r * 0.6); // 표면이 아니라 공 안쪽
   world.dispose();
 });
+
+// 화면이 쥔 공을 따라가게 — 쥔 공(머리)의 반지름과 지금 중심
+test('heldBall follows the gripped ball', () => {
+  const world = new MachineWorld(R, [standing(1, 0, 0)]);
+  const claw = new ClawBody(R, world);
+  world.settle(1);
+  expect(claw.heldBall()).toBeNull();
+  const plan = claw.plan(0, 0);
+  let open = plan.descendOpen;
+  for (; open > 0 && (claw.touching().get(1) ?? 0) < 2; open -= 0.01) { claw.setPose(0, plan.y, 0, open); world.step(1 / 120); }
+  claw.grip(1, 'three');
+  const head = world.balls(1).sort((a, b) => b.c.y - a.c.y).find((b) => b.r > 0.05)!;
+  const held = claw.heldBall()!;
+  expect(held.r).toBeCloseTo(head.r, 3);
+  expect(Math.hypot(held.c[0] - head.c.x, held.c[1] - head.c.y, held.c[2] - head.c.z)).toBeLessThan(0.005);
+  world.dispose();
+});
