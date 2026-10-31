@@ -14,7 +14,7 @@ const [HX, HZ] = MACHINE_SPEC.hole;
 const [W, D] = MACHINE_SPEC.play_half;
 const spot = (uid: number, x: number, z: number, y: number | null = null): DollSpot => ['bear', x, y, z, 0, 0, 0, 1, 0, 'n', 0, '', uid];
 // 구멍을 피해 9자리에 흩어 놓는다
-const nine = (): DollSpot[] => [[0.3, 0.2], [0.1, -0.25], [-0.2, -0.25], [0.35, -0.1], [-0.05, 0.05], [0.2, 0.3], [-0.35, -0.3], [0.05, 0.3], [-0.2, 0.3]]
+const nine = (): DollSpot[] => [[0.3, 0.2], [0.1, -0.25], [-0.2, -0.25], [0.35, -0.1], [-0.05, 0.05], [0.2, 0.3], [-0.35, -0.3], [0.05, 0.3], [-0.05, 0.3]]
   .map(([x, z], i) => spot(i + 1, x, z));
 const inBox = (p: [number, number, number]) => p[1] >= DOLL_FLOOR - 0.01 && Math.abs(p[0]) <= W + 0.15 && Math.abs(p[2]) <= D + 0.15;
 

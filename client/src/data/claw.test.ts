@@ -13,8 +13,9 @@ test('claw strength grows from the hole edge to the far corner', () => {
 
 test('claw table carries the spec numbers', () => {
   expect(CLAW.quality).toEqual({ three: 1, two: 0.5 });
-  expect(CLAW.rare).toEqual({ rare: 0.75, gold: 0.6 });
+  expect(CLAW.rare).toEqual({ rare: 0.85, gold: 0.75 });
   expect(CLAW.hole).toEqual({ size: 0.34, lip: 0.06 });
   expect(CLAW.max_wins).toBe(3);
+  expect(CLAW.carry_relax).toBeGreaterThan(0);
   expect(CLAW.base_force).toBeGreaterThan(0);
 });

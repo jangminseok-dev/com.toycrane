@@ -1,8 +1,7 @@
 import { CLAW } from '../data/claw';
 import { MACHINE_SPEC } from '../data/storeLayout';
-import { clawPath } from '../game/clawPath';
 import type { DollPose } from '../net/protocol';
-import { CLAW_REST } from '../world/machine';
+import { CLAW_REST, DOLL_FLOOR } from '../world/machine';
 import type { ClawBody, GripQuality } from './clawBody';
 import { STEP, type MachineWorld } from './machineWorld';
 
@@ -19,7 +18,7 @@ export type CycleOptions = {
 export type CycleResult = { won: number[]; poses: DollPose[]; held: number | null; slipped: boolean };
 
 const DESCEND_SPEED = 0.35, LIFT_SPEED = 0.25, CARRY_SPEED = MACHINE_SPEC.claw_speed;
-const CLOSE_SECONDS = 0.6, RELEASE_SECONDS = 0.3, AFTER_RELEASE = 0.2;
+const CLOSE_SECONDS = 0.6, RELEASE_SECONDS = 0.3, AFTER_RELEASE = 0.2, FLOOR_GAP = 0.01, LIFT_EASE = 1.0, LIFT_PAUSE = 0.15;
 const CARRY_TO = { x: MACHINE_SPEC.hole[0], z: MACHINE_SPEC.hole[1] };
 
 export class CycleRunner {
@@ -34,6 +33,7 @@ export class CycleRunner {
 
   constructor(private world: MachineWorld, private claw: ClawBody, readonly x: number, readonly z: number, private opts: CycleOptions = {}) {
     this.plan = claw.plan(x, z);
+    world.markTarget(this.plan.target);
     this.from = { x, z };
     this.carryLen = Math.hypot(CARRY_TO.x - x, CARRY_TO.z - z);
     world.setHoleOpen(true);
@@ -60,9 +60,10 @@ export class CycleRunner {
     this.clock += STEP;
     switch (this.phase) {
       case 'descend': {
-        const y = Math.max(p.y, c.y - DESCEND_SPEED * STEP);
+        // 허브가 인형에 얹히거나 손가락 끝이 바닥에 닿을 때까지 내려간다 — 손가락은 내려가며 옆 인형을 민다 (설계 §9.5)
+        const y = c.y - DESCEND_SPEED * STEP;
         c.setPose(this.x, y, this.z, p.descendOpen);
-        if (y <= p.y + 1e-6) this.go('close');
+        if (c.hubTouching() || c.tipsBottom() <= DOLL_FLOOR + FLOOR_GAP) { c.softHands(); this.go('close'); }
         break;
       }
       case 'close': {
@@ -77,15 +78,18 @@ export class CycleRunner {
         break;
       }
       case 'lift': {
-        const y = Math.min(CLAW_REST.y, c.y + LIFT_SPEED * STEP);
+        // 서서히 빨라진다 — 갑자기 당기면 스프링이 튀어 힘이 넉넉해도 끊어진다
+        const y = this.clock < LIFT_PAUSE ? c.y : Math.min(CLAW_REST.y, c.y + LIFT_SPEED * Math.min(1, (this.clock - LIFT_PAUSE) / LIFT_EASE) * STEP); // 쥔 뒤 잠깐 멈춰 인형이 가라앉게
         c.setPose(this.x, y, this.z, c.open);
         if (y >= CLAW_REST.y - 1e-6) this.go('carry');
         break;
       }
       case 'carry': {
+        // 구멍까지 일정한 속도로(시작·끝만 부드럽게). 옛 clawPath는 앞 60%에 도착해 기다리므로 쓰지 않는다 — 기다리는 동안 풀려 구멍 위에서만 떨어졌다
         const k = this.carryLen < 1e-4 ? 1 : Math.min(1, (this.clock * CARRY_SPEED) / this.carryLen);
-        const at = clawPath(this.from, CARRY_TO, k);
-        c.setPose(at.x, c.y, at.z, c.open);
+        const e = k * k * (3 - 2 * k);
+        c.setRelax(1 - CLAW.carry_relax * k);
+        c.setPose(this.from.x + (CARRY_TO.x - this.from.x) * e, c.y, this.from.z + (CARRY_TO.z - this.from.z) * e, c.open);
         if (k >= 1) { c.release(); this.go('release'); }
         break;
       }
@@ -101,14 +105,15 @@ export class CycleRunner {
       }
       case 'done': return;
     }
-    this.world.step(STEP);
     c.update();
+    this.world.step(STEP);
     this.opts.frame?.({ x: c.x, y: c.y, z: c.z, open: c.open }, this.world.movingPoses(), this.phase);
   }
 
   private finish(): void {
     const won = this.world.fallen();
     for (const uid of won) this.world.remove(uid);
+    this.world.markTarget(null);
     this.world.setHoleOpen(false);
     this.result = { won, poses: this.world.poses(), held: this.held, slipped: this.held !== null && !won.includes(this.held) };
     this.go('done');

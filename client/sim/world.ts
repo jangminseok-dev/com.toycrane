@@ -36,14 +36,21 @@ export function fillMachine(kind: string, rng: Rng, look: Look = {}): DollSpot[]
   }
   return spots;
 }
-// 앉힌 기계 상태(자리·돌림이 채워진 spots)
-export function settledMachine(R: Rapier, kind: string, rng: Rng, look: Look = {}): DollSpot[] {
-  const world = new MachineWorld(R, fillMachine(kind, rng, look));
+// 물리로 앉힌 뒤 자리·돌림을 채운 spots
+export function settleSpots(R: Rapier, spots: DollSpot[]): DollSpot[] {
+  const world = new MachineWorld(R, spots);
   world.settle(8);
-  const poses = new Map(world.poses().map((p) => [p.uid, p]));
-  const out = world.uids().map((uid) => { const s = world.spotOf(uid)!, p = poses.get(uid)!; return [s[0], p.p[0], p.p[1], p.p[2], ...p.q, s[8], s[9], s[10], s[11], s[12]] as DollSpot; });
+  const out = withPoses(world);
   world.dispose();
   return out;
+}
+export function withPoses(world: MachineWorld): DollSpot[] {
+  const poses = new Map(world.poses().map((p) => [p.uid, p]));
+  return world.uids().map((uid) => { const s = world.spotOf(uid)!, p = poses.get(uid)!; return [s[0], p.p[0], p.p[1], p.p[2], ...p.q, s[8], s[9], s[10], s[11], s[12]] as DollSpot; });
+}
+// 앉힌 기계 상태(자리·돌림이 채워진 spots)
+export function settledMachine(R: Rapier, kind: string, rng: Rng, look: Look = {}): DollSpot[] {
+  return settleSpots(R, fillMachine(kind, rng, look));
 }
 // 위가 막히지 않은 인형: 다른 인형 중심이 더 높고 수평 17cm 안이면 막힘
 export function openDolls(spots: DollSpot[]): DollSpot[] {

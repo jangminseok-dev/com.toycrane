@@ -15,12 +15,15 @@ type Body = RAPIER.RigidBody;
 // 고정 간격 1/120초, 한 번에 최대 4번(넘치면 버림). 상자(바닥·벽·천장), 구멍(네모)과 턱, 아무도 하지 않을 때 구멍을 덮는 뚜껑.
 // 안 앉은 인형(y null)은 천장에서 번호 순서로 0.25초 간격으로 떨어진다 — 같은 입력이면 어느 화면에서든 같은 결과(결정성)
 export const STEP = 1 / 120, MAX_STEPS = 4;
+// 충돌 그룹: 인형 0x0001, 노린 인형 0x0002, 손가락 끝 0x0004 (clawBody). 쌍은 (A.소속 & B.필터) && (B.소속 & A.필터)일 때 부딪힌다
+export const GROUP_DOLL = 0x0001, GROUP_TARGET = 0x0002, GROUP_TIP = 0x0004, ALL = 0xffff;
+export const groups = (membership: number, filter: number) => ((membership << 16) | filter) >>> 0;
 const WALL_MARGIN = 0.12; // 놀이 영역(집게가 가는 범위)보다 벽이 이만큼 밖
 const CEILING = 2.2, DROP_Y = 1.9, DROP_GAP = 0.25;
 const FALL_DEPTH = 0.15; // 구멍 바닥보다 이만큼 아래면 빠진 것
 const CATCH_Y = 0.3; // 빠진 인형이 끝없이 떨어지지 않게 받는 바닥
 const SKIN = 0.0; // 콜라이더 여유 (0이면 모양 그대로)
-const LID_H = 0.1; // 뚜껑 고깔 높이
+const REDROP_GAP = 0.2; // 채우기 중 구멍에 빠진 인형을 다시 떨어뜨릴 때 다른 인형과 띄우는 거리
 
 export class MachineWorld {
   readonly world: RAPIER.World;
@@ -29,7 +32,6 @@ export class MachineWorld {
   private bodies = new Map<number, Body>();
   private spots = new Map<number, DollSpot>();
   private pending: { uid: number; at: number }[] = [];
-  private lid: RAPIER.Collider | null = null;
   private holeOpen = false;
 
   constructor(readonly R: Rapier, spots: DollSpot[]) {
@@ -81,7 +83,8 @@ export class MachineWorld {
     const volume = shapes.reduce((v, s) => v + (4 / 3) * Math.PI * s.r ** 3, 0);
     for (const s of shapes) {
       this.world.createCollider(
-        this.R.ColliderDesc.ball(s.r + SKIN).setTranslation(s.at[0], s.at[1], s.at[2]).setDensity(mass / volume).setFriction(FRICTION).setRestitution(RESTITUTION),
+        this.R.ColliderDesc.ball(s.r + SKIN).setTranslation(s.at[0], s.at[1], s.at[2]).setDensity(mass / volume).setFriction(FRICTION).setRestitution(RESTITUTION)
+          .setCollisionGroups(groups(GROUP_DOLL, ALL)),
         body,
       );
     }
@@ -102,6 +105,7 @@ export class MachineWorld {
     this.pending = this.pending.filter((p) => p.at > this.time);
     this.world.step();
     this.time += STEP;
+    if (!this.holeOpen) this.redropFallen();
   }
 
   // 모두 잠들 때까지(최대 maxSeconds) 돌리고 쓴 초를 돌려준다
@@ -124,13 +128,30 @@ export class MachineWorld {
     return [...this.bodies].filter(([, b]) => b.isEnabled() && !b.isSleeping()).map(([uid, b]) => this.pose(uid, b));
   }
 
-  // 뚜껑은 미끄러운 고깔 — 인형이 그 위에 앉지 못하고 굴러 내려와야 다음 판에 거저 빠지는 일이 없다 (설계 §9.1)
+  // 구멍은 늘 뚫려 있다(막으면 그 위에 앉은 인형이 다음 판에 거저 빠진다). 대신 아무도 하지 않을 때(채우기) 빠진 인형은
+  // 구멍 반대쪽으로 옮겨 다시 떨어뜨린다 — 같은 입력이면 같은 결과 (설계 §9.1의 "뚜껑"을 이렇게 푼다)
   setHoleOpen(open: boolean): void {
     this.holeOpen = open;
-    if (open && this.lid) { this.world.removeCollider(this.lid, true); this.lid = null; }
-    if (!open && !this.lid) {
-      const [hx, hz] = MACHINE_SPEC.hole, half = CLAW.hole.size / 2;
-      this.lid = this.world.createCollider(this.R.ColliderDesc.cone(LID_H / 2, half * 1.08).setTranslation(hx, DOLL_FLOOR + LID_H / 2 - 0.01, hz).setFriction(0).setRestitution(0));
+  }
+
+  // 다시 떨어뜨릴 자리: 구멍에서 먼 순서로 격자를 훑어 다른 인형과 20cm 넘게 떨어진 첫 칸 (없으면 가장 먼 칸)
+  private freeSpotAway(skip: number): [number, number] {
+    const [hx, hz] = MACHINE_SPEC.hole, [W, D] = MACHINE_SPEC.play_half;
+    const cells: [number, number][] = [];
+    for (let x = -W; x <= W + 1e-9; x += 0.1) for (let z = -D; z <= D + 1e-9; z += 0.1) cells.push([Math.round(x * 100) / 100, Math.round(z * 100) / 100]);
+    cells.sort((a, b) => Math.hypot(b[0] - hx, b[1] - hz) - Math.hypot(a[0] - hx, a[1] - hz));
+    const others = [...this.bodies].filter(([uid]) => uid !== skip).map(([, b]) => b.translation());
+    return cells.find(([x, z]) => others.every((t) => Math.hypot(t.x - x, t.z - z) >= REDROP_GAP)) ?? cells[0];
+  }
+
+  private redropFallen(): void {
+    for (const [uid, b] of this.bodies) {
+      if (b.translation().y >= DOLL_FLOOR - FALL_DEPTH) continue;
+      const [x, z] = this.freeSpotAway(uid);
+      b.setTranslation({ x, y: DROP_Y, z }, true);
+      b.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
+      b.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      b.setAngvel({ x: 0, y: 0, z: 0 }, true);
     }
   }
 
@@ -141,6 +162,14 @@ export class MachineWorld {
   // 바닥보다 아래로 떨어진 인형 번호 — 구멍 말고는 내려갈 길이 없다 (빠진 뒤 받는 바닥에서 굴러가도 센다)
   fallen(): number[] {
     return [...this.bodies].filter(([, b]) => b.translation().y < DOLL_FLOOR - FALL_DEPTH).map(([uid]) => uid);
+  }
+
+  // 노린 인형은 손가락 끝에 밀리지 않는다 (손가락 끝 콜라이더의 필터가 GROUP_TARGET을 뺀다) — 내려가다 쳐서 넘어뜨리지 않게. 허브는 민다
+  markTarget(uid: number | null): void {
+    for (const [id, b] of this.bodies) {
+      const g = groups(id === uid ? GROUP_TARGET : GROUP_DOLL, ALL);
+      for (let i = 0; i < b.numColliders(); i++) b.collider(i).setCollisionGroups(g);
+    }
   }
 
   bodyOf(uid: number): Body | undefined {
