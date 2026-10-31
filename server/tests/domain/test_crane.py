@@ -32,6 +32,6 @@ def test_a_new_doll_is_unsettled_until_the_screen_drops_it():
 def test_claw_strength_grows_with_distance_from_the_hole():
     hx, hz, hr = MACHINE_SPEC.hole
     w, d = MACHINE_SPEC.play_half
-    assert claw_strength(hx + hr, hz) == pytest.approx(0.75)
-    assert claw_strength(w, -d) == pytest.approx(1.25)  # 구멍에서 가장 먼 모서리
+    assert claw_strength(hx + hr, hz) == pytest.approx(0.6)
+    assert claw_strength(w, -d) == pytest.approx(1.4)  # 구멍에서 가장 먼 모서리 (±40%: shared/claw.json spread)
     assert claw_strength(hx + hr, hz) < claw_strength(0.0, 0.0) < claw_strength(w, -d)

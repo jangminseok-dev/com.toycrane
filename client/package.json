@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "test": "vitest run"
+    "test": "vitest run",
+    "sim": "vitest run --config vitest.sim.config.ts"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",

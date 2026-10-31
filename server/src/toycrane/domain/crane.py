@@ -56,7 +56,7 @@ def spawn_spot(spots: list[DollSpot], rng: random.Random) -> tuple[float, float]
 
 
 def claw_strength(x: float, z: float) -> float:
-    """집게 힘 배율: 구멍 가장자리 0.75 → 구멍에서 가장 먼 모서리 1.25 (사용자 결정 2026-10-31 — 멀리 있는 인형은 세게, 가까운 인형은 약하게)."""
+    """집게 힘 배율: 구멍 가장자리 1−spread → 구멍에서 가장 먼 모서리 1+spread (사용자 결정 2026-10-31 — 멀리 있는 인형은 세게, 가까운 인형은 약하게; spread는 shared/claw.json)."""
     hx, hz, hr = MACHINE_SPEC.hole
     w, d = MACHINE_SPEC.play_half
     far = max(math.hypot(cx - hx, cz - hz) for cx in (-w, w) for cz in (-d, d))

@@ -20,6 +20,7 @@ const CEILING = 2.2, DROP_Y = 1.9, DROP_GAP = 0.25;
 const FALL_DEPTH = 0.15; // 구멍 바닥보다 이만큼 아래면 빠진 것
 const CATCH_Y = 0.3; // 빠진 인형이 끝없이 떨어지지 않게 받는 바닥
 const SKIN = 0.0; // 콜라이더 여유 (0이면 모양 그대로)
+const LID_H = 0.1; // 뚜껑 고깔 높이
 
 export class MachineWorld {
   readonly world: RAPIER.World;
@@ -123,12 +124,13 @@ export class MachineWorld {
     return [...this.bodies].filter(([, b]) => b.isEnabled() && !b.isSleeping()).map(([uid, b]) => this.pose(uid, b));
   }
 
+  // 뚜껑은 미끄러운 고깔 — 인형이 그 위에 앉지 못하고 굴러 내려와야 다음 판에 거저 빠지는 일이 없다 (설계 §9.1)
   setHoleOpen(open: boolean): void {
     this.holeOpen = open;
     if (open && this.lid) { this.world.removeCollider(this.lid, true); this.lid = null; }
     if (!open && !this.lid) {
-      const [hx, hz] = MACHINE_SPEC.hole, half = CLAW.hole.size / 2, t = 0.05;
-      this.lid = this.fixed(half, t, half, hx, DOLL_FLOOR - t, hz);
+      const [hx, hz] = MACHINE_SPEC.hole, half = CLAW.hole.size / 2;
+      this.lid = this.world.createCollider(this.R.ColliderDesc.cone(LID_H / 2, half * 1.08).setTranslation(hx, DOLL_FLOOR + LID_H / 2 - 0.01, hz).setFriction(0).setRestitution(0));
     }
   }
 

@@ -66,16 +66,14 @@ export class CycleRunner {
         break;
       }
       case 'close': {
+        // 다 오므릴 때까지 닫는다 — 손가락이 인형을 밀며 감싸고, 둘 이상이 같은 인형에 닿는 순간 쥔다 (닿는 손가락이 없으면 빈손)
         const k = Math.min(1, this.clock / CLOSE_SECONDS);
-        const open = p.descendOpen + (p.open - p.descendOpen) * k;
-        c.setPose(this.x, c.y, this.z, open);
-        if (k >= 1) {
-          const touching = c.touching();
-          let best: [number, number] | null = null;
-          for (const [uid, n] of touching) if (n >= 2 && (!best || n > best[1])) best = [uid, n];
-          if (best) { c.grip(best[0], best[1] >= 3 ? 'three' : 'two' as GripQuality, this.opts.baseForce); this.held = best[0]; }
-          this.go('lift');
-        }
+        c.setPose(this.x, c.y, this.z, p.descendOpen * (1 - k));
+        const touching = c.touching();
+        let best: [number, number] | null = null;
+        for (const [uid, n] of touching) if (n >= 2 && (!best || n > best[1])) best = [uid, n];
+        if (best) { c.grip(best[0], best[1] >= 3 ? 'three' : 'two' as GripQuality, this.opts.baseForce); this.held = best[0]; this.go('lift'); }
+        else if (k >= 1) this.go('lift');
         break;
       }
       case 'lift': {
@@ -93,8 +91,8 @@ export class CycleRunner {
       }
       case 'release': {
         const k = Math.min(1, this.clock / RELEASE_SECONDS);
-        c.setPose(c.x, c.y, c.z, p.open + (1 - p.open) * k);
-        if (this.clock >= RELEASE_SECONDS + AFTER_RELEASE) this.go('settle');
+        c.setPose(c.x, c.y, c.z, c.open + (1 - c.open) * k);
+        if (this.clock >= RELEASE_SECONDS + AFTER_RELEASE) { c.openHands(); this.go('settle'); }
         break;
       }
       case 'settle': {

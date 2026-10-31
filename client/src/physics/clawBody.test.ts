@@ -30,7 +30,7 @@ test('a grip breaks when the load exceeds its max force', () => {
   const plan = claw.plan(0, 0);
   claw.setPose(0, plan.y, 0, plan.open);
   world.step(1 / 120);
-  claw.grip(1, 'three', 2.0); // 최대 힘 2N: 보통 인형(0.25kg)은 들리고
+  claw.grip(1, 'three', 5.0); // 최대 힘 5N × 거리 배율: 보통 인형(0.25kg, 2.45N)은 들리고
   for (let i = 0; i < 120; i++) { claw.setPose(0, plan.y + i * 0.002, 0, plan.open); world.step(1 / 120); claw.update(); }
   expect(claw.held()).toBe(1);
   world.bodyOf(1)!.setAdditionalMass(10, true); // 갑자기 10kg이 되면 끊어진다

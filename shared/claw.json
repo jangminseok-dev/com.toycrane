@@ -1,8 +1,8 @@
 {
-  "base_force": 6.0,
-  "spread": 0.25,
-  "quality": {"three": 1.0, "two": 0.6},
-  "rare": {"rare": 0.5, "gold": 0.3},
+  "base_force": 7.0,
+  "spread": 0.4,
+  "quality": {"three": 1.0, "two": 0.5},
+  "rare": {"rare": 0.75, "gold": 0.6},
   "hole": {"size": 0.34, "lip": 0.06},
   "max_wins": 3,
   "cycle_seconds": 12,

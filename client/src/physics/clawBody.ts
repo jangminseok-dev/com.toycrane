@@ -42,14 +42,19 @@ export class ClawBody {
     return probesAt(this.x, this.y, this.z, this.open).tips;
   }
 
-  // 인형별로 닿은 손가락 끝 수 (기하로 잰다 — 엔진 접촉 목록보다 결정적이고 가볍다)
+  // 손가락 표본점(손가락마다 12점)을 손가락별로 묶은 것
+  private fingers(): THREE.Vector3[][] {
+    const pts = probesAt(this.x, this.y, this.z, this.open).fingers;
+    return [0, 1, 2].map((k) => pts.slice(k * 12, k * 12 + 12));
+  }
+
+  // 인형별로 닿은 손가락 수 — 손가락 어느 마디든 인형 공에 닿으면 그 손가락이 닿은 것 (기하로 잰다: 결정적이고 가볍다)
   touching(): Map<number, number> {
     const out = new Map<number, number>();
-    const tips = this.tipPoints();
+    const fingers = this.fingers();
     for (const uid of this.world.uids()) {
       const balls = this.world.balls(uid);
-      let n = 0;
-      for (const t of tips) if (balls.some((b) => t.distanceTo(b.c) <= b.r + TIP_R + TOUCH)) n++;
+      const n = fingers.filter((f) => f.some((p) => balls.some((b) => p.distanceTo(b.c) <= b.r + TIP_R + TOUCH))).length;
       if (n > 0) out.set(uid, n);
     }
     return out;
@@ -80,7 +85,7 @@ export class ClawBody {
     this.maxForce = baseForce * clawStrength(this.x, this.z) * CLAW.quality[quality] * tier;
     // 붙는 점 = 닿은 손가락 끝들의 가운데 (세계 좌표) → 인형 몸 좌표·집게 몸 좌표로
     const balls = this.world.balls(uid);
-    const touching = this.tipPoints().filter((t) => balls.some((b) => t.distanceTo(b.c) <= b.r + TIP_R + TOUCH));
+    const touching = this.fingers().flat().filter((t) => balls.some((b) => t.distanceTo(b.c) <= b.r + TIP_R + TOUCH));
     const at = touching.length ? touching.reduce((a, t) => a.add(t), new THREE.Vector3()).divideScalar(touching.length) : new THREE.Vector3(this.x, this.y - 0.2, this.z);
     const bt = body.translation(), br = body.rotation();
     this.anchorDoll.copy(at).sub(new THREE.Vector3(bt.x, bt.y, bt.z)).applyQuaternion(new THREE.Quaternion(br.x, br.y, br.z, br.w).invert());
@@ -89,6 +94,7 @@ export class ClawBody {
     this.joint = this.world.world.createImpulseJoint(data, this.body, body, true);
     this.heldUid = uid;
     body.wakeUp();
+    for (const t of this.tips) t.setSensor(true); // 쥔 뒤에는 손가락이 인형을 받쳐 들지 않는다 — 관절(쥠의 힘)만이 든다
   }
 
   held(): number | null {
@@ -114,13 +120,20 @@ export class ClawBody {
     return onDoll.distanceTo(this.anchorClaw.clone().add(new THREE.Vector3(this.x, this.y, this.z))) * SPRING_K;
   }
 
+  // 관절을 끊는다(놓침·놓음). 손가락은 계속 "안 받쳐 드는" 채로 — 끊어진 인형이 손가락 위에 얹혀 딸려 오지 않게. openHands()가 되돌린다
   release(): void {
     if (this.joint) { this.world.world.removeImpulseJoint(this.joint, true); this.joint = null; }
     this.heldUid = null;
   }
 
+  // 손가락을 벌려 놓은 뒤: 다시 인형을 밀 수 있는 손가락으로
+  openHands(): void {
+    for (const t of this.tips) t.setSensor(false);
+  }
+
   dispose(): void {
     this.release();
+    this.openHands();
     this.world.world.removeRigidBody(this.body);
   }
 }
