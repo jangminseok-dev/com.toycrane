@@ -1,8 +1,9 @@
 import random
 
 from toycrane.app.ports.output.machine_contents_port import MachineContentsPort
-from toycrane.domain.crane import DollSpot, generate_contents
+from toycrane.domain.crane import DollSpot
 from toycrane.domain.layout import MACHINE_IDS, MACHINES
+from toycrane.domain.stock import generate_stock
 
 
 async def ensure_contents(port: MachineContentsPort, rng: random.Random) -> dict[str, list[DollSpot]]:
@@ -10,7 +11,7 @@ async def ensure_contents(port: MachineContentsPort, rng: random.Random) -> dict
     contents = await port.load()
     missing = [m for m in MACHINE_IDS if m not in contents]
     for m in missing:
-        contents[m] = generate_contents(MACHINES[m].kind, rng)
+        contents[m] = generate_stock(MACHINES[m].kind, rng).dolls
     if missing:
         await port.save(contents)
     return contents

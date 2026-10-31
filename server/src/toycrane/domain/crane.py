@@ -1,20 +1,17 @@
-"""크레인 기계 속: 인형 배치와 판정 (설계 §5.3, 수치는 2단계 계획의 [내 판단]).
+"""크레인 기계 속: 인형 자리와 판정 (설계 §5.3, 수치는 2단계 계획의 [내 판단], 체형·희귀는 2026-10-31 인형 채우기 설계 §4.4·§4.5).
 
-배치: 바닥에 6개를 서로 22cm 넘게 떨어뜨려 놓고(겹쳐 파고들지 않게), 위층 3개는 가까운 바닥 인형 두 개 사이 틈에
-얹는다. 얹힌 높이는 받쳐 주는 인형들의 둥근 윗면(타원체)으로 정해 모든 화면이 같게 그린다. 바라보는 방향은 무작위.
-판정: 집게 손이 닿는 인형(14cm 안) 가운데 가장 높이 있는 것을 노리고, 그 인형 중심까지 거리로 잡은 부위
-(머리·몸통·팔)를 정해 부위별 (성공, 놓침) 확률 × 희귀도로 결과를 굴린다. 나머지는 헛잡음."""
+자리: 바닥에 6개를 서로 22cm 넘게 떨어뜨려 놓고(겹쳐 파고들지 않게), 위층은 가까운 바닥 인형 두 개 사이 틈에
+얹는다. 얹힌 높이는 받쳐 주는 인형들의 둥근 윗면(타원체, 체형만큼 넓거나 좁음)으로 정해 모든 화면이 같게 그린다.
+판정: 집게 손이 닿는 인형(14cm × 체형) 가운데 가장 높이 있는 것을 노리고, 그 인형 중심까지 거리로 잡은 부위
+(머리·몸통·팔)를 정해 부위별 (성공, 놓침) 확률에 희귀 단계·체형을 입혀 결과를 굴린다. 나머지는 헛잡음."""
 
 import math
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
-from toycrane.domain.catalog import legacy_kind
 from toycrane.domain.layout import MACHINE_SPEC
 
-DOLLS_PER_MACHINE = 9
 FLOOR_DOLLS = 6
-TOP_DOLLS = DOLLS_PER_MACHINE - FLOOR_DOLLS
 MIN_GAP = 0.22      # 바닥 인형 중심 사이 최소 거리(m) — 인형 지름이 25~30cm
 VALLEY_MAX = 0.30   # 위층 인형을 받칠 두 바닥 인형 사이 최대 거리
 DOLL_H, DOLL_W = 0.34, 0.16  # 기계 속 인형을 감싸는 타원체: 높이, 가로 반지름
@@ -22,32 +19,28 @@ SINK = 0.06         # 위층 인형이 받침 사이에 파묻히는 깊이
 PART_RADII = (("head", 0.05), ("body", 0.10), ("arm", 0.14))
 # (성공, 놓침), 나머지는 헛잡음. 보통 난이도(사용자 결정 2026-10-31) — 머리를 맞혀도 7판에 하나꼴, 4단계 근성 게이지가 받쳐 준다
 ODDS = {"head": (0.15, 0.40), "body": (0.08, 0.45), "arm": (0.03, 0.45)}
-RARE_WIN_FACTOR = 0.35  # 희귀는 성공 확률 × 0.35, 줄어든 만큼 놓침으로
+TIER_WIN = {"rare": 0.5, "gold": 0.3}  # 희귀·황금은 성공 확률 × 배율, 줄어든 만큼 놓침으로
+# 체형: 폭(키는 같음) · 부위 판정 반지름 배율 · 놓침에 더하는 값 — 뚱뚱은 잘 잡히지만 무거워 떨어뜨리고, 마른은 빠져나가지만 들면 안 떨어진다
+BODY_W = {"n": 1.0, "c": 1.15, "s": 0.88}
+BODY_REACH = {"n": 1.0, "c": 1.25, "s": 0.8}
+BODY_SLIP = {"n": 0.0, "c": 0.10, "s": -0.10}
 SWAY_MAX = 0.07  # 내려갈 때 집게가 흔들려 노린 자리에서 벗어나는 최대 거리(m) — 머리(5cm)를 노려도 몸통에 걸릴 수 있게
 
 
 @dataclass(frozen=True)
 class DollSpot:
-    """기계 안 인형 하나: 기계 안 좌표(m)와 몸 돌림(라디안)."""
+    """기계 안 인형 하나: 기계 안 좌표(m)와 몸 돌림(라디안), 그리고 이 인형만의 변형."""
 
     kind: str
     x: float
     z: float
     r: float
     y: float = 0.0  # 얹힌 높이(바닥이면 0)
-
-
-def generate_contents(kind: str, rng: random.Random) -> list[DollSpot]:
-    """그 캐릭터 인형 9개: 바닥 6개(서로 떨어뜨림) + 위층 3개(두 인형 사이 틈에 얹음). 틈이 모자라면 바닥을 다시 깐다."""
-    while True:
-        floor = _floor(kind, rng)
-        top = _top(kind, floor, rng)
-        if len(top) == TOP_DOLLS:
-            return floor + top
-
-
-def new_spot(kind: str, rng: random.Random, x: float, z: float, y: float = 0.0) -> DollSpot:
-    return DollSpot(kind, x, z, round(rng.uniform(0, 2 * math.pi), 2), y)
+    color: int = 0  # 캐릭터 색 6가지 중 (희귀·황금은 쓰지 않음)
+    body: str = "n"  # "n" 보통 · "c" 뚱뚱 · "s" 마른
+    face: int = 0  # 표정 5가지 중
+    rare: str = ""  # "" 일반 · 효과 id(희귀) · "gold"(매우 희귀)
+    uid: int = 0  # 기계 안에서 이 인형을 가리키는 번호 (새로 채운 인형을 화면이 알아보게)
 
 
 def _in_area(x: float, z: float) -> bool:
@@ -55,43 +48,67 @@ def _in_area(x: float, z: float) -> bool:
     return math.hypot(x - hx, z - hz) >= hr
 
 
-def _floor(kind: str, rng: random.Random) -> list[DollSpot]:
+def _supports(floor: list[DollSpot], x: float, z: float) -> list[DollSpot]:
+    """(x, z)에 얹힌 인형을 받쳐 주는 바닥 인형 — 둥근 윗면(체형 폭) 안에 있는 것."""
+    return [s for s in floor if math.hypot(s.x - x, s.z - z) < DOLL_W * BODY_W[s.body]]
+
+
+def place_new(spots: list[DollSpot], rng: random.Random) -> tuple[float, float, float]:
+    """새 인형이 놓일 자리 (x, z, y): 바닥이 6개가 안 되면 다른 인형과 22cm 넘게 떨어진 빈 바닥,
+    아니면(또는 빈 바닥이 없으면) 바닥 인형 두 개 사이 틈 위, 둘 다 없으면 간격을 조금씩 줄인 빈 바닥."""
     w, d = MACHINE_SPEC.play_half
-    spots: list[DollSpot] = []
-    gap, tries = MIN_GAP, 0
-    while len(spots) < FLOOR_DOLLS:
-        x, z = round(rng.uniform(-w, w), 3), round(rng.uniform(-d, d), 3)
-        if _in_area(x, z) and all(math.hypot(x - s.x, z - s.z) >= gap for s in spots):
-            spots.append(new_spot(kind, rng, x, z))
-        tries += 1
-        if tries > 400:  # 자리가 안 나면 아주 조금씩 좁힌다
-            gap, tries = gap - 0.005, 0
-    return spots
+    floor, top = [s for s in spots if s.y == 0], [s for s in spots if s.y > 0]
 
+    def free_floor(gap: float, tries: int) -> tuple[float, float] | None:
+        for _ in range(tries):
+            x, z = round(rng.uniform(-w, w), 3), round(rng.uniform(-d, d), 3)
+            if _in_area(x, z) and all(math.hypot(x - s.x, z - s.z) >= gap for s in spots):
+                return x, z
+        return None
 
-def _top(kind: str, floor: list[DollSpot], rng: random.Random) -> list[DollSpot]:
+    if len(floor) < FLOOR_DOLLS:
+        spot = free_floor(MIN_GAP, 400)
+        if spot:
+            return spot[0], spot[1], 0.0
     pairs = [(a, b) for i, a in enumerate(floor) for b in floor[i + 1:] if math.hypot(a.x - b.x, a.z - b.z) <= VALLEY_MAX]
     rng.shuffle(pairs)
-    top: list[DollSpot] = []
     for a, b in pairs:
         x = round((a.x + b.x) / 2 + rng.uniform(-0.01, 0.01), 3)
         z = round((a.z + b.z) / 2 + rng.uniform(-0.01, 0.01), 3)
-        if not _in_area(x, z) or any(math.hypot(x - t.x, z - t.z) < 0.18 for t in top):
-            continue
-        top.append(new_spot(kind, rng, x, z, rest_height(floor, x, z)))
-        if len(top) == TOP_DOLLS:
-            break
-    return top
+        if _in_area(x, z) and len(_supports(floor, x, z)) >= 2 and all(math.hypot(x - t.x, z - t.z) >= 0.18 for t in top):
+            return x, z, rest_height(floor, x, z)
+    gap = MIN_GAP
+    while True:  # 자리가 안 나면 아주 조금씩 좁힌다
+        gap -= 0.005
+        spot = free_floor(gap, 400)
+        if spot:
+            return spot[0], spot[1], 0.0
 
 
 def rest_height(floor: list[DollSpot], x: float, z: float) -> float:
-    """받쳐 주는 인형들의 둥근 윗면 가운데 가장 높은 곳에서 조금 파묻힌 높이."""
+    """받쳐 주는 인형들의 둥근 윗면(체형 폭) 가운데 가장 높은 곳에서 조금 파묻힌 높이."""
     top = 0.0
-    for s in floor:
-        d = math.hypot(s.x - x, s.z - z)
-        if d < DOLL_W:
-            top = max(top, DOLL_H / 2 + DOLL_H / 2 * math.sqrt(1 - (d / DOLL_W) ** 2))
+    for s in _supports(floor, x, z):
+        top = max(top, DOLL_H / 2 + DOLL_H / 2 * math.sqrt(1 - (math.hypot(s.x - x, s.z - z) / (DOLL_W * BODY_W[s.body])) ** 2))
     return round(max(top - SINK, 0.0), 3)
+
+
+def settle(spots: list[DollSpot]) -> list[DollSpot]:
+    """위층 인형 높이를 지금 바닥으로 다시 잰다 (받침이 없으면 0 = 바닥 인형)."""
+    floor = [s for s in spots if s.y == 0]
+    return [replace(s, y=rest_height(floor, s.x, s.z)) if s.y > 0 else s for s in spots]
+
+
+def take_out(spots: list[DollSpot], index: int) -> list[DollSpot]:
+    """뽑혀 나간 인형을 뺀다. 그 인형이 받치던 위층 인형은 받침이 하나뿐이 되면 빈 자리로 내려앉는다(공중에 뜨지 않게)."""
+    gone, rest = spots[index], [s for i, s in enumerate(spots) if i != index]
+    if gone.y == 0:
+        floor = [s for s in rest if s.y == 0]
+        fallen = next((i for i, s in enumerate(rest) if s.y > 0 and len(_supports(floor, s.x, s.z)) < 2
+                       and math.hypot(s.x - gone.x, s.z - gone.z) < DOLL_W * BODY_W[gone.body]), None)
+        if fallen is not None:
+            rest[fallen] = replace(rest[fallen], x=gone.x, z=gone.z, y=0.0)
+    return settle(rest)
 
 
 @dataclass(frozen=True)
@@ -113,25 +130,21 @@ def clamp_claw(x: float, z: float) -> tuple[float, float]:
 
 
 def judge(spots: list[DollSpot], x: float, z: float, roll: float) -> Grab:
-    """roll은 0~1 난수. 손이 닿는 인형 중 가장 높이 있는 것(같으면 가까운 것)을 노린다. 목록에 없는 인형은 일반으로 본다."""
-    reach = PART_RADII[-1][1]
+    """roll은 0~1 난수. 손이 닿는 인형(체형만큼 넓거나 좁게) 중 가장 높이 있는 것(같으면 가까운 것)을 노린다."""
     near = [(i, math.hypot(s.x - x, s.z - z)) for i, s in enumerate(spots)]
-    near = [(i, dist) for i, dist in near if dist <= reach]
+    near = [(i, dist) for i, dist in near if dist <= PART_RADII[-1][1] * BODY_REACH[spots[i].body]]
     if not near:
         return Grab("miss", "none", None)
     index, distance = max(near, key=lambda c: (spots[c[0]].y, -c[1]))
-    part = next(name for name, radius in PART_RADII if distance <= radius)
+    doll = spots[index]
+    part = next(name for name, radius in PART_RADII if distance <= radius * BODY_REACH[doll.body])
     win, slip = ODDS[part]
-    if legacy_kind(spots[index].kind)[1]:  # 옛 희귀 id — 4단계 Task 2에서 인형의 희귀 단계로 바뀐다
-        win, slip = win * RARE_WIN_FACTOR, slip + win * (1 - RARE_WIN_FACTOR)
+    if doll.rare:
+        factor = TIER_WIN["gold" if doll.rare == "gold" else "rare"]
+        win, slip = win * factor, slip + win * (1 - factor)
+    slip = min(max(slip + BODY_SLIP[doll.body], 0.0), 1.0 - win)
     outcome = "win" if roll < win else "slip" if roll < win + slip else "miss"
     return Grab(outcome, part, index)
-
-
-def restock(spots: list[DollSpot], index: int, kind: str, rng: random.Random) -> list[DollSpot]:
-    """뽑힌 자리에 같은 캐릭터 새 인형을 넣는다 — 위층을 받치던 인형이 빠져도 무더기가 무너지지 않게 자리·높이는 그대로."""
-    old = spots[index]
-    return [new_spot(kind, rng, old.x, old.z, old.y) if i == index else s for i, s in enumerate(spots)]
 
 
 def drop_nearby(spots: list[DollSpot], index: int, rng: random.Random) -> list[DollSpot]:
@@ -153,8 +166,8 @@ def drop_nearby(spots: list[DollSpot], index: int, rng: random.Random) -> list[D
         spin = round(rng.uniform(0, 2 * math.pi), 2)
         on_floor = next(((x, z) for x, z in candidates if all(math.hypot(x - f.x, z - f.z) >= 0.18 for f in floor)), None)
         if on_floor:
-            moved = DollSpot(old.kind, on_floor[0], on_floor[1], spin, 0.0)
+            moved = replace(old, x=on_floor[0], z=on_floor[1], r=spin, y=0.0)
         elif candidates:
             x, z = candidates[0]
-            moved = DollSpot(old.kind, x, z, spin, rest_height(floor, x, z))
+            moved = replace(old, x=x, z=z, r=spin, y=rest_height(floor, x, z))
     return [moved if i == index else s for i, s in enumerate(spots)]

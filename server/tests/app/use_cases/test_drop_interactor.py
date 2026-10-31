@@ -6,7 +6,8 @@ from toycrane.adapter.inbound.ws.schemas.server_messages import bag as bag_msg
 from toycrane.adapter.inbound.ws.schemas.server_messages import free
 from toycrane.app.dtos.drop_dto import DropCommand
 from toycrane.app.use_cases.drop_interactor import DropInteractor
-from toycrane.domain.crane import DollSpot, generate_contents
+from toycrane.domain.crane import DollSpot
+from toycrane.domain.stock import generate_stock
 from toycrane.domain.layout import MACHINE_IDS, MACHINES
 
 
@@ -24,7 +25,7 @@ class Rolls(random.Random):
 def setup(roll: float):
     reg, locks, conns, bag = FakeRegistry(), FakeLocks({"c-1": "p1"}), FakeConnections(), FakeBag({"g-1": 2})
     reg.put("c-1", player("p1", guest="g-1"))
-    stored = {m: generate_contents(MACHINES[m].kind, random.Random(9)) for m in MACHINE_IDS}
+    stored = {m: generate_stock(MACHINES[m].kind, random.Random(9)).dolls for m in MACHINE_IDS}
     # 가운데 토끼 하나 + 손이 닿지 않는 오른쪽에 8개 (위층 인형이 집게 근처에 오지 않게 고정)
     stored["A-1"] = [DollSpot("bunny", 0.0, 0.0, 0.0)] + [DollSpot("bear", 0.35, -0.3 + i * 0.08, 0.0) for i in range(8)]
     contents = FakeContents(stored)
@@ -39,9 +40,9 @@ async def test_winning_drop_moves_the_doll_into_the_bag():
     result = next(m for _, m in conns.broadcasts if m["t"] == "result")
     assert {k: result[k] for k in ("m", "id", "o", "part", "k")} == {"m": "A-1", "id": "p1", "o": "win", "part": "head", "k": "bunny"}
     machine = next(m for _, m in conns.broadcasts if m["t"] == "machine")
-    assert machine["m"] == "A-1" and len(machine["dolls"]) == 9
+    assert machine["m"] == "A-1" and len(machine["dolls"]) == 8  # 뽑힌 자리는 비워 둔다
     after = contents.stored["A-1"]
-    assert after[1:] == before[1:] and (after[0].x, after[0].z) == (0.0, 0.0) and contents.saves == 1  # 뽑힌 자리에 새 인형
+    assert after == before[1:] and contents.saves == 1  # 뽑힌 인형만 빠지고 나머지는 그대로
     assert ("c-1", bag_msg(3)) in conns.direct and bag.added == [("g-1", "bunny", "big")]
 
 
@@ -86,7 +87,7 @@ async def test_result_reports_where_the_claw_actually_landed():
     """판정은 흔들린 자리로 하고, 모두에게 그 자리를 알려 같은 곳으로 내려가게 한다."""
     reg, locks, conns, bag = FakeRegistry(), FakeLocks({"c-1": "p1"}), FakeConnections(), FakeBag()
     reg.put("c-1", player("p1", guest="g-1"))
-    stored = {m: generate_contents(MACHINES[m].kind, random.Random(9)) for m in MACHINE_IDS}
+    stored = {m: generate_stock(MACHINES[m].kind, random.Random(9)).dolls for m in MACHINE_IDS}
     locks.lock("c-1", "A-1", 10.0)
     await DropInteractor(reg, locks, FakeContents(stored), bag, conns, random.Random(2)).drop(DropCommand("c-1", 0.1, -0.1, now=15.0))
     result = next(m for _, m in conns.broadcasts if m["t"] == "result")
