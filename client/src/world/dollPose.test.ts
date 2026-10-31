@@ -26,3 +26,11 @@ test('solid spheres sit where the doll is drawn', () => {
   expect(head.c.z).toBeCloseTo(0.05, 6);
   expect(head.r).toBeCloseTo(0.34 * DOLL_SCALE, 6);
 });
+
+// 화면의 집게 잡기(손가락이 닿는 공)도 체형 폭을 따른다 (설계 2026-10-31 인형 채우기 §4.5), 희귀·황금은 왕관 공까지
+test('the claw feels chubby dolls wider and crowns on rare ones', () => {
+  const [[, plainHead]] = solidsOf([spot('bear', 0, 0, 0, 0)]);
+  const [[, chubbyHead]] = solidsOf([spot('bear', 0, 0, 0, 0, { body: 'c' })]);
+  expect(chubbyHead.r).toBeGreaterThan(plainHead.r * 1.1);
+  expect(solidsOf([spot('bear', 0, 0, 0, 0, { rare: 'gold' })])[0].some((h) => h.part === 'crown')).toBe(true);
+});

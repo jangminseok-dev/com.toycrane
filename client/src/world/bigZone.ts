@@ -2,14 +2,15 @@ import * as THREE from 'three';
 import { MACHINES, type MachineSpot } from '../data/storeLayout';
 import type { Occluder } from '../game/occlusion';
 import { bakeByMaterial, fadeMaterials, materialCloner, mergeBuckets } from './bake';
-import { PLAIN, makeDoll } from './dolls';
+import { BODY_W, makeDoll } from './dolls';
 import { dollPose } from './dollPose';
+import { toonWith } from './toon';
 import { TOP_LAYER } from './topView';
 import { CHROME, idleClawGeometry, makeClawRig, type ClawRig } from './claw';
 import { CLAW_REST, DOLL_FLOOR, DOLL_SCALE, bulbSpots, ledBaseMat, ledFlashMat, makeControlParts, makeMachineParts } from './machine';
 
-// 기계 속 인형 한 칸: [인형 id, x, z, 몸 돌림, 얹힌 높이] — 서버 welcome·machine 메시지와 같은 모양
-import type { DollSpot } from '../net/protocol';
+// 기계 속 인형 한 칸: [캐릭터, x, z, 몸 돌림, 얹힌 높이, 색, 체형, 표정, 희귀, 번호] — 서버 welcome·machine 메시지와 같은 모양
+import { lookOf, type DollSpot } from '../net/protocol';
 export type { DollSpot };
 
 export interface BigZone {
@@ -23,7 +24,8 @@ export interface BigZone {
   rigOf(machineId: string): ClawRig | null;
   releaseClaw(machineId: string): void;
   hideControls(machineId: string, hidden: boolean): void; // 내가 하는 동안 기계 그림의 레버·하강 버튼을 숨긴다 (움직이는 것을 따로 그리므로)
-  update(t: number): void; // 깜빡임, 바뀐 행의 인형 다시 합치기
+  pileOf(machineId: string): number[]; // 지금 무더기에 합쳐 그린 인형 번호 (떨어지는 중인 새 인형은 빠짐)
+  update(t: number): void; // 깜빡임, 바뀐 행의 인형 다시 합치기, 새 인형 떨어지기, 희귀 반짝임
   occluders: Occluder[]; // 행 2개: 벽 줄, 섬
 }
 
@@ -36,25 +38,55 @@ const aimMat = new THREE.MeshBasicMaterial({ color: 0xff3b8f, depthWrite: false,
 const BLOCK_MAX = 6;
 type Row = { group: THREE.Group; cloner: ReturnType<typeof materialCloner>; spots: MachineSpot[] };
 type Block = { row: Row; group: THREE.Group; spots: MachineSpot[]; dirty: boolean };
+type Falling = { obj: THREE.Object3D; y: number; start: number | null };
 type Unit = {
   row: Row; block: Block; anchor: THREE.Group; claw: THREE.Group; idle: THREE.Mesh; rig: ClawRig | null;
   led: THREE.Mesh; contents: DollSpot[]; flashUntil: number; gold: boolean; bulbStart: number;
+  seen: Set<number> | null; // 이 화면이 본 적 있는 인형 번호 (처음 받기 전엔 null — 처음 받은 인형은 떨어뜨리지 않는다)
+  falling: Map<number, Falling>; baked: number[]; rare: '' | 'rare' | 'gold';
 };
 // 간판 둘레 전구: 행마다 InstancedMesh 하나, 켜졌다 꺼지며 돈다(3개 중 하나가 어둡게, 초당 8칸). 당첨 땐 그 기계 전구가 분홍·금색으로 깜빡
 const BULB = { bright: new THREE.Color(0xfff4c8), dim: new THREE.Color(0x8a8070), hot: new THREE.Color(0xff5fa2), gold: new THREE.Color(0xffd36b) };
 const bulbGeo = new THREE.IcosahedronGeometry(0.024, 0); // 2.4cm라 각진 작은 구로 충분 (35대 × 58개)
 const rigPool: ClawRig[] = [];
 
-// 인형 종류마다 lite 모양을 재질별로 한 번만 합쳐 두고, 다시 합칠 때는 옮겨 붙이기만 한다
+// 인형 겉모습(캐릭터·색·표정·희귀)마다 lite 모양을 재질별로 한 번만 합쳐 두고, 다시 합칠 때는 옮겨 붙이기만 한다.
+// 무늬 없는 툰 칠 부품은 색을 꼭짓점 색으로 옮겨 공용 재질 하나(DOLL_VC)로 모은다 — 색이 여러 가지여도 그리기 호출이 늘지 않게.
+// 무늬가 있는 재질(특수효과·황금·다람쥐 줄무늬)만 따로 묶인다 (설계 2026-10-31 인형 채우기 §5)
 type Part = { geo: THREE.BufferGeometry; mat: THREE.Material };
+const DOLL_VC = toonWith({ color: 0xffffff, vertexColors: true });
+const plainToon = (m: THREE.Material): m is THREE.MeshToonMaterial =>
+  m instanceof THREE.MeshToonMaterial && !m.map && m.emissive.getHex() === 0 && !m.vertexColors;
 const partsCache = new Map<string, Part[] | null>();
-function liteParts(kind: string): Part[] | null {
-  if (!partsCache.has(kind)) {
-    const doll = makeDoll(kind, PLAIN, true);
-    partsCache.set(kind, doll ? bakeByMaterial(doll).map((m) => ({ geo: m.geometry, mat: m.material as THREE.Material })) : null);
+function liteParts(spot: DollSpot): Part[] | null {
+  const look = lookOf(spot), key = `${spot[0]}|${look.color}|${look.face}|${look.rare}`;
+  if (!partsCache.has(key)) {
+    const doll = makeDoll(spot[0], look, true);
+    if (!doll) partsCache.set(key, null);
+    else {
+      const buckets = new Map<THREE.Material, { line: boolean; geos: THREE.BufferGeometry[] }>();
+      for (const m of bakeByMaterial(doll)) {
+        let mat = m.material as THREE.Material;
+        if (plainToon(mat)) {
+          const c = mat.color, n = m.geometry.getAttribute('position').count, colors = new Float32Array(n * 3);
+          for (let i = 0; i < n; i++) colors.set([c.r, c.g, c.b], i * 3);
+          m.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+          mat = DOLL_VC;
+        }
+        if (!buckets.has(mat)) buckets.set(mat, { line: false, geos: [] });
+        buckets.get(mat)!.geos.push(m.geometry);
+      }
+      partsCache.set(key, mergeBuckets(buckets).map((m) => ({ geo: m.geometry, mat: m.material as THREE.Material })));
+    }
   }
-  return partsCache.get(kind)!;
+  return partsCache.get(key)!;
 }
+// 새로 채워진 인형: 위 0.6m에서 0.6초 동안 떨어져 한 번 톡 튄다
+const FALL_SECONDS = 0.6, FALL_HEIGHT = 0.6;
+const fallOffset = (k: number) => (k < 0.7 ? FALL_HEIGHT * (1 - (k / 0.7) ** 2) : 0.05 * Math.sin(Math.PI * ((k - 0.7) / 0.3)));
+// 희귀가 든 기계 간판 위에서 도는 반짝임 (황금은 금빛, 더 많이·크게)
+const sparkleGeo = new THREE.OctahedronGeometry(0.045);
+const SPARKLE = { rare: { n: 4, scale: 1, color: new THREE.Color(0xffa8e0) }, gold: { n: 6, scale: 1.5, color: new THREE.Color(0xffd75a) } };
 
 // 위쪽 큰인형 구역: 벽 줄 13대 + 등 맞댄 섬 22대 (shared/store_layout.json).
 // 그리기 호출을 줄이려고 행마다 고정 부분·기계 속 인형을 재질별로 합치고, LED·집게는 기계마다 한 덩어리로 둔다.
@@ -92,7 +124,10 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     claw.add(aim);
     anchor.add(led, claw);
     row.group.add(anchor);
-    units.set(spot.id, { row, block, anchor, claw, idle, rig: null, led, contents: [], flashUntil: 0, gold: false, bulbStart: row.spots.indexOf(spot) * bulbSpots().length });
+    units.set(spot.id, {
+      row, block, anchor, claw, idle, rig: null, led, contents: [], flashUntil: 0, gold: false, bulbStart: row.spots.indexOf(spot) * bulbSpots().length,
+      seen: null, falling: new Map(), baked: [], rare: '',
+    });
   });
   const bulbRows = rows.map((row) => {
     const spots = bulbSpots(), mesh = new THREE.InstancedMesh(bulbGeo, row.cloner.remap(new THREE.MeshBasicMaterial({ color: 0xffffff })), row.spots.length * spots.length);
@@ -120,12 +155,19 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     return { row, meshes };
   });
   const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
+  const sparkleRows = rows.map((row) => {
+    const mesh = new THREE.InstancedMesh(sparkleGeo, row.cloner.remap(new THREE.MeshBasicMaterial({ color: 0xffffff })), row.spots.length * SPARKLE.gold.n);
+    mesh.name = `rare-sparkles-${row.group.name}`; mesh.count = 0; mesh.frustumCulled = false; // 처음엔 하나도 없어 경계 구가 비므로
+    row.group.add(mesh);
+    return { row, mesh };
+  });
+  const sparkleAt = new THREE.Matrix4(), sparklePos = new THREE.Vector3(), sparkleTurn = new THREE.Quaternion(), sparkleSize = new THREE.Vector3();
   let bulbKey = '';
   const flashMats = new Map(rows.map((r) => [r, { hot: r.cloner.remap(ledFlashMat().hot), gold: r.cloner.remap(ledFlashMat().gold) }]));
 
   // 묶음의 인형을 다시 합친다 (성공한 판마다 그 기계가 든 묶음 하나)
   const holder = new THREE.Matrix4(), local = new THREE.Matrix4(), world = new THREE.Matrix4();
-  const at = new THREE.Vector3(), turn = new THREE.Quaternion(), size = new THREE.Vector3().setScalar(DOLL_SCALE);
+  const at = new THREE.Vector3(), turn = new THREE.Quaternion(), size = new THREE.Vector3();
   const UP = new THREE.Vector3(0, 1, 0);
   function rebuild(block: Block) {
     for (const old of block.group.children as THREE.Mesh[]) old.geometry.dispose();
@@ -133,12 +175,15 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     const buckets = new Map<THREE.Material, { line: boolean; geos: THREE.BufferGeometry[] }>();
     for (const spot of block.spots) {
       holder.compose(at.set(spot.x, 0, spot.z), turn.setFromAxisAngle(UP, spot.ry), new THREE.Vector3(1, 1, 1));
-      units.get(spot.id)!.contents.forEach((dollSpot) => {
-        const parts = liteParts(dollSpot[0]);
-        if (!parts) return; // 목록에 없는 인형
-        // 서버가 정한 얹힌 높이, r에서 정한 기울기, 머리 가운데가 인형 자리 위 (world/dollPose.ts)
-        const pose = dollPose(dollSpot);
-        local.compose(pose.position, pose.quaternion, size);
+      const u = units.get(spot.id)!;
+      u.baked = [];
+      u.contents.forEach((dollSpot) => {
+        const parts = liteParts(dollSpot);
+        if (!parts || u.falling.has(dollSpot[9])) return; // 목록에 없는 인형, 아직 떨어지는 중인 새 인형
+        u.baked.push(dollSpot[9]);
+        // 서버가 정한 얹힌 높이, r에서 정한 기울기, 머리 가운데가 인형 자리 위 (world/dollPose.ts), 체형만큼 옆으로 넓거나 좁게
+        const pose = dollPose(dollSpot), w = BODY_W[dollSpot[6]];
+        local.compose(pose.position, pose.quaternion, size.set(DOLL_SCALE * w, DOLL_SCALE, DOLL_SCALE * w));
         world.multiplyMatrices(holder, local);
         for (const { geo, mat } of parts) {
           if (!buckets.has(mat)) buckets.set(mat, { line: false, geos: [] });
@@ -162,7 +207,27 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
   };
   return {
     occluders,
-    setContents(id, dolls) { const u = units.get(id); if (!u) return; u.contents = dolls; u.block.dirty = true; },
+    setContents(id, dolls) {
+      const u = units.get(id);
+      if (!u) return;
+      const uids = new Set(dolls.map((d) => d[9]));
+      for (const [uid, f] of u.falling) if (!uids.has(uid)) { f.obj.removeFromParent(); u.falling.delete(uid); }
+      // 처음 받은 뒤로 처음 보는 번호 = 새로 채워진 인형 → 위에서 떨어뜨린다 (집게 연출이 잠깐 뺐다 넣은 인형은 이미 본 번호)
+      if (u.seen) for (const d of dolls) if (!u.seen.has(d[9])) {
+        const obj = makeDoll(d[0], lookOf(d), true);
+        if (!obj) continue;
+        const pose = dollPose(d), w = BODY_W[d[6]];
+        obj.position.copy(pose.position); obj.quaternion.copy(pose.quaternion); obj.scale.set(DOLL_SCALE * w, DOLL_SCALE, DOLL_SCALE * w);
+        obj.position.y += FALL_HEIGHT; obj.userData.uid = d[9];
+        obj.traverse((o) => { o.castShadow = false; });
+        u.anchor.add(obj);
+        u.falling.set(d[9], { obj, y: pose.position.y, start: null });
+      }
+      u.seen = new Set([...(u.seen ?? []), ...uids]);
+      u.rare = dolls.some((d) => d[8] === 'gold') ? 'gold' : dolls.some((d) => d[8]) ? 'rare' : '';
+      u.contents = dolls; u.block.dirty = true;
+    },
+    pileOf: (id) => units.get(id)?.baked ?? [],
     contentsOf: (id) => units.get(id)?.contents ?? [],
     clawOf: (id) => unit(id).claw,
     worldOf: (id) => unit(id).anchor,
@@ -190,7 +255,28 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
       }
     },
     update(t) {
+      for (const u of units.values()) for (const [uid, f] of u.falling) {
+        f.start ??= t;
+        const k = (t - f.start) / FALL_SECONDS;
+        if (k >= 1) { f.obj.removeFromParent(); u.falling.delete(uid); u.block.dirty = true; } // 같은 프레임에 무더기로 합친다
+        else f.obj.position.y = f.y + fallOffset(k);
+      }
       for (const block of blocks) if (block.dirty) rebuild(block);
+      for (const { row, mesh } of sparkleRows) {
+        let n = 0;
+        row.spots.forEach((spot) => {
+          const u = units.get(spot.id)!;
+          if (!u.rare) return;
+          const look = SPARKLE[u.rare];
+          for (let i = 0; i < look.n; i++) {
+            const a = t * 1.4 + (i / look.n) * Math.PI * 2;
+            sparklePos.set(Math.cos(a) * 0.4, 2.62 + Math.sin(t * 3 + i) * 0.05, 0.25 + Math.sin(a) * 0.15);
+            sparkleAt.compose(sparklePos, sparkleTurn.setFromAxisAngle(UP, a * 2), sparkleSize.setScalar(look.scale)).premultiply(machineAt(spot));
+            mesh.setMatrixAt(n, sparkleAt); mesh.setColorAt(n, look.color); n++;
+          }
+        });
+        if (n || mesh.count) { mesh.count = n; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
+      }
       const now = performance.now() / 1000, blink = Math.floor(t * 10) % 2 === 0;
       for (const u of units.values()) {
         const flashing = now < u.flashUntil, mats = flashMats.get(u.row)!;

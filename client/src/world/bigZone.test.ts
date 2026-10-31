@@ -128,3 +128,78 @@ function redNear(scene: THREE.Scene, p: THREE.Vector3): number {
   });
   return n;
 }
+
+// ---- 인형 변형 (설계 2026-10-31 인형 채우기 §4.1·§4.4, 제약 §5: 휴대폰 그리기 호출이 늘지 않게) ----
+const nineDolls = (kind: string, color: number) =>
+  Array.from({ length: 9 }, (_, i) => spot(kind, -0.3 + (i % 3) * 0.25, -0.25 + Math.floor(i / 3) * 0.22, i, 0, { color, face: i % 5 }));
+const materialsIn = (scene: THREE.Scene, name: string) => new Set(scene.getObjectByName(name)!.children.map((c) => (c as THREE.Mesh).material)).size;
+
+test('six machines of different colors still bake into few materials', () => {
+  const scene = new THREE.Scene();
+  const zone = buildBigZone(scene);
+  for (const [k, m] of MACHINES.slice(0, 6).entries()) zone.setContents(m.id, nineDolls(m.kind, k % 6));
+  zone.update(0);
+  expect(materialsIn(scene, 'dolls-big-wall-0')).toBeLessThanOrEqual(6);
+});
+
+// 새로 채워진 인형은 위에서 톡 떨어져 한 번 튀고 무더기에 들어간다 — 그동안 정확히 한 번만 보인다
+test('a doll that appears in a refill falls in and is drawn exactly once', () => {
+  const scene = new THREE.Scene();
+  const zone = buildBigZone(scene);
+  const first = nineDolls('octopus', 0).slice(0, 8);
+  zone.setContents('C-6', first);
+  zone.update(0);
+  const fresh = spot('octopus', 0.3, 0.3, 1, 0, { color: 2 }), uid = fresh[9];
+  zone.setContents('C-6', [...first, fresh]);
+  const flying = () => { const found: THREE.Object3D[] = []; scene.traverse((o) => { if (o.userData.uid === uid) found.push(o); }); return found; };
+  const drawn = () => (zone.pileOf('C-6').includes(uid) ? 1 : 0) + flying().length;
+  zone.update(1);
+  const startY = flying()[0].position.y;
+  for (let t = 1.05; t < 1.58; t += 0.05) { zone.update(t); expect(drawn()).toBe(1); }
+  expect(flying()[0].position.y).toBeLessThan(startY);
+  zone.update(1.7);
+  expect(drawn()).toBe(1);
+  expect(zone.pileOf('C-6')).toContain(uid);
+});
+
+test('a doll put back after the claw show does not fall in again', () => {
+  const scene = new THREE.Scene();
+  const zone = buildBigZone(scene);
+  const dolls = nineDolls('octopus', 0);
+  zone.setContents('C-6', dolls);
+  zone.update(0);
+  zone.setContents('C-6', dolls.filter((_, i) => i !== 2)); // 집게가 꺼내 따로 그리는 동안
+  zone.setContents('C-6', dolls);
+  zone.update(0.1);
+  expect(zone.pileOf('C-6')).toHaveLength(9);
+});
+
+// 희귀가 든 기계는 간판 위에 반짝임이 떠 있어 멀리서도 보인다 (황금은 금빛, 더 크게)
+test('machines holding a rare show sparkles above them', () => {
+  const scene = new THREE.Scene();
+  const zone = buildBigZone(scene);
+  const sparkles = () => { let n = 0; scene.traverse((o) => { if (o.name.startsWith('rare-sparkles')) n += (o as THREE.InstancedMesh).count; }); return n; };
+  zone.setContents('A-1', [spot('bunny', 0, 0, 0, 0, { rare: 'star' })]);
+  zone.update(0);
+  const one = sparkles();
+  expect(one).toBeGreaterThan(0);
+  zone.setContents('A-2', [spot('fox', 0, 0, 0, 0, { rare: 'gold' })]);
+  zone.update(0.1);
+  expect(sparkles()).toBeGreaterThan(one * 2 - 1);
+  zone.setContents('A-1', [spot('bunny', 0, 0, 0)]);
+  zone.setContents('A-2', [spot('fox', 0, 0, 0)]);
+  zone.update(0.2);
+  expect(sparkles()).toBe(0);
+});
+
+test('chubby dolls are drawn wider', () => {
+  const width = (body: 'n' | 'c' | 's') => {
+    const scene = new THREE.Scene();
+    const zone = buildBigZone(scene);
+    zone.setContents('C-6', [spot('bear', 0, 0, 0, 0, { body })]);
+    zone.update(0);
+    return new THREE.Box3().setFromObject(scene.getObjectByName('dolls-big-island-0')!).getSize(new THREE.Vector3()).x;
+  };
+  expect(width('c')).toBeGreaterThan(width('n') * 1.08);
+  expect(width('s')).toBeLessThan(width('n') * 0.94);
+});

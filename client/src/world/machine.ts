@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MachineSpot } from '../data/storeLayout';
-import { MACHINE_NAMES, POP_CARDS } from './copy';
+import { MACHINE_SIGNS, POP_CARDS } from './copy';
 import { backArtTex, plateTex, popTex, signTex, stickerTex } from './signs';
 import { part, toon } from './toon';
 
@@ -126,7 +126,7 @@ export function makeMachineParts(spot: MachineSpot, index: number): MachineParts
   add(flat(g.pop, popMat(String(index % POP_CARDS.length)), [0.4, 1.72, 0.47], [0, 0, -0.12]));
   // 위 간판: 몸통 색 상자 + 이름판 + 번호판
   add(part(g.header, toon(color), [0, 2.2, 0], [1, 1, 1], [0, 0, 0], 1.02));
-  add(flat(g.sign, signMat(`${MACHINE_NAMES[index % MACHINE_NAMES.length]}|${color}`), [0, 2.2, 0.558]));
+  add(flat(g.sign, signMat(`${MACHINE_SIGNS[spot.kind] ?? ''}|${color}`), [0, 2.2, 0.558])); // 그 기계에 든 캐릭터 이름 간판
   add(part(g.plateBox, white, [-0.42, 2.53, 0.47], [1, 1, 1], [0, 0, 0], 1.04));
   add(flat(g.plate, new THREE.MeshBasicMaterial({ map: plateTex(spot.id) }), [-0.42, 2.53, 0.492]));
   m.traverse((o) => { o.castShadow = false; });
