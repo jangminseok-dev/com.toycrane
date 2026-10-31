@@ -3,14 +3,19 @@ import type { Vec2 } from '../game/movement';
 
 export type PlayerView = { id: string; nick: string; color: number; x: number; z: number; dx: number; dz: number; beg?: number | null }; // beg: 조르는 중이면 더 받을 수 있는 코인 수
 // 메시지 형식 버전 — 서버 welcome의 v와 다르면(배포로 형식이 바뀜) 화면을 새로고침한다
-export const PROTOCOL = 3;
+export const PROTOCOL = 4;
 export type Body = 'n' | 'c' | 's'; // 보통 · 뚱뚱 · 마른
-// 기계 속 인형 한 칸 [캐릭터, x, z, 몸 돌림, 얹힌 높이, 색, 체형, 표정, 희귀, 번호] (기계 안 좌표, 바닥이면 높이 0.
-// 희귀: '' 일반 · 효과 id · 'gold'. 번호는 기계 안에서 그 인형을 가리킨다 — 새로 채워진 인형을 알아본다)
-export type DollSpot = [kind: string, x: number, z: number, r: number, y: number, color: number, body: Body, face: number, rare: string, uid: number];
+// 기계 속 인형 한 칸 [캐릭터, x, y, z, qx, qy, qz, qw, 색, 체형, 표정, 희귀, 번호] (기계 안 좌표·돌림 쿼터니언 — 물리 뽑기 설계 §4.5).
+// y가 null이면 서버가 (x, z) 위 천장에서 떨어뜨린 아직 안 앉은 인형(돌림은 0,0,0,1) — 화면들이 같은 물리로 앉힌다.
+// 희귀: '' 일반 · 효과 id · 'gold'. 번호(uid)는 기계 안에서 그 인형을 가리킨다
+export type DollSpot = [kind: string, x: number, y: number | null, z: number, qx: number, qy: number, qz: number, qw: number,
+  color: number, body: Body, face: number, rare: string, uid: number];
 // 인형 하나의 겉모습 (world/dolls.ts makeDoll)
 export type DollLook = { color: number; body: Body; face: number; rare: string };
-export const lookOf = (s: DollSpot): DollLook => ({ color: s[5], body: s[6], face: s[7], rare: s[8] });
+export const lookOf = (s: DollSpot): DollLook => ({ color: s[8], body: s[9], face: s[10], rare: s[11] });
+export const uidOf = (s: DollSpot): number => s[12];
+// 인형 하나의 자리·돌림 (물리 → 보고·중계)
+export type DollPose = { uid: number; p: [number, number, number]; q: [number, number, number, number] };
 export type Welcome = {
   t: 'welcome'; v: number; store: number; you: PlayerView; players: PlayerView[];
   coins: number; bag: number; machines: Record<string, DollSpot[]>; plays: Record<string, string>;
@@ -23,12 +28,13 @@ export type Coins = { t: 'coins'; n: number; got: number };
 export type PlayOk = { t: 'play_ok'; m: string; coins: number; limit: number };
 export type PlayNo = { t: 'play_no'; m: string; why: 'busy' | 'coins' | 'far' | 'playing' };
 export type Play = { t: 'play'; m: string; id: string };
-export type Outcome = 'win' | 'slip' | 'miss';
-export type Result = {
-  t: 'result'; m: string; id: string; x: number; z: number; o: Outcome; part: 'head' | 'body' | 'arm' | 'none'; k: string | null;
-  i?: number | null; // 잡은 인형이 기계 속 배치에서 몇 번째인지 (빈 곳이면 null)
-  c?: number | null; rv?: string | null; // 그 인형의 색·희귀 (당첨 이름)
-};
+// 한 판 결과: 구멍에 빠진 인형들 [캐릭터, 색, 희귀, 번호] (비어 있으면 못 뽑음) — 결과는 판을 한 화면의 물리가 정하고 서버는 기록·중계
+export type WonDoll = [kind: string, color: number, rare: string, uid: number];
+export type Result = { t: 'result'; m: string; id: string; won: WonDoll[] };
+export type DoneNo = { t: 'done_no'; m: string; why: string }; // 서버가 판 보고를 거절(치명 규칙) — 기계는 판 시작 전으로
+export type ClawPose = [x: number, y: number, z: number, open: number];
+export type PoseWire = [uid: number, x: number, y: number, z: number, qx: number, qy: number, qz: number, qw: number];
+export type Pose = { t: 'pose'; m: string; id: string; c: ClawPose; d: PoseWire[] }; // 판을 하는 사람의 집게·움직이는 인형 중계
 export type MachineMsg = { t: 'machine'; m: string; dolls: DollSpot[] };
 export type Free = { t: 'free'; m: string };
 export type Bag = { t: 'bag'; n: number };
@@ -40,7 +46,7 @@ export type Gave = { t: 'gave'; from: string; to: string; n: number }; // 코인
 export type GiveNo = { t: 'give_no'; why: string };
 export type Spawn = { t: 'spawn'; m: string; k: string; rv: string }; // 희귀·황금이 채워졌다
 export type Stock = { t: 'stock'; in: number | null }; // 다음 채울 때까지 남은 초 (가득이면 null)
-export type ServerMsg = Welcome | Join | Move | Correct | Leave | Coins | PlayOk | PlayNo | Play | Result | MachineMsg | Free | Bag
+export type ServerMsg = Welcome | Join | Move | Correct | Leave | Coins | PlayOk | PlayNo | Play | Result | DoneNo | Pose | MachineMsg | Free | Bag
   | Spawn | Stock | TakeNo | CounterBeg | CounterBegNo | Beg | Gave | GiveNo;
 
 // 닫기 코드 (서버와 같은 값)
@@ -56,8 +62,11 @@ const isPlayer = (v: unknown): v is PlayerView => {
   return !!o && typeof o === 'object' && str(o.id) && str(o.nick) && num(o.color) && pose(o);
 };
 
-const isSpot = (v: unknown) => Array.isArray(v) && v.length === 10 && str(v[0]) && num(v[1]) && num(v[2]) && num(v[3]) && num(v[4])
-  && num(v[5]) && ['n', 'c', 's'].includes(v[6]) && num(v[7]) && str(v[8]) && num(v[9]);
+const isSpot = (v: unknown) => Array.isArray(v) && v.length === 13 && str(v[0]) && num(v[1]) && (v[2] === null || num(v[2])) && num(v[3])
+  && num(v[4]) && num(v[5]) && num(v[6]) && num(v[7]) && num(v[8]) && ['n', 'c', 's'].includes(v[9]) && num(v[10]) && str(v[11]) && num(v[12]);
+const isWon = (v: unknown) => Array.isArray(v) && v.length === 4 && str(v[0]) && num(v[1]) && str(v[2]) && num(v[3]);
+const isPoseWire = (v: unknown) => Array.isArray(v) && v.length === 8 && v.every(num);
+const isClawPose = (v: unknown) => Array.isArray(v) && v.length === 4 && v.every(num);
 const isMachines = (v: unknown) => !!v && typeof v === 'object' && Object.values(v).every((spots) => Array.isArray(spots) && spots.every(isSpot));
 
 export function decode(raw: string): ServerMsg | null {
@@ -75,8 +84,9 @@ export function decode(raw: string): ServerMsg | null {
     case 'play_ok': return str(m.m) && num(m.coins) && num(m.limit) ? (m as PlayOk) : null;
     case 'play_no': return str(m.m) && str(m.why) ? (m as PlayNo) : null;
     case 'play': return str(m.m) && str(m.id) ? (m as Play) : null;
-    case 'result': return str(m.m) && str(m.id) && num(m.x) && num(m.z) && ['win', 'slip', 'miss'].includes(m.o as string)
-      && str(m.part) && (m.k === null || str(m.k)) ? (m as Result) : null;
+    case 'result': return str(m.m) && str(m.id) && Array.isArray(m.won) && m.won.every(isWon) ? (m as Result) : null;
+    case 'done_no': return str(m.m) && str(m.why) ? (m as DoneNo) : null;
+    case 'pose': return str(m.m) && str(m.id) && isClawPose(m.c) && Array.isArray(m.d) && m.d.every(isPoseWire) ? (m as Pose) : null;
     case 'machine': return str(m.m) && Array.isArray(m.dolls) && m.dolls.every(isSpot) ? (m as MachineMsg) : null;
     case 'free': return str(m.m) ? (m as Free) : null;
     case 'bag': return num(m.n) ? (m as Bag) : null;
@@ -103,7 +113,12 @@ export const encodeCounterBeg = (c: number) => JSON.stringify({ t: 'cbeg', c });
 export const encodeBeg = (on: boolean) => JSON.stringify({ t: 'beg', on }); // 맵 조르기 켜고 끄기
 export const encodeGive = (to: string, n: number) => JSON.stringify({ t: 'give', to, n }); // 조르는 사람에게 코인 주기
 export const encodePlay = (m: string) => JSON.stringify({ t: 'play', m });
-export const encodeDrop = (x: number, z: number) => JSON.stringify({ t: 'drop', x: round(x, 3), z: round(z, 3) });
+const wire = (d: DollPose, digits: number): PoseWire => [d.uid, ...d.p.map((v) => round(v, digits)), ...d.q.map((v) => round(v, digits))] as PoseWire;
+// 판 보고: 구멍에 빠진 인형 번호들과 멈춘 인형 전부의 자리·돌림 (소수 3자리)
+export const encodeDone = (m: string, won: number[], dolls: DollPose[]) => JSON.stringify({ t: 'done', m, won, dolls: dolls.map((d) => wire(d, 3)) });
+// 중계: 집게 자리·벌림과 움직이는 인형들만 (소수 2자리)
+export const encodePose = (m: string, c: ClawPose, d: DollPose[]) =>
+  JSON.stringify({ t: 'pose', m, c: c.map((v) => round(v, 2)), d: d.map((x) => wire(x, 2)) });
 export const encodeStand = () => JSON.stringify({ t: 'stand' }); // 판 사이에 "그만하기"
 export const encodeTick = () => JSON.stringify({ t: 'tick' }); // 다음 채울 시각이 지났다 — 아무도 움직이지 않아도 서버가 채우게
 

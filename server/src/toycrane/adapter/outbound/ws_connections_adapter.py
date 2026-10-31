@@ -82,7 +82,9 @@ class WsConnectionsAdapter(ConnectionsPort):
         self._to_all_except(except_conn, server_messages.play(machine_id, player_id))
 
     def broadcast_result(self, view: ResultView) -> None:
-        self._to_all_except(None, server_messages.result(view))
+        # Task 4(done 슬라이스)까지의 다리: 옛 판정 결과를 새 result 형식으로
+        won = [(view.kind, view.color, view.rare, view.index)] if view.outcome == "win" else []
+        self._to_all_except(None, server_messages.result(view.machine_id, view.player_id, won))
 
     def broadcast_machine(self, machine_id: str, spots: list[DollSpot]) -> None:
         self._to_all_except(None, server_messages.machine(machine_id, spots))

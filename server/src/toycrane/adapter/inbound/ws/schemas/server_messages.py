@@ -1,14 +1,14 @@
 """서버→화면 메시지 형식. 견본: shared/protocol_fixtures.json. 위치는 소수 2자리, 방향은 3자리로 줄여 보낸다.
-기계 속 인형은 [캐릭터, x, z, r, y, 색, 체형, 표정, 희귀, 번호] — 기계 안 좌표·얹힌 높이 소수 3자리, 몸 돌림 2자리."""
+기계 속 인형은 [캐릭터, x, y|null, z, qx, qy, qz, qw, 색, 체형, 표정, 희귀, 번호] — 자리·돌림 소수 3자리, y가 None이면 아직 안 앉은 인형
+(물리 뽑기 설계 §4.5)."""
 
 import math
 
-from toycrane.app.dtos.drop_dto import ResultView
 from toycrane.app.dtos.player_view import PlayerView
 from toycrane.app.dtos.store_snapshot import StoreSnapshot
 from toycrane.domain.crane import DollSpot
 
-PROTOCOL = 3  # 메시지 형식 버전 — 화면(net/protocol.ts PROTOCOL)과 다르면 화면이 새로고침한다
+PROTOCOL = 4  # 메시지 형식 버전 — 화면(net/protocol.ts PROTOCOL)과 다르면 화면이 새로고침한다
 
 
 def _player(p: PlayerView) -> dict:
@@ -20,7 +20,10 @@ def _pose(p: PlayerView) -> dict:
 
 
 def _spots(spots: list[DollSpot]) -> list[list]:
-    return [[s.kind, round(s.x, 3), round(s.z, 3), round(s.r, 2), round(s.y, 3), s.color, s.body, s.face, s.rare, s.uid] for s in spots]
+    return [
+        [s.kind, round(s.x, 3), None if s.y is None else round(s.y, 3), round(s.z, 3), *(round(v, 3) for v in s.q), s.color, s.body, s.face, s.rare, s.uid]
+        for s in spots
+    ]
 
 
 def welcome(store_no: int, you: PlayerView, players: list[PlayerView], snapshot: StoreSnapshot) -> dict:
@@ -88,11 +91,18 @@ def play(machine_id: str, player_id: str) -> dict:
     return {"t": "play", "m": machine_id, "id": player_id}
 
 
-def result(v: ResultView) -> dict:
-    return {
-        "t": "result", "m": v.machine_id, "id": v.player_id, "x": round(v.x, 3), "z": round(v.z, 3),
-        "o": v.outcome, "part": v.part, "k": v.kind, "i": v.index, "c": v.color, "rv": v.rare,
-    }
+def result(machine_id: str, player_id: str, won: list[tuple[str, int, str, int]]) -> dict:
+    """한 판 결과: 구멍에 빠진 인형들 [캐릭터, 색, 희귀, 번호] (판을 한 화면이 보고, 서버는 확인해 중계)."""
+    return {"t": "result", "m": machine_id, "id": player_id, "won": [list(w) for w in won]}
+
+
+def done_no(machine_id: str, why: str) -> dict:
+    return {"t": "done_no", "m": machine_id, "why": why}
+
+
+def pose(player_id: str, machine_id: str, c: list, d: list) -> dict:
+    """판을 하는 사람의 집게·움직이는 인형 중계 — 받은 그대로 뿌린다."""
+    return {"t": "pose", "m": machine_id, "id": player_id, "c": list(c), "d": [list(x) for x in d]}
 
 
 def machine(machine_id: str, spots: list[DollSpot]) -> dict:

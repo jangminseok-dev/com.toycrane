@@ -132,7 +132,8 @@ class FakeConnections:
         self.broadcasts.append((except_conn, server_messages.play(machine_id, player_id)))
 
     def broadcast_result(self, view) -> None:
-        self.broadcasts.append((None, server_messages.result(view)))
+        won = [(view.kind, view.color, view.rare, view.index)] if view.outcome == "win" else []
+        self.broadcasts.append((None, server_messages.result(view.machine_id, view.player_id, won)))
 
     def broadcast_machine(self, machine_id, spots) -> None:
         self.broadcasts.append((None, server_messages.machine(machine_id, spots)))

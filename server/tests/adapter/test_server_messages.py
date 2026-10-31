@@ -2,9 +2,8 @@ import json
 from pathlib import Path
 
 from toycrane.adapter.inbound.ws.schemas.server_messages import (
-    bag, coins, correct, free, join, leave, machine, move, play, play_no, play_ok, result, spawn, stock, take_no, cbeg, cbeg_no, beg, gave, give_no, welcome,
+    bag, coins, correct, done_no, free, join, leave, machine, move, play, play_no, play_ok, pose, result, spawn, stock, take_no, cbeg, cbeg_no, beg, gave, give_no, welcome,
 )
-from toycrane.app.dtos.drop_dto import ResultView
 from toycrane.app.dtos.player_view import PlayerView
 from toycrane.app.dtos.store_snapshot import StoreSnapshot
 from toycrane.domain.crane import DollSpot
@@ -20,7 +19,7 @@ def test_welcome_matches_fixture():
     fx = FX["server_welcome"]
     snap = StoreSnapshot(
         coins=5, bag=2,
-        machines={"A-1": [DollSpot("bunny", 0.1204, -0.0501, 1.5703, 0.0, 2, "n", 1, "", 1), DollSpot("bunny", -0.2, 0.1, 3.1, 0.21, 0, "c", 3, "star", 2)]},
+        machines={"A-1": [DollSpot("bunny", 0.1204, 0.87, -0.0501, (0, 0, 0, 1), 2, "n", 1, "", 1), DollSpot("bunny", -0.2, None, 0.1, (0, 0, 0, 1), 0, "c", 3, "star", 2)]},
         plays={"A-3": "p2"},
     )
     assert welcome(fx["store"], view(fx["you"]), [view(p) for p in fx["players"]], snap) == fx
@@ -57,19 +56,21 @@ def test_play_messages_match_fixtures():
     assert play_ok("A-3", 9, 20) == FX["server_play_ok"]
     assert play_no("A-3", "busy") == FX["server_play_no"]
     assert play("A-3", "p1") == FX["server_play"]
-    assert result(ResultView("A-3", "p1", 0.1204, -0.0501, "win", "head", "bunny", 0, 2, "")) == FX["server_result"]
-    assert machine("A-3", [DollSpot("bear", 0.2, 0.1, 0.5, 0.0, 3, "s", 4, "", 7)]) == FX["server_machine"]
+    assert result("A-3", "p1", [("bunny", 2, "", 7)]) == FX["server_result"]
+    assert machine("A-3", [DollSpot("bear", 0.2, 0.87, 0.1, (0, 0, 0, 1), 3, "s", 4, "", 7), DollSpot("bear", -0.1, None, 0.3, (0, 0, 0, 1), 1, "n", 0, "", 8)]) == FX["server_machine"]
 
 
-# 기계 속 인형 한 칸 = [캐릭터, x, z, 몸 돌림, 높이, 색, 체형, 표정, 희귀, 번호] (설계 2026-10-31 인형 채우기 §4.4)
-def test_machine_message_carries_variants():
-    msg = machine("A-1", [DollSpot("bear", 0.1, 0.2, 1.0, 0.0, 3, "c", 2, "star", 7)])
-    assert msg["dolls"] == [["bear", 0.1, 0.2, 1.0, 0.0, 3, "c", 2, "star", 7]]
+# 기계 속 인형 한 칸 = [캐릭터, x, y|null, z, qx, qy, qz, qw, 색, 체형, 표정, 희귀, 번호] — 자리 소수 3자리, 돌림 3자리 (물리 뽑기 설계 §4.5)
+def test_machine_message_rounds_pose_and_sends_unsettled_as_null():
+    msg = machine("A-1", [DollSpot("bear", 0.10004, 0.87, 0.2, (0.0004, 0.70711, 0, 0.70711), 3, "c", 2, "star", 7), DollSpot("bear", 0.3, None, 0.3, (0, 0, 0, 1), 0, "n", 0, "", 8)])
+    assert msg["dolls"] == [["bear", 0.1, 0.87, 0.2, 0.0, 0.707, 0.0, 0.707, 3, "c", 2, "star", 7], ["bear", 0.3, None, 0.3, 0, 0, 0, 1, 0, "n", 0, "", 8]]
 
 
-def test_a_miss_on_empty_felt_has_no_color_or_rare():
-    msg = result(ResultView("A-3", "p1", 0.3, 0.3, "miss", "none", None, None))
-    assert (msg["c"], msg["rv"]) == (None, None)
+def test_done_no_pose_free_and_bag_match_fixtures():
+    assert done_no("A-3", "count") == FX["server_done_no"]
+    fx = FX["server_pose"]
+    assert pose("p1", "A-3", fx["c"], fx["d"]) == fx
+    assert result("A-3", "p1", []) == {"t": "result", "m": "A-3", "id": "p1", "won": []}
     assert free("A-3") == FX["server_free"] and bag(3) == FX["server_bag"]
 
 
