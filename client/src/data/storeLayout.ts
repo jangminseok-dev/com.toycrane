@@ -12,6 +12,9 @@ export const MACHINE_SPEC = layout.machine as MachineSpec;
 export const MACHINES = layout.machines as MachineSpot[];
 export const COUNTERS = layout.counters as CounterSpot[];
 export const OBSTACLES = layout.obstacles as [number, number, number, number][];
+// 빈 미니·피규어 구역의 "준비 중" 장식(누를 수 없음). rect는 장애물과 같은 상자 — 벽 쪽 변은 밀려날 때 늘 안쪽으로 가게 벽 너머(±14)까지
+export type DecorSpot = { kind: 'mini' | 'figure' | 'shelf'; rect: [number, number, number, number]; ry: number };
+export const DECOR = layout.decor as DecorSpot[];
 
 // 기계 앞에 서서 하는 자리 (ry=0이면 +z 쪽)
 export function frontSpot(m: MachineSpot): Vec2 {

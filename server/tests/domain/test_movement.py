@@ -28,8 +28,9 @@ def test_bunched_messages_use_saved_budget():
 
 
 def test_clamped_to_floor_edge():
-    pos, _ = accept_move(Position(12.5, 0), 0.6, 0.0, Position(12.9, 0), now=0.5)
-    assert pos == Position(12.6, 0)
+    # z=-6: 벽 앞 "준비 중" 장식(z -4.6~11.6)과 섬 줄(x ±9.9) 사이의 빈 바닥 가장자리
+    pos, _ = accept_move(Position(12.5, -6), 0.6, 0.0, Position(12.9, -6), now=0.5)
+    assert pos == Position(12.6, -6)
 
 
 def test_pushed_out_of_tower():

@@ -42,3 +42,36 @@ SHARED = Path(__file__).resolve().parents[3] / "shared"
 def test_clamp_matches_shared_fixture(case):
     p = clamp_to_floor(Position(*case["in"]))
     assert (round(p.x, 3), round(p.z, 3)) == tuple(case["out"]), case["why"]
+
+
+# ---- 빈 구역 "준비 중" 장식이 길을 막지 않는지 (설계 2026-10-31 §3.8) ----
+def reachable_from(start: Position, step: float):
+    """0.25m 격자 BFS: 바닥 안이고 장애물 상자 밖인 칸만 걸을 수 있다. 돌려준 함수는 그 자리(가까운 칸)에 갈 수 있는지."""
+    from collections import deque
+
+    from toycrane.domain.layout import OBSTACLES
+    from toycrane.domain.store_rules import MAP_HALF
+
+    n = int(round(2 * MAP_HALF / step)) + 1
+    cell = lambda v: min(max(int(round((v + MAP_HALF) / step)), 0), n - 1)  # noqa: E731
+    at = lambda i: -MAP_HALF + i * step  # noqa: E731
+    free = lambda i, j: not any(x0 < at(i) < x1 and z0 < at(j) < z1 for x0, z0, x1, z1 in OBSTACLES)  # noqa: E731
+    seen = {(cell(start.x), cell(start.z))}
+    queue = deque(seen)
+    while queue:
+        i, j = queue.popleft()
+        for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            k = (i + di, j + dj)
+            if 0 <= k[0] < n and 0 <= k[1] < n and k not in seen and free(*k):
+                seen.add(k)
+                queue.append(k)
+    return lambda p: (cell(p.x), cell(p.z)) in seen
+
+
+def test_decor_keeps_every_spot_reachable():
+    from toycrane.domain.layout import COUNTERS, MACHINES, front_spot
+    from toycrane.domain.store_rules import SPAWN_RADIUS
+
+    goals = [front_spot(m) for m in MACHINES.values()] + [q for c in COUNTERS for q in c.queue]
+    reach = reachable_from(Position(SPAWN_RADIUS, 0.0), step=0.25)
+    assert all(reach(g) for g in goals)

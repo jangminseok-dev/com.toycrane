@@ -37,6 +37,7 @@ import { burst, updateEffects } from './world/effects';
 import { CLAW_REST } from './world/machine';
 import { playResult, startPlaying } from './world/motions';
 import { buildCoinCounters } from './world/coinCounter';
+import { buildDecor } from './world/decor';
 import { buildStore } from './world/storeScene';
 import { ALL_COPY } from './world/copy';
 import { loadFonts } from './ui/fonts';
@@ -67,7 +68,7 @@ let sampler = new InputSampler();
 
 const bigZone = buildBigZone(scene);
 // 탑·기계 행·교환소가 내 캐릭터를 가리면 그것만 흐리게(머리·몸통 중 하나라도 가리면)
-const fader = new OcclusionFader([tower, ...bigZone.occluders, ...buildCoinCounters(scene)]);
+const fader = new OcclusionFader([tower, ...bigZone.occluders, ...buildCoinCounters(scene), ...buildDecor(scene)]);
 
 let me: LocalPlayer | null = null;
 let wallet = { coins: 0, bag: 0 }; // 코인·가방 수 (서버가 알려 준 값)
