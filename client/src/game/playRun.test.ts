@@ -64,3 +64,12 @@ test('remaining counts the plays still to come after the current one', () => {
   run.start(5, 5); run.began(); run.stop();
   expect(run.remaining()).toBe(0);
 });
+
+// 이어 하는 중 몇 번째 판인지 (둘째 판부터 그만하기가 내내 보인다 — 사용자 2026-11-01)
+test('current is the number of the play in progress', () => {
+  const run = new PlayRun();
+  expect(run.current()).toBe(0);
+  run.start(5, 5); run.began(); expect(run.current()).toBe(1);
+  run.began(); expect(run.current()).toBe(2);
+  run.stop(); expect(run.current()).toBe(0);
+});

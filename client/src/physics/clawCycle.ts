@@ -19,7 +19,7 @@ export type CycleResult = { won: number[]; poses: DollPose[]; held: number | nul
 
 const DESCEND_SPEED = 0.35, LIFT_SPEED = 0.25, CARRY_SPEED = MACHINE_SPEC.claw_speed;
 const CATCH_UP_STEPS = 12;
-const CLOSE_SECONDS = 0.6, RELEASE_SECONDS = 0.3, AFTER_RELEASE = 0.2, FLOOR_GAP = 0.01, LIFT_MIN_SECONDS = 0.8;
+const CLOSE_SECONDS = 0.6, RELEASE_SECONDS = 0.3, AFTER_RELEASE = 0.2, FLOOR_GAP = 0.01, LIFT_MIN_SECONDS = 0.8, CLOSE_AFTER_SLIP = 0.3;
 const CARRY_TO = { x: MACHINE_SPEC.hole[0], z: MACHINE_SPEC.hole[1] };
 
 export class CycleRunner {
@@ -53,6 +53,11 @@ export class CycleRunner {
   }
 
   private liftFrom = 0; // 들어 올리기 시작 높이
+
+  // 빈손(헛잡음·놓침)이면 올라가며 손가락을 마저 오므린다 — 쥘 때 벌림 그대로 올라가면 어색하다. 손가락 끝은 닿기만 재는 상태라 인형을 건드리지 않는다
+  private emptyHandsClose(c: ClawBody): number {
+    return c.held() === null ? Math.max(0, c.open - STEP / CLOSE_AFTER_SLIP) : c.open;
+  }
 
   private go(next: CyclePhase): void {
     if (next === 'lift') this.liftFrom = this.claw.y;
@@ -91,7 +96,7 @@ export class CycleRunner {
         const total = Math.max(LIFT_MIN_SECONDS, (CLAW_REST.y - this.liftFrom) / LIFT_SPEED);
         const k = Math.min(1, this.clock / total), e = k * k * (3 - 2 * k);
         const y = this.liftFrom + (CLAW_REST.y - this.liftFrom) * e;
-        c.setPose(this.x, y, this.z, c.open);
+        c.setPose(this.x, y, this.z, this.emptyHandsClose(c));
         if (k >= 1) this.go('carry');
         break;
       }
@@ -100,7 +105,7 @@ export class CycleRunner {
         const k = this.carryLen < 1e-4 ? 1 : Math.min(1, (this.clock * CARRY_SPEED) / this.carryLen);
         const e = k * k * (3 - 2 * k);
         c.setRelax(1 - CLAW.carry_relax * k);
-        c.setPose(this.from.x + (CARRY_TO.x - this.from.x) * e, c.y, this.from.z + (CARRY_TO.z - this.from.z) * e, c.open);
+        c.setPose(this.from.x + (CARRY_TO.x - this.from.x) * e, c.y, this.from.z + (CARRY_TO.z - this.from.z) * e, this.emptyHandsClose(c));
         if (k >= 1) { c.release(); this.go('release'); }
         break;
       }

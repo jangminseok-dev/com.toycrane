@@ -33,6 +33,11 @@ export class PlayRun {
     this.played = 0;
   }
 
+  // 이어 하는 중 몇 번째 판인지 (안 이어 하면 0)
+  current(): number {
+    return this.total > 1 ? this.played : 0;
+  }
+
   // 판 도중: 이번 판 뒤에 더 할 판 수 (0이면 이번이 마지막이거나 한 판씩)
   remaining(): number {
     return Math.max(0, this.total - this.played);

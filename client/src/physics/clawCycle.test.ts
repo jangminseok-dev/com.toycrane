@@ -90,3 +90,14 @@ test('a doll knocked by the descending claw never flies off', () => {
   }
   expect(worst).toBeLessThan(0.8);
 });
+
+// 쥐었다 놓친 뒤에는 손가락을 다 오므리고 올라간다 — 쥘 때의 벌림 그대로 벌린 채 올라가면 어색하다 (사용자 2026-11-01)
+test('after the doll slips the claw closes its fingers while lifting', () => {
+  const world = new MachineWorld(R, [standing(1, 0.3, -0.2)]);
+  world.settle(1);
+  let openAtTop = 1;
+  const r = runCycle(world, new ClawBody(R, world), 0.3, -0.2, { baseForce: 0.3, frame: (c, _m, phase) => { if (phase === 'carry') openAtTop = Math.min(openAtTop, c.open); } });
+  expect(r.held).toBe(1); expect(r.slipped).toBe(true);
+  expect(openAtTop).toBeLessThan(0.05);
+  world.dispose();
+});

@@ -1,4 +1,4 @@
-// 다섯 판 이어 하기 e2e: 판 도중에는 그만하기가 없고, 판 사이(곧 다음 판)의 그만하기를 누르면 다음 판을 안 시작하고 "한 판 더 / 그만하기"를 묻는다 (사용자 2026-11-01)
+// 다섯 판 이어 하기 e2e: 첫 판에는 그만하기가 없고 둘째 판부터 내내 보이며, 누르면 바로 일어나 기계가 풀린다 (사용자 2026-11-01)
 // 브라우저 물리가 한 바퀴를 돌고 done 보고를 보내며, 서버가 result·machine(13칸, y가 채워진 인형)을 돌려주는지 관찰자(웹소켓)가 본다.
 // 사용: 헤드리스 크롬 --remote-debugging-port=<port>, `node client/e2e/play.mjs <port> <url> [out-prefix]`
 const [port, base, out] = process.argv.slice(2);
@@ -73,17 +73,17 @@ const visible = (text) => ev(`[...document.querySelectorAll('button')].some((x) 
 const badge = () => ev("(document.body.innerText.match(/\\d\\/5판/) || [''])[0]");
 console.log('press', await click('다섯 판 하기')); await sleep(1500);
 const stop1 = await visible('그만하기');
-console.log('play 1 badge', await badge(), 'stop visible', stop1); // 판 도중에는 없다
-await drag(80, 0, 1.0); console.log('drop', await tap('drop')); await sleep(2500);
-const stopMid1 = await visible('그만하기'); console.log('play 1 mid-cycle stop visible', stopMid1);
-const n1 = seen.length;
-let result1; for (let i = 0; i < 400 && !result1; i++) { result1 = seen.slice(n1).find((m) => m.t === 'result' && m.id === me.id); await sleep(50); }
-// 판 사이("곧 두 번째 판이 시작돼요")에는 그만하기가 있고, 누르면 다음 판을 안 시작하고 바로 묻는다
-let pause = false; for (let i = 0; i < 30 && !(pause = await ev("document.body.innerText.includes('곧 두 번째 판')")); i++) await sleep(100);
-const stopPause = await visible('그만하기');
-console.log('pause shown', pause, 'stop visible', stopPause, 'click', await click('그만하기')); await sleep(4000);
-const again = await visible('한 판 더'), badge2 = await badge(), plays = seen.slice(n1).filter((m) => m.t === 'play' && m.id === me.id).length;
-console.log('after stop: again visible', again, 'badge', badge2, 'plays sent', plays, 'buttons', JSON.stringify(await buttons()));
-const ok = !stop1 && !stopMid1 && !!result1 && pause && stopPause && again && badge2 === '' && plays === 0;
+console.log('play 1 badge', await badge(), 'stop visible', stop1); // 첫 판에는 없다
+await drag(80, 0, 1.0); console.log('drop', await tap('drop'));
+for (let i = 0; i < 300 && (await badge()) !== '2/5판'; i++) await sleep(100); // 결과 뒤 두 번째 판이 저절로 시작된다
+const n1 = seen.length; await sleep(1500);
+const stop2 = await visible('그만하기');
+console.log('play 2 badge', await badge(), 'stop visible', stop2); // 둘째 판부터는 내내
+console.log('quit', await click('그만하기'));
+let freed = false; for (let i = 0; i < 60 && !(freed = seen.slice(n1).some((m) => m.t === 'free' && m.m === 'C-6')); i++) await sleep(100); // 바로 일어나 기계가 풀린다
+await sleep(1000);
+const again = await visible('한 판 더'), playOne = await visible('한 판 하기'), badge2 = await badge();
+console.log('after quit: freed', freed, 'again visible', again, 'play-one visible', playOne, 'badge', badge2, 'buttons', JSON.stringify(await buttons()));
+const ok = !stop1 && stop2 && freed && !again && playOne && badge2 === '';
 console.log(ok ? 'PASS run' : 'FAIL run');
 await fetch(`http://127.0.0.1:${port}/json/close/${t.id}`); watcher.close(); process.exit(ok ? 0 : 1);

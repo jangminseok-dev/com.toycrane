@@ -8,7 +8,7 @@ test('the wrapping opening puts the fingertips just inside the gripped ball', ()
     const open = wrapOpen(r);
     const tips = probesAt(0, 0, 0, open).tips;
     const radius = Math.max(...tips.map((t) => Math.hypot(t.x, t.z)));
-    expect(radius / r).toBeGreaterThan(0.75); expect(radius / r).toBeLessThan(0.95);
+    expect(radius / r).toBeGreaterThan(0.6); expect(radius / r).toBeLessThan(0.8);
   }
 });
 

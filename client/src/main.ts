@@ -345,6 +345,7 @@ function startPlay(machineId: string, limit: number, coins: number) {
   session = new PlaySession(machineId, limit, clock());
   run.began();
   seated = null; nextRunAt = null; hideSeatControls();
+  if (run.current() >= 2) showRunPause(quitRun); // 이어 하는 둘째 판부터는 그만하기가 내내 보인다 — 누르면 바로 일어난다 (사용자 2026-11-01)
   setAction(null); setInfo(null);
   showPlayControls(); showHint();
   dropControls();
@@ -540,6 +541,12 @@ function stopRun() {
 function standUp() {
   socket?.send(encodeStand());
   endPlay();
+}
+// 이어 하는 판 도중의 그만하기: 이어 하기를 멈추고 바로 일어난다(그 판의 코인은 넣은 것). 집게가 도는 중이면 그 판 결과까지만 보고 묻는다
+function quitRun() {
+  run.stop();
+  if (session) standUp();
+  else hideSeatControls();
 }
 
 // 희귀·황금이 채워졌다 (설계 2026-10-31 인형 채우기 §4.2 알림): 전광판에 기계 번호와 이름, 그 기계 간판 전구가 깜빡인다
