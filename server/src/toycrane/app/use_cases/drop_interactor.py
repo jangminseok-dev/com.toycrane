@@ -16,7 +16,7 @@ ZONE = "big"  # 2단계는 큰인형 구역만
 
 
 class DropInteractor(DropUseCase):
-    """내리기: 서버가 판정해 모두에게 결과를 알린다. 성공이면 인형을 가방에 넣고 기계를 다시 채운다."""
+    """내리기: 서버가 판정해 모두에게 결과를 알린다. 성공이면 인형을 가방에 넣고 기계를 다시 채운다. 기계는 판 사이 자리로 그 사람에게 남는다."""
 
     def __init__(
         self, registry: PlayerRegistryPort, locks: PlayLockPort, contents: MachineContentsPort, bag: BagPort,
@@ -32,13 +32,14 @@ class DropInteractor(DropUseCase):
     async def drop(self, cmd: DropCommand) -> None:
         lock = self._locks.lock_of(cmd.conn_id)
         me = dict(self._registry.entries()).get(cmd.conn_id)
-        if lock is None or me is None:
+        if lock is None or me is None or self._locks.is_between(cmd.conn_id):
             return
         machine_id, started = lock
-        self._locks.release(cmd.conn_id)  # 먼저 풀어 두 번째 내리기는 무시되게
         if expired(started, cmd.now):
+            self._locks.release(cmd.conn_id)
             self._connections.broadcast_free(machine_id)
             return
+        self._locks.hold(cmd.conn_id, machine_id, cmd.now)  # 판 사이로 바꿔 두 번째 내리기는 무시되고, 이어서 할 자리는 남는다
         x, z = clamp_claw(*sway(cmd.x, cmd.z, self._rng))  # 흔들린 자리로 판정하고 모두에게 그 자리를 알린다
         contents = await ensure_contents(self._contents, self._rng)
         spots = contents[machine_id]

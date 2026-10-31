@@ -48,6 +48,37 @@ async def test_busy_far_and_no_coins():
     assert conns3.direct[-1] == ("c-1", play_no("A-1", "coins")) and locks3.holder("A-1") is None
 
 
+async def test_same_player_continues_between_plays():
+    reg, locks, conns, wallet, it = setup()
+    locks.hold("c-1", "A-1", 10.0)
+    await it.start(PlayStartCommand("c-1", "A-1", now=15.0))
+    assert conns.direct == [("c-1", play_ok("A-1", 2, 20))] and conns.broadcasts == [("c-1", play("A-1", "p1"))]
+    assert locks.holder("A-1") == ("c-1", 15.0) and not locks.is_between("c-1")
+
+
+async def test_others_wait_while_the_player_decides():
+    reg, locks, conns, wallet, it = setup()
+    locks.hold("c-2", "A-1", 10.0)
+    await it.start(PlayStartCommand("c-1", "A-1", now=29.0))
+    assert conns.direct == [("c-1", play_no("A-1", "busy"))] and wallet.coins["g-1"] == 3
+
+
+async def test_a_held_machine_frees_after_the_hold_time():
+    reg, locks, conns, wallet, it = setup()
+    locks.hold("c-2", "A-1", 10.0)
+    await it.start(PlayStartCommand("c-1", "A-1", now=30.5))
+    assert (None, free("A-1")) in conns.broadcasts
+    assert conns.direct == [("c-1", play_ok("A-1", 2, 20))] and locks.holder("A-1") == ("c-1", 30.5)
+
+
+async def test_starting_another_machine_frees_the_held_one():
+    reg, locks, conns, wallet, it = setup()
+    locks.hold("c-1", "A-2", 10.0)
+    await it.start(PlayStartCommand("c-1", "A-1", now=12.0))
+    assert conns.broadcasts[0] == (None, free("A-2"))
+    assert conns.direct == [("c-1", play_ok("A-1", 2, 20))] and locks.holder("A-2") is None
+
+
 async def test_already_playing_and_unknown_machine():
     reg, locks, conns, wallet, it = setup()
     locks.lock("c-1", "A-2", 4.0)

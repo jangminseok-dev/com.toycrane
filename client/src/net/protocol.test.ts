@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import fixtures from '../../../shared/protocol_fixtures.json';
-import { decode, encodeDrop, encodeMove, encodePlay, encodeQueue, encodeTake, encodeUnqueue } from './protocol';
+import { decode, encodeDrop, encodeMove, encodePlay, encodeQueue, encodeStand, encodeTake, encodeUnqueue } from './protocol';
 
 const fx = fixtures as Record<string, unknown>;
 
@@ -28,4 +28,5 @@ test('queue messages match client fixtures', () => {
 test('play messages match client fixtures', () => {
   expect(JSON.parse(encodePlay('A-3'))).toEqual(fx.client_play);
   expect(JSON.parse(encodeDrop(0.1204, -0.0501))).toEqual(fx.client_drop);
+  expect(JSON.parse(encodeStand())).toEqual(fx.client_stand);
 });

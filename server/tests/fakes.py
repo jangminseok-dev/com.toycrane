@@ -218,6 +218,7 @@ class FakeLocks:
     def __init__(self, player_ids: dict[str, str] | None = None) -> None:
         self.player_ids = dict(player_ids or {})
         self.rows: dict[str, tuple[str, float]] = {}
+        self.between: set[str] = set()
 
     def holder(self, machine_id: str) -> tuple[str, float] | None:
         return next(((c, at) for c, (m, at) in self.rows.items() if m == machine_id), None)
@@ -227,9 +228,18 @@ class FakeLocks:
 
     def lock(self, conn_id: str, machine_id: str, now: float) -> None:
         self.rows[conn_id] = (machine_id, now)
+        self.between.discard(conn_id)
+
+    def hold(self, conn_id: str, machine_id: str, now: float) -> None:
+        self.rows[conn_id] = (machine_id, now)
+        self.between.add(conn_id)
+
+    def is_between(self, conn_id: str) -> bool:
+        return conn_id in self.between
 
     def release(self, conn_id: str) -> None:
         self.rows.pop(conn_id, None)
+        self.between.discard(conn_id)
 
     def plays(self) -> dict[str, str]:
         return {m: self.player_ids.get(c, c.replace("c-", "p")) for c, (m, _) in self.rows.items()}

@@ -3,7 +3,7 @@
 import json
 
 from toycrane.adapter.inbound.ws import (
-    coin_take_handler, drop_handler, move_handler, play_start_handler, queue_join_handler, queue_leave_handler,
+    coin_take_handler, drop_handler, move_handler, play_start_handler, queue_join_handler, queue_leave_handler, stand_handler,
 )
 
 HANDLERS = {
@@ -13,6 +13,7 @@ HANDLERS = {
     "take": coin_take_handler.handle,
     "play": play_start_handler.handle,
     "drop": drop_handler.handle,
+    "stand": stand_handler.handle,
 }
 
 

@@ -6,3 +6,9 @@ class PlayStartCommand:
     conn_id: str
     machine_id: str
     now: float
+
+
+@dataclass(frozen=True)
+class StandCommand:
+    conn_id: str
+    now: float

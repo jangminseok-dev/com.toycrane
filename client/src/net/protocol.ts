@@ -81,3 +81,4 @@ export const encodeUnqueue = () => JSON.stringify({ t: 'unqueue' });
 export const encodeTake = () => JSON.stringify({ t: 'take' });
 export const encodePlay = (m: string) => JSON.stringify({ t: 'play', m });
 export const encodeDrop = (x: number, z: number) => JSON.stringify({ t: 'drop', x: round(x, 3), z: round(z, 3) });
+export const encodeStand = () => JSON.stringify({ t: 'stand' }); // 판 사이에 "그만하기"

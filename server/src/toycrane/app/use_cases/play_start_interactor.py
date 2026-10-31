@@ -7,11 +7,11 @@ from toycrane.app.ports.output.play_lock_port import PlayLockPort
 from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
 from toycrane.app.ports.output.wallet_port import WalletPort
 from toycrane.domain.layout import MACHINE_SPEC, MACHINES, front_spot
-from toycrane.domain.play_rules import PLAY_SECONDS, expired
+from toycrane.domain.play_rules import PLAY_SECONDS, expired, hold_over
 
 
 class PlayStartInteractor(PlayStartUseCase):
-    """코인 넣고 시작: 기계 한 대 = 한 사람. 시간이 지난 잠금은 풀고, 코인을 쓰기 전에 먼저 잠근다."""
+    """코인 넣고 시작: 기계 한 대 = 한 사람. 판 사이 자리를 잡은 사람은 이어서 하고, 시간이 지난 잠금은 풀고, 코인을 쓰기 전에 먼저 잠근다."""
 
     def __init__(self, registry: PlayerRegistryPort, locks: PlayLockPort, wallet: WalletPort, connections: ConnectionsPort) -> None:
         self._registry = registry
@@ -24,12 +24,18 @@ class PlayStartInteractor(PlayStartUseCase):
         me = dict(self._registry.entries()).get(cmd.conn_id)
         if machine is None or me is None:
             return
-        if self._locks.lock_of(cmd.conn_id) is not None:
-            self._connections.send_play_no(cmd.conn_id, machine.id, "playing")
-            return
+        mine = self._locks.lock_of(cmd.conn_id)
+        if mine is not None:
+            if not self._locks.is_between(cmd.conn_id):
+                self._connections.send_play_no(cmd.conn_id, machine.id, "playing")
+                return
+            if mine[0] != machine.id:  # 잡아 둔 자리를 두고 다른 기계로 옮겼다
+                self._locks.release(cmd.conn_id)
+                self._connections.broadcast_free(mine[0])
         holder = self._locks.holder(machine.id)
-        if holder is not None:
-            if not expired(holder[1], cmd.now):
+        if holder is not None and holder[0] != cmd.conn_id:
+            between = self._locks.is_between(holder[0])
+            if not (hold_over(holder[1], cmd.now) if between else expired(holder[1], cmd.now)):
                 self._connections.send_play_no(cmd.conn_id, machine.id, "busy")
                 return
             self._locks.release(holder[0])

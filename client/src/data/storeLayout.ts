@@ -5,7 +5,7 @@ import type { Vec2 } from '../game/movement';
 export type MachineSpot = { id: string; x: number; z: number; ry: number; set: string; row: 'wall' | 'island' };
 export type CounterSpot = { id: number; x: number; z: number; ry: number; window: [number, number]; queue: [number, number][] };
 export type MachineSpec = {
-  front: number; reach: number; play_half: [number, number]; hole: [number, number, number]; claw_speed: number; play_seconds: number;
+  front: number; reach: number; play_half: [number, number]; hole: [number, number, number]; claw_speed: number; play_seconds: number; hold_seconds: number;
 };
 
 export const MACHINE_SPEC = layout.machine as MachineSpec;

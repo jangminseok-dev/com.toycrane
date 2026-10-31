@@ -47,3 +47,11 @@ async def test_leave_mid_play_refunds_and_frees():
     locks.lock("c-1", "A-1", 3.0)
     await LeaveInteractor(reg, conns, FakeOccupancy(), locks=locks, wallet=wallet).leave(LeaveCommand("c-1", 1, now=5.0))
     assert wallet.coins["g-1"] == 3 and (None, free("A-1")) in conns.broadcasts and locks.holder("A-1") is None
+
+
+async def test_leave_between_plays_frees_without_refund():
+    reg, conns, locks, wallet = FakeRegistry(), FakeConnections(), FakeLocks(), FakeWallet({"g-1": 2})
+    reg.put("c-1", player("p1", guest="g-1"))
+    locks.hold("c-1", "A-1", 3.0)
+    await LeaveInteractor(reg, conns, FakeOccupancy(), locks=locks, wallet=wallet).leave(LeaveCommand("c-1", 1, now=5.0))
+    assert wallet.coins["g-1"] == 2 and (None, free("A-1")) in conns.broadcasts and locks.holder("A-1") is None

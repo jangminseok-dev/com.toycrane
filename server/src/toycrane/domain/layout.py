@@ -35,11 +35,12 @@ class MachineSpec:
     hole: tuple[float, float, float]  # 상품 구멍 (x, z, 반지름)
     claw_speed: float
     play_seconds: int
+    hold_seconds: int  # 판이 끝난 뒤 그 사람이 이어서 할 수 있게 자리를 잡아 두는 시간
 
 
 _spec = LAYOUT["machine"]
 MACHINE_SPEC = MachineSpec(
-    _spec["front"], _spec["reach"], tuple(_spec["play_half"]), tuple(_spec["hole"]), _spec["claw_speed"], _spec["play_seconds"]
+    _spec["front"], _spec["reach"], tuple(_spec["play_half"]), tuple(_spec["hole"]), _spec["claw_speed"], _spec["play_seconds"], _spec["hold_seconds"]
 )
 MACHINE_IDS: tuple[str, ...] = tuple(m["id"] for m in LAYOUT["machines"])
 MACHINES: dict[str, Machine] = {m["id"]: Machine(m["id"], m["x"], m["z"], m["ry"], m["set"], m["row"]) for m in LAYOUT["machines"]}

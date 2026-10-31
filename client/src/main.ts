@@ -17,7 +17,7 @@ import { RemotePlayers } from './game/remotePlayers';
 import { installJoystick } from './input/joystick';
 import { readKeyboard } from './input/keyboard';
 import { admit, createGuest, getGuest, type Guest } from './net/api';
-import { encodeDrop, encodeMove, encodePlay, encodeQueue, encodeTake, encodeUnqueue, type DollSpot, type Result, type ServerMsg } from './net/protocol';
+import { encodeDrop, encodeMove, encodePlay, encodeQueue, encodeStand, encodeTake, encodeUnqueue, type DollSpot, type Result, type ServerMsg } from './net/protocol';
 import { closeAction, nextDelay, retrying } from './net/reconnect';
 import { safeStorage } from './net/storage';
 import { StoreSocket, storeUrl } from './net/storeSocket';
@@ -25,7 +25,7 @@ import { setAction } from './ui/actionButton';
 import { askNickname, hideEntry, showFull, showMessage, showWelcomeBack } from './ui/entry';
 import { setHud, setInfo, toast } from './ui/hud';
 import { eulReul } from './ui/josa';
-import { hidePlayControls, setTimer, showPlayControls } from './ui/playControls';
+import { hidePlayControls, hideSeatControls, setTimer, showPlayControls, showSeatControls } from './ui/playControls';
 import { showWinCard } from './ui/winCard';
 import { setStatus } from './ui/status';
 import { makeAvatar, type Avatar } from './world/avatar';
@@ -68,19 +68,29 @@ let me: LocalPlayer | null = null;
 let wallet = { coins: 0, bag: 0 }; // 코인·가방 수 (서버가 알려 준 값)
 let myId = '';
 const queue = new QueueClient();
-// 기계 한 판: 내가 하는 중(session) → 내리고 결과 기다림(awaiting, dropped). busy = 기계 → 하는 사람(판이 끝날 시간이 지나면 풀림)
+// 기계 한 판: 내가 하는 중(session) → 내리고 결과 기다림(awaiting, dropped) → 판 사이(seated: 기계 앞 화면 그대로 "한 번 더·그만하기").
+// busy = 기계 → 하는 사람(판이 끝날 시간, 판 사이엔 서버가 자리를 잡아 두는 시간이 지나면 풀림)
 let session: PlaySession | null = null;
 let awaiting: string | null = null;
-const busy = new MachineBusy(MACHINE_SPEC.play_seconds);
+let seated: string | null = null;
+let seatedAt = 0;
+const busy = new MachineBusy(MACHINE_SPEC.play_seconds, MACHINE_SPEC.hold_seconds);
 let dropped: PlaySession | null = null; // 내리고 결과를 기다리는 판 (8초 넘게 못 받으면 포기)
 const clock = () => performance.now() / 1000;
 const spotOf = new Map(MACHINES.map((m) => [m.id, m]));
 const camLook = new THREE.Vector3();
-// 연출: 기계마다 돌고 있는 코인·조이스틱 모션, 결과 연출 중인 기계, 연출이 끝나면 넣을 새 배치
+// 연출: 기계마다 돌고 있는 코인·조이스틱 모션, 결과 연출 중인 기계.
+// 결과마다 표(ticket)를 두고, 바로 뒤에 오는 새 배치(machine)는 그 결과 연출이 끝난 뒤에 넣는다
 const tw = new Tweens();
 const playing = new Map<string, { stop(): Promise<void> }>();
 const showing = new Set<string>();
-const pendingContents = new Map<string, DollSpot[]>();
+type Ticket = { pending?: DollSpot[]; done: boolean };
+const tickets = new Map<string, Ticket>();
+// 한 기계의 연출은 차례대로: 이어서 하는 사람의 다음 판 모션·결과가 앞 판 결과 모션과 겹치지 않게
+const chains = new Map<string, Promise<void>>();
+function after(id: string, job: () => void | Promise<void>): void {
+  chains.set(id, (chains.get(id) ?? Promise.resolve()).then(job).catch((e) => console.error(e)));
+}
 const spinners: { obj: THREE.Object3D; speed: number }[] = [];
 // 움직이는 집게의 흔들림(진자): 기계마다 집게 위치에서 속도·가속도를 구해 매 프레임 기울인다
 const swings = new Map<string, { swing: Swing; px: number; pz: number; vx: number; vz: number }>();
@@ -100,11 +110,6 @@ function updateSwings(dt: number) {
     if (rig) { rig.swing.rotation.z = s.swing.tiltX; rig.swing.rotation.x = -s.swing.tiltZ; }
     else { s.swing.reset(); swings.delete(id); }
   }
-}
-function takePending(id: string): DollSpot[] | undefined {
-  const p = pendingContents.get(id);
-  pendingContents.delete(id);
-  return p;
 }
 let showingMe = false; // 내 결과 모션 중엔 걷지 않는다
 let myNick = '';
@@ -181,19 +186,20 @@ function onMessage(m: ServerMsg, guest: Guest) {
       setHud(wallet.coins, wallet.bag);
       myId = m.you.id;
       myNick = guest.nickname;
-      playing.clear(); showing.clear(); pendingContents.clear(); showingMe = false;
+      playing.clear(); showing.clear(); tickets.clear(); chains.clear(); showingMe = false;
       queue.reset();
       m.queues.forEach((ids, c) => queue.onQueue(c, ids, myId, now / 1000));
       busy.reset();
       for (const [id, who] of Object.entries(m.plays)) busy.set(id, who, now / 1000);
       endPlay();
       break;
-    case 'play': {
+    case 'play':
       busy.set(m.m, m.id, now / 1000);
-      const rig = remotes.rigOf(m.id);
-      if (rig) playing.set(m.m, startPlaying(rig, tw, spotOf.get(m.m)!.ry + Math.PI));
+      after(m.m, () => {
+        const rig = remotes.rigOf(m.id);
+        if (rig && busy.who(m.m, clock()) === m.id) playing.set(m.m, startPlaying(rig, tw, spotOf.get(m.m)!.ry + Math.PI));
+      });
       break;
-    }
     case 'play_ok': startPlay(m.m, m.limit, m.coins); break;
     case 'play_no':
       if (m.why !== 'playing') toast({ busy: '다른 사람이 하는 중이에요', coins: '코인이 없어요 · 교환소에서 받아요', far: '기계 앞에 서 주세요' }[m.why]);
@@ -202,12 +208,21 @@ function onMessage(m: ServerMsg, guest: Guest) {
       busy.clear(m.m);
       void playing.get(m.m)?.stop(); playing.delete(m.m);
       if (session?.machineId === m.m || awaiting === m.m) { endPlay(); toast('시간이 지나 기계가 풀렸어요'); }
+      else if (seated === m.m) { endPlay(); toast('자리를 비운 사이 다른 사람이 시작했어요'); }
       break;
-    case 'result': busy.clear(m.m); void showResult(m); break;
-    case 'machine':
-      if (showing.has(m.m)) pendingContents.set(m.m, m.dolls); // 집게·모션 연출이 끝난 뒤에 바꾼다
+    case 'result': {
+      busy.hold(m.m, m.id, now / 1000); // 서버가 그 사람이 이어서 할 수 있게 자리를 잡아 둔다
+      const t: Ticket = { done: false };
+      tickets.set(m.m, t);
+      after(m.m, () => showResult(m, t));
+      break;
+    }
+    case 'machine': {
+      const t = tickets.get(m.m);
+      if (t && !t.done) t.pending = m.dolls; // 집게·모션 연출이 끝난 뒤에 바꾼다
       else bigZone.setContents(m.m, m.dolls);
       break;
+    }
     case 'bag': wallet.bag = m.n; setHud(wallet.coins, wallet.bag); break;
     case 'queue': queue.onQueue(m.c, m.ids, myId, now / 1000); break;
     case 'queue_no': toast('줄이 꽉 찼어요'); break;
@@ -215,6 +230,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       wallet.coins = m.n;
       setHud(wallet.coins, wallet.bag);
       toast(m.got > 0 ? `🪙 +${m.got}` : '코인이 가득 찼어요');
+      if (seated) showSeat();
       break;
     case 'join': remotes.add(m.p, now); break;
     case 'move': remotes.move(m, now); break;
@@ -255,6 +271,7 @@ function startPlay(machineId: string, limit: number, coins: number) {
   setHud(wallet.coins, wallet.bag);
   busy.set(machineId, myId, clock());
   session = new PlaySession(machineId, limit, clock());
+  seated = null; hideSeatControls();
   setAction(null); setInfo(null);
   showPlayControls(() => { if (session?.requestDrop(clock())) sendDrop(); });
   if (myAvatar) {
@@ -277,18 +294,35 @@ function sendDrop() {
 }
 
 function endPlay() {
-  const id = session?.machineId ?? awaiting;
+  const id = session?.machineId ?? awaiting ?? seated;
   if (id) {
     bigZone.clawOf(id).position.copy(CLAW_REST); bigZone.showAim(id, false);
     if (!showing.has(id)) bigZone.releaseClaw(id);
   }
-  session = null; awaiting = null; dropped = null;
-  hidePlayControls();
+  session = null; awaiting = null; dropped = null; seated = null;
+  hidePlayControls(); hideSeatControls(); setInfo(null);
   if (myAvatar) myAvatar.root.visible = true;
 }
 
-// 결과 연출: 모두의 화면에서 같은 순서 — 쾅 → 두근두근(집게가 내려갔다 올라옴) → 성공(꺼내기·번쩍·가방에 쏙) / 실패(털썩)
-async function showResult(m: Result) {
+// 판 사이: 기계 앞 화면 그대로 "🪙1 한 번 더 / 그만하기" — 그만하기 전까지 계속 뽑는다 (서버가 hold_seconds 동안 자리를 잡아 둔다)
+function sitDown(machineId: string) {
+  awaiting = null; dropped = null;
+  seated = machineId; seatedAt = clock();
+  showSeat();
+}
+function showSeat() {
+  const id = seated;
+  if (!id) return;
+  showSeatControls(wallet.coins > 0 ? () => socket?.send(encodePlay(id)) : null, standUp, () => toast('코인이 없어요 · 교환소에서 받아요'));
+}
+function standUp() {
+  socket?.send(encodeStand());
+  endPlay();
+}
+
+// 결과 연출. 남의 화면: 그 사람 캐릭터가 쾅 → 두근두근(집게가 내려갔다 올라옴) → 성공(꺼내기·번쩍·가방에 쏙) / 실패(털썩).
+// 내 화면: 기계 앞 화면 그대로 집게 → 성공(번쩍·카드)/실패(소리) → 판 사이 버튼 (내 캐릭터는 숨어 있어 몸동작은 남의 화면에만)
+async function showResult(m: Result, t: Ticket) {
   showing.add(m.m);
   const mine = m.id === myId;
   if (mine) showingMe = true;
@@ -297,18 +331,18 @@ async function showResult(m: Result) {
   const info = m.k ? DOLLS[m.k] : undefined, rare = !!info?.rare;
   const front = frontSpot(spot);
   const near = mine || (!!me && Math.hypot(me.pos.x - front.x, me.pos.z - front.z) < 6);
-  const rig = mine ? myAvatar?.rig ?? null : remotes.rigOf(m.id);
-  const doll = m.o === 'win' && m.k ? makeDoll(m.k) : null;
+  const rig = mine ? null : remotes.rigOf(m.id);
+  const doll = rig && m.o === 'win' && m.k ? makeDoll(m.k) : null;
   if (doll) spinners.push(...doll.userData.spin);
   const fx = {
     bonk: () => { if (near) sfx.bonk(); },
-    claw: () => runClaw({ tw, zone: bigZone, swing: swingOf(m.m), takePending: () => takePending(m.m) }, m),
-    afterClaw: () => { if (mine) { awaiting = null; if (myAvatar) myAvatar.root.visible = true; } },
+    claw: () => runClaw({ tw, zone: bigZone, swing: swingOf(m.m), takePending: () => { const p = t.pending; t.pending = undefined; return p; } }, m),
+    afterClaw: () => { if (mine && awaiting === m.m) sitDown(m.m); },
     pop: () => { if (near) sfx.pop(); },
     win: () => {
       bigZone.flash(m.m, rare, 3.2);
       const at = new THREE.Vector3();
-      (doll ?? bigZone.worldOf(m.m)).getWorldPosition(at); at.y += 0.3;
+      (doll ?? bigZone.worldOf(m.m)).getWorldPosition(at); at.y += doll ? 0.3 : 1.2; // 캐릭터가 든 인형, 없으면 기계 유리 칸
       burst(scene, at, rare ? [0xffd36b, 0xfff6b0, 0xff9f43, 0xffffff] : [0xff7ab6, 0x8fd3ff, 0xffe066, 0x8fe3c8], rare ? 80 : 36);
       if (rare) sfx.rare(); else if (near) sfx.win();
       if (rare && info) {
@@ -321,12 +355,12 @@ async function showResult(m: Result) {
     fail: () => { if (mine) sfx.fail(); },
   };
   if (rig) await playResult(rig, tw, m.o, doll, fx, face);
-  else { await fx.claw(); fx.afterClaw(); }
+  else { fx.bonk(); await fx.claw(); fx.afterClaw(); if (m.o === 'win') fx.win(); else fx.fail(); }
   if (doll) spinners.splice(0, spinners.length, ...spinners.filter((s) => !doll.userData.spin.includes(s)));
   showing.delete(m.m);
-  const next = pendingContents.get(m.m);
-  if (next) { bigZone.setContents(m.m, next); pendingContents.delete(m.m); }
-  if (mine) { showingMe = false; endPlay(); }
+  if (t.pending) { bigZone.setContents(m.m, t.pending); t.pending = undefined; }
+  t.done = true;
+  if (mine) showingMe = false;
 }
 
 // 기계 앞자리 가까이면 그 기계: 비었으면 "🪙1 넣고 하기", 남이 하면 구경 중
@@ -358,7 +392,7 @@ renderer.setAnimationLoop((now) => {
     const stick = joystick.read();
     const input = Math.hypot(stick.x, stick.z) > 0 ? stick : readKeyboard();
     if (dropped && awaiting && dropped.resultOverdue(now / 1000)) { endPlay(); toast('결과를 받지 못했어요'); }
-    const atMachine = session?.machineId ?? awaiting; // 기계 카메라를 쓰는 동안
+    const atMachine = session?.machineId ?? awaiting ?? seated; // 기계 카메라를 쓰는 동안
     if (session) {
       // 조이스틱·키가 집게를 움직이고 캐릭터는 기계 앞에 서 있다
       if (session.update(dt, input, now / 1000) === 'drop') sendDrop();
@@ -374,6 +408,11 @@ renderer.setAnimationLoop((now) => {
       me.drive({ x: 0, z: 0 }, dt);
     } else if (showingMe) {
       me.drive({ x: 0, z: 0 }, dt); // 내 결과 모션 동안은 제자리
+    } else if (seated) {
+      me.autoTarget = frontSpot(spotOf.get(seated)!); // 판 사이에도 기계 앞자리에 그대로
+      me.drive({ x: 0, z: 0 }, dt);
+      const left = MACHINE_SPEC.hold_seconds - (now / 1000 - seatedAt);
+      setInfo(left > 0 ? `이어서 하기 · ${Math.ceil(left)}초` : null);
     } else if (!awaiting) {
       me.autoTarget = queue.target();
       me.drive(input, dt);

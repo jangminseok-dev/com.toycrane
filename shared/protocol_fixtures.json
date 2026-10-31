@@ -23,6 +23,7 @@
   "server_coins": { "t": "coins", "n": 10, "got": 5 },
   "client_play": { "t": "play", "m": "A-3" },
   "client_drop": { "t": "drop", "x": 0.12, "z": -0.05 },
+  "client_stand": { "t": "stand" },
   "server_play_ok": { "t": "play_ok", "m": "A-3", "coins": 9, "limit": 20 },
   "server_play_no": { "t": "play_no", "m": "A-3", "why": "busy" },
   "server_play": { "t": "play", "m": "A-3", "id": "p1" },

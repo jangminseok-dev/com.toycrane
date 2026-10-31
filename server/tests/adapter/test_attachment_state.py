@@ -48,3 +48,13 @@ def test_play_lock_round_trip():
     assert locks.plays() == {"A-3": "p1"}
     locks.release("c-1")
     assert locks.holder("A-3") is None and locks.plays() == {}
+
+
+def test_play_lock_between_plays():
+    locks = AttachmentPlayLocks(FakeCtx(conn("c-1", "p1")))
+    locks.lock("c-1", "A-3", 10.0)
+    assert not locks.is_between("c-1")
+    locks.hold("c-1", "A-3", 15.0)
+    assert locks.lock_of("c-1") == ("A-3", 15.0) and locks.is_between("c-1") and locks.plays() == {"A-3": "p1"}
+    locks.lock("c-1", "A-3", 20.0)
+    assert not locks.is_between("c-1")

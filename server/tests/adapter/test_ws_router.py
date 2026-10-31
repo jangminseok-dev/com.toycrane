@@ -10,3 +10,8 @@ def test_decode_rejects_non_json_and_non_objects():
 
 def test_decode_keeps_typed_objects():
     assert decode('{"t":"move","x":1}') == {"t": "move", "x": 1}
+
+
+def test_stand_message_has_a_handler():
+    from toycrane.adapter.inbound.ws.ws_router import HANDLERS
+    assert "stand" in HANDLERS

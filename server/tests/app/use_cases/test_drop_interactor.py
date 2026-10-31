@@ -43,7 +43,14 @@ async def test_winning_drop_moves_the_doll_into_the_bag():
     after = contents.stored["A-1"]
     assert after[1:] == before[1:] and (after[0].x, after[0].z) == (0.0, 0.0) and contents.saves == 1  # 뽑힌 자리에 새 인형
     assert ("c-1", bag_msg(3)) in conns.direct and bag.added == [("g-1", "bunny", "big")]
-    assert locks.lock_of("c-1") is None
+
+
+async def test_after_a_drop_the_player_keeps_the_machine_between_plays():
+    """한 판이 끝나도 그 사람이 이어서 할 수 있게 자리를 잡아 둔다 (기계는 아직 그 사람 것)."""
+    locks, conns, bag, contents, it = setup(roll=0.99)
+    await it.drop(DropCommand("c-1", 0.0, 0.0, now=15.0))
+    assert locks.lock_of("c-1") == ("A-1", 15.0) and locks.is_between("c-1")
+    assert not any(m["t"] == "free" for _, m in conns.broadcasts)
 
 
 async def test_losing_drop_keeps_the_machine():

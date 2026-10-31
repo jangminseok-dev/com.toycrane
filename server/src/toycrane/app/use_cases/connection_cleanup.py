@@ -13,9 +13,9 @@ def release_connection(
     refund = 0
     playing = locks.lock_of(conn_id)
     if playing is not None:
+        refund = 0 if locks.is_between(conn_id) else 1  # 판 사이면 이미 끝난 판이라 돌려줄 코인이 없다
         locks.release(conn_id)
         connections.broadcast_free(playing[0])
-        refund = 1
     counter = queues.counter_of(conn_id)
     if counter is not None:
         queues.remove(conn_id)
