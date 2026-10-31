@@ -28,6 +28,18 @@ class ConnectionsPort(ABC):
     def kick(self, conn_id: str, code: int, reason: str) -> None: ...
 
     @abstractmethod
+    def broadcast_beg(self, player_id: str, room: int | None) -> None:
+        """맵 조르기 시작(room = 더 받을 수 있는 코인 수)·끝(None)을 모두에게."""
+
+    @abstractmethod
+    def broadcast_gave(self, from_id: str, to_id: str, n: int) -> None:
+        """코인 주기가 이뤄졌다 — 주기·기쁨 모션과 알림."""
+
+    @abstractmethod
+    def send_give_no(self, conn_id: str, why: str) -> None:
+        """주기 거절: "gone"|"stopped"|"far"|"poor"|"full"|"self"|"playing"."""
+
+    @abstractmethod
     def send_take_no(self, conn_id: str, counter: int, why: str) -> None:
         """코인 받기 거절: "far"(창구에서 멂) | "enough"(15개 이상)."""
 

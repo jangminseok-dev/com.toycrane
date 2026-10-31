@@ -30,3 +30,19 @@ async def test_move_from_unknown_connection_is_ignored():
     conns = FakeConnections()
     await MoveInteractor(FakeRegistry(), conns).move(MoveCommand("c-x", 1, 1, 0, 0, now=1.0))
     assert conns.broadcasts == [] and conns.direct == []
+
+
+
+# 움직이면 맵 조르기가 끝난다 (설계 2026-10-31 교환소 개편 §4.3) — 멈춘 채 보내는 위치는 조르기를 끝내지 않는다
+async def test_moving_stops_begging():
+    from dataclasses import replace
+
+    from toycrane.adapter.inbound.ws.schemas.server_messages import beg
+
+    reg, conns = FakeRegistry(), FakeConnections()
+    reg.put("c-1", replace(player("p1"), beg_room=50))
+    it = MoveInteractor(reg, conns)
+    await it.move(MoveCommand("c-1", 0.0, 0.0, 0.0, 0.0, now=0.5))
+    assert dict(reg.entries())["c-1"].beg_room == 50 and conns.broadcasts[-1][1]["t"] == "move"
+    await it.move(MoveCommand("c-1", 0.1, 0.0, 1.0, 0.0, now=1.0))
+    assert dict(reg.entries())["c-1"].beg_room is None and (None, beg("p1", None)) in conns.broadcasts

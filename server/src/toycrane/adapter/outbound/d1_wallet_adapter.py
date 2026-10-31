@@ -8,6 +8,14 @@ BEG_SQL = (
     "ON CONFLICT(guest_id) DO UPDATE SET coins = MIN(coins + ?2, ?3), updated_at = ?5, begged_at = ?5 "
     "WHERE (begged_at IS NULL OR begged_at <= ?5 - ?4) AND coins < ?3 RETURNING coins"
 )
+# 코인 주기: 받는 사람 지갑 행을 먼저 만들어 두고(0개), 두 행을 UPDATE 한 문장으로 함께 바꾼다
+# (?1 주는 사람, ?2 받는 사람, ?3 개수, ?4 cap, ?5 지금). 조건이 안 맞으면 아무 행도 안 바뀐다
+ENSURE_SQL = "INSERT OR IGNORE INTO wallets (guest_id, coins, updated_at) VALUES (?1, 0, ?2)"
+TRANSFER_SQL = (
+    "UPDATE wallets SET coins = CASE guest_id WHEN ?1 THEN coins - ?3 ELSE coins + ?3 END, updated_at = ?5 "
+    "WHERE guest_id IN (?1, ?2) AND (SELECT coins FROM wallets WHERE guest_id = ?1) >= ?3 "
+    "AND (SELECT coins FROM wallets WHERE guest_id = ?2) + ?3 <= ?4 RETURNING guest_id, coins"
+)
 
 
 class D1WalletAdapter(WalletPort):
@@ -32,6 +40,12 @@ class D1WalletAdapter(WalletPort):
     async def begged_at(self, guest_id: str) -> float | None:
         row = to_py(await self._db.prepare("SELECT begged_at FROM wallets WHERE guest_id = ?").bind(guest_id).first())
         return float(row["begged_at"]) if row and row["begged_at"] is not None else None
+
+    async def transfer(self, giver: str, receiver: str, n: int, cap: int, now: float) -> tuple[int, int] | None:
+        await self._db.prepare(ENSURE_SQL).bind(receiver, now).run()
+        result = to_py(await self._db.prepare(TRANSFER_SQL).bind(giver, receiver, n, cap, now).all())
+        rows = {r["guest_id"]: int(r["coins"]) for r in result["results"]}
+        return (rows[giver], rows[receiver]) if giver in rows and receiver in rows else None
 
     async def spend_one(self, guest_id: str, now: float) -> int | None:
         row = to_py(await self._db.prepare(

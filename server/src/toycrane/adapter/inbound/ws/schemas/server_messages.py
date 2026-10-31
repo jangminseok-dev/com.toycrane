@@ -12,7 +12,7 @@ PROTOCOL = 2  # 메시지 형식 버전 — 화면(net/protocol.ts PROTOCOL)과 
 
 
 def _player(p: PlayerView) -> dict:
-    return {"id": p.id, "nick": p.nick, "color": p.color, **_pose(p)}
+    return {"id": p.id, "nick": p.nick, "color": p.color, **_pose(p), "beg": p.beg}
 
 
 def _pose(p: PlayerView) -> dict:
@@ -46,6 +46,18 @@ def move(p: PlayerView) -> dict:
 
 def correct(x: float, z: float) -> dict:
     return {"t": "correct", "x": round(x, 2), "z": round(z, 2)}
+
+
+def beg(player_id: str, room: int | None) -> dict:
+    return {"t": "beg", "id": player_id, "room": room}
+
+
+def gave(from_id: str, to_id: str, n: int) -> dict:
+    return {"t": "gave", "from": from_id, "to": to_id, "n": n}
+
+
+def give_no(why: str) -> dict:
+    return {"t": "give_no", "why": why}
 
 
 def take_no(counter: int, why: str) -> dict:

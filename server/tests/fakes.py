@@ -101,6 +101,15 @@ class FakeConnections:
     def kick(self, conn_id: str, code: int, reason: str) -> None:
         self.kicked.append((conn_id, code))
 
+    def broadcast_beg(self, player_id, room) -> None:
+        self.broadcasts.append((None, server_messages.beg(player_id, room)))
+
+    def broadcast_gave(self, from_id, to_id, n) -> None:
+        self.broadcasts.append((None, server_messages.gave(from_id, to_id, n)))
+
+    def send_give_no(self, conn_id, why) -> None:
+        self.direct.append((conn_id, server_messages.give_no(why)))
+
     def send_take_no(self, conn_id, counter, why) -> None:
         self.direct.append((conn_id, server_messages.take_no(counter, why)))
 
@@ -162,6 +171,13 @@ class FakeWallet:
 
     async def begged_at(self, guest_id: str) -> float | None:
         return self.begged.get(guest_id)
+
+    async def transfer(self, giver: str, receiver: str, n: int, cap: int, now: float) -> tuple[int, int] | None:
+        g, r = self.coins.get(giver, 0), self.coins.get(receiver, 0)
+        if giver not in self.coins or g < n or r + n > cap:
+            return None
+        self.coins[giver], self.coins[receiver] = g - n, r + n
+        return self.coins[giver], self.coins[receiver]
 
     async def balance(self, guest_id: str) -> int:
         return self.coins.get(guest_id, 0)

@@ -9,14 +9,14 @@ from toycrane.domain.value_objects.position import Position
 def _to_dict(p: Player) -> dict:
     return {
         "id": p.player_id, "guest": p.guest_id, "nick": p.nickname, "color": p.color,
-        "x": p.position.x, "z": p.position.z, "dx": p.heading.dx, "dz": p.heading.dz, "at": p.updated_at, "budget": p.budget,
+        "x": p.position.x, "z": p.position.z, "dx": p.heading.dx, "dz": p.heading.dz, "at": p.updated_at, "budget": p.budget, "beg": p.beg_room,
     }
 
 
 def _from_dict(d: dict) -> Player:
     return Player(
         d["id"], d["guest"], d["nick"], d["color"], Position(d["x"], d["z"]), Heading(d["dx"], d["dz"]), d["at"],
-        d.get("budget", START_BUDGET),
+        d.get("budget", START_BUDGET), d.get("beg"),
     )
 
 

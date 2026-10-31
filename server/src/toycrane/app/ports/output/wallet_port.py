@@ -22,5 +22,10 @@ class WalletPort(ABC):
         """교환소 조르기를 마지막으로 받은 시각 (없으면 None)."""
 
     @abstractmethod
+    async def transfer(self, giver: str, receiver: str, n: int, cap: int, now: float) -> tuple[int, int] | None:
+        """giver에게서 receiver에게 n개를 한 번에 옮긴다 — giver가 n개 이상이고 receiver가 cap을 넘지 않을 때만.
+        (giver 새 잔액, receiver 새 잔액), 아니면 None."""
+
+    @abstractmethod
     async def spend_one(self, guest_id: str, now: float) -> int | None:
         """하나 쓴다. 0개면 None, 아니면 새 잔액."""

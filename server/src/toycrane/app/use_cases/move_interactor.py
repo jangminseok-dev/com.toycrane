@@ -27,7 +27,12 @@ class MoveInteractor(MoveUseCase):
         claimed = Position(cmd.x, cmd.z)
         accepted, budget = accept_move(current.position, current.budget, current.updated_at, claimed, cmd.now)
         moved = replace(current, position=accepted, heading=Heading(cmd.dx, cmd.dz), updated_at=cmd.now, budget=budget)
+        walking = moved.heading != Heading.STOP
+        if walking and moved.beg_room is not None:
+            moved = replace(moved, beg_room=None)  # 움직이면 조르기가 끝난다 (설계 2026-10-31 교환소 개편 §4.3)
         self._registry.put(cmd.conn_id, moved)
+        if walking and current.beg_room is not None:
+            self._connections.broadcast_beg(moved.player_id, None)
         self._connections.broadcast_move(cmd.conn_id, PlayerView.of(moved))
         if math.hypot(accepted.x - claimed.x, accepted.z - claimed.z) > CORRECTION_EPSILON:
             self._connections.send_correction(cmd.conn_id, accepted.x, accepted.z)

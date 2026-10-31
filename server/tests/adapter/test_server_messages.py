@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from toycrane.adapter.inbound.ws.schemas.server_messages import (
-    bag, coins, correct, free, join, leave, machine, move, play, play_no, play_ok, result, spawn, stock, take_no, cbeg, cbeg_no, welcome,
+    bag, coins, correct, free, join, leave, machine, move, play, play_no, play_ok, result, spawn, stock, take_no, cbeg, cbeg_no, beg, gave, give_no, welcome,
 )
 from toycrane.app.dtos.drop_dto import ResultView
 from toycrane.app.dtos.player_view import PlayerView
@@ -82,3 +82,17 @@ def test_stock_messages_match_fixtures():
 # 남은 초는 0.1초 단위로 올린다 — 내리면 화면의 tick이 채울 시각보다 먼저 도착해 아무도 안 움직이는 매장이 멈춘다 (최종 리뷰 M1)
 def test_stock_time_rounds_up():
     assert stock(12.54)["in"] == 12.6 and stock(12.5)["in"] == 12.5 and stock(0.01)["in"] == 0.1
+
+
+
+def test_begging_and_giving_messages_match_fixtures():
+    assert beg("p2", 94) == FX["server_beg"] and beg("p2", None) == {"t": "beg", "id": "p2", "room": None}
+    assert gave("p1", "p2", 3) == FX["server_gave"]
+    assert give_no("stopped") == FX["server_give_no"]
+
+
+def test_give_schema_takes_an_id_and_one_to_ninety_nine():
+    from toycrane.adapter.inbound.ws.schemas.give_schema import parse
+    assert parse(FX["client_give"]) == ("p2", 3)
+    for bad in ({"to": "p2", "n": 0}, {"to": "p2", "n": 100}, {"to": "p2", "n": True}, {"to": "p2", "n": "3"}, {"to": 5, "n": 3}, {"to": "", "n": 3}):
+        assert parse(bad) is None

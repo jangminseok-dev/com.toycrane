@@ -14,10 +14,11 @@ class PlayerView:
     z: float
     dx: float
     dz: float
+    beg: int | None = None  # 조르는 중이면 더 받을 수 있는 코인 수
 
     @staticmethod
     def of(player: Player) -> "PlayerView":
         return PlayerView(
             player.player_id, player.nickname, player.color,
-            player.position.x, player.position.z, player.heading.dx, player.heading.dz,
+            player.position.x, player.position.z, player.heading.dx, player.heading.dz, player.beg_room,
         )

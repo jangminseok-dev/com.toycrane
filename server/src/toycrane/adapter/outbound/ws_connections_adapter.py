@@ -51,6 +51,15 @@ class WsConnectionsAdapter(ConnectionsPort):
     def send_correction(self, conn_id: str, x: float, z: float) -> None:
         self._to_one(conn_id, server_messages.correct(x, z))
 
+    def broadcast_beg(self, player_id: str, room: int | None) -> None:
+        self._to_all_except(None, server_messages.beg(player_id, room))
+
+    def broadcast_gave(self, from_id: str, to_id: str, n: int) -> None:
+        self._to_all_except(None, server_messages.gave(from_id, to_id, n))
+
+    def send_give_no(self, conn_id: str, why: str) -> None:
+        self._to_one(conn_id, server_messages.give_no(why))
+
     def send_take_no(self, conn_id: str, counter: int, why: str) -> None:
         self._to_one(conn_id, server_messages.take_no(counter, why))
 

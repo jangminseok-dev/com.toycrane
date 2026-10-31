@@ -5,7 +5,8 @@ import json
 import time
 
 from toycrane.adapter.inbound.ws import (
-    counter_beg_handler, counter_take_handler, drop_handler, move_handler, play_start_handler, stand_handler, tick_handler,
+    beg_handler, counter_beg_handler, counter_take_handler, drop_handler, give_handler, move_handler, play_start_handler, stand_handler,
+    tick_handler,
 )
 from toycrane.app.dtos.stock_dto import StockCommand
 from toycrane.dependencies.stock_provider import get_stock_use_case
@@ -14,6 +15,8 @@ HANDLERS = {
     "move": move_handler.handle,
     "take": counter_take_handler.handle,
     "cbeg": counter_beg_handler.handle,
+    "beg": beg_handler.handle,
+    "give": give_handler.handle,
     "play": play_start_handler.handle,
     "drop": drop_handler.handle,
     "stand": stand_handler.handle,
