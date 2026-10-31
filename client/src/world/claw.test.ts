@@ -28,3 +28,14 @@ test('idle claw is one shared geometry', () => {
   expect(idleClawGeometry()).toBe(idleClawGeometry());
   expect(idleClawGeometry().attributes.position.count).toBeGreaterThan(100);
 });
+
+// 다 오므린 기준 자세(HUG)는 머리 위에 허브를 얹었을 때 서 있는 인형 머리를 닿지 않게 감싼다
+test('the hug pose wraps a standing head without touching', () => {
+  const rig = makeClawRig();
+  rig.setOpen(rig.HUG); rig.root.updateMatrixWorld(true);
+  const r = 0.34 * 0.3, hub = rig.probes[0].getWorldPosition(new THREE.Vector3());
+  const head = new THREE.Vector3(0, hub.y - r - 0.003, 0);
+  for (const p of rig.fingerProbes) expect(p.getWorldPosition(new THREE.Vector3()).distanceTo(head)).toBeGreaterThan(r + 0.003);
+  const tips = rig.tips.map((t) => t.getWorldPosition(new THREE.Vector3()).y);
+  expect(Math.max(...tips)).toBeLessThan(head.y); // 끝은 머리 가운데보다 아래
+});

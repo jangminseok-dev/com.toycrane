@@ -1,20 +1,21 @@
 import * as THREE from 'three';
 import { MACHINE_SPEC } from '../data/storeLayout';
-import { aimHeight } from '../game/aim';
 import { clawPath } from '../game/clawPath';
+import { DESCEND_OPEN, planGrip } from '../game/gripPlan';
 import type { Swing } from '../game/swing';
 import { Tweens, ease } from '../game/tween';
 import type { DollSpot, Result } from '../net/protocol';
 import type { BigZone } from './bigZone';
-import { CABLE_TOP, CLAW_REACH } from './claw';
+import { CABLE_TOP } from './claw';
 import { makeDoll } from './dolls';
-import { dollPose } from './dollPose';
+import { dollPose, solidsOf } from './dollPose';
 import { CLAW_REST, DOLL_SCALE } from './machine';
+import { bendEars } from './softEars';
 
-// 결과에 맞춘 집게 연출 (모든 화면이 같은 순서):
-// 옮겨 가며 흔들림·벌리기 → 인형 머리 위까지 내려감 → 오므려 쥠 → 잡은 부위를 축으로 매달고 올라감
-// → 성공: 상품 구멍으로 옮겨 놓음 / 놓침: 도중에 떨어져 통통 튀고 굴러 서버가 정한 근처 자리로 / 헛잡음: 미끄러져 빈손
-// → 쉬는 자리로 돌아감. 흔들림(진자)은 부르는 쪽이 매 프레임 집게 움직임으로 계산한다
+// 결과에 맞춘 집게 연출 (모든 화면이 같은 순서, 설계 2026-10-31 §3.6):
+// 옮겨 가며 흔들림·벌리기 → 인형에 닿기 직전까지 내려감 → 닿을 때까지만 오므려 머리를 감싸 쥠(말랑하게 눌리고 살짝 떠오름, 닿은 귀는 휨)
+// → 잡은 부위를 축으로 매달고 천천히 들어 올림 → 성공: 상품 구멍으로 옮겨 놓음 / 놓침: 거의 다 올라가 떨어져 굴러 서버가 정한 근처 자리로
+// / 헛잡음: 손가락이 미끄러져 빈손 → 쉬는 자리로 돌아감. 흔들림(진자)은 부르는 쪽이 매 프레임 집게 움직임으로 계산한다
 export type ClawShowDeps = {
   tw: Tweens;
   zone: BigZone;
@@ -23,75 +24,101 @@ export type ClawShowDeps = {
 };
 
 const TOP_Y = CLAW_REST.y + CABLE_TOP; // 집게가 매달린 곳
+const SQUISH = 0.04, SCOOP = 0.008; // 쥘 때 가로로 눌리는 비율, 손가락 끝이 떠받쳐 올리는 높이(m)
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 export async function runClaw(d: ClawShowDeps, m: Result): Promise<void> {
   const { tw, zone } = d;
   const rig = zone.activateClaw(m.m), claw = zone.clawOf(m.m), anchor = zone.worldOf(m.m);
   const setY = (y: number) => { claw.position.y = y; rig.setCable(TOP_Y - y); };
-  let openNow = 0.35;
-  const setOpen = (t: number) => { openNow = t; rig.setOpen(t); };
+  const setOpen = (t: number) => rig.setOpen(t);
   const before = zone.contentsOf(m.m);
   const index = m.i ?? null, target = index !== null ? before[index] ?? null : null;
-  const surface = aimHeight(before, m.x, m.z);
-  const lowY = Math.min(CLAW_REST.y - 0.2, surface + CLAW_REACH * 0.62); // 손가락 끝이 인형 윗부분을 감싸는 높이
 
   // 1) 노린 자리에서 실제 자리로 흔들리며 옮겨 가고 손가락을 벌린다
   const from = { x: claw.position.x, z: claw.position.z }, landing = { x: m.x, z: m.z };
+  const open0 = rig.openness();
   d.swing.kick((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5); // 모터가 덜컥
   await tw.tween(0.7, (k) => {
     const at = clawPath(from, landing, k);
     claw.position.x = at.x; claw.position.z = at.z;
-    setOpen(lerp(0.35, 1, k));
+    setOpen(lerp(open0, DESCEND_OPEN, ease.smooth(k)));
   }, ease.lin);
-  // 2) 내려간다 (얹힌 인형이면 덜)
-  await tw.tween(0.8, (k) => setY(lerp(CLAW_REST.y, lowY, k)), ease.inOut);
-  // 3) 오므려 쥔다 — 인형이 끼면 다 못 오므린다
-  await tw.tween(0.35, (k) => setOpen(lerp(1, target ? 0.28 : 0, k)), ease.out);
+  // 2) 이웃 인형까지 넣어 닿기 직전 높이·잡는 인형에 닿는 벌림을 미리 재고, 그 높이까지 내려간다
+  const plan = planGrip(rig, claw, anchor, solidsOf(before), target ? index : null);
+  await tw.tween(1.2, (k) => setY(lerp(CLAW_REST.y, plan.y, k)), ease.smooth);
 
+  // 3) 오므려 감싸 쥔다: 잡는 인형을 무더기에서 꺼내(같은 자리·모습) 닿는 순간부터 말랑하게 눌리고 살짝 떠오르게
+  let doll = target && index !== null ? pickUp(zone, m.m, before, index, anchor) : null;
+  const rest = doll ? { y: doll.position.y, s: doll.scale.x } : null;
+  let last = performance.now();
+  const ears = () => {
+    const now = performance.now();
+    if (doll) bendEars(doll, rig.probes, Math.min(0.05, (now - last) / 1000));
+    last = now;
+  };
+  const squeeze = (amount: number, lift: number | null) => {
+    if (!doll || !rest) return;
+    doll.scale.set(rest.s * (1 - amount), rest.s * (1 + amount * 0.75), rest.s * (1 - amount));
+    if (lift !== null) doll.position.y = rest.y + lift; // 아직 무더기 자리(anchor 좌표)에 있을 때만
+  };
+  await tw.tween(0.7, (k) => {
+    setOpen(lerp(DESCEND_OPEN, target ? plan.open : 0, k));
+    const grip = Math.max(0, (k - 0.5) / 0.5);
+    squeeze(SQUISH * grip, ease.smooth(grip) * SCOOP);
+    ears();
+  }, ease.out);
   let held: THREE.Object3D | null = null;
-  if (target && index !== null && m.o !== 'miss') {
-    held = pickUp(zone, m.m, before, index, rig.grip, anchor);
-  }
-  // 4) 잡은 부위를 축으로 매단 채 올라간다
+  if (doll && m.o !== 'miss') { rig.grip.attach(doll); held = doll; } // 보이는 자리는 그대로, 이제 집게를 따라간다
+  await tw.tween(0.25, () => ears(), ease.lin);
+
+  // 4) 잡은 부위를 축으로 매단 채 천천히 들어 올린다 (눌림은 들리면서 풀린다)
   const hang = held ? hangDown(held, rig.grip) : null;
   let fell: Promise<void> | null = null;
-  await tw.tween(0.9, (k) => {
-    setY(lerp(lowY, CLAW_REST.y, k));
+  await tw.tween(1.4, (k) => {
+    setY(lerp(plan.y, CLAW_REST.y, k));
+    const relax = 1 - Math.min(1, k * 2.5);
+    squeeze(SQUISH * relax, held ? null : SCOOP * relax);
     if (hang) rig.grip.quaternion.slerpQuaternions(new THREE.Quaternion(), hang, Math.min(1, k * 2.2));
-    if (m.o === 'miss' && target) setOpen(k < 0.25 ? lerp(0.28, 0.45, k / 0.25) : lerp(0.45, 0, Math.min(1, (k - 0.25) / 0.3))); // 미끄러져 빈손
+    if (m.o === 'miss' && target) setOpen(k < 0.25 ? lerp(plan.open, plan.open + 0.1, k / 0.25) : lerp(plan.open + 0.1, 0, Math.min(1, (k - 0.25) / 0.3))); // 미끄러져 빈손
     if (m.o === 'slip' && held && !fell && k >= 0.75) {
       setOpen(0.6); // 거의 다 올라가 덜컥할 때 손가락이 풀린다
       fell = fallAndRoll(d, m.m, held, anchor, before, index!);
-      held = null;
+      held = null; doll = null;
     }
-  }, ease.inOut);
+    ears();
+  }, ease.smooth);
   if (fell) await fell;
+  if (m.o === 'miss' && doll) { // 헛잡음: 꺼냈던 인형을 무더기 제자리로
+    anchor.remove(doll);
+    zone.setContents(m.m, before);
+    doll = null;
+  }
 
   if (m.o === 'win' && held) {
     // 5) 상품 구멍 위로 옮겨 가서 놓는다
     const [hx, hz] = MACHINE_SPEC.hole;
     const start = { x: claw.position.x, z: claw.position.z };
-    await tw.tween(0.8, (k) => { claw.position.x = lerp(start.x, hx, k); claw.position.z = lerp(start.z, hz, k); }, ease.inOut);
-    await tw.tween(0.25, (k) => setOpen(lerp(0.28, 1, k)), ease.out);
-    const doll = held;
-    anchor.attach(doll);
-    const p0 = doll.position.clone(), s0 = doll.scale.x;
-    await tw.tween(0.4, (k) => { doll.position.y = p0.y - k * k * 0.9; doll.scale.setScalar(lerp(s0, s0 * 0.6, k)); }, ease.lin);
-    anchor.remove(doll);
+    await tw.tween(0.8, (k) => { claw.position.x = lerp(start.x, hx, k); claw.position.z = lerp(start.z, hz, k); ears(); }, ease.smooth);
+    await tw.tween(0.25, (k) => setOpen(lerp(plan.open, 1, k)), ease.out);
+    const prize = held;
+    anchor.attach(prize);
+    const p0 = prize.position.clone(), s0 = prize.scale.x;
+    await tw.tween(0.4, (k) => { prize.position.y = p0.y - k * k * 0.9; prize.scale.setScalar(lerp(s0, s0 * 0.6, k)); }, ease.lin);
+    anchor.remove(prize);
   }
   // 6) 쉬는 자리로 돌아간다
-  const back = { x: claw.position.x, z: claw.position.z }, openFrom = openNow;
-  await tw.tween(0.5, (k) => {
+  const back = { x: claw.position.x, z: claw.position.z }, openFrom = rig.openness();
+  await tw.tween(0.6, (k) => {
     claw.position.x = lerp(back.x, CLAW_REST.x, k); claw.position.z = lerp(back.z, CLAW_REST.z, k);
     setOpen(lerp(openFrom, 0.35, k));
-  }, ease.inOut);
+  }, ease.smooth);
   rig.grip.quaternion.identity();
   zone.releaseClaw(m.m);
 }
 
-// 무더기의 그 인형을 같은 자리·모습 그대로 꺼내 집게 손 끝에 붙인다 (무더기에서는 뺀다)
-function pickUp(zone: BigZone, machineId: string, before: DollSpot[], index: number, grip: THREE.Object3D, anchor: THREE.Object3D): THREE.Object3D | null {
+// 무더기의 그 인형을 같은 자리·모습 그대로 꺼낸다 (무더기에서는 뺀다 — 헛잡음이면 연출 끝에 되돌린다)
+function pickUp(zone: BigZone, machineId: string, before: DollSpot[], index: number, anchor: THREE.Object3D): THREE.Object3D | null {
   const doll = makeDoll(before[index][0]);
   if (!doll) return null;
   const pose = dollPose(before[index]);
@@ -100,7 +127,6 @@ function pickUp(zone: BigZone, machineId: string, before: DollSpot[], index: num
   doll.quaternion.copy(pose.quaternion);
   anchor.add(doll);
   anchor.updateMatrixWorld(true);
-  grip.attach(doll); // 보이는 자리는 그대로, 이제 집게를 따라간다
   zone.setContents(machineId, before.filter((_, i) => i !== index));
   return doll;
 }
