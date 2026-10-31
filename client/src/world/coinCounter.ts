@@ -1,34 +1,36 @@
 import * as THREE from 'three';
-import { COUNTERS, type CounterSpot } from '../data/storeLayout';
+import { COUNTERS } from '../data/storeLayout';
 import type { Occluder } from '../game/occlusion';
 import { bakeByMaterial, fadeMaterials, materialCloner } from './bake';
 import { COUNTER_SIGN } from './copy';
 import { signTex } from './signs';
-import { SPH_LO, canvasTex, part, toon } from './toon';
+import { canvasTex, part, toon } from './toon';
 
-// 코인 교환소: 창살 달린 전당포 카운터 + 줄 서기 차단봉 + 줄 자리 발자국 (시제품 spike-arcade-big-v3.html 815~850행).
-// 시제품 크기(폭 3.1m)를 배치의 장애물 상자(2.4m × 1.0m)에 맞게 0.8배로 줄여 놓는다.
-const BODY = 0xf8f3fb, SHRINK = 0.8, DEPTH_SHIFT = 0.2;
+// 작은 코인 교환소 (설계 2026-10-31 교환소 개편 §3.1·§4.5): 장애물 상자(폭 1.3m·깊이 0.7m)만 한 부스 — 흰 몸통, 빨간 카운터,
+// 황동 창살(가운데 창구는 짧게), 분홍 뒷판, 지붕 간판 '코인 교환소', 창구 앞 발자국 한 쌍(정해진 줄 자리는 없음).
+// 4곳을 재질별로 한 덩어리로 합쳐 그리기 호출을 늘리지 않는다 — 내 캐릭터를 가리면 4곳이 함께 흐려진다
+const BODY = 0xf8f3fb, W = 1.3, D = 0.7;
+// 4곳이 함께 쓰는 재질 (부스마다 새로 만들면 합칠 때 재질 수만큼 그리기 호출이 는다)
+let shared: { stripe: THREE.Material; sign: THREE.Material } | null = null;
 
 function booth(): THREE.Group {
-  const b = new THREE.Group(); // 앞 = 로컬 +z, 길이는 로컬 x
+  const b = new THREE.Group(); // 앞 = 로컬 +z
   const brass = toon(0xffc94d), body = toon(BODY);
-  b.add(part(new THREE.BoxGeometry(3.0, 1.05, 0.6), body, [0, 0.525, 0], [1, 1, 1], [0, 0, 0], 1.02));
-  b.add(new THREE.Mesh(new THREE.BoxGeometry(2.96, 0.03, 0.02), new THREE.MeshBasicMaterial({ color: 0xff6fb5 })).translateY(0.06).translateZ(0.305));
-  b.add(part(new THREE.BoxGeometry(3.1, 0.06, 0.72), toon(0xe8384f), [0, 1.08, 0.03], [1, 1, 1], [0, 0, 0], 0));
-  b.add(part(new THREE.BoxGeometry(3.0, 2.6, 0.08), toon(0xffe6f0), [0, 1.3, -0.85], [1, 1, 1], [0, 0, 0], 0));
-  for (const s of [-1, 1]) b.add(part(new THREE.BoxGeometry(0.08, 2.6, 0.95), body, [s * 1.5, 1.3, -0.42], [1, 1, 1], [0, 0, 0], 1.02));
-  for (let x = -1.42; x <= 1.43; x += 0.12) {
-    const y0 = Math.abs(x) < 0.4 ? 1.6 : 1.11; // 가운데는 창구라 창살이 짧다
-    b.add(part(new THREE.BoxGeometry(0.025, 2.25 - y0, 0.025), brass, [x, (y0 + 2.25) / 2, 0.25], [1, 1, 1], [0, 0, 0], 0));
+  shared ??= { stripe: new THREE.MeshBasicMaterial({ color: 0xff6fb5 }), sign: new THREE.MeshBasicMaterial({ map: signTex(COUNTER_SIGN, 0xffb81f) }) };
+  b.add(part(new THREE.BoxGeometry(W, 0.95, 0.5), body, [0, 0.475, 0.05], [1, 1, 1], [0, 0, 0], 1.02));
+  b.add(new THREE.Mesh(new THREE.BoxGeometry(W - 0.04, 0.03, 0.02), shared.stripe).translateY(0.08).translateZ(0.305));
+  b.add(part(new THREE.BoxGeometry(W + 0.06, 0.05, 0.6), toon(0xe8384f), [0, 0.975, 0.05], [1, 1, 1], [0, 0, 0], 0));
+  b.add(part(new THREE.BoxGeometry(W, 1.25, 0.06), toon(0xffe6f0), [0, 1.6, -0.32], [1, 1, 1], [0, 0, 0], 0));
+  for (const s of [-1, 1]) b.add(part(new THREE.BoxGeometry(0.06, 1.25, 0.66), body, [s * (W / 2 - 0.03), 1.6, -0.02], [1, 1, 1], [0, 0, 0], 1.02));
+  for (let x = -W / 2 + 0.1; x <= W / 2 - 0.09; x += 0.1) {
+    const y0 = Math.abs(x) < 0.26 ? 1.45 : 1.0; // 가운데는 창구라 창살이 짧다
+    b.add(part(new THREE.BoxGeometry(0.02, 1.85 - y0, 0.02), brass, [x, (y0 + 1.85) / 2, 0.27], [1, 1, 1], [0, 0, 0], 0));
   }
-  b.add(part(new THREE.BoxGeometry(3.0, 0.05, 0.05), brass, [0, 2.25, 0.25], [1, 1, 1], [0, 0, 0], 0));
-  b.add(part(new THREE.BoxGeometry(0.84, 0.04, 0.04), brass, [0, 1.6, 0.25], [1, 1, 1], [0, 0, 0], 0));
-  b.add(part(new THREE.CylinderGeometry(0.14, 0.12, 0.04, 20), toon(0xc9c9d6), [0, 1.13, 0.2]));
-  b.add(part(new THREE.BoxGeometry(3.1, 0.38, 1.0), body, [0, 2.45, -0.3], [1, 1, 1], [0, 0, 0], 1.02));
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.32), new THREE.MeshBasicMaterial({ map: signTex(COUNTER_SIGN, 0xffb81f) }));
-  sign.position.set(0, 2.45, 0.205); b.add(sign);
-  b.scale.set(SHRINK, 1, SHRINK); b.position.z = DEPTH_SHIFT * SHRINK;
+  b.add(part(new THREE.BoxGeometry(W, 0.04, 0.04), brass, [0, 1.85, 0.27], [1, 1, 1], [0, 0, 0], 0));
+  b.add(part(new THREE.CylinderGeometry(0.11, 0.09, 0.03, 18), brass, [0, 1.01, 0.22])); // 코인 접시
+  b.add(part(new THREE.BoxGeometry(W + 0.1, 0.32, D), body, [0, 2.2, -0.02], [1, 1, 1], [0, 0, 0], 1.02));
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.96, 0.3), shared.sign);
+  sign.position.set(0, 2.2, D / 2 - 0.01); b.add(sign);
   return b;
 }
 
@@ -42,44 +44,24 @@ const footTex = () => canvasTex(128, 128, (g) => {
   }
 });
 
-// 줄 선을 따라 양쪽에 황동 기둥 + 빨간 줄, 줄 자리마다 바닥 발자국 (세계 좌표로 바로 놓음)
-function queueLine(c: CounterSpot, root: THREE.Group, foot: THREE.Material) {
-  const brass = toon(0xffc94d), rope = toon(0xff3b6b);
-  const post = new THREE.CylinderGeometry(0.03, 0.03, 0.9, 10), base = new THREE.CylinderGeometry(0.13, 0.13, 0.03, 16);
-  const [x0, z0] = c.window, [xn] = c.window; // 5단계 Task 7에서 작은 교환소로 다시 그린다
-  const dir = Math.sign(xn - x0);
-  const posts = Math.ceil(Math.abs(xn - x0) / 1.1) + 1;
-  for (const side of [-1, 1]) {
-    for (let i = 0; i < posts; i++) {
-      const x = x0 + dir * (0.35 + i * 1.1), z = z0 + side * 0.45;
-      root.add(part(post, brass, [x, 0.45, z], [1, 1, 1], [0, 0, 0], 0));
-      root.add(part(base, brass, [x, 0.015, z], [1, 1, 1], [0, 0, 0], 0));
-      root.add(part(SPH_LO, brass, [x, 0.92, z], [0.045, 0.045, 0.045], [0, 0, 0], 0));
-      if (i < posts - 1) root.add(part(new THREE.CylinderGeometry(0.018, 0.018, 1.1, 8), rope, [x + dir * 0.55, 0.82, z], [1, 1, 1], [0, 0, Math.PI / 2], 0));
-    }
-  }
-  const footGeo = new THREE.PlaneGeometry(0.45, 0.45);
-  for (const [x, z] of [c.window]) {
-    const f = new THREE.Mesh(footGeo, foot);
-    f.rotation.set(-Math.PI / 2, 0, c.ry + Math.PI); f.position.set(x, 0.013, z);
-    root.add(f);
-  }
-}
-
 export function buildCoinCounters(scene: THREE.Scene): Occluder[] {
   const foot = new THREE.MeshBasicMaterial({ map: footTex(), transparent: true, depthWrite: false });
-  return COUNTERS.map((c) => {
-    const root = new THREE.Group();
+  const footGeo = new THREE.PlaneGeometry(0.45, 0.45);
+  const root = new THREE.Group(), boxes: THREE.Box3[] = [];
+  for (const c of COUNTERS) {
     const anchor = new THREE.Group(); anchor.position.set(c.x, 0, c.z); anchor.rotation.y = c.ry;
     anchor.add(booth()); root.add(anchor);
-    queueLine(c, root, foot);
-    root.traverse((o) => { o.castShadow = false; });
-    // 교환소마다 재질을 따로 둬서 내 캐릭터를 가리는 쪽만 흐리게
-    const cloner = materialCloner(), group = new THREE.Group();
-    root.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(anchor); // 카운터 본체만 (차단봉·발자국은 낮아서 가리지 않음)
-    for (const m of bakeByMaterial(root, cloner.remap)) group.add(m);
-    scene.add(group);
-    return { box, setOpacity: (o: number) => fadeMaterials(cloner.materials, o) };
-  });
+    const f = new THREE.Mesh(footGeo, foot);
+    f.rotation.set(-Math.PI / 2, 0, c.ry + Math.PI); f.position.set(c.window[0], 0.013, c.window[1]);
+    root.add(f);
+    anchor.updateMatrixWorld(true);
+    boxes.push(new THREE.Box3().setFromObject(anchor)); // 부스만 (발자국은 낮아서 가리지 않음)
+  }
+  root.traverse((o) => { o.castShadow = false; });
+  const cloner = materialCloner(), group = new THREE.Group();
+  group.name = 'coin-counters';
+  root.updateMatrixWorld(true);
+  for (const m of bakeByMaterial(root, cloner.remap)) group.add(m);
+  scene.add(group);
+  return boxes.map((box) => ({ box, setOpacity: (o: number) => fadeMaterials(cloner.materials, o) }));
 }

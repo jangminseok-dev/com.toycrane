@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PREP, STICKER, WALL_SIGN } from './copy';
+import { AD_SIGNS, PREP, STICKER, WALL_SIGN } from './copy';
 import { canvasTex } from './toon';
 
 // 간판·안내 카드·스티커·뒷판·번호판·벽 간판·준비 중 그림 (시제품 docs/reference/prototypes/spike-look-a.html의 그림을 따름).
@@ -92,14 +92,23 @@ export function plateTex(id: string): THREE.CanvasTexture {
 }
 
 // 벽 간판 "toycrane 게임센터": 흰 바탕 + 무지개 띠 + 별
-export function wallSignTex(): THREE.CanvasTexture {
-  return canvasTex(1024, 512, (g) => {
-    g.fillStyle = '#fbf8ff'; g.fillRect(0, 0, 1024, 512);
-    ['#ff3b5c', '#ff9f1c', '#ffd84d', '#22b36b', '#2f7cf6', '#8b5cf6'].forEach((c, i) => { g.fillStyle = c; g.fillRect(0, 380 + i * 14, 1024, 14); });
-    const rnd = seeded(7);
-    for (let i = 0; i < 24; i++) star(g, rnd() * 1024, rnd() * 340, 8 + rnd() * 16, ['#ffd84d', '#ff6fb5', '#5ec8ff'][i % 3]);
-    g.font = `170px ${SIGN_FONT}`; outlined(g, WALL_SIGN[0], 512, 150, '#ffffff', 26, '#ff4f9a');
-    g.font = `96px ${SIGN_FONT}`; g.fillStyle = '#4a3a8c'; g.fillText(WALL_SIGN[1], 512, 290);
+// 벽 광고 간판 10장을 한 그림에 (가로 2칸 × 세로 5칸, 칸마다 512×256): 위에 작게 'toycrane', 가운데 크게 '광고문의N'.
+// i번째 간판의 UV 칸은 adSignCell(i) (교환소 개편 설계 §4.6)
+export const AD_COLS = 2, AD_ROWS = 5;
+export function adSignCell(i: number): { u: number; v: number; w: number; h: number } {
+  return { u: (i % AD_COLS) / AD_COLS, v: 1 - (Math.floor(i / AD_COLS) + 1) / AD_ROWS, w: 1 / AD_COLS, h: 1 / AD_ROWS };
+}
+export function adSignsTex(): THREE.CanvasTexture {
+  const colors = ['#ff4f9a', '#2f7cf6', '#22b36b', '#ff9f1c', '#8b5cf6'];
+  return canvasTex(512 * AD_COLS, 256 * AD_ROWS, (g) => {
+    AD_SIGNS.forEach((text, i) => {
+      const x = (i % AD_COLS) * 512, y = Math.floor(i / AD_COLS) * 256, color = colors[i % colors.length];
+      g.fillStyle = '#fbf8ff'; g.fillRect(x, y, 512, 256);
+      g.lineWidth = 10; g.strokeStyle = color; rounded(g, x + 10, y + 10, 492, 236, 26); g.stroke();
+      g.font = `44px ${SIGN_FONT}`; g.fillStyle = '#ff4f9a'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(WALL_SIGN[0], x + 256, y + 62);
+      const size = fit(g, text, (sz) => `${sz}px ${SIGN_FONT}`, 92, 440);
+      outlined(g, text, x + 256, y + 158, '#ffffff', size * 0.14, color);
+    });
   });
 }
 

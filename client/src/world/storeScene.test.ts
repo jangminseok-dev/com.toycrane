@@ -28,3 +28,13 @@ test('the store stays a handful of draw calls', () => {
   let n = 0; scene.traverse((o) => { if ((o as THREE.Mesh).isMesh && o.visible) n++; });
   expect(n).toBeLessThanOrEqual(40);
 });
+
+// 벽 광고 간판 10장 '광고문의1'~'광고문의10' — 한 그림에 모아 메시 하나로 (설계 2026-10-31 교환소 개편 §3.4·§4.6)
+test('ten ad signs hang on the walls as one mesh', () => {
+  const scene = new THREE.Scene();
+  buildStore(scene);
+  const signs = scene.getObjectByName('wall-signs') as THREE.Mesh;
+  expect(signs).toBeDefined();
+  const tris = (signs.geometry.index ? signs.geometry.index.count : signs.geometry.getAttribute('position').count) / 3;
+  expect(tris).toBe(20);
+});

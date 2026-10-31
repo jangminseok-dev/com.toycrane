@@ -11,14 +11,13 @@ import { Swing } from './game/swing';
 import { runClaw } from './world/clawShow';
 import { Tweens, ease } from './game/tween';
 import { sfx, unlockAudio } from './audio/sfx';
-import { QueueClient } from './game/queueClient';
-import { AutoWalk, routeTo } from './game/autoWalk';
+import { AutoWalk, nearestCounter } from './game/autoWalk';
 import { OcclusionFader } from './game/occlusion';
 import { RemotePlayers } from './game/remotePlayers';
 import { installJoystick } from './input/joystick';
 import { readKeyboard } from './input/keyboard';
 import { admit, createGuest, getGuest, type Guest } from './net/api';
-import { encodeDrop, encodeMove, encodePlay, encodeQueue, encodeStand, encodeTake, encodeTick, encodeUnqueue, lookOf, type DollSpot, type Result, type ServerMsg } from './net/protocol';
+import { encodeCounterBeg, encodeDrop, encodeMove, encodePlay, encodeStand, encodeTake, encodeTick, lookOf, type DollSpot, type Result, type ServerMsg } from './net/protocol';
 import { closeAction, nextDelay, retrying } from './net/reconnect';
 import { safeStorage } from './net/storage';
 import { StoreSocket, storeUrl } from './net/storeSocket';
@@ -44,6 +43,8 @@ import { buildCoinCounters } from './world/coinCounter';
 import { buildDecor } from './world/decor';
 import { buildStore } from './world/storeScene';
 import { ALL_COPY, UI } from './world/copy';
+// 창구 손 닿는 거리(서버 WINDOW_REACH 1.5m)보다 조금 안쪽 — 걷는 사이 위치가 조금 어긋나도 서버가 거절하지 않게
+const COUNTER_REACH = 1.3, TAKE_LIMIT = 15;
 import { loadFonts } from './ui/fonts';
 
 const GUEST_KEY = 'toycrane.guestId';
@@ -87,7 +88,8 @@ let me: LocalPlayer | null = null;
 let wallet = { coins: 0, bag: 0 }; // 코인·가방 수 (서버가 알려 준 값)
 let tickTimer = 0; // 다음 채울 시각에 서버를 깨우는 tick (stock 메시지)
 let myId = '';
-const queue = new QueueClient();
+// 교환소에서 잠깐 보여 줄 상태 (조르기 쿨타임·가득 참 — 몇 초 뒤 사라짐)
+let counterNote: { text: string; until: number } | null = null;
 const walker = new AutoWalk(); // "코인이 없어요 · 교환소로": 가까운 교환소 줄 끝까지 저절로 걷기
 // 기계 한 판: 내가 하는 중(session) → 내리고 결과 기다림(awaiting, dropped) → 판 사이(seated: 기계 앞 화면 그대로 "한 번 더·그만하기").
 // busy = 기계 → 하는 사람(판이 끝날 시간, 판 사이엔 서버가 자리를 잡아 두는 시간이 지나면 풀림)
@@ -209,7 +211,6 @@ function onMessage(m: ServerMsg, guest: Guest) {
       myId = m.you.id;
       myNick = guest.nickname;
       playing.clear(); showing.clear(); tickets.clear(); chains.clear(); showingMe = false;
-      queue.reset();
       busy.reset();
       for (const [id, who] of Object.entries(m.plays)) busy.set(id, who, now / 1000);
       endPlay();
@@ -253,10 +254,22 @@ function onMessage(m: ServerMsg, guest: Guest) {
       clearTimeout(tickTimer);
       if (m.in !== null) tickTimer = window.setTimeout(() => socket?.send(encodeTick()), (m.in + Math.random() * 1.5) * 1000);
       break;
+    case 'take_no':
+      if (m.why === 'far') toast(UI.giveNo.far);
+      else counterNote = { text: UI.enough, until: now / 1000 + 3 };
+      break;
+    case 'cbeg': {
+      const mine = m.id === myId;
+      if (mine && m.n > 0) window.setTimeout(() => toast(UI.gotCoins(m.n)), 3000); // 3초 조르기 모션 뒤 (Task 8: 모션)
+      break;
+    }
+    case 'cbeg_no':
+      counterNote = { text: m.why === 'wait' ? UI.begWait(Math.max(1, Math.ceil(m.wait / 60))) : m.why === 'full' ? UI.full : UI.giveNo.far, until: now / 1000 + 4 };
+      break;
     case 'coins':
       wallet.coins = m.n;
       setHud(wallet.coins, wallet.bag);
-      toast(m.got > 0 ? `🪙 +${m.got}` : '코인이 가득 찼어요');
+      if (m.got > 0) toast(`🪙 +${m.got}`); // 준 사람(got<0)에게는 '줬어요' 알림이 따로 간다
       if (seated) showSeat();
       break;
     case 'join': remotes.add(m.p, now); break;
@@ -474,23 +487,26 @@ function showMachineUi(): boolean {
   return true;
 }
 
-// 코인 받으러 가기: 걸어서 더 가까운 교환소 줄 끝까지 장애물을 돌아 저절로 걷는다. 손으로 움직이면 멈춘다 (설계 §3.11)
+// '교환소 가기': 걸어서 가장 가까운 교환소 창구 앞까지 장애물을 돌아 저절로 걷는다. 손으로 움직이면 멈춘다 (설계 §3.11).
+// 도착하면 저절로 받지 않고 '코인 받기'·'조르기' 중에 고른다 (교환소 개편 설계 §4.5)
 function startCoinWalk() {
   if (!me) return;
-  const from = me.pos;
-  const length = (pts: { x: number; z: number }[]) => pts.reduce((sum, p, i) => sum + Math.hypot(p.x - (i ? pts[i - 1].x : from.x), p.z - (i ? pts[i - 1].z : from.z)), 0);
-  const routes = COUNTERS.map((_, c) => routeTo(from, queue.entrySpot(c)));
-  const best = routes.reduce((b, r, c) => (length(r) < length(routes[b]) ? c : b), 0);
-  walker.start(routes[best], best);
-  toast('교환소로 가요');
+  const { counter, route } = nearestCounter(me.pos);
+  walker.start(route, counter);
 }
 
-// 교환소 줄: 진행 안내와 "줄 서기" 버튼
-function showQueueUi(nowSec: number) {
-  const st = queue.status(nowSec);
-  setInfo(st.kind === 'waiting' ? `줄 서는 중 · ${st.place}번째` : st.kind === 'taking' ? '코인 받는 중…' : null);
-  const entry = me && st.kind === 'none' ? queue.entryNear(me.pos) : null;
-  setAction(entry !== null ? '줄 서기' : null, () => { if (entry !== null) socket?.send(encodeQueue(entry)); });
+// 교환소 창구 가까이면 '코인 받기'(큰 버튼)·'조르기'(작은 버튼). 코인이 15개 이상이면 받기는 흐리게 '코인이 넉넉해요'
+function showCounterUi(nowSec: number): boolean {
+  if (!me) return false;
+  const near = COUNTERS.find((c) => Math.hypot(me!.pos.x - c.window[0], me!.pos.z - c.window[1]) <= COUNTER_REACH);
+  if (!near) { setAction(null); return false; }
+  if (counterNote && nowSec > counterNote.until) counterNote = null;
+  const enough = wallet.coins >= TAKE_LIMIT;
+  setAction(UI.takeCoins, () => { if (!enough) socket?.send(encodeTake(near.id)); }, {
+    status: counterNote?.text ?? (enough ? UI.enough : null), dim: enough,
+    extra: { label: UI.beg, onPress: () => socket?.send(encodeCounterBeg(near.id)) },
+  });
+  return true;
 }
 
 // ---------- 매 프레임 ----------
@@ -539,17 +555,11 @@ function frame(now: number) {
       } else setInfo(left > 0 ? UI.continueIn(Math.ceil(left)) : null);
     } else if (!awaiting) {
       if (Math.hypot(input.x, input.z) > 0) walker.cancel(); // 손으로 움직이면 저절로 걷기를 멈춘다
-      me.autoTarget = queue.target() ?? walker.next(me.pos);
+      me.autoTarget = walker.next(me.pos);
       me.drive(input, dt);
-      if (walker.counter !== null && queue.entryNear(me.pos) === walker.counter) { // 줄 끝에 닿으면 줄을 선다
-        socket?.send(encodeQueue(walker.counter));
-        walker.cancel();
-      }
-      const queueAction = queue.tick(me.pos, now / 1000);
-      if (queueAction && socket) {
-        socket.send(queueAction === 'take' ? encodeTake(queue.currentCounter ?? 0) : queueAction === 'unqueue' ? encodeUnqueue() : encodeQueue(queue.currentCounter!));
-      }
-      if (!showMachineUi()) showQueueUi(now / 1000);
+      const goal = walker.counter !== null ? COUNTERS[walker.counter].window : null;
+      if (goal && Math.hypot(me.pos.x - goal[0], me.pos.z - goal[1]) < 0.3) walker.cancel(); // 창구 앞에 닿으면 멈춘다
+      if (!showMachineUi()) showCounterUi(now / 1000);
     }
     const moving = Math.hypot(me.dir.x, me.dir.z) > 0 && !atMachine;
     myAvatar.root.position.set(me.pos.x, 0, me.pos.z);

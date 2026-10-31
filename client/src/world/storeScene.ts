@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { HUB_HALF, ROOM_HALF, ROOM_HEIGHT, SPAWN_RADIUS, TOWER_HALF } from './layout';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { wallSignTex } from './signs';
+import { adSignCell, adSignsTex } from './signs';
 import { canvasTex, outlineMat, part, toon, toonWith } from './toon';
 
 // 매장 겉모습(밝은 대형 일본 게임센터): 큰 판 대리석 바닥 · 흰 벽 + 색 띠·별 · "toycrane 게임센터" 벽 간판 ·
@@ -95,9 +95,18 @@ function addWallsAndCeiling(scene: THREE.Scene) {
     w.position.set(x, h / 2, z); w.rotation.y = ry; w.receiveShadow = true;
     scene.add(w);
   }
-  // 북쪽 벽(큰인형 벽 줄 위) "toycrane 게임센터" 간판 4장을 한 덩어리로
-  const signs = mergeGeometries([-9, -3, 3, 9].map((x) => new THREE.PlaneGeometry(1.4, 0.7).translate(x, h - 0.42, -ROOM_HALF + 0.02)))!;
-  const sign = new THREE.Mesh(signs, new THREE.MeshBasicMaterial({ map: wallSignTex() }));
+  // 벽 광고 간판 10장('광고문의1'~'광고문의10', 교환소 개편 설계 §4.6): 북쪽 4·동쪽 2·서쪽 2·남쪽 2, 한 그림의 칸을 나눠 써 메시 하나로
+  const spots: [number, number, number][] = [ // x, z, 돌림(벽 안쪽을 봄)
+    [-9, -ROOM_HALF + 0.02, 0], [-3, -ROOM_HALF + 0.02, 0], [3, -ROOM_HALF + 0.02, 0], [9, -ROOM_HALF + 0.02, 0],
+    [ROOM_HALF - 0.02, -1, -Math.PI / 2], [ROOM_HALF - 0.02, 6, -Math.PI / 2], [-ROOM_HALF + 0.02, -1, Math.PI / 2], [-ROOM_HALF + 0.02, 6, Math.PI / 2],
+    [-5, ROOM_HALF - 0.02, Math.PI], [5, ROOM_HALF - 0.02, Math.PI],
+  ];
+  const signs = mergeGeometries(spots.map(([x, z, ry], i) => {
+    const geo = new THREE.PlaneGeometry(1.4, 0.7), uv = geo.getAttribute('uv') as THREE.BufferAttribute, cell = adSignCell(i);
+    for (let k = 0; k < uv.count; k++) uv.setXY(k, cell.u + uv.getX(k) * cell.w, cell.v + uv.getY(k) * cell.h);
+    return geo.rotateY(ry).translate(x, h - 0.42, z);
+  }))!;
+  const sign = new THREE.Mesh(signs, new THREE.MeshBasicMaterial({ map: adSignsTex() }));
   sign.name = 'wall-signs';
   scene.add(sign);
 }

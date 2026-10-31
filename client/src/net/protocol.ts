@@ -98,8 +98,6 @@ export function encodeMove(p: Vec2, d: Vec2): string {
   return JSON.stringify({ t: 'move', x: round(p.x, 2), z: round(p.z, 2), dx: round(d.x, 3), dz: round(d.z, 3) });
 }
 
-export const encodeQueue = (c: number) => JSON.stringify({ t: 'queue', c });
-export const encodeUnqueue = () => JSON.stringify({ t: 'unqueue' });
 export const encodeTake = (c: number) => JSON.stringify({ t: 'take', c }); // 교환소 코인 받기
 export const encodeCounterBeg = (c: number) => JSON.stringify({ t: 'cbeg', c }); // 교환소 조르기
 export const encodeBeg = (on: boolean) => JSON.stringify({ t: 'beg', on }); // 맵 조르기 켜고 끄기

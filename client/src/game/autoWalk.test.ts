@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { COUNTERS, OBSTACLES } from '../data/storeLayout';
-import { AutoWalk, routeTo } from './autoWalk';
+import { AutoWalk, nearestCounter, routeTo } from './autoWalk';
 import type { Vec2 } from './movement';
 
 const walkable = (from: Vec2, pts: Vec2[]) => {
@@ -49,5 +49,13 @@ test('every window is reachable from the hub', () => {
       expect(pts.at(-1)).toEqual(goal);
       expect(walkable(from, pts), `${c.id} from ${a}`).toBe(true);
     }
+  }
+});
+
+// '교환소 가기': 걸어서 가장 가까운 교환소 창구로
+test('the nearest counter by walking is chosen', () => {
+  for (const c of COUNTERS) {
+    const from = { x: c.window[0] + 0.5, z: c.window[1] + 1.5 };
+    expect(nearestCounter(from).counter).toBe(c.id);
   }
 });

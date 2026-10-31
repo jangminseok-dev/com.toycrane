@@ -1,4 +1,4 @@
-import { OBSTACLES } from '../data/storeLayout';
+import { COUNTERS, OBSTACLES } from '../data/storeLayout';
 import { MAP_HALF } from '../world/layout';
 import type { Vec2 } from './movement';
 
@@ -65,4 +65,15 @@ export class AutoWalk {
     while (this.points.length > 1 && Math.hypot(this.points[0].x - pos.x, this.points[0].z - pos.z) < ARRIVE) this.points.shift();
     return this.points[0] ?? null;
   }
+}
+
+// '교환소 가기': 걸어서 가장 가까운 교환소(창구까지 길이 가장 짧은 곳)와 그 길
+export function nearestCounter(from: Vec2): { counter: number; route: Vec2[] } {
+  const length = (pts: Vec2[]) => pts.reduce((sum, p, i) => sum + Math.hypot(p.x - (i ? pts[i - 1].x : from.x), p.z - (i ? pts[i - 1].z : from.z)), 0);
+  let best: { counter: number; route: Vec2[]; len: number } | null = null;
+  for (const c of COUNTERS) {
+    const route = routeTo(from, { x: c.window[0], z: c.window[1] }), len = length(route);
+    if (!best || len < best.len) best = { counter: c.id, route, len };
+  }
+  return { counter: best!.counter, route: best!.route };
 }
