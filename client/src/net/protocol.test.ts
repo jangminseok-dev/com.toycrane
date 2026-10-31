@@ -1,12 +1,13 @@
 import { expect, test } from 'vitest';
 import fixtures from '../../../shared/protocol_fixtures.json';
-import { PROTOCOL, decode, encodeDrop, encodeMove, encodePlay, encodeStand, encodeTake, encodeTick, lookOf, needsReload, type DollSpot, type MachineMsg } from './protocol';
+import { PROTOCOL, decode, encodeBeg, encodeCounterBeg, encodeDrop, encodeGive, encodeMove, encodePlay, encodeStand, encodeTake, encodeTick, lookOf, needsReload, type DollSpot, type MachineMsg } from './protocol';
 
 const fx = fixtures as Record<string, unknown>;
 
 test('decodes every server fixture', () => {
   for (const k of ['server_welcome', 'server_join', 'server_move', 'server_correct', 'server_leave', 'server_coins',
-    'server_play_ok', 'server_play_no', 'server_play', 'server_result', 'server_machine', 'server_free', 'server_bag', 'server_spawn', 'server_stock'])
+    'server_play_ok', 'server_play_no', 'server_play', 'server_result', 'server_machine', 'server_free', 'server_bag', 'server_spawn', 'server_stock',
+    'server_take_no', 'server_cbeg', 'server_cbeg_no', 'server_beg', 'server_gave', 'server_give_no'])
     expect(decode(JSON.stringify(fx[k]))).toEqual(fx[k]);
 });
 
@@ -19,8 +20,16 @@ test('rejects garbage', () => {
 test('encodeMove matches client fixture shape', () =>
   expect(JSON.parse(encodeMove({ x: 1.504, z: -2 }, { x: 0.70712, z: -0.70712 }))).toEqual({ t: 'move', x: 1.5, z: -2, dx: 0.707, dz: -0.707 }));
 
-test('counter take matches client fixture', () => {
+test('counter, begging and giving messages match client fixtures', () => {
   expect(JSON.parse(encodeTake(0))).toEqual(fx.client_take);
+  expect(JSON.parse(encodeCounterBeg(0))).toEqual(fx.client_cbeg);
+  expect(JSON.parse(encodeBeg(true))).toEqual(fx.client_beg);
+  expect(JSON.parse(encodeGive('p2', 3))).toEqual(fx.client_give);
+});
+
+test('the old queue messages are gone', () => {
+  expect(decode('{"t":"queue","c":0,"ids":[]}')).toBeNull();
+  expect(PROTOCOL).toBe(3);
 });
 
 test('play messages match client fixtures', () => {

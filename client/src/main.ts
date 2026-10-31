@@ -43,7 +43,7 @@ import { playResult, startPlaying } from './world/motions';
 import { buildCoinCounters } from './world/coinCounter';
 import { buildDecor } from './world/decor';
 import { buildStore } from './world/storeScene';
-import { ALL_COPY } from './world/copy';
+import { ALL_COPY, UI } from './world/copy';
 import { loadFonts } from './ui/fonts';
 
 const GUEST_KEY = 'toycrane.guestId';
@@ -210,7 +210,6 @@ function onMessage(m: ServerMsg, guest: Guest) {
       myNick = guest.nickname;
       playing.clear(); showing.clear(); tickets.clear(); chains.clear(); showingMe = false;
       queue.reset();
-      (m.queues ?? []).forEach((ids, c) => queue.onQueue(c, ids, myId, now / 1000));
       busy.reset();
       for (const [id, who] of Object.entries(m.plays)) busy.set(id, who, now / 1000);
       endPlay();
@@ -224,7 +223,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       break;
     case 'play_ok': startPlay(m.m, m.limit, m.coins); break;
     case 'play_no':
-      if (m.why !== 'playing') toast({ busy: '다른 사람이 하는 중이에요', coins: '코인이 없어요 · 교환소에서 받아요', far: '기계 앞에 서 주세요' }[m.why]);
+      if (m.why !== 'playing') toast({ busy: '다른 사람이 하는 중이에요', coins: UI.noCoinsToast, far: '기계 앞에 서 주세요' }[m.why]);
       if (seated === m.m) { run.stop(); nextRunAt = null; showSeat(); } // 이어 하던 판을 못 시작했으면 멈추고 다시 묻는다
       break;
     case 'free':
@@ -254,8 +253,6 @@ function onMessage(m: ServerMsg, guest: Guest) {
       clearTimeout(tickTimer);
       if (m.in !== null) tickTimer = window.setTimeout(() => socket?.send(encodeTick()), (m.in + Math.random() * 1.5) * 1000);
       break;
-    case 'queue': queue.onQueue(m.c, m.ids, myId, now / 1000); break;
-    case 'queue_no': toast('줄이 꽉 찼어요'); break;
     case 'coins':
       wallet.coins = m.n;
       setHud(wallet.coins, wallet.bag);
@@ -469,7 +466,7 @@ function showMachineUi(): boolean {
   const near = nearestMachine(me.pos);
   if (!near) return false;
   const who = busy.who(near.id, clock());
-  if (who && who !== myId) { setAction(null); setInfo('구경 중 · 다른 사람이 하는 중'); return true; }
+  if (who && who !== myId) { setAction(null); setInfo(UI.watching); return true; }
   setInfo(null);
   const more = runSize(wallet.coins);
   if (wallet.coins > 0) setAction('🪙1 넣고 하기', () => playAgain(near.id, 1), more && { label: `🪙${more.plays} ${more.name}`, onPress: () => playAgain(near.id, more.plays) });

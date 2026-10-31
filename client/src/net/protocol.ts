@@ -1,9 +1,9 @@
 // 서버와 주고받는 메시지 형식. 견본: shared/protocol_fixtures.json (서버 server_messages.py·move_schema.py와 같은 형식)
 import type { Vec2 } from '../game/movement';
 
-export type PlayerView = { id: string; nick: string; color: number; x: number; z: number; dx: number; dz: number };
+export type PlayerView = { id: string; nick: string; color: number; x: number; z: number; dx: number; dz: number; beg?: number | null }; // beg: 조르는 중이면 더 받을 수 있는 코인 수
 // 메시지 형식 버전 — 서버 welcome의 v와 다르면(배포로 형식이 바뀜) 화면을 새로고침한다
-export const PROTOCOL = 2;
+export const PROTOCOL = 3;
 export type Body = 'n' | 'c' | 's'; // 보통 · 뚱뚱 · 마른
 // 기계 속 인형 한 칸 [캐릭터, x, z, 몸 돌림, 얹힌 높이, 색, 체형, 표정, 희귀, 번호] (기계 안 좌표, 바닥이면 높이 0.
 // 희귀: '' 일반 · 효과 id · 'gold'. 번호는 기계 안에서 그 인형을 가리킨다 — 새로 채워진 인형을 알아본다)
@@ -13,14 +13,12 @@ export type DollLook = { color: number; body: Body; face: number; rare: string }
 export const lookOf = (s: DollSpot): DollLook => ({ color: s[5], body: s[6], face: s[7], rare: s[8] });
 export type Welcome = {
   t: 'welcome'; v: number; store: number; you: PlayerView; players: PlayerView[];
-  coins: number; bag: number; machines: Record<string, DollSpot[]>; queues?: string[][]; plays: Record<string, string>; // queues: 옛 줄 — 5단계 Task 5에서 지움
+  coins: number; bag: number; machines: Record<string, DollSpot[]>; plays: Record<string, string>;
 };
 export type Join = { t: 'join'; p: PlayerView };
 export type Move = { t: 'move'; id: string; x: number; z: number; dx: number; dz: number };
 export type Correct = { t: 'correct'; x: number; z: number };
 export type Leave = { t: 'leave'; id: string };
-export type QueueMsg = { t: 'queue'; c: number; ids: string[] };
-export type QueueNo = { t: 'queue_no'; c: number; why: string };
 export type Coins = { t: 'coins'; n: number; got: number };
 export type PlayOk = { t: 'play_ok'; m: string; coins: number; limit: number };
 export type PlayNo = { t: 'play_no'; m: string; why: 'busy' | 'coins' | 'far' | 'playing' };
@@ -34,10 +32,16 @@ export type Result = {
 export type MachineMsg = { t: 'machine'; m: string; dolls: DollSpot[] };
 export type Free = { t: 'free'; m: string };
 export type Bag = { t: 'bag'; n: number };
+export type TakeNo = { t: 'take_no'; c: number; why: 'far' | 'enough' }; // 코인 받기 거절
+export type CounterBeg = { t: 'cbeg'; id: string; c: number; n: number }; // 교환소 조르기 결과 (0이면 쿨타임 거절)
+export type CounterBegNo = { t: 'cbeg_no'; c: number; why: 'wait' | 'full' | 'far'; wait: number }; // 본인에게: 거절 이유, 남은 초
+export type Beg = { t: 'beg'; id: string; room: number | null }; // 맵 조르기 시작(더 받을 수 있는 수)·끝(null)
+export type Gave = { t: 'gave'; from: string; to: string; n: number }; // 코인 주기가 이뤄짐
+export type GiveNo = { t: 'give_no'; why: string };
 export type Spawn = { t: 'spawn'; m: string; k: string; rv: string }; // 희귀·황금이 채워졌다
 export type Stock = { t: 'stock'; in: number | null }; // 다음 채울 때까지 남은 초 (가득이면 null)
-export type ServerMsg = Welcome | Join | Move | Correct | Leave | QueueMsg | QueueNo | Coins | PlayOk | PlayNo | Play | Result | MachineMsg | Free | Bag
-  | Spawn | Stock;
+export type ServerMsg = Welcome | Join | Move | Correct | Leave | Coins | PlayOk | PlayNo | Play | Result | MachineMsg | Free | Bag
+  | Spawn | Stock | TakeNo | CounterBeg | CounterBegNo | Beg | Gave | GiveNo;
 
 // 닫기 코드 (서버와 같은 값)
 export const CLOSE_FULL = 4001;
@@ -67,8 +71,6 @@ export function decode(raw: string): ServerMsg | null {
     case 'move': return str(m.id) && pose(m) ? (m as Move) : null;
     case 'correct': return num(m.x) && num(m.z) ? (m as Correct) : null;
     case 'leave': return str(m.id) ? (m as Leave) : null;
-    case 'queue': return num(m.c) && Array.isArray(m.ids) && m.ids.every(str) ? (m as QueueMsg) : null;
-    case 'queue_no': return num(m.c) && str(m.why) ? (m as QueueNo) : null;
     case 'coins': return num(m.n) && num(m.got) ? (m as Coins) : null;
     case 'play_ok': return str(m.m) && num(m.coins) && num(m.limit) ? (m as PlayOk) : null;
     case 'play_no': return str(m.m) && str(m.why) ? (m as PlayNo) : null;
@@ -80,6 +82,12 @@ export function decode(raw: string): ServerMsg | null {
     case 'bag': return num(m.n) ? (m as Bag) : null;
     case 'spawn': return str(m.m) && str(m.k) && str(m.rv) ? (m as Spawn) : null;
     case 'stock': return m.in === null || num(m.in) ? (m as Stock) : null;
+    case 'take_no': return num(m.c) && str(m.why) ? (m as TakeNo) : null;
+    case 'cbeg': return str(m.id) && num(m.c) && num(m.n) ? (m as CounterBeg) : null;
+    case 'cbeg_no': return num(m.c) && str(m.why) && num(m.wait) ? (m as CounterBegNo) : null;
+    case 'beg': return str(m.id) && (m.room === null || num(m.room)) ? (m as Beg) : null;
+    case 'gave': return str(m.from) && str(m.to) && num(m.n) ? (m as Gave) : null;
+    case 'give_no': return str(m.why) ? (m as GiveNo) : null;
     default: return null;
   }
 }
@@ -92,7 +100,10 @@ export function encodeMove(p: Vec2, d: Vec2): string {
 
 export const encodeQueue = (c: number) => JSON.stringify({ t: 'queue', c });
 export const encodeUnqueue = () => JSON.stringify({ t: 'unqueue' });
-export const encodeTake = (c = 0) => JSON.stringify({ t: 'take', c }); // 5단계 Task 5·7에서 교환소 번호를 꼭 넘기게
+export const encodeTake = (c: number) => JSON.stringify({ t: 'take', c }); // 교환소 코인 받기
+export const encodeCounterBeg = (c: number) => JSON.stringify({ t: 'cbeg', c }); // 교환소 조르기
+export const encodeBeg = (on: boolean) => JSON.stringify({ t: 'beg', on }); // 맵 조르기 켜고 끄기
+export const encodeGive = (to: string, n: number) => JSON.stringify({ t: 'give', to, n }); // 조르는 사람에게 코인 주기
 export const encodePlay = (m: string) => JSON.stringify({ t: 'play', m });
 export const encodeDrop = (x: number, z: number) => JSON.stringify({ t: 'drop', x: round(x, 3), z: round(z, 3) });
 export const encodeStand = () => JSON.stringify({ t: 'stand' }); // 판 사이에 "그만하기"
