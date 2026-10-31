@@ -40,7 +40,6 @@ export const UI = {
   nextRun: (k: number) => `곧 ${ORDINAL[k] ?? `${k}번째`} 판이 시작돼요`,
   hint: '레버로 집게를 옮기고 잡기 버튼을 눌러요',
   physicsLoading: '준비 중', // 물리 모듈(Rapier)을 아직 받는 중
-  runStopped: '이번 판까지만 해요', // 이어 하는 중 그만하기
   saveFailed: '결과를 저장하지 못했어요', // 서버가 판 보고를 거절(물리 뽑기 설계 §9.7)
   wonMore: (n: number) => `인형 ${n}개가 더 들어왔어요`,
   gotCoins: (n: number) => `코인 ${n}개를 받았어요!`,

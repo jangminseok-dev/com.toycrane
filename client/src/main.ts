@@ -345,7 +345,6 @@ function startPlay(machineId: string, limit: number, coins: number) {
   session = new PlaySession(machineId, limit, clock());
   run.began();
   seated = null; nextRunAt = null; hideSeatControls();
-  if (run.remaining() > 0) showRunPause(stopRun); // 이어 하는 중에는 판 도중에도 "그만하기" — 이번 판 뒤에 멈춘다 (사용자 2026-11-01)
   setAction(null); setInfo(null);
   showPlayControls(); showHint();
   dropControls();
@@ -528,11 +527,9 @@ function showSeat() {
   showSeatControls(wallet.coins > 0 ? () => playAgain(id, 1) : null, more && { ...more, onPress: () => playAgain(id, more.plays) },
     standUp, () => { standUp(); startCoinWalk(); });
 }
-// 이어 하기 멈춤(오른쪽 아래 그만하기, 이어 하는 중 내내 보인다): 판 도중·집게가 도는 동안이면 이번 판 뒤에, 판 사이면 바로 "한 판 더 / 그만하기"를 묻는다
+// 이어 하기 멈춤: 판 사이("곧 n번째 판이 시작돼요")의 그만하기 — 다음 판을 안 시작하고 바로 "한 판 더 / 그만하기"를 묻는다. 판 도중에는 버튼이 없다 (사용자 2026-11-01: 판을 멈추지 못하는 버튼은 무의미)
 function stopRun() {
-  run.stop();
-  if (seated) { nextRunAt = null; hideSeatControls(); showSeat(); }
-  else { hideSeatControls(); toast(UI.runStopped); }
+  run.stop(); nextRunAt = null; hideSeatControls(); showSeat();
 }
 function standUp() {
   socket?.send(encodeStand());
