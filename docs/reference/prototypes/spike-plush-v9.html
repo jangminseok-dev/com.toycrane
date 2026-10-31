@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>봉제인형 시제품 v9</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #f6eef7; font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; overflow: hidden; }
+  canvas { display: block; }
+  #hud { position: fixed; left: 16px; top: 16px; background: rgba(255,255,255,.82); border-radius: 14px; padding: 12px 14px; font-size: 14px; color: #3b2a5a; box-shadow: 0 4px 18px rgba(80,40,120,.12); max-width: 320px; }
+  #hud h1 { font-size: 16px; margin: 0 0 6px; }
+  #hud p { margin: 4px 0; line-height: 1.4; }
+  #hud button { margin: 6px 6px 0 0; border: 0; border-radius: 999px; padding: 8px 14px; font-weight: 700; background: #ffb3d1; color: #5a2a4a; cursor: pointer; }
+  #stats { position: fixed; right: 16px; bottom: 16px; font-size: 12px; color: #6b5a7a; background: rgba(255,255,255,.7); padding: 6px 10px; border-radius: 10px; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="hud">
+  <h1>봉제인형 시제품 v9 (버리는 코드)</h1>
+  <p>무광 천. 팔은 몸 안에서 시작해 손으로 갈수록 통통해지는 매끈한 관, 다리는 짧고 둥근 곰돌이 발. 광택은 눈만.</p>
+  <p>마우스로 돌리고 확대해서 보세요.</p>
+  <button id="spin">회전 멈춤</button>
+</div>
+<div id="stats"></div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf6eef7);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+const camera = new THREE.PerspectiveCamera(32, innerWidth / innerHeight, 0.1, 50);
+camera.position.set(0.3, 2.4, 8.0);
+
+const controls = new OrbitControls(camera, renderer.domElement); controls.target.set(0, 0.8, 0); controls.enableDamping = true;
+window.__cam = camera; window.__controls = controls;
+
+scene.add(new THREE.HemisphereLight(0xfff4ff, 0xc9b8d8, 0.9));
+const key = new THREE.DirectionalLight(0xfff2e0, 2.2); key.position.set(3, 6, 4); key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048); key.shadow.radius = 6; key.shadow.camera.left = key.shadow.camera.bottom = -4; key.shadow.camera.right = key.shadow.camera.top = 4;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0xd8c8ff, 1.0); rim.position.set(-4, 3, -3); scene.add(rim);
+const floor = new THREE.Mesh(new THREE.CircleGeometry(6, 64), new THREE.MeshStandardMaterial({ color: 0xe9ddf0, roughness: 0.95 }));
+floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+
+// ---- 천 결: 아주 잔잔한 요철(노멀 맵)로 벨벳 느낌 ----
+function clothNormal() {
+  const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
+  g.fillStyle = 'rgb(128,128,255)'; g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 30000; i++) { const a = Math.random() * 20 - 10, b = Math.random() * 20 - 10; g.fillStyle = `rgb(${128 + a | 0},${128 + b | 0},255)`; g.fillRect(Math.random() * 256, Math.random() * 256, 1.5, 1.5); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(6, 6); return t;
+}
+const CLOTH = clothNormal();
+const velvet = (color) => new THREE.MeshStandardMaterial({ color, roughness: 1, metalness: 0, envMapIntensity: 0.35, normalMap: CLOTH, normalScale: new THREE.Vector2(0.2, 0.2) }); // 무광 천
+
+// ---- 곰 몸 ----
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+function sphere(r, pos, scl = [1, 1, 1], seg = 48) { const g = new THREE.SphereGeometry(r, seg, Math.round(seg * 0.7)); g.scale(...scl); g.translate(pos.x, pos.y, pos.z); return g; }
+// 팔: 어깨 → 팔꿈치 → 손 순으로 공을 이어 붙여 배 쪽으로 굽는다 (봉제인형의 통통한 팔)
+// 곡선을 따라 가는 관인데 굵기가 t(0~1)에 따라 변한다 — 어깨 쪽은 몸 안에 묻히고 손 쪽은 통통하게
+function tube(points, r, taper = () => 1) {
+  const curve = new THREE.CatmullRomCurve3(points), seg = 40, rad = 32;
+  const g = new THREE.TubeGeometry(curve, seg, r, rad, false), pos = g.attributes.position, p = new THREE.Vector3(), c = new THREE.Vector3();
+  for (let i = 0; i <= seg; i++) { const t = i / seg, k = taper(t); curve.getPointAt(t, c);
+    for (let j = 0; j <= rad; j++) { const idx = i * (rad + 1) + j; p.fromBufferAttribute(pos, idx).sub(c).multiplyScalar(k).add(c); pos.setXYZ(idx, p.x, p.y, p.z); } }
+  g.computeVertexNormals(); return g;
+}
+function arm(side) {
+  const s = side;
+  return [
+    tube([V(s * 0.22, 0.86, 0.0), V(s * 0.45, 0.76, 0.08), V(s * 0.53, 0.58, 0.2), V(s * 0.47, 0.44, 0.34), V(s * 0.36, 0.40, 0.42)], 0.15, (t) => 0.95 + 0.25 * t), // 몸 안에서 시작해 손으로 갈수록 통통
+    sphere(0.2, V(s * 0.375, 0.405, 0.405), [1, 0.92, 1]),                                              // 손 — 관 끝(반지름 0.18)을 완전히 덮게 더 크고 살짝 안쪽
+  ];
+}
+// 다리: 앉은 자세로 앞으로 뻗은 통통한 다리 + 발바닥
+function leg(side) {
+  const s = side;
+  return [sphere(0.22, V(s * 0.27, 0.27, 0.17), [1, 0.85, 1.25]), sphere(0.19, V(s * 0.3, 0.2, 0.38), [1.05, 0.85, 1.25])]; // 허벅지가 엉덩이와 발을 잇고, 발은 앞으로 둥글게
+}
+function bearParts() {
+  return {
+    fur: [
+      sphere(0.5, V(0, 1.2, 0), [1.08, 0.95, 1]),            // 머리 (아래가 몸에 살짝 묻힘)
+      sphere(0.19, V(-0.4, 1.56, -0.04)), sphere(0.19, V(0.4, 1.56, -0.04)), // 귀 (옆으로 벌어지게)
+      sphere(0.46, V(0, 0.55, 0), [1, 1.18, 0.92]),           // 몸
+      sphere(0.42, V(0, 0.33, 0.03), [1.12, 0.68, 1.05]),      // 엉덩이 — 바닥에 닿게 깔려 배 아래 빈 공간을 메운다
+      ...arm(-1), ...arm(1), ...leg(-1), ...leg(1),
+      sphere(0.12, V(0, 0.42, -0.42)),                        // 꼬리
+    ],
+    belly: [sphere(0.3, V(0, 0.58, 0.24), [0.95, 1.1, 0.5]), sphere(0.2, V(0, 1.07, 0.4), [1.25, 0.8, 0.6])], // 배·주둥이 (가로로 넓게)
+    inner: [sphere(0.105, V(-0.4, 1.56, 0.08), [1, 1, 0.4]), sphere(0.105, V(0.4, 1.56, 0.08), [1, 1, 0.4])], // 귓속
+    pads: [sphere(0.115, V(-0.3, 0.2, 0.59), [1.05, 0.9, 0.3]), sphere(0.115, V(0.3, 0.2, 0.59), [1.05, 0.9, 0.3])], // 발바닥
+  };
+}
+
+// 머리 타원체 표면 위의 점: 눈·볼은 머리 표면에 반쯤 박힌다
+const HEAD = { c: V(0, 1.2, 0), r: V(0.54, 0.475, 0.5) };
+function onHead(x, y, sink) {
+  const nx = x / HEAD.r.x, ny = (y - HEAD.c.y) / HEAD.r.y;
+  const z = HEAD.r.z * Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
+  return V(x, y, z - sink);
+}
+const eyeMat = new THREE.MeshPhysicalMaterial({ color: 0x120a10, roughness: 0.08, clearcoat: 1, clearcoatRoughness: 0.05 });
+const noseMat = new THREE.MeshStandardMaterial({ color: 0x3a2420, roughness: 0.95 });
+const blushMat = new THREE.MeshStandardMaterial({ color: 0xff86b4, roughness: 1 });
+function face(group) {
+  for (const s of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.068, 32, 24), eyeMat); eye.position.copy(onHead(s * 0.2, 1.28, 0.03)); eye.lookAt(eye.position.clone().multiplyScalar(2).sub(HEAD.c)); eye.scale.z = 0.75; group.add(eye);
+    const b = new THREE.Mesh(new THREE.SphereGeometry(0.085, 24, 16), blushMat); b.position.copy(onHead(s * 0.33, 1.12, 0.035)); b.lookAt(b.position.clone().multiplyScalar(2).sub(HEAD.c)); b.scale.set(1.3, 0.7, 0.3); group.add(b);
+  }
+  // 주둥이 앞면(z≈0.52)에 코·입을 반쯤 박는다
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.075, 32, 24), noseMat); nose.position.set(0, 1.13, 0.5); nose.scale.set(1.3, 0.8, 0.6); group.add(nose);
+  const smile = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.013, 8, 24, Math.PI), noseMat); smile.position.set(0, 1.06, 0.525); smile.rotation.set(0.1, 0, Math.PI); group.add(smile);
+}
+
+function plushBear(color) {
+  const g = new THREE.Group(), p = bearParts();
+  for (const [parts, mat] of [[p.fur, velvet(color)], [p.belly, velvet(0xfff3dc)], [p.inner, velvet(0xffc9d8)], [p.pads, velvet(0xfff3dc)]]) {
+    const m = new THREE.Mesh(mergeGeometries(parts, false), mat); m.castShadow = true; g.add(m);
+  }
+  face(g);
+  return g;
+}
+const sitting = plushBear(0xb79ae0); sitting.position.set(-1.9, 0, 0); scene.add(sitting);
+const lying = plushBear(0xf2b98a); lying.rotation.set(0.15, 0.35, Math.PI / 2); lying.position.set(0.5, 0.52, 1.4); scene.add(lying);
+
+function figureBear() {
+  const g = new THREE.Group(), p = bearParts();
+  const pvc = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, envMapIntensity: 0.35 }); // 무광 피규어
+  for (const [parts, mat] of [[p.fur, pvc(0xf0c8ff)], [p.belly, pvc(0xfff1d6)], [p.inner, pvc(0xffb6cc)], [p.pads, pvc(0xfff1d6)]]) { const m = new THREE.Mesh(mergeGeometries(parts, false), mat); m.castShadow = true; g.add(m); }
+  face(g);
+  for (const s of [-1, 1]) { const w = new THREE.Mesh(new THREE.SphereGeometry(0.085, 32, 24), pvc(0xffffff)); w.position.copy(onHead(s * 0.19, 1.29, 0.06)); w.lookAt(w.position.clone().multiplyScalar(2).sub(HEAD.c)); w.scale.z = 0.35; g.add(w); }
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.8, 0.12, 64), new THREE.MeshStandardMaterial({ color: 0xb8e8d8, roughness: 0.9 })); base.position.y = 0.06; base.receiveShadow = true;
+  g.children.forEach((c) => { c.position.y += 0.12; }); g.add(base);
+  const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.11, 0), new THREE.MeshStandardMaterial({ color: 0xffd75a, roughness: 0.8 })); star.position.set(0.52, 0.6, 0.52); g.add(star);
+  return g;
+}
+const figure = figureBear(); figure.position.set(2.0, 0, -0.2); scene.add(figure);
+
+let spinning = true;
+document.getElementById('spin').onclick = (e) => { spinning = !spinning; e.target.textContent = spinning ? '회전 멈춤' : '회전'; };
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+const stats = document.getElementById('stats'); let frames = 0, t0 = performance.now();
+renderer.setAnimationLoop((now) => {
+  controls.update();
+  if (spinning) { sitting.rotation.y = Math.sin(now * 0.0005) * 0.6; figure.rotation.y = -Math.sin(now * 0.0005) * 0.6; }
+  renderer.render(scene, camera);
+  frames++; if (now - t0 > 1000) { stats.textContent = `${frames} fps · 그리기 ${renderer.info.render.calls}회 · 삼각형 ${(renderer.info.render.triangles / 1000).toFixed(0)}k`; frames = 0; t0 = now; }
+});
+</script>
+</body>
+</html>
