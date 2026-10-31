@@ -34,7 +34,7 @@ export function resultSteps(o: Outcome): string[] {
   return o === 'win' ? ['bonk', 'nervous', 'takeout', 'show', 'lift', 'bag'] : ['bonk', 'nervous', 'slump'];
 }
 
-function pose(rig: AvatarRig, tw: Tweens, dur: number, toL: THREE.Vector3 | null, toR: THREE.Vector3 | null, extra?: (k: number) => void, e = ease.inOut) {
+function pose(rig: AvatarRig, tw: Tweens, dur: number, toL: THREE.Vector3 | null, toR: THREE.Vector3 | null, extra?: (k: number) => void, e = ease.smooth) {
   const fl = rig.handL.clone(), fr = rig.handR.clone();
   return tw.tween(dur, (k) => {
     if (toL) rig.handL.lerpVectors(fl, toL, k);

@@ -6,6 +6,8 @@ export const ease = {
   in: (k: number) => k * k * k,
   back: (k: number) => 1 + 2.70158 * (k - 1) ** 3 + 1.70158 * (k - 1) ** 2,
   lin: (k: number) => k,
+  // 시작·끝 속도가 0이고 가속도도 매끄러운 곡선(smootherstep) — 모션의 기본 (설계 2026-10-31 §3.6)
+  smooth: (k: number) => k * k * k * (k * (k * 6 - 15) + 10),
 };
 
 type Running = { t: number; dur: number; fn: (k: number) => void; e: Ease; res: () => void };
@@ -13,7 +15,7 @@ type Running = { t: number; dur: number; fn: (k: number) => void; e: Ease; res: 
 export class Tweens {
   private list: Running[] = [];
 
-  tween(dur: number, fn: (k: number) => void, e: Ease = ease.inOut): Promise<void> {
+  tween(dur: number, fn: (k: number) => void, e: Ease = ease.smooth): Promise<void> {
     return new Promise((res) => this.list.push({ t: 0, dur, fn, e, res }));
   }
 

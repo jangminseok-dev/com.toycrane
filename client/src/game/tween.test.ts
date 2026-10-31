@@ -14,3 +14,13 @@ test('wait is a tween that does nothing', async () => {
   tw.update(0.2); await Promise.resolve(); expect(done).toBe(false);
   tw.update(0.2); await Promise.resolve(); expect(done).toBe(true);
 });
+
+// 모든 모션은 시작·끝이 매끄러운 곡선 (설계 2026-10-31 §3.6)
+test('smooth ease starts and ends with zero speed', () => {
+  expect(ease.smooth(0)).toBe(0);
+  expect(ease.smooth(1)).toBe(1);
+  expect(ease.smooth(0.5)).toBeCloseTo(0.5);
+  const slope = (k: number) => (ease.smooth(k + 1e-4) - ease.smooth(k)) / 1e-4;
+  expect(slope(0)).toBeLessThan(1e-3);
+  expect(slope(1 - 1e-4)).toBeLessThan(1e-3);
+});
