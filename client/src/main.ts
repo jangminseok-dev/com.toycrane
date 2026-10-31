@@ -7,6 +7,7 @@ import { aimHeight, aimVisible } from './game/aim';
 import { blocksView, machineCameraPose } from './game/machineCamera';
 import { MachineBusy } from './game/machineBusy';
 import { PlaySession } from './game/playSession';
+import { hugOpen } from './game/clawHug';
 import { Swing } from './game/swing';
 import { Tweens, ease } from './game/tween';
 import { sfx, unlockAudio } from './audio/sfx';
@@ -363,13 +364,13 @@ function startPlay(machineId: string, limit: number, coins: number) {
     settleMachine(machineId);
     dropCycle(); stopWatch(machineId);
     const world = new MachineWorld(R, bigZone.contentsOf(machineId));
-    cycle = { machineId, gen: genOf(machineId), world, runner: null, claw: null, live: bigZone.live(machineId), before: bigZone.contentsOf(machineId), reported: false };
+    cycle = { machineId, gen: genOf(machineId), world, runner: null, claw: null, live: bigZone.live(machineId), before: bigZone.contentsOf(machineId), reported: false, shown: 1 };
   }
   if (me && socket) { me.dir = { x: 0, z: 0 }; socket.send(encodeMove(me.pos, me.dir)); }
 }
 
 // 내 판의 물리: 레버 동안은 세계만 들고 있다가, 내리면 집게 한 바퀴(CycleRunner)를 프레임마다 돌린다. 끝나면 done 보고
-type Cycle = { machineId: string; gen: number; world: MachineWorld; runner: CycleRunner | null; claw: ClawBody | null; live: LiveDolls; before: DollSpot[]; reported: boolean };
+type Cycle = { machineId: string; gen: number; world: MachineWorld; runner: CycleRunner | null; claw: ClawBody | null; live: LiveDolls; before: DollSpot[]; reported: boolean; shown: number };
 let cycle: Cycle | null = null;
 const TOP_Y = CLAW_REST.y + CABLE_TOP;
 function dropCycle() {
@@ -385,11 +386,12 @@ function runCycleFrame(dt: number) {
   const done = runner.advance(dt);
   physicsMs.push(performance.now() - t0); if (physicsMs.length > 120) physicsMs.shift();
   const rig = bigZone.rigOf(machineId), group = bigZone.clawOf(machineId);
+  cycle.shown = hugOpen(claw.open, claw.held() !== null, cycle.shown, dt); // 쥔 손가락은 화면에서 조금 더 감싼다
   group.position.set(claw.x, claw.y, claw.z);
-  rig?.setCable(TOP_Y - claw.y); rig?.setOpen(claw.open);
+  rig?.setCable(TOP_Y - claw.y); rig?.setOpen(cycle.shown);
   for (const p of world.poses()) live.set(p.uid, p.p, p.q);
   topView?.update({ x: claw.x, z: claw.z });
-  poseSender.frame(machineId, claw, world.movingPoses(), clock());
+  poseSender.frame(machineId, { x: claw.x, y: claw.y, z: claw.z, open: cycle.shown }, world.movingPoses(), clock());
   if (!done) return;
   const r = runner.done();
   for (const uid of r.won) live.remove(uid);

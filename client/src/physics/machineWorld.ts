@@ -24,6 +24,8 @@ const FALL_DEPTH = 0.15; // 구멍 바닥보다 이만큼 아래면 빠진 것
 const CATCH_Y = 0.3; // 빠진 인형이 끝없이 떨어지지 않게 받는 바닥
 const SKIN = 0.0; // 콜라이더 여유 (0이면 모양 그대로)
 const REDROP_GAP = 0.2;
+const HOLE_HALF = CLAW.hole.size / 2;
+const STRADDLE_ROUNDS = 3; // 걸친 인형을 다시 떨어뜨리는 횟수 한도 (먼 칸으로 가니 보통 한 번이면 된다)
 const REFILL_SETTLE = 6; // 채우기 앉히기: 마지막 인형이 떨어진 뒤 이만큼(물리 시간) — 무더기는 5초쯤 걸린다
 const STILL_V = 0.02, STILL_W = 0.1; // 이보다 느리면 멈춘 것 (m/s, rad/s) — 무더기 속 인형은 아주 천천히 기어 오래 안 잠든다 // 채우기 중 구멍에 빠진 인형을 다시 떨어뜨릴 때 다른 인형과 띄우는 거리
 
@@ -35,6 +37,7 @@ export class MachineWorld {
   private spots = new Map<number, DollSpot>();
   private pending: { uid: number; at: number }[] = [];
   private holeOpen = false;
+  private dropped = new Set<number>(); // 이번 세계에서 채우기로 떨어뜨린 인형 — 구멍 위 걸침 규칙은 이들에게만 (판에서 밀려 간 인형은 그대로, 사용자 결정)
 
   constructor(readonly R: Rapier, spots: DollSpot[]) {
     this.world = new R.World({ x: 0, y: -9.81, z: 0 });
@@ -48,6 +51,7 @@ export class MachineWorld {
         const body = this.addDoll(s, [s[1], this.dropHeight(s), s[3]], [0, 0, 0, 1]);
         body.setEnabled(false);
         this.pending.push({ uid, at: drops * DROP_GAP });
+        this.dropped.add(uid);
         drops++;
       } else this.addDoll(s, [s[1], s[2], s[3]], [s[4], s[5], s[6], s[7]]);
     }
@@ -118,10 +122,18 @@ export class MachineWorld {
 
   // 모두 잠들 때까지 돌리고 쓴 초를 돌려준다 — 한도(maxSeconds)는 마지막 인형이 떨어진 뒤부터 센다 (최종 리뷰 I9)
   settle(maxSeconds = REFILL_SETTLE): number {
-    const from = this.time, lastDrop = this.pending.reduce((t, p) => Math.max(t, p.at), from);
+    const from = this.time;
     // 끝나는 기준은 엔진의 잠듦(참된 멈춤) — 중계용 속도 문턱(still)으로 끊으면 기어가는 중에 앉힌 자리가 적힌다
     const awake = () => [...this.bodies.values()].some((b) => b.isEnabled() && !b.isSleeping());
-    while (this.time < lastDrop + maxSeconds && (this.pending.length > 0 || awake())) this.tick();
+    let lastDrop = this.pending.reduce((t, p) => Math.max(t, p.at), from);
+    for (let round = 0; ; round++) {
+      while (this.time < lastDrop + maxSeconds && (this.pending.length > 0 || awake())) this.tick();
+      // 채우기로 떨어진 인형이 구멍 위에 걸쳤으면(거저 뽑기) 구멍에서 먼 빈 칸에 다시 떨어뜨리고 더 앉힌다
+      const over = this.straddling();
+      if (!over.length || round >= STRADDLE_ROUNDS) break;
+      for (const uid of over) this.redrop(uid, this.bodies.get(uid)!);
+      lastDrop = this.time;
+    }
     for (const b of this.bodies.values()) if (b.isEnabled()) b.sleep(); // 한도에 걸려 아직 흔들리는 인형은 그 자리에 재운다 — 앉힌 자리는 여기서 굳는다
     return this.time - from;
   }
@@ -163,14 +175,25 @@ export class MachineWorld {
   }
 
   private redropFallen(): void {
-    for (const [uid, b] of this.bodies) {
-      if (b.translation().y >= DOLL_FLOOR - FALL_DEPTH) continue;
-      const [x, z] = this.freeSpotAway(uid);
-      b.setTranslation({ x, y: this.dropHeight(this.spots.get(uid)!), z }, true);
-      b.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
-      b.setLinvel({ x: 0, y: 0, z: 0 }, true);
-      b.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    }
+    for (const [uid, b] of this.bodies) if (b.translation().y < DOLL_FLOOR - FALL_DEPTH) this.redrop(uid, b);
+  }
+
+  private redrop(uid: number, b: Body): void {
+    const [x, z] = this.freeSpotAway(uid);
+    b.setTranslation({ x, y: this.dropHeight(this.spots.get(uid)!), z }, true);
+    b.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
+    b.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    b.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    this.dropped.add(uid);
+  }
+
+  // 구멍 위에 걸친 인형(채우기로 떨어진 것만): 바닥 위 몸 공의 중심이 하나라도 구멍 네모 안
+  straddling(): number[] {
+    const [hx, hz] = MACHINE_SPEC.hole;
+    return [...this.dropped].filter((uid) => {
+      const b = this.bodies.get(uid);
+      return !!b && b.isEnabled() && this.balls(uid).some((h) => h.c.y >= DOLL_FLOOR && Math.abs(h.c.x - hx) < HOLE_HALF && Math.abs(h.c.z - hz) < HOLE_HALF);
+    }).sort((a, b) => a - b);
   }
 
   isHoleOpen(): boolean {

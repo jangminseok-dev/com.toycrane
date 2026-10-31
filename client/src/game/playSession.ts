@@ -7,6 +7,8 @@ const RESULT_WAIT = 8; // 보고(done)를 보낸 뒤 결과를 이만큼 못 받
 // 집게는 상품 구멍 위(앞 왼쪽)에서 시작해 레버가 미는 쪽으로 놀이 영역 안을 자유롭게 움직이고, 하강 버튼으로 한 번만 내린다(시간이 다 되면 저절로).
 // 남은 시간은 실제 시계로 잰다 — 프레임 시간을 쌓으면 느린 휴대폰에서 서버 마감을 넘긴다.
 // 내린 뒤(phase 'cycle')에는 물리 한 바퀴가 집게를 움직이고(physics/clawCycle), 끝나면 done 보고를 보내고 결과를 기다린다 (물리 뽑기 설계 §4.4)
+export const CLAW_EDGE = 0.07; // 활짝 벌린 손가락 끝이 16cm까지 뻗으니 유리(놀이 영역 +12cm)를 뚫지 않게 벽에서 띄운다
+
 export class PlaySession {
   claw: Vec2 = { x: MACHINE_SPEC.hole[0], z: MACHINE_SPEC.hole[1] }; // 기계 안 좌표 — 기계 앞에서 보면 +x 오른쪽, -z 안쪽
   remaining: number;
@@ -20,7 +22,7 @@ export class PlaySession {
 
   update(dt: number, input: Vec2, now: number): 'drop' | null {
     if (this.droppedAt !== null) return null;
-    const [w, d] = MACHINE_SPEC.play_half, v = MACHINE_SPEC.claw_speed * dt;
+    const w = MACHINE_SPEC.play_half[0] - CLAW_EDGE, d = MACHINE_SPEC.play_half[1] - CLAW_EDGE, v = MACHINE_SPEC.claw_speed * dt;
     this.claw = {
       x: Math.min(Math.max(this.claw.x + input.x * v, -w), w),
       z: Math.min(Math.max(this.claw.z + input.z * v, -d), d),

@@ -43,3 +43,18 @@ test('a grip breaks when the load exceeds its max force', () => {
   expect(claw.held()).toBeNull();
   world.dispose();
 });
+
+// 붙는 점은 손가락 끝이 닿은 표면이 아니라 쥔 공(머리) 안쪽 — 접촉점에 매달면 인형이 손가락 아래로 줄처럼 늘어져 감싸는 모양이 안 난다 (사용자 2026-10-31 밤)
+test('the grip anchors inside the gripped ball', () => {
+  const world = new MachineWorld(R, [standing(1, 0, 0)]);
+  const claw = new ClawBody(R, world);
+  world.settle(1);
+  const plan = claw.plan(0, 0);
+  let open = plan.descendOpen; // 한 바퀴처럼 손가락 둘이 닿을 때까지 오므린 뒤 쥔다
+  for (; open > 0 && (claw.touching().get(1) ?? 0) < 2; open -= 0.01) { claw.setPose(0, plan.y, 0, open); world.step(1 / 120); }
+  claw.grip(1, 'three');
+  const head = world.balls(1).sort((a, b) => b.c.y - a.c.y).find((b) => b.r > 0.05)!; // 가장 위의 큰 공 = 머리 (코·귀는 작다)
+  const m = claw.debugAnchors().match(/doll\(([-\d.]+),([-\d.]+),([-\d.]+)\)/)!;
+  expect(Math.hypot(+m[1] - head.c.x, +m[2] - head.c.y, +m[3] - head.c.z)).toBeLessThan(head.r * 0.6); // 표면이 아니라 공 안쪽
+  world.dispose();
+});

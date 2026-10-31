@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Vec2 } from '../game/movement';
 import { MACHINE_SPEC } from '../data/storeLayout';
+import { DOLL_FLOOR } from './machine';
 
 // 위에서 본 화면 (설계 2026-10-31 §3.9): 한 판 하는 동안 그 기계 유리 칸 뒷판에 작은 모니터를 달고,
 // 기계 안을 위에서 내려다본 실시간 화면을 띄운다 — 어떤 인형 위에 집게가 있는지 앞·뒤가 헷갈리지 않게.
@@ -8,12 +9,13 @@ import { MACHINE_SPEC } from '../data/storeLayout';
 export const TOP_LAYER = 3;
 const HALF_X = 0.56, HALF_Z = 0.49; // 펠트 반폭
 const RT_W = 256, RT_H = 224;
+const CAM_Y = 2.6, SEE_DOWN_TO = DOLL_FLOOR - 0.07; // 펠트 조금 아래까지만 — 구멍에 빠져 받는 상자에 있는 인형은 안 보이게
 
 // 기계 안을 바로 위에서 보는 직교 카메라 — 화면 위쪽이 기계 안쪽(-z), 오른쪽이 +x (기계 앞에서 보는 것과 같은 방향)
 export function topViewCamera(anchor: THREE.Object3D): THREE.OrthographicCamera {
-  const cam = new THREE.OrthographicCamera(-HALF_X, HALF_X, HALF_Z, -HALF_Z, 0.05, 3);
+  const cam = new THREE.OrthographicCamera(-HALF_X, HALF_X, HALF_Z, -HALF_Z, 0.05, CAM_Y - SEE_DOWN_TO);
   anchor.updateMatrixWorld(true);
-  cam.position.copy(anchor.localToWorld(new THREE.Vector3(0, 2.6, 0)));
+  cam.position.copy(anchor.localToWorld(new THREE.Vector3(0, CAM_Y, 0)));
   cam.up.set(0, 0, -1).applyQuaternion(anchor.getWorldQuaternion(new THREE.Quaternion()));
   cam.lookAt(anchor.localToWorld(new THREE.Vector3(0, 0, 0)));
   cam.updateMatrixWorld(true);

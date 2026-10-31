@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { CLAW, clawStrength } from '../data/claw';
 import { planGrip, probesAt } from '../game/gripPlan';
 import type { Hit } from '../world/dolls';
+const ANCHOR_IN = 0.5; // 붙는 점이 접촉점(0)에서 쥔 공 중심(1)으로 들어가는 비율
 import { CLAW_REST } from '../world/machine';
 import { ALL, GROUP_TARGET, GROUP_TIP, STEP, groups, type MachineWorld, type Rapier } from './machineWorld';
 
@@ -101,10 +102,14 @@ export class ClawBody {
     const rare = spot?.[11] ?? '';
     const tier = rare === 'gold' ? CLAW.rare.gold : rare ? CLAW.rare.rare : 1;
     this.maxForce = baseForce * clawStrength(this.x, this.z) * CLAW.quality[quality] * tier;
-    // 붙는 점 = 닿은 손가락 끝들의 가운데 (세계 좌표) → 인형 몸 좌표·집게 몸 좌표로
+    // 붙는 점 = 닿은 손가락 끝들의 가운데에서 쥔 공(접촉점 가운데가 표면에 가장 가까운 공, 보통 머리)의 중심 쪽으로 ANCHOR_IN만큼 들어간 점.
+    // 접촉점에 그대로 매달면 인형이 손가락 끝 아래로 줄처럼 늘어져 감싸는 모양이 안 나고, 공 중심에 매달면 아랫부분을 잡아도 안 기운다
     const balls = this.world.balls(uid);
-    const touching = this.fingers().flat().filter((t) => balls.some((b) => t.distanceTo(b.c) <= b.r + TIP_R + TOUCH));
+    const tips = this.fingers().flat();
+    const touching = tips.filter((t) => balls.some((b) => t.distanceTo(b.c) <= b.r + TIP_R + TOUCH));
     const at = touching.length ? touching.reduce((a, t) => a.add(t), new THREE.Vector3()).divideScalar(touching.length) : new THREE.Vector3(this.x, this.y - 0.2, this.z);
+    const gripped = touching.length ? balls.slice().sort((p, q) => (at.distanceTo(p.c) - p.r) - (at.distanceTo(q.c) - q.r))[0] : undefined; // 접촉점들의 가운데가 표면에 가장 가까운 공 = 손가락이 감싼 공
+    if (gripped) at.lerp(gripped.c, ANCHOR_IN);
     const bt = body.translation(), br = body.rotation();
     this.anchorDoll.copy(at).sub(new THREE.Vector3(bt.x, bt.y, bt.z)).applyQuaternion(new THREE.Quaternion(br.x, br.y, br.z, br.w).invert());
     this.anchorClaw.copy(at).sub(new THREE.Vector3(this.x, this.y, this.z));

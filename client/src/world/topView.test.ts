@@ -42,3 +42,12 @@ test('store lights also light the top view', () => {
   for (const l of scene.children.filter((o) => (o as THREE.Light).isLight)) expect(l.layers.test(probe)).toBe(true);
   view.dispose();
 });
+
+// 구멍에 빠져 바닥 아래 받는 상자에 있는 인형은 모니터에 보이면 안 된다 — 카메라는 펠트 조금 아래까지만 본다
+test('the top view does not see below the felt', () => {
+  const anchor = new THREE.Group(); anchor.updateMatrixWorld(true);
+  const cam = topViewCamera(anchor);
+  const depth = (y: number) => anchor.localToWorld(new THREE.Vector3(0, y, 0)).project(cam).z;
+  expect(Math.abs(depth(0.9))).toBeLessThan(1);
+  expect(depth(0.3)).toBeGreaterThan(1);
+});

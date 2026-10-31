@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { MACHINE_SPEC } from '../data/storeLayout';
-import { PlaySession } from './playSession';
+import { CLAW_EDGE, PlaySession } from './playSession';
 
 // 레버(조이스틱) 1개 + 하강 버튼 1개 (설계 2026-10-31 §3.10, 3차 결정): 집게는 상품 구멍 위에서 시작해 레버로 자유롭게 움직인다
 test('the claw starts above the prize hole', () => {
@@ -13,7 +13,7 @@ test('the lever moves the claw freely at claw speed inside the play area', () =>
   s.update(1, { x: 1, z: 0 }, 1); expect(s.claw.x).toBeCloseTo(x0 + MACHINE_SPEC.claw_speed);
   s.update(0.5, { x: 0, z: -1 }, 1.5); expect(s.claw.z).toBeCloseTo(z0 - MACHINE_SPEC.claw_speed * 0.5);
   s.update(1, { x: -1, z: 0 }, 2.5); expect(s.claw.x).toBeCloseTo(x0); // 되돌아갈 수도 있다
-  s.update(10, { x: 1, z: 1 }, 3); expect(s.claw).toEqual({ x: MACHINE_SPEC.play_half[0], z: MACHINE_SPEC.play_half[1] });
+  s.update(10, { x: 1, z: 1 }, 3); expect(s.claw).toEqual({ x: MACHINE_SPEC.play_half[0] - CLAW_EDGE, z: MACHINE_SPEC.play_half[1] - CLAW_EDGE }); // 벌린 손가락이 유리를 뚫지 않게 벽에서 띄운다
 });
 
 test('drops once when time runs out', () => {

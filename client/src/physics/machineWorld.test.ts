@@ -104,3 +104,16 @@ test('settle time counts from the last drop', () => {
   for (const p of world.poses()) expect(p.p[1]).toBeLessThan(DOLL_FLOOR + 0.6);
   world.dispose();
 });
+
+// 채우기로 떨어진 인형이 구멍 위에 걸치면(몸 공 하나라도 구멍 네모 안) 구멍에서 먼 빈 칸에 다시 떨어뜨린다 — 처음부터 걸친 건 거저 뽑기 (사용자 2026-10-31 밤)
+test('refilled dolls never end up lying across the hole', () => {
+  const [hx, hz] = MACHINE_SPEC.hole, half = 0.17;
+  const edge = (uid: number, x: number, z: number): DollSpot => [uid === 1 ? 'bear' : 'frog', x, null, z, 0, 0, 0, 1, 0, 'n', 0, '', uid];
+  // 구멍 턱 바로 밖(18cm)에 떨어뜨리면 넘어지며 구멍을 가로질러 눕는다 (규칙을 끄면 둘 다 걸친 채 남는다)
+  const world = new MachineWorld(R, [edge(1, hx, hz - half - 0.01), edge(2, hx + half + 0.01, hz)]);
+  world.settle();
+  expect(world.straddling()).toEqual([]);
+  for (const p of world.poses()) expect(p.p[1]).toBeGreaterThan(DOLL_FLOOR - 0.05);
+  expect(world.poses()).toHaveLength(2);
+  world.dispose();
+});
