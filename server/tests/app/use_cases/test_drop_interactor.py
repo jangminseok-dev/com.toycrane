@@ -129,3 +129,10 @@ async def test_a_win_bags_the_color_and_rare():
     contents.stored["A-1"] = MachineStock([DollSpot("bear", 0.0, 0.0, 0.0, color=3, rare="star", uid=1)] + stock.dolls[1:], None, 10)
     await it.drop(DropCommand("c-1", 0.0, 0.0, now=15.0))
     assert bag.added == [("g-1", "bear", 3, "star", "big")]
+
+
+# 성공으로 자리가 비면 다음 채울 시각을 모두에게 알린다 — 그래야 아무도 움직이지 않아도 화면이 그때 tick을 보낸다
+async def test_a_win_tells_everyone_when_the_slot_refills():
+    locks, conns, bag, contents, it = setup(roll=0.1)
+    await it.drop(DropCommand("c-1", 0.0, 0.0, now=15.0))
+    assert (None, {"t": "stock", "in": 30.0}) in conns.broadcasts

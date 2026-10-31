@@ -10,7 +10,7 @@ from toycrane.app.ports.output.play_lock_port import PlayLockPort
 from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
 from toycrane.app.use_cases.machine_contents import ensure_contents
 from toycrane.domain.crane import clamp_claw, drop_nearby, judge, sway
-from toycrane.domain.stock import on_taken
+from toycrane.domain.stock import due, on_taken
 from toycrane.domain.play_rules import expired
 
 ZONE = "big"  # 2단계는 큰인형 구역만
@@ -49,6 +49,8 @@ class DropInteractor(DropUseCase):
         if grab.outcome == "win":
             stocks[machine_id] = on_taken(stock, grab.index, cmd.now)  # 뽑힌 자리는 비워 두고 30초 뒤부터 채운다
             await self._contents.save(stocks)
+            when = due(stocks)  # 다음 채울 시각을 알려 아무도 움직이지 않아도 화면이 그때 깨우게
+            self._connections.broadcast_stock(None if when is None else max(0.0, when - cmd.now))
             self._connections.send_bag(cmd.conn_id, await self._bag.add(me.guest_id, doll.kind, doll.color, doll.rare, ZONE, cmd.now))
         elif grab.outcome == "slip":
             stocks[machine_id] = replace(stock, dolls=drop_nearby(stock.dolls, grab.index, self._rng))  # 떨어져 굴러간 자리
