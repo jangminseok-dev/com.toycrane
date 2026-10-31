@@ -3,6 +3,7 @@ import { MACHINES, type MachineSpot } from '../data/storeLayout';
 import type { Occluder } from '../game/occlusion';
 import { bakeByMaterial, fadeMaterials, materialCloner, mergeBuckets } from './bake';
 import { makeDoll } from './dolls';
+import { dollPose } from './dollPose';
 import { CHROME, idleClawGeometry, makeClawRig, type ClawRig } from './claw';
 import { CLAW_REST, DOLL_FLOOR, DOLL_SCALE, bulbSpots, ledBaseMat, ledFlashMat, makeMachineParts } from './machine';
 
@@ -106,7 +107,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
 
   // 묶음의 인형을 다시 합친다 (성공한 판마다 그 기계가 든 묶음 하나)
   const holder = new THREE.Matrix4(), local = new THREE.Matrix4(), world = new THREE.Matrix4();
-  const at = new THREE.Vector3(), turn = new THREE.Quaternion(), tilt = new THREE.Euler(), size = new THREE.Vector3().setScalar(DOLL_SCALE);
+  const at = new THREE.Vector3(), turn = new THREE.Quaternion(), size = new THREE.Vector3().setScalar(DOLL_SCALE);
   const UP = new THREE.Vector3(0, 1, 0);
   function rebuild(block: Block) {
     for (const old of block.group.children as THREE.Mesh[]) old.geometry.dispose();
@@ -114,12 +115,12 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     const buckets = new Map<THREE.Material, { line: boolean; geos: THREE.BufferGeometry[] }>();
     for (const spot of block.spots) {
       holder.compose(at.set(spot.x, 0, spot.z), turn.setFromAxisAngle(UP, spot.ry), new THREE.Vector3(1, 1, 1));
-      units.get(spot.id)!.contents.forEach(([id, x, z, r, y = 0]) => {
-        const parts = liteParts(id);
+      units.get(spot.id)!.contents.forEach((dollSpot) => {
+        const parts = liteParts(dollSpot[0]);
         if (!parts) return; // 목록에 없는 인형
-        // 서버가 정한 얹힌 높이에 놓고, 기울기는 r에서 정해 모든 화면에서 같게 (얹힌 인형은 조금 더 기댄다)
-        tilt.set(Math.sin(r * 3) * 0.25 + (y > 0 ? 0.3 : 0), r, Math.cos(r * 5) * 0.25);
-        local.compose(at.set(x, DOLL_FLOOR + y, z), turn.setFromEuler(tilt), size);
+        // 서버가 정한 얹힌 높이, r에서 정한 기울기, 머리 가운데가 인형 자리 위 (world/dollPose.ts)
+        const pose = dollPose(dollSpot);
+        local.compose(pose.position, pose.quaternion, size);
         world.multiplyMatrices(holder, local);
         for (const { geo, mat } of parts) {
           if (!buckets.has(mat)) buckets.set(mat, { line: false, geos: [] });

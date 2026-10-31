@@ -8,7 +8,8 @@ import type { DollSpot, Result } from '../net/protocol';
 import type { BigZone } from './bigZone';
 import { CABLE_TOP, CLAW_REACH } from './claw';
 import { makeDoll } from './dolls';
-import { CLAW_REST, DOLL_FLOOR, DOLL_SCALE } from './machine';
+import { dollPose } from './dollPose';
+import { CLAW_REST, DOLL_SCALE } from './machine';
 
 // 결과에 맞춘 집게 연출 (모든 화면이 같은 순서):
 // 옮겨 가며 흔들림·벌리기 → 인형 머리 위까지 내려감 → 오므려 쥠 → 잡은 부위를 축으로 매달고 올라감
@@ -23,7 +24,6 @@ export type ClawShowDeps = {
 
 const TOP_Y = CLAW_REST.y + CABLE_TOP; // 집게가 매달린 곳
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-const tiltOf = (r: number, y: number) => new THREE.Euler(Math.sin(r * 3) * 0.25 + (y > 0 ? 0.3 : 0), r, Math.cos(r * 5) * 0.25);
 
 export async function runClaw(d: ClawShowDeps, m: Result): Promise<void> {
   const { tw, zone } = d;
@@ -92,12 +92,12 @@ export async function runClaw(d: ClawShowDeps, m: Result): Promise<void> {
 
 // 무더기의 그 인형을 같은 자리·모습 그대로 꺼내 집게 손 끝에 붙인다 (무더기에서는 뺀다)
 function pickUp(zone: BigZone, machineId: string, before: DollSpot[], index: number, grip: THREE.Object3D, anchor: THREE.Object3D): THREE.Object3D | null {
-  const [id, x, z, r, y = 0] = before[index];
-  const doll = makeDoll(id);
+  const doll = makeDoll(before[index][0]);
   if (!doll) return null;
+  const pose = dollPose(before[index]);
   doll.scale.setScalar(DOLL_SCALE);
-  doll.position.set(x, DOLL_FLOOR + y, z);
-  doll.rotation.copy(tiltOf(r, y));
+  doll.position.copy(pose.position);
+  doll.quaternion.copy(pose.quaternion);
   anchor.add(doll);
   anchor.updateMatrixWorld(true);
   grip.attach(doll); // 보이는 자리는 그대로, 이제 집게를 따라간다
@@ -116,14 +116,15 @@ function hangDown(doll: THREE.Object3D, grip: THREE.Object3D): THREE.Quaternion 
 // 놓친 인형: 손에서 떨어져 바닥까지 떨어지고, 한 번 튀고, 굴러서 서버가 정한 근처 자리에 멈춘다
 function fallAndRoll(d: ClawShowDeps, machineId: string, doll: THREE.Object3D, anchor: THREE.Object3D, before: DollSpot[], index: number): Promise<void> {
   const next = d.takePending();
-  const [, x1, z1, r1, y1 = 0] = next?.[index] ?? before[index];
+  const land = dollPose(next?.[index] ?? before[index]); // 굴러가 멈출 자리·자세 (머리 기준)
+  const x1 = land.position.x, z1 = land.position.z;
   anchor.attach(doll);
   const p0 = doll.position.clone(), q0 = doll.quaternion.clone();
-  const ground = DOLL_FLOOR + y1;
+  const ground = land.position.y;
   const dir = new THREE.Vector3(x1 - p0.x, 0, z1 - p0.z);
   const dist = dir.length();
   const axis = dist > 1e-4 ? new THREE.Vector3(dir.z, 0, -dir.x).normalize() : new THREE.Vector3(1, 0, 0);
-  const roll = new THREE.Quaternion(), end = new THREE.Quaternion().setFromEuler(tiltOf(r1, y1));
+  const roll = new THREE.Quaternion(), end = land.quaternion;
   return d.tw.tween(0.9, (k) => {
     const h = k < 0.45
       ? lerp(p0.y, ground, (k / 0.45) ** 2) // 떨어짐
