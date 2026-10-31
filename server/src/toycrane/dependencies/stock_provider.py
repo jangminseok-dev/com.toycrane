@@ -9,5 +9,5 @@ from toycrane.app.use_cases.stock_interactor import StockInteractor
 
 def get_stock_use_case(ctx, env) -> StockUseCase:
     return StockInteractor(
-        DoStorageMachineContents(ctx.storage, str(ctx.id)), AttachmentPlayLocks(ctx), WsConnectionsAdapter(ctx), random.Random(),
+        DoStorageMachineContents(ctx.storage, str(ctx.id), ctx), AttachmentPlayLocks(ctx), WsConnectionsAdapter(ctx), random.Random(),
     )

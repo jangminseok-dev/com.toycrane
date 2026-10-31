@@ -75,4 +75,9 @@ def test_a_miss_on_empty_felt_has_no_color_or_rare():
 def test_stock_messages_match_fixtures():
     assert spawn("B-3", "bear", "gold") == FX["server_spawn"]
     assert stock(12.5) == FX["server_stock"]
-    assert stock(12.54) == {"t": "stock", "in": 12.5} and stock(None) == {"t": "stock", "in": None}
+    assert stock(None) == {"t": "stock", "in": None}
+
+
+# 남은 초는 0.1초 단위로 올린다 — 내리면 화면의 tick이 채울 시각보다 먼저 도착해 아무도 안 움직이는 매장이 멈춘다 (최종 리뷰 M1)
+def test_stock_time_rounds_up():
+    assert stock(12.54)["in"] == 12.6 and stock(12.5)["in"] == 12.5 and stock(0.01)["in"] == 0.1

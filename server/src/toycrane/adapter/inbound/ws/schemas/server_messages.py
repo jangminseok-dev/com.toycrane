@@ -1,6 +1,8 @@
 """서버→화면 메시지 형식. 견본: shared/protocol_fixtures.json. 위치는 소수 2자리, 방향은 3자리로 줄여 보낸다.
 기계 속 인형은 [캐릭터, x, z, r, y, 색, 체형, 표정, 희귀, 번호] — 기계 안 좌표·얹힌 높이 소수 3자리, 몸 돌림 2자리."""
 
+import math
+
 from toycrane.app.dtos.drop_dto import ResultView
 from toycrane.app.dtos.player_view import PlayerView
 from toycrane.app.dtos.store_snapshot import StoreSnapshot
@@ -86,7 +88,7 @@ def spawn(machine_id: str, kind: str, rare: str) -> dict:
 
 
 def stock(due_in: float | None) -> dict:
-    return {"t": "stock", "in": None if due_in is None else round(due_in, 1)}
+    return {"t": "stock", "in": None if due_in is None else math.ceil(due_in * 10) / 10}  # 올림: tick이 채울 시각보다 먼저 오지 않게
 
 
 def free(machine_id: str) -> dict:
