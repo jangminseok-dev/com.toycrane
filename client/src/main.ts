@@ -27,6 +27,7 @@ import { askNickname, hideEntry, showFull, showMessage, showWelcomeBack } from '
 import { setHud, setInfo, toast } from './ui/hud';
 import { eulReul } from './ui/josa';
 import { hidePlayControls, hideSeatControls, setTimer, showPlayControls, showSeatControls } from './ui/playControls';
+import { buildMachineControls, type MachineControls } from './world/machineControls';
 import { showWinCard } from './ui/winCard';
 import { setStatus } from './ui/status';
 import { makeAvatar, type Avatar } from './world/avatar';
@@ -35,7 +36,7 @@ import { COUNTERS, MACHINES, MACHINE_SPEC, frontSpot, nearestMachine } from './d
 import { buildBigZone } from './world/bigZone';
 import { makeDoll } from './world/dolls';
 import { burst, updateEffects } from './world/effects';
-import { CLAW_REST } from './world/machine';
+import { CLAW_REST, CONTROLS } from './world/machine';
 import { playResult, startPlaying } from './world/motions';
 import { buildCoinCounters } from './world/coinCounter';
 import { buildDecor } from './world/decor';
@@ -57,7 +58,16 @@ Object.assign(document.body.style, { margin: '0', overflow: 'hidden', background
 Object.assign(renderer.domElement.style, { position: 'fixed', inset: '0', width: '100%', height: '100%', display: 'block', touchAction: 'none' });
 document.body.appendChild(renderer.domElement);
 // 성능 측정용(client/e2e/perf.mjs): 마지막으로 그린 화면의 그리기 호출·삼각형 수
-Object.assign(window, { __toycrane: { drawCalls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles } });
+// buttonAt(1|2): 하는 기계의 ①·② 버튼 화면 자리(e2e가 누를 곳)
+Object.assign(window, { __toycrane: {
+  drawCalls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles,
+  buttonAt: (i: 1 | 2) => {
+    if (!session) return null;
+    const [x, y, z] = i === 1 ? CONTROLS.one : CONTROLS.two;
+    const p = bigZone.worldOf(session.machineId).localToWorld(new THREE.Vector3(x, y + 0.02, z)).project(camera);
+    return { x: ((p.x + 1) / 2) * innerWidth, y: ((1 - p.y) / 2) * innerHeight };
+  },
+} });
 await loadFonts(ALL_COPY); // 간판 글꼴(2.5초 안에 못 오면 시스템 글꼴)
 const scene = new THREE.Scene();
 const tower = buildStore(scene);
@@ -282,7 +292,9 @@ function startPlay(machineId: string, limit: number, coins: number) {
   session = new PlaySession(machineId, limit, clock());
   seated = null; hideSeatControls();
   setAction(null); setInfo(null);
-  showPlayControls(() => { if (session?.requestDrop(clock())) sendDrop(); });
+  showPlayControls();
+  controls?.dispose();
+  controls = buildMachineControls(bigZone.worldOf(machineId));
   if (myAvatar) {
     myAvatar.root.visible = false; // 정면 카메라를 가리지 않게 (다른 사람 화면에는 보임)
     playing.set(machineId, startPlaying(myAvatar.rig, tw, spotOf.get(machineId)!.ry + Math.PI, sfx.coin));
@@ -295,6 +307,7 @@ function startPlay(machineId: string, limit: number, coins: number) {
 function sendDrop() {
   if (!session) return;
   socket?.send(encodeDrop(session.claw.x, session.claw.z));
+  controls?.dispose(); controls = null; heldButton = null;
   bigZone.showAim(session.machineId, false);
   awaiting = session.machineId;
   dropped = session;
@@ -309,9 +322,41 @@ function endPlay() {
     if (!showing.has(id)) bigZone.releaseClaw(id);
   }
   session = null; awaiting = null; dropped = null; seated = null;
+  controls?.dispose(); controls = null; heldButton = null;
   hidePlayControls(); hideSeatControls(); setInfo(null);
   if (myAvatar) myAvatar.root.visible = true;
 }
+
+// 기계 버튼 누르기 (설계 §3.10): PC는 마우스로, 휴대폰은 손가락으로 기계에 그려진 ①·② 버튼을 누르고 있는다(숫자 1·2 키도).
+// ①을 떼면 멈추고, ②를 떼면 내린다
+let controls: MachineControls | null = null;
+let heldButton: 1 | 2 | null = null;
+const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
+function pressButton(button: 1 | 2) {
+  if (!session || heldButton) return;
+  session.press(button);
+  if (!session.phase.startsWith('moving')) return; // 지금 누를 수 없는 버튼
+  heldButton = button;
+  controls?.setPressed(button);
+  navigator.vibrate?.(12);
+}
+function releaseButton(button: 1 | 2) {
+  if (!session || heldButton !== button) return;
+  heldButton = null;
+  controls?.setPressed(null);
+  if (session.release(button, clock()) === 'drop') sendDrop();
+}
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  if (!session || !controls) return;
+  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const button = controls.pick(raycaster);
+  if (button) { e.preventDefault(); pressButton(button); }
+});
+for (const type of ['pointerup', 'pointercancel'] as const) addEventListener(type, () => { if (heldButton) releaseButton(heldButton); });
+addEventListener('blur', () => { if (heldButton) releaseButton(heldButton); });
+addEventListener('keydown', (e) => { if (!e.repeat && (e.code === 'Digit1' || e.code === 'Digit2')) pressButton(e.code === 'Digit1' ? 1 : 2); });
+addEventListener('keyup', (e) => { if (e.code === 'Digit1' || e.code === 'Digit2') releaseButton(e.code === 'Digit1' ? 1 : 2); });
 
 // 판 사이: 기계 앞 화면 그대로 "🪙1 한 번 더 / 그만하기" — 그만하기 전까지 계속 뽑는다 (서버가 hold_seconds 동안 자리를 잡아 둔다)
 function sitDown(machineId: string) {
@@ -417,13 +462,17 @@ function frame(now: number) {
     const input = Math.hypot(stick.x, stick.z) > 0 ? stick : readKeyboard();
     if (dropped && awaiting && dropped.resultOverdue(now / 1000)) { endPlay(); toast('결과를 받지 못했어요'); }
     const atMachine = session?.machineId ?? awaiting ?? seated; // 기계 카메라를 쓰는 동안
+    joystick.setEnabled(!atMachine); // 기계 앞에서는 기계 버튼으로 — 걷기 조이스틱은 숨긴다
     if (session) {
-      // 조이스틱·키가 집게를 움직이고 캐릭터는 기계 앞에 서 있다.
+      // 기계 버튼이 집게를 움직이고 캐릭터는 기계 앞에 서 있다.
       // 시간이 다 되면 여기서 내리고(sendDrop이 session을 비운다) — 그 뒤엔 session을 읽지 않는다 (읽으면 그리기 고리가 멈춘다)
       const playId = session.machineId;
-      if (session.update(dt, input, now / 1000) === 'drop') sendDrop();
+      if (session.update(dt, now / 1000) === 'drop') sendDrop();
       else {
-        setTimer(session.remaining);
+        setTimer(session.remaining, session.phase);
+        controls?.setPhase(session.phase);
+        controls?.update(now / 1000);
+        controls?.setLever(session.phase === 'moving-one' ? 1 : 0, session.phase === 'moving-two' ? -1 : 0);
         const claw = bigZone.clawOf(session.machineId);
         swingOf(session.machineId);
         claw.position.set(session.claw.x, CLAW_REST.y, session.claw.z);

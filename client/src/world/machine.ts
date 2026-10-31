@@ -9,9 +9,11 @@ import { part, toon } from './toon';
 // 큰인형 기계 — 밝은 일본 게임센터 모양 (설계 2026-10-31-toycrane-graphics-a-design.md §4.1, 시제품 spike-look-a.html).
 // 아래 캐비닛(원색 몸통·흰 앞판·상품 출구·코인 투입구·레버와 버튼 둘) / 유리 칸(크롬 기둥·펠트·뒷판 그림·상품 구멍과 투명 가림막·
 // 천장 조명판·레일·유리 반사 줄·손글씨 안내 카드) / 위 간판(몸통 색 상자·이름판·번호판, 둘레 전구는 bigZone이 행마다 한 덩어리로)
-export const CLAW_REST = new THREE.Vector3(0.1, 1.95, 0); // 기계 안 좌표
+export const CLAW_REST = new THREE.Vector3(-0.36, 1.95, 0.27); // 기계 안 좌표 — 상품 구멍 위(앞 왼쪽): 한 판은 여기서 시작한다(설계 §3.10)
 export const DOLL_FLOOR = 0.87; // 펠트 위 인형 바닥 높이
 export const DOLL_SCALE = 0.3; // 기계 속 인형 크기
+// 조작대(기계 안 좌표): 장식 레버, ① 빨강(누르는 동안 오른쪽), ② 파랑(누르는 동안 안쪽, 떼면 내림)
+export const CONTROLS = { lever: [-0.3, 0.92, 0.66], one: [0.12, 0.925, 0.66], two: [0.32, 0.925, 0.66] } as const;
 
 // 기계마다 원색 몸통·펠트 색을 배치 순서대로 돌려 쓴다
 export const MACHINE_COLORS = [0xe8384f, 0xffb81f, 0x2f7cf6, 0xff4f9a, 0x22b36b, 0x8b5cf6, 0xff8a1f, 0x12b5cb];
@@ -90,12 +92,13 @@ export function makeMachineParts(spot: MachineSpot, index: number): MachineParts
   add(flat(g.sticker, mat.sticker, [0.42, 0.7, 0.53]));
   // 조작대: 흰 판 + 레버(크롬 받침·빨간 공) + 버튼 둘(빨강·파랑, 크롬 고리)
   add(part(g.deck, white, [0, 0.875, 0.62], [1, 1, 1], [0, 0, 0], 1.03));
-  add(part(g.leverBase, chrome, [-0.3, 0.92, 0.66], [1, 1, 1], [0, 0, 0], 0));
-  add(part(g.stick, chrome, [-0.3, 0.96, 0.66], [1, 1, 1], [0, 0, 0], 0));
-  add(part(g.ball, toon(0xff3b5c), [-0.3, 1.02, 0.66]));
-  for (const [x, c] of [[0.12, 0xff3b5c], [0.32, 0x3b8bff]] as const) {
-    add(part(g.ring, chrome, [x, 0.915, 0.66], [1, 1, 1], [0, 0, 0], 0));
-    add(part(g.dome, toon(c), [x, 0.925, 0.66], [1, 0.45, 1], [0, 0, 0], 1.04));
+  const [lx, ly, lz] = CONTROLS.lever;
+  add(part(g.leverBase, chrome, [lx, ly, lz], [1, 1, 1], [0, 0, 0], 0));
+  add(part(g.stick, chrome, [lx, ly + 0.04, lz], [1, 1, 1], [0, 0, 0], 0));
+  add(part(g.ball, toon(0xff3b5c), [lx, ly + 0.1, lz]));
+  for (const [[x, y, z], c] of [[CONTROLS.one, 0xff3b5c], [CONTROLS.two, 0x3b8bff]] as const) {
+    add(part(g.ring, chrome, [x, y - 0.01, z], [1, 1, 1], [0, 0, 0], 0));
+    add(part(g.dome, toon(c), [x, y, z], [1, 0.45, 1], [0, 0, 0], 1.04));
   }
   // 유리 칸: 크롬 기둥 · 펠트 · 뒷판 그림 · 천장 조명판 · 레일
   for (const [x, z] of [[-0.57, -0.5], [0.57, -0.5], [-0.57, 0.5], [0.57, 0.5]]) add(part(g.pillar, chrome, [x, 1.4, z], [1, 1, 1], [0, 0, 0], 1.04));

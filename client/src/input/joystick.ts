@@ -21,14 +21,16 @@ const SPRING = 'cubic-bezier(.3,1.5,.5,1)';
 
 // 터치 기기: 매장 화면 왼쪽 아래에 조이스틱이 늘 보인다. 왼쪽 아래 어디를 눌러도 그 자리로 와서 끌리고, 놓으면 제자리로 돌아간다.
 // 캔버스에만 거는 이유: 입장 카드 같은 화면 위 버튼의 탭을 가로채지 않게(최종 리뷰 #2)
-export function installJoystick(touchTarget: HTMLElement, layer: HTMLElement = document.body): { read(): Vec2 } {
+const touchDevice = () => navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+
+export function installJoystick(touchTarget: HTMLElement, layer: HTMLElement = document.body): { read(): Vec2; setEnabled(on: boolean): void } {
   const base = document.createElement('div');
   const knob = document.createElement('div');
   base.id = 'joystick';
   Object.assign(base.style, {
     position: 'fixed', width: `${RADIUS * 2}px`, height: `${RADIUS * 2}px`, marginLeft: `${-RADIUS}px`, marginTop: `${-RADIUS}px`,
     borderRadius: '50%', pointerEvents: 'none', zIndex: '10',
-    display: navigator.maxTouchPoints > 0 || 'ontouchstart' in window ? 'block' : 'none',
+    display: touchDevice() ? 'block' : 'none',
     background: 'radial-gradient(120% 120% at 50% 0%, rgba(255,255,255,.28), rgba(255,255,255,.06) 60%, rgba(255,255,255,.1))',
     border: '1px solid rgba(255,255,255,.38)',
     boxShadow: 'inset 0 1px 1px rgba(255,255,255,.6), inset 0 -10px 20px rgba(255,255,255,.05), 0 12px 32px rgba(0,0,0,.35)',
@@ -49,14 +51,14 @@ export function installJoystick(touchTarget: HTMLElement, layer: HTMLElement = d
   };
   toRest();
 
-  let touchId: number | null = null;
+  let touchId: number | null = null, enabled = true;
   let start: Vec2 = { x: 0, z: 0 };
   let vec: Vec2 = { x: 0, z: 0 };
   const point = (t: Touch): Vec2 => ({ x: t.clientX, z: t.clientY });
 
   touchTarget.addEventListener('touchstart', (e) => {
     for (const t of Array.from(e.changedTouches)) {
-      if (touchId !== null || t.clientX > innerWidth / 2 || t.clientY < innerHeight / 2) continue;
+      if (!enabled || touchId !== null || t.clientX > innerWidth / 2 || t.clientY < innerHeight / 2) continue;
       touchId = t.identifier; start = point(t); vec = { x: 0, z: 0 };
       Object.assign(base.style, { left: `${start.x}px`, top: `${start.z}px`, opacity: '1', transition: 'opacity .15s' });
       Object.assign(knob.style, { transform: 'scale(1.06)', transition: 'none' });
@@ -80,5 +82,14 @@ export function installJoystick(touchTarget: HTMLElement, layer: HTMLElement = d
   };
   touchTarget.addEventListener('touchend', end);
   touchTarget.addEventListener('touchcancel', end);
-  return { read: () => vec };
+  return {
+    read: () => vec,
+    // 기계 앞(집게는 기계 버튼으로)에서는 걷기 조이스틱을 숨기고 끈다
+    setEnabled(on) {
+      if (on === enabled) return;
+      enabled = on;
+      if (!on) { touchId = null; vec = { x: 0, z: 0 }; toRest(); }
+      base.style.display = on && touchDevice() ? 'block' : 'none';
+    },
+  };
 }
