@@ -26,7 +26,7 @@ test('remotes blocking my view fade out and come back', () => {
   remotes.add(view('p2', 0, 0), 0); remotes.add(view('p3', 5, 0), 0);
   const blocking = (p: { x: number; z: number }) => Math.abs(p.x) < 1;
   for (let i = 0; i < 20; i++) remotes.fade(blocking, 1 / 30);
-  expect(remotes.fadeOf('p2')).toBeCloseTo(0.15);
+  expect(remotes.fadeOf('p2')).toBeCloseTo(0.08);
   expect(remotes.fadeOf('p3')).toBe(1);
   for (let i = 0; i < 20; i++) remotes.fade(null, 1 / 30);
   expect(remotes.fadeOf('p2')).toBe(1);

@@ -7,7 +7,7 @@ import type { Tweens } from './tween';
 import { extrapolate, isMoving, type RemoteState } from './remote';
 
 type Remote = { avatar: Avatar; state: RemoteState; shown: THREE.Vector2; nick: string; room: number | null; begging: { stop(): Promise<void> } | null; fade: number };
-const FADE_TO = 0.15, FADE_SECONDS = 0.2; // 내 카메라를 가리는 사람 (교환소 개편 설계 §4.7.2)
+const FADE_TO = 0.08, FADE_SECONDS = 0.2; // 내 카메라를 가리는 사람 (교환소 개편 설계 §4.7.2)
 const SMOOTH = 0.2; // 매 프레임 추정 위치로 20%씩 다가간다
 
 // 같은 매장의 다른 사람들: 받은 위치에서 추정한 곳으로 부드럽게 따라 움직인다
