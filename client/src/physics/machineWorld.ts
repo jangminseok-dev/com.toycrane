@@ -1,4 +1,4 @@
-import type RAPIER from '@dimforge/rapier3d-compat';
+import type RAPIER from '@dimforge/rapier3d-deterministic-compat';
 import * as THREE from 'three';
 import { CLAW } from '../data/claw';
 import { MACHINE_SPEC } from '../data/storeLayout';
@@ -19,11 +19,13 @@ export const STEP = 1 / 120, MAX_STEPS = 4;
 export const GROUP_DOLL = 0x0001, GROUP_TARGET = 0x0002, GROUP_TIP = 0x0004, ALL = 0xffff;
 export const groups = (membership: number, filter: number) => ((membership << 16) | filter) >>> 0;
 const WALL_MARGIN = 0.12; // 놀이 영역(집게가 가는 범위)보다 벽이 이만큼 밖
-const CEILING = 2.2, DROP_Y = 1.9, DROP_GAP = 0.25;
+const CEILING = 2.2, DROP_GAP = 0.25, DROP_CLEAR = 0.03; // 떨어뜨리는 높이 = 천장 − 그 인형의 키 − 여유 (키 큰 인형이 천장에 끼지 않게, 최종 리뷰 C2)
 const FALL_DEPTH = 0.15; // 구멍 바닥보다 이만큼 아래면 빠진 것
 const CATCH_Y = 0.3; // 빠진 인형이 끝없이 떨어지지 않게 받는 바닥
 const SKIN = 0.0; // 콜라이더 여유 (0이면 모양 그대로)
-const REDROP_GAP = 0.2; // 채우기 중 구멍에 빠진 인형을 다시 떨어뜨릴 때 다른 인형과 띄우는 거리
+const REDROP_GAP = 0.2;
+const REFILL_SETTLE = 6; // 채우기 앉히기: 마지막 인형이 떨어진 뒤 이만큼(물리 시간) — 무더기는 5초쯤 걸린다
+const STILL_V = 0.02, STILL_W = 0.1; // 이보다 느리면 멈춘 것 (m/s, rad/s) — 무더기 속 인형은 아주 천천히 기어 오래 안 잠든다 // 채우기 중 구멍에 빠진 인형을 다시 떨어뜨릴 때 다른 인형과 띄우는 거리
 
 export class MachineWorld {
   readonly world: RAPIER.World;
@@ -43,13 +45,19 @@ export class MachineWorld {
       const uid = s[12];
       this.spots.set(uid, s);
       if (s[2] === null) {
-        const body = this.addDoll(s, [s[1], DROP_Y, s[3]], [0, 0, 0, 1]);
+        const body = this.addDoll(s, [s[1], this.dropHeight(s), s[3]], [0, 0, 0, 1]);
         body.setEnabled(false);
         this.pending.push({ uid, at: drops * DROP_GAP });
         drops++;
       } else this.addDoll(s, [s[1], s[2], s[3]], [s[4], s[5], s[6], s[7]]);
     }
     this.setHoleOpen(false);
+  }
+
+  // 그 인형을 떨어뜨릴 원점 높이: 천장 아래로 인형 키만큼 (원점은 발)
+  private dropHeight(spot: DollSpot): number {
+    const top = Math.max(...dollColliders(spot).shapes.map((b) => b.at[1] + b.r));
+    return CEILING - top - DROP_CLEAR;
   }
 
   private fixed(hx: number, hy: number, hz: number, x: number, y: number, z: number): RAPIER.Collider {
@@ -108,10 +116,13 @@ export class MachineWorld {
     if (!this.holeOpen) this.redropFallen();
   }
 
-  // 모두 잠들 때까지(최대 maxSeconds) 돌리고 쓴 초를 돌려준다
-  settle(maxSeconds = CLAW.settle_seconds): number {
-    const from = this.time;
-    while (this.time - from < maxSeconds && (this.pending.length > 0 || this.movingPoses().length > 0)) this.tick();
+  // 모두 잠들 때까지 돌리고 쓴 초를 돌려준다 — 한도(maxSeconds)는 마지막 인형이 떨어진 뒤부터 센다 (최종 리뷰 I9)
+  settle(maxSeconds = REFILL_SETTLE): number {
+    const from = this.time, lastDrop = this.pending.reduce((t, p) => Math.max(t, p.at), from);
+    // 끝나는 기준은 엔진의 잠듦(참된 멈춤) — 중계용 속도 문턱(still)으로 끊으면 기어가는 중에 앉힌 자리가 적힌다
+    const awake = () => [...this.bodies.values()].some((b) => b.isEnabled() && !b.isSleeping());
+    while (this.time < lastDrop + maxSeconds && (this.pending.length > 0 || awake())) this.tick();
+    for (const b of this.bodies.values()) if (b.isEnabled()) b.sleep(); // 한도에 걸려 아직 흔들리는 인형은 그 자리에 재운다 — 앉힌 자리는 여기서 굳는다
     return this.time - from;
   }
 
@@ -124,8 +135,15 @@ export class MachineWorld {
     return [...this.bodies].map(([uid, b]) => this.pose(uid, b));
   }
 
+  // 아직 움직이는 인형: 엔진의 잠듦이 아니라 속도로 본다 (무더기 속 인형은 미세하게 떨며 오래 안 잠든다). 멈춘 인형은 settle()이 재운다
   movingPoses(): DollPose[] {
-    return [...this.bodies].filter(([, b]) => b.isEnabled() && !b.isSleeping()).map(([uid, b]) => this.pose(uid, b));
+    return [...this.bodies].filter(([, b]) => b.isEnabled() && !this.still(b)).map(([uid, b]) => this.pose(uid, b));
+  }
+
+  private still(b: Body): boolean {
+    if (b.isSleeping()) return true;
+    const v = b.linvel(), w = b.angvel();
+    return Math.hypot(v.x, v.y, v.z) < STILL_V && Math.hypot(w.x, w.y, w.z) < STILL_W;
   }
 
   // 구멍은 늘 뚫려 있다(막으면 그 위에 앉은 인형이 다음 판에 거저 빠진다). 대신 아무도 하지 않을 때(채우기) 빠진 인형은
@@ -148,7 +166,7 @@ export class MachineWorld {
     for (const [uid, b] of this.bodies) {
       if (b.translation().y >= DOLL_FLOOR - FALL_DEPTH) continue;
       const [x, z] = this.freeSpotAway(uid);
-      b.setTranslation({ x, y: DROP_Y, z }, true);
+      b.setTranslation({ x, y: this.dropHeight(this.spots.get(uid)!), z }, true);
       b.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
       b.setLinvel({ x: 0, y: 0, z: 0 }, true);
       b.setAngvel({ x: 0, y: 0, z: 0 }, true);

@@ -20,7 +20,7 @@ def test_done_rounds_to_three_decimals_and_allows_no_wins():
 
 @pytest.mark.parametrize("bad", [
     {"t": "done", "m": "Z-9", "won": [], "dolls": []},
-    {"t": "done", "m": "A-1", "won": [1, 2, 3, 4], "dolls": []},
+    {"t": "done", "m": "A-1", "won": list(range(10)), "dolls": []},
     {"t": "done", "m": "A-1", "won": ["7"], "dolls": []},
     {"t": "done", "m": "A-1", "won": [], "dolls": [[3, 0.1, 0.87]]},
     {"t": "done", "m": "A-1", "won": [], "dolls": [[3, float("inf"), 0.87, 0, 0, 0, 0, 1]]},
@@ -30,3 +30,10 @@ def test_done_rounds_to_three_decimals_and_allows_no_wins():
 ])
 def test_done_rejects_bad_reports(bad):
     assert parse(bad) is None
+
+
+# 최종 리뷰 I2: 당첨 4개는 스키마가 아니라 도메인(check_report)이 "wins"로 거절해 done_no가 가게 — 9개까지 읽는다
+def test_up_to_nine_wins_are_parsed():
+    data = {"t": "done", "m": "A-1", "won": [1, 2, 3, 4], "dolls": []}
+    assert parse(data) == ("A-1", Report((1, 2, 3, 4), ()))
+    assert parse({"t": "done", "m": "A-1", "won": list(range(10)), "dolls": []}) is None

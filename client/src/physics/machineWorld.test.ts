@@ -4,6 +4,7 @@ import type { DollSpot } from '../net/protocol';
 import { stubCanvas } from '../test/canvasStub';
 import { DOLL_FLOOR } from '../world/machine';
 import { MachineWorld, type Rapier } from './machineWorld';
+import { MACHINES } from '../data/storeLayout';
 import { loadRapier } from './rapier';
 
 beforeAll(stubCanvas);
@@ -78,5 +79,28 @@ test('a doll can be removed and the rest keep their bodies', () => {
   world.remove(3);
   expect(world.poses().map((p) => p.uid)).toEqual([1, 2, 4, 5, 6, 7, 8, 9]);
   expect(world.bodyOf(4)).toBeTruthy();
+  world.dispose();
+});
+
+// 최종 리뷰 C2: 키 큰 인형(고래 등)도 천장에 끼지 않고 떨어져 앉는다 — 모든 캐릭터·체형
+test('every kind and body falls from the ceiling and lands', () => {
+  const kinds = [...new Set(MACHINES.map((m) => m.kind))];
+  for (const kind of kinds) for (const body of ['n', 'c', 's'] as const) {
+    const world = new MachineWorld(R, [[kind, 0.1, null, -0.1, 0, 0, 0, 1, 0, body, 0, '', 1]]);
+    world.settle(4);
+    const y = world.poses()[0].p[1];
+    expect(y, `${kind}/${body}`).toBeLessThan(DOLL_FLOOR + 0.5);
+    expect(world.movingPoses(), `${kind}/${body}`).toHaveLength(0);
+    world.dispose();
+  }
+});
+
+// 최종 리뷰 I9: 앉히기 시간은 마지막 인형이 떨어진 뒤부터 센다 — 9개를 0.25초 간격으로 떨어뜨려도 settle(3)이면 모두 앉는다
+test('settle time counts from the last drop', () => {
+  const world = new MachineWorld(R, nine());
+  const used = world.settle();
+  expect(used).toBeLessThanOrEqual(2 + 6 + 0.01);
+  expect(world.movingPoses()).toHaveLength(0);
+  for (const p of world.poses()) expect(p.p[1]).toBeLessThan(DOLL_FLOOR + 0.6);
   world.dispose();
 });

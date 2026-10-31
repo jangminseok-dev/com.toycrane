@@ -209,7 +209,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
       holder.compose(at.set(spot.x, 0, spot.z), turn.setFromAxisAngle(UP, spot.ry), new THREE.Vector3(1, 1, 1));
       const u = units.get(spot.id)!;
       u.baked = [];
-      if (u.live) return; // 한 판 중인 기계는 따로 그린다
+      if (u.live) continue; // 한 판 중인 기계는 따로 그린다 (같은 묶음의 다른 기계는 그대로 합친다 — 최종 리뷰 C1)
       u.contents.forEach((dollSpot) => {
         const parts = liteParts(dollSpot);
         if (!parts) return; // 목록에 없는 인형
@@ -268,7 +268,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
       geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1.4, 0), 1.6); // 기계 유리 칸 — 다시 재지 않는다
       const ranges: LiveRange[] = []; let start = 0;
       b.pos.forEach((pos, i) => { ranges.push({ uid: b.uids[i], start, count: pos.length / 3, pos, nor: b.nor[i] }); start += pos.length / 3; });
-      const mesh = new THREE.Mesh(geo, u.row.cloner.remap(mat)); mesh.castShadow = false; mesh.frustumCulled = false; mesh.layers.enable(TOP_LAYER);
+      const mesh = new THREE.Mesh(geo, u.row.cloner.remap(mat)); mesh.castShadow = false; mesh.layers.enable(TOP_LAYER); // 경계 구를 위에서 정해 두어 화면 밖이면 걸러진다
       u.anchor.add(mesh);
       live.buckets.push({ mesh, ranges });
     }
@@ -330,7 +330,11 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
       if (!u.live) { u.live = buildLive(u); u.block.dirty = true; }
       const live = u.live;
       return {
-        set(uid, p, q) { const o = live.poses.get(uid); if (o) { o.position.set(p[0], p[1], p[2]); o.quaternion.set(q[0], q[1], q[2], q[3]); live.dirty.add(uid); } },
+        set(uid, p, q) {
+          const o = live.poses.get(uid);
+          if (!o || (o.position.x === p[0] && o.position.y === p[1] && o.position.z === p[2] && o.quaternion.x === q[0] && o.quaternion.y === q[1] && o.quaternion.z === q[2] && o.quaternion.w === q[3])) return; // 그대로면 꼭짓점을 다시 쓰지 않는다 (최종 리뷰 I6)
+          o.position.set(p[0], p[1], p[2]); o.quaternion.set(q[0], q[1], q[2], q[3]); live.dirty.add(uid);
+        },
         remove(uid) { const o = live.poses.get(uid); if (o) { o.visible = false; live.dirty.add(uid); } },
         dispose() { if (u.live === live) disposeLive(u); },
       };

@@ -17,14 +17,18 @@ async function page(nick) {
   await send('Storage.clearDataForOrigin', { origin: new URL(base).origin, storageTypes: 'local_storage' });
   await send('Page.navigate', { url: base + '/' }); await sleep(2500);
   await ev(`(() => { const i = document.querySelector('input'); i.value = ${JSON.stringify(nick)}; i.form.requestSubmit(); })()`);
+  await sleep(1500);
+  // 스폰 자리는 기계 줄에서 8m 넘게 떨어질 수 있다 — 앞(−z)의 기계 줄 쪽으로 조금 걸어 둘 다 같은 기계들을 앉히게 한다
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', code: 'KeyW' }); await sleep(1500); await send('Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyW' });
   return { ev, close: () => bsend('Target.closeTarget', { targetId: result.targetId }) };
 }
 const A = await page('같은이'), B = await page('같은둘');
 await sleep(3000);
 // 물리가 준비되고 8m 안의 기계가 앉혀질 때까지 (스폰 근처 기계들)
 const settledIds = async (P) => P.ev("JSON.stringify(window.__toycrane.settledIds ? window.__toycrane.settledIds() : [])").then(JSON.parse);
+// 두 화면의 스폰 자리가 달라 앉히는 기계도 다르다 — 둘 다 앉힌 기계만 비교한다
 let ids = [];
-for (let i = 0; i < 120; i++) { ids = await settledIds(A); const idsB = await settledIds(B); if (ids.length >= 3 && idsB.length >= ids.length) break; await sleep(500); }
+for (let i = 0; i < 120; i++) { const idsB = new Set(await settledIds(B)); ids = (await settledIds(A)).filter((id) => idsB.has(id)); if (ids.length >= 2) break; await sleep(500); }
 let compared = 0, mismatched = [];
 for (const id of ids) {
   const a = await A.ev(`JSON.stringify(window.__toycrane.contents('${id}'))`).then(JSON.parse);
@@ -33,6 +37,7 @@ for (const id of ids) {
   compared++;
   for (const d of a) { const e = b.find((x) => x[12] === d[12]); const same = e && d.slice(1, 8).every((v, k) => Math.abs(v - e[k + 1]) < 1e-6); if (!same) mismatched.push(`${id}#${d[12]}`); }
 }
+console.log('A settled', JSON.stringify(await settledIds(A)), 'B settled', JSON.stringify(await settledIds(B)));
 console.log('settled by this screen', ids.length, 'compared', compared, 'mismatched', mismatched.length, mismatched.slice(0, 5).join(' '));
 const ok = compared >= 2 && mismatched.length === 0;
 console.log(ok ? 'PASS determinism' : 'FAIL determinism');

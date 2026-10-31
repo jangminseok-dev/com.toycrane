@@ -232,3 +232,49 @@ test('baked doll shapes are kept to a bounded number', () => {
   expect(liteCacheSize()).toBeLessThanOrEqual(LITE_CACHE_MAX);
   expect(LITE_CACHE_MAX).toBeLessThan(500);
 });
+
+// 최종 리뷰 C1: 한 기계가 live 모드여도 같은 묶음의 다른 기계 인형은 그대로 그려지고, 묶음이 매 프레임 다시 합쳐지지 않는다
+test('live mode on one machine leaves the rest of its block drawn', () => {
+  const scene = new THREE.Scene();
+  const zone = buildBigZone(scene);
+  for (const id of ['C-1', 'C-2', 'C-3', 'C-4', 'C-5', 'C-6']) zone.setContents(id, nineDolls('octopus', 0));
+  zone.update(0);
+  const block = scene.getObjectByName('dolls-big-island-0')!;
+  const before = block.children.length;
+  expect(before).toBeGreaterThan(0);
+  const live = zone.live('C-3');
+  zone.update(0.1);
+  expect(block.children.length).toBe(before);
+  const meshes = block.children.slice();
+  zone.update(0.2);
+  expect(block.children).toEqual(meshes); // 다시 합치지 않았다
+  expect(zone.pileOf('C-3')).toHaveLength(0);
+  expect(zone.pileOf('C-2')).toHaveLength(9);
+  live.dispose();
+});
+
+// 최종 리뷰 I6: live 덩어리는 유리 칸 크기의 경계 구로 화면 밖이면 걸러지고, 같은 자세를 다시 넣으면 꼭짓점을 다시 올리지 않는다
+test('live meshes are frustum culled and unchanged poses are not re-uploaded', () => {
+  const scene = new THREE.Scene();
+  const zone = buildBigZone(scene);
+  const dolls = nineDolls('octopus', 0);
+  zone.setContents('C-6', dolls);
+  zone.update(0);
+  const live = zone.live('C-6');
+  zone.update(0.1);
+  const uid = dolls[3][12];
+  let obj: THREE.Object3D | undefined;
+  scene.traverse((o) => { if (o.userData.uid === uid) obj = o; });
+  const meshes = obj!.parent!.children.filter((o): o is THREE.Mesh => o instanceof THREE.Mesh && (o.geometry.getAttribute('position') as THREE.BufferAttribute).usage === THREE.DynamicDrawUsage);
+  expect(meshes.length).toBeGreaterThan(0);
+  for (const m of meshes) { expect(m.frustumCulled).toBe(true); expect(m.geometry.boundingSphere).not.toBeNull(); }
+  const version = () => meshes.map((m) => (m.geometry.getAttribute('position') as THREE.BufferAttribute).version);
+  const before = version();
+  live.set(uid, [obj!.position.x, obj!.position.y, obj!.position.z], [obj!.quaternion.x, obj!.quaternion.y, obj!.quaternion.z, obj!.quaternion.w]);
+  zone.update(0.2);
+  expect(version()).toEqual(before);
+  live.set(uid, [obj!.position.x, obj!.position.y + 0.1, obj!.position.z], [obj!.quaternion.x, obj!.quaternion.y, obj!.quaternion.z, obj!.quaternion.w]);
+  zone.update(0.3);
+  expect(version()).not.toEqual(before);
+  live.dispose();
+});

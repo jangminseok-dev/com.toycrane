@@ -98,3 +98,20 @@ async def test_no_report_leaves_the_machine_as_it_was():
     start = PlayStartInteractor(reg, locks, FakeWallet({"g-2": 3}), conns)
     await start.start(PlayStartCommand("c-2", "A-1", now=10.0 + 20 + 15 + 3 + 1))
     assert locks.holder("A-1")[0] == "c-2" and contents.stored["A-1"] == before and (None, free("A-1")) in conns.broadcasts
+
+
+# 최종 리뷰 I2: 당첨이 넷이면 조용히 버리지 않고 done_no("wins")를 보낸다 (판 사이 자리는 남는다)
+async def test_four_wins_get_done_no():
+    reg, locks, conns, bag, contents, it = setup()
+    stock = contents.stored["A-1"]
+    await it.done(DoneCommand("c-1", "A-1", report(stock, won=(1, 2, 3, 4)), now=20.0))
+    assert conns.direct == [("c-1", done_no("A-1", "wins"))] and contents.saves == 0 and locks.is_between("c-1")
+
+
+# 최종 리뷰 I2: 잠근 사람의 보고가 아예 읽히지 않으면(NaN 등) refuse로 done_no("bad")를 보내고 판 사이로
+async def test_unreadable_report_is_refused_with_done_no():
+    reg, locks, conns, bag, contents, it = setup()
+    await it.refuse(DoneCommand("c-1", "A-1", Report((), ()), now=20.0))
+    assert conns.direct == [("c-1", done_no("A-1", "bad"))] and contents.saves == 0 and locks.is_between("c-1")
+    await it.refuse(DoneCommand("c-2", "A-1", Report((), ()), now=20.0))  # 잠근 사람이 아니면 아무것도
+    assert len(conns.direct) == 1

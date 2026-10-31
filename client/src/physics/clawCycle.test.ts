@@ -4,7 +4,7 @@ import type { DollSpot } from '../net/protocol';
 import { stubCanvas } from '../test/canvasStub';
 import { DOLL_FLOOR } from '../world/machine';
 import { ClawBody } from './clawBody';
-import { runCycle } from './clawCycle';
+import { CycleRunner, runCycle } from './clawCycle';
 import { MachineWorld, type Rapier } from './machineWorld';
 import { loadRapier } from './rapier';
 
@@ -62,4 +62,14 @@ test('the cycle is deterministic', () => {
   const a = run(), b = run();
   expect(a.won).toEqual(b.won);
   expect(a.poses).toEqual(b.poses);
+});
+
+// 최종 리뷰 I4: 느린 기기(10fps)에서도 한 바퀴가 실제 시간에 가깝게 따라온다 — 한 프레임에 여러 걸음(최대 12)
+test('a slow frame catches up with several steps', () => {
+  const world = new MachineWorld(R, [standing(1, 0.3, -0.2)]);
+  const runner = new CycleRunner(world, new ClawBody(R, world), 0.3, -0.2);
+  const t0 = world.time;
+  runner.advance(0.1);
+  expect(world.time - t0).toBeCloseTo(12 / 120, 5);
+  world.dispose();
 });

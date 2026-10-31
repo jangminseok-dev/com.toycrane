@@ -1,4 +1,4 @@
-import type RAPIER from '@dimforge/rapier3d-compat';
+import type RAPIER from '@dimforge/rapier3d-deterministic-compat';
 import * as THREE from 'three';
 import { CLAW, clawStrength } from '../data/claw';
 import { planGrip, probesAt } from '../game/gripPlan';

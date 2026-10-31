@@ -32,12 +32,13 @@ async def test_leave_survives_occupancy_write_failure():
     assert reg.entries() == [] and conns.broadcasts == [("c-1", leave("p-1"))]
 
 
-async def test_leave_mid_play_refunds_and_frees():
+# 판 도중 나가도 코인은 돌려주지 않는다 — 결과를 보고 새로 고침하면 공짜 연습 (물리 뽑기 설계 §4.5, 최종 리뷰 I1)
+async def test_leave_mid_play_frees_without_refund():
     reg, conns, locks, wallet = FakeRegistry(), FakeConnections(), FakeLocks(), FakeWallet({"g-1": 2})
     reg.put("c-1", player("p1", guest="g-1"))
     locks.lock("c-1", "A-1", 3.0)
     await LeaveInteractor(reg, conns, FakeOccupancy(), locks=locks, wallet=wallet).leave(LeaveCommand("c-1", 1, now=5.0))
-    assert wallet.coins["g-1"] == 3 and (None, free("A-1")) in conns.broadcasts and locks.holder("A-1") is None
+    assert wallet.coins["g-1"] == 2 and (None, free("A-1")) in conns.broadcasts and locks.holder("A-1") is None
 
 
 async def test_leave_between_plays_frees_without_refund():

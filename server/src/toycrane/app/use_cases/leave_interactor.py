@@ -7,7 +7,6 @@ from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
 from toycrane.app.ports.output.wallet_port import WalletPort
 from toycrane.app.use_cases.connection_cleanup import release_connection
 from toycrane.app.use_cases.occupancy_note import note_occupancy
-from toycrane.domain.coins import WALLET_CAP
 
 
 class LeaveInteractor(LeaveUseCase):
@@ -29,7 +28,5 @@ class LeaveInteractor(LeaveUseCase):
         if gone is None:
             return  # 이미 같은 게스트의 새 접속이 정리했다(enter의 밀어내기)
         self._connections.broadcast_leave(cmd.conn_id, gone.player_id)
-        refund = release_connection(cmd.conn_id, self._locks, self._connections)
-        if refund:
-            await self._wallet.add(gone.guest_id, refund, WALLET_CAP, cmd.now)
+        release_connection(cmd.conn_id, self._locks, self._connections)
         await note_occupancy(self._occupancy, cmd.store_no, len(self._registry.entries()), cmd.now)

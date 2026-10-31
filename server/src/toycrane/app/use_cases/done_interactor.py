@@ -29,17 +29,29 @@ class DoneInteractor(DoneUseCase):
         self._connections = connections
         self._rng = random.Random()  # 저장된 기계가 없을 때만(배포 직후) 새로 채우는 데 쓴다
 
-    async def done(self, cmd: DoneCommand) -> None:
+    def _take(self, cmd: DoneCommand):
+        """보고를 받아 줄 수 있으면 (me, machine_id)를 돌려주고 잠금을 판 사이로 바꾼다 — 두 번째 보고는 무시되고, 이어서 할 자리는 남는다."""
         lock = self._locks.lock_of(cmd.conn_id)
         me = dict(self._registry.entries()).get(cmd.conn_id)
         if lock is None or me is None or self._locks.is_between(cmd.conn_id) or lock[0] != cmd.machine_id:
-            return
+            return None
         machine_id, started = lock
         if expired(started, cmd.now):
             self._locks.release(cmd.conn_id)
             self._connections.broadcast_free(machine_id)
+            return None
+        self._locks.hold(cmd.conn_id, machine_id, cmd.now)
+        return me, machine_id
+
+    async def refuse(self, cmd: DoneCommand) -> None:
+        if self._take(cmd) is not None:
+            self._connections.send_done_no(cmd.conn_id, cmd.machine_id, "bad")
+
+    async def done(self, cmd: DoneCommand) -> None:
+        taken = self._take(cmd)
+        if taken is None:
             return
-        self._locks.hold(cmd.conn_id, machine_id, cmd.now)  # 판 사이로 — 두 번째 보고는 무시되고, 이어서 할 자리는 남는다
+        me, machine_id = taken
         stocks = await ensure_contents(self._contents, self._rng)
         before = stocks[machine_id]
         after = check_report(before, cmd.report, cmd.now)

@@ -10,7 +10,7 @@
     "sim": "vitest run --config vitest.sim.config.ts"
   },
   "dependencies": {
-    "@dimforge/rapier3d-compat": "^0.21.0",
+    "@dimforge/rapier3d-deterministic-compat": "^0.21.0",
     "three": "^0.169.0"
   },
   "devDependencies": {

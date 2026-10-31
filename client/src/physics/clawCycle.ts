@@ -18,6 +18,7 @@ export type CycleOptions = {
 export type CycleResult = { won: number[]; poses: DollPose[]; held: number | null; slipped: boolean };
 
 const DESCEND_SPEED = 0.35, LIFT_SPEED = 0.25, CARRY_SPEED = MACHINE_SPEC.claw_speed;
+const CATCH_UP_STEPS = 12;
 const CLOSE_SECONDS = 0.6, RELEASE_SECONDS = 0.3, AFTER_RELEASE = 0.2, FLOOR_GAP = 0.01, LIFT_EASE = 1.0, LIFT_PAUSE = 0.15;
 const CARRY_TO = { x: MACHINE_SPEC.hole[0], z: MACHINE_SPEC.hole[1] };
 
@@ -41,12 +42,13 @@ export class CycleRunner {
     opts.phase?.('descend');
   }
 
-  // dt만큼 진행 (1/120초씩, 한 번에 최대 4번). 끝났으면 true
+  // dt만큼 진행 (1/120초씩). 느린 기기에서도 실제 시간을 따라가게 한 번에 최대 12걸음(약 8ms)까지 밀린 만큼 돈다 —
+  // 결과는 걸음 수에 안 달려 있다 (최종 리뷰 I4). 그보다 더 밀리면 버린다
   advance(dt: number): boolean {
     this.carry += dt;
     let n = 0;
-    while (this.carry >= STEP && n < 4 && this.phase !== 'done') { this.tick(); this.carry -= STEP; n++; }
-    if (n === 4) this.carry = 0;
+    while (this.carry >= STEP && n < CATCH_UP_STEPS && this.phase !== 'done') { this.tick(); this.carry -= STEP; n++; }
+    if (n === CATCH_UP_STEPS) this.carry = 0;
     return this.phase === 'done';
   }
 

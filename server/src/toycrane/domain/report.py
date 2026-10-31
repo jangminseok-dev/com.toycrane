@@ -9,8 +9,8 @@ from toycrane.domain.layout import MACHINE_SPEC
 from toycrane.domain.shared_data import CLAW
 from toycrane.domain.stock import MachineStock, on_taken
 
-BOX_MARGIN = 0.1  # 놀이 영역 반폭보다 이만큼 밖까지(벽에 기댄 인형) 허용
-BOX_TOP = 1.2
+BOX_MARGIN = 0.3  # 놀이 영역 반폭보다 이만큼 밖까지 — 물리 상자(벽 +0.12)에 기대거나 누운 인형의 발(원점)이 더 나간다 (최종 리뷰 I8)
+BOX_BOTTOM, BOX_TOP = 0.7, 2.2  # 바닥(0.87) 조금 아래 ~ 천장
 
 
 @dataclass(frozen=True)
@@ -41,6 +41,8 @@ def check_report(stock: MachineStock, report: Report, now: float) -> MachineStoc
     """통과하면 새 MachineStock, 아니면 거절 이유: "wins"(당첨이 너무 많음) · "unknown"(기계에 없는 번호) · "count"(인형 수 불일치)."""
     if len(report.won) > CLAW["max_wins"]:
         return "wins"
+    if len(set(report.won)) != len(report.won):  # 같은 번호를 여러 번 — 한 인형을 여러 번 가방에 넣으려는 것 (최종 리뷰 I3)
+        return "count"
     known = {d.uid for d in stock.dolls}
     reported = [p.uid for p in report.dolls]
     if any(u not in known for u in report.won) or any(u not in known for u in reported):
@@ -51,7 +53,7 @@ def check_report(stock: MachineStock, report: Report, now: float) -> MachineStoc
     poses = {p.uid: p for p in report.dolls}
     after = on_taken(stock, list(report.won), now)
     dolls = [
-        replace(s, x=_clamp(poses[s.uid].x, -w - BOX_MARGIN, w + BOX_MARGIN), y=_clamp(poses[s.uid].y, 0.0, BOX_TOP),
+        replace(s, x=_clamp(poses[s.uid].x, -w - BOX_MARGIN, w + BOX_MARGIN), y=_clamp(poses[s.uid].y, BOX_BOTTOM, BOX_TOP),
                 z=_clamp(poses[s.uid].z, -d - BOX_MARGIN, d + BOX_MARGIN), q=_unit(poses[s.uid].q))
         for s in after.dolls
     ]

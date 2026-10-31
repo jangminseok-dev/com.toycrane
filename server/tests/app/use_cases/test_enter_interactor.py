@@ -103,17 +103,18 @@ async def test_welcome_shows_who_is_in_line_and_playing():
 from toycrane.adapter.inbound.ws.schemas.server_messages import free  # noqa: E402
 
 
-async def test_kicked_tab_mid_play_is_refunded_and_freed():
-    """같은 게스트가 다시 들어오면(네트워크 바뀜·두 번째 탭) 이전 접속이 쥔 기계를 정리한다 (최종 리뷰 C1)."""
+async def test_kicked_tab_mid_play_is_freed_without_refund():
+    """같은 게스트가 다시 들어오면(네트워크 바뀜·두 번째 탭) 이전 접속이 쥔 기계를 정리한다. 코인은 돌려주지 않는다 —
+    결과를 화면에서 보고 새로 고침하면 공짜 연습이 된다 (물리 뽑기 설계 §4.5, 최종 리뷰 I1)."""
     reg, conns, locks, wallet = FakeRegistry(), FakeConnections(), FakeLocks(), FakeWallet({"g-1": 2})
     reg.put("c-old", player("p-old", guest="g-1"))
     locks.lock("c-old", "A-1", 3.0)
     reg.put("c-2", player("p2", guest="g-2"))
     await enter_interactor(reg, conns, wallet=wallet, locks=locks, new_id=lambda: "p-new").enter(cmd("c-new", "g-1", now=5.0))
-    assert wallet.coins["g-1"] == 3 and locks.holder("A-1") is None
+    assert wallet.coins["g-1"] == 2 and locks.holder("A-1") is None
     assert (None, free("A-1")) in conns.broadcasts
     welcome_msg = next(m for c, m in conns.direct if c == "c-new")
-    assert welcome_msg["coins"] == 3 and welcome_msg["plays"] == {}
+    assert welcome_msg["coins"] == 2 and welcome_msg["plays"] == {}
 
 
 class WatchingWallet(FakeWallet):

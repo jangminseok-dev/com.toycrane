@@ -16,7 +16,6 @@ from toycrane.app.ports.output.wallet_port import WalletPort
 from toycrane.app.use_cases.connection_cleanup import release_connection
 from toycrane.app.use_cases.machine_contents import ensure_contents
 from toycrane.app.use_cases.occupancy_note import note_occupancy
-from toycrane.domain.coins import WALLET_CAP
 from toycrane.domain.entities.player import Player
 from toycrane.domain.store_rules import STORE_CAPACITY, spawn_position
 from toycrane.domain.value_objects.heading import Heading
@@ -56,11 +55,10 @@ class EnterInteractor(EnterUseCase):
         coins = await _or_zero(self._wallet.balance(cmd.guest_id))
         bag = await _or_zero(self._bag.total(cmd.guest_id))
         stocks = await ensure_contents(self._contents, self._rng)
-        refund = 0
         for conn_id, old in self._registry.entries():
             if old.guest_id == cmd.guest_id:
                 # 같은 게스트의 이전 접속(네트워크가 바뀜·다른 탭): 하던 기계·줄을 정리하고 내보낸다
-                refund += release_connection(conn_id, self._locks, self._connections)
+                release_connection(conn_id, self._locks, self._connections)
                 self._registry.remove(conn_id)
                 self._connections.kick(conn_id, KICK_OTHER_TAB, "다른 창에서 접속")
                 self._connections.broadcast_leave(cmd.conn_id, old.player_id)
@@ -77,15 +75,13 @@ class EnterInteractor(EnterUseCase):
         you = PlayerView.of(me)
         result = EnterResult(you=you, others=tuple(PlayerView.of(p) for _, p in others))
         snapshot = StoreSnapshot(
-            coins=min(coins + refund, WALLET_CAP),
+            coins=coins,
             bag=bag,
             machines={m: s.dolls for m, s in stocks.items()},
             plays=self._locks.plays(),
         )
         self._connections.send_welcome(cmd.conn_id, cmd.store_no, you, list(result.others), snapshot)
         self._connections.broadcast_join(cmd.conn_id, you)
-        if refund:
-            await self._wallet.add(cmd.guest_id, refund, WALLET_CAP, cmd.now)
         await note_occupancy(self._occupancy, cmd.store_no, len(others) + 1, cmd.now)
         return result
 

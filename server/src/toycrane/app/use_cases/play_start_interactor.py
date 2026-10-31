@@ -6,6 +6,7 @@ from toycrane.app.ports.output.connections_port import ConnectionsPort
 from toycrane.app.ports.output.play_lock_port import PlayLockPort
 from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
 from toycrane.app.ports.output.wallet_port import WalletPort
+from toycrane.domain.coins import WALLET_CAP
 from toycrane.domain.layout import MACHINE_SPEC, MACHINES, front_spot
 from toycrane.domain.play_rules import PLAY_SECONDS, expired, hold_over
 
@@ -26,10 +27,13 @@ class PlayStartInteractor(PlayStartUseCase):
             return
         mine = self._locks.lock_of(cmd.conn_id)
         if mine is not None:
-            if not self._locks.is_between(cmd.conn_id):
+            if not self._locks.is_between(cmd.conn_id) and expired(mine[1], cmd.now):  # 보고를 못 보낸 내 판은 시간이 지나면 풀고 새로 (최종 리뷰 I2)
+                self._locks.release(cmd.conn_id)
+                self._connections.broadcast_free(mine[0])
+            elif not self._locks.is_between(cmd.conn_id):
                 self._connections.send_play_no(cmd.conn_id, machine.id, "playing")
                 return
-            if mine[0] != machine.id:  # 잡아 둔 자리를 두고 다른 기계로 옮겼다
+            elif mine[0] != machine.id:  # 잡아 둔 자리를 두고 다른 기계로 옮겼다
                 self._locks.release(cmd.conn_id)
                 self._connections.broadcast_free(mine[0])
         holder = self._locks.holder(machine.id)
@@ -48,7 +52,10 @@ class PlayStartInteractor(PlayStartUseCase):
         self._locks.lock(cmd.conn_id, machine.id, cmd.now)
         left = await self._wallet.spend_one(me.guest_id, cmd.now)
         if self._locks.lock_of(cmd.conn_id) != (machine.id, cmd.now):
-            return  # 기다리는 사이 창이 닫혀 이미 풀고 환불했다 — 여기서 play를 보내면 기계가 영원히 '하는 중'으로 남는다
+            # 기다리는 사이 창이 닫혀 이미 풀렸다 — 여기서 play를 보내면 기계가 영원히 '하는 중'으로 남는다. 판은 시작도 안 했으니 코인만 되돌린다
+            if left is not None:
+                await self._wallet.add(me.guest_id, 1, WALLET_CAP, cmd.now)
+            return
         if left is None:
             self._locks.release(cmd.conn_id)
             self._connections.send_play_no(cmd.conn_id, machine.id, "coins")

@@ -113,3 +113,12 @@ async def test_closing_during_coin_spend_sends_no_play_after_free():
     kinds = [m["t"] for _, m in conns.broadcasts]
     assert "play" not in kinds and "free" in kinds and locks.holder("A-1") is None
     assert not any(m["t"] == "play_ok" for _, m in conns.direct) and wallet.coins["g-1"] == 3
+
+
+# 최종 리뷰 I2: 내 잠금이 시간이 지났으면(보고를 못 보낸 판) 다음 play에서 풀고 새로 시작한다 — 아니면 재접속까지 어느 기계도 못 한다
+async def test_my_own_expired_lock_is_released_on_the_next_play():
+    reg, locks, conns, wallet, it = setup()
+    locks.lock("c-1", "A-1", 0.0)
+    await it.start(PlayStartCommand("c-1", "A-1", now=40.0))
+    assert (None, free("A-1")) in conns.broadcasts
+    assert conns.direct[-1] == ("c-1", play_ok("A-1", 2, 20)) and locks.holder("A-1") == ("c-1", 40.0)

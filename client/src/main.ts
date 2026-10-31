@@ -119,8 +119,10 @@ const camLook = new THREE.Vector3();
 const tw = new Tweens();
 const playing = new Map<string, { stop(): Promise<void> }>();
 const showing = new Set<string>();
-type Ticket = { pending?: DollSpot[]; done: boolean };
+type Ticket = { pending?: DollSpot[]; done: boolean; gen: number };
 const tickets = new Map<string, Ticket>();
+const playGen = new Map<string, number>(); // 기계별 판 세대 — play마다 하나씩 올라간다. 앞 판의 machine이 다음 판의 구경·물리를 끊지 않게 (최종 리뷰 I5)
+const genOf = (id: string) => playGen.get(id) ?? 0;
 // 한 기계의 연출은 차례대로: 이어서 하는 사람의 다음 판 모션·결과가 앞 판 결과 모션과 겹치지 않게
 const chains = new Map<string, Promise<void>>();
 function after(id: string, job: () => void | Promise<void>): void {
@@ -224,13 +226,16 @@ function onMessage(m: ServerMsg, guest: Guest) {
       myId = m.you.id;
       myNick = guest.nickname;
       playing.clear(); showing.clear(); tickets.clear(); chains.clear(); showingMe = false;
+      for (const id of [...watches.keys()]) stopWatch(id); playGen.clear(); // 다시 들어오면 구경도 처음부터 (최종 리뷰 I6)
       busy.reset();
       for (const [id, who] of Object.entries(m.plays)) busy.set(id, who, now / 1000);
       endPlay();
       break;
     case 'play':
       busy.set(m.m, m.id, now / 1000);
-      startWatch(m.m); // 남의 판: 그 기계의 인형을 따로 그리고 중계(pose)를 기다린다
+      playGen.set(m.m, genOf(m.m) + 1);
+      if (m.id !== myId) startWatch(m.m); // 남의 판: 그 기계의 인형을 따로 그리고 중계(pose)를 기다린다
+      else if (cycle?.machineId === m.m) cycle.gen = genOf(m.m); // 내 판의 물리는 play_ok에서 먼저 만들어졌다
       after(m.m, () => {
         const rig = remotes.rigOf(m.id);
         if (rig && busy.who(m.m, clock()) === m.id) playing.set(m.m, startPlaying(rig, tw, spotOf.get(m.m)!.ry + Math.PI));
@@ -253,7 +258,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
     case 'result': {
       busy.hold(m.m, m.id, now / 1000); // 서버가 그 사람이 이어서 할 수 있게 자리를 잡아 둔다
       if (m.id === myId) holdFrom = now / 1000; // 보고한 때 = 서버가 자리를 잡아 둔 때
-      const t: Ticket = { done: false };
+      const t: Ticket = { done: false, gen: genOf(m.m) };
       tickets.set(m.m, t);
       after(m.m, () => showResult(m, t));
       break;
@@ -261,7 +266,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
     case 'machine': {
       const t = tickets.get(m.m);
       if (t && !t.done) t.pending = m.dolls; // 집게·모션 연출이 끝난 뒤에 바꾼다
-      else applyMachine(m.m, m.dolls);
+      else applyMachine(m.m, m.dolls, genOf(m.m));
       break;
     }
     case 'bag': wallet.bag = m.n; setHud(wallet.coins, wallet.bag); break;
@@ -356,14 +361,15 @@ function startPlay(machineId: string, limit: number, coins: number) {
   const R = rapierNow();
   if (R) {
     settleMachine(machineId);
+    dropCycle(); stopWatch(machineId);
     const world = new MachineWorld(R, bigZone.contentsOf(machineId));
-    cycle = { machineId, world, runner: null, claw: null, live: bigZone.live(machineId), before: bigZone.contentsOf(machineId) };
+    cycle = { machineId, gen: genOf(machineId), world, runner: null, claw: null, live: bigZone.live(machineId), before: bigZone.contentsOf(machineId), reported: false };
   }
   if (me && socket) { me.dir = { x: 0, z: 0 }; socket.send(encodeMove(me.pos, me.dir)); }
 }
 
 // 내 판의 물리: 레버 동안은 세계만 들고 있다가, 내리면 집게 한 바퀴(CycleRunner)를 프레임마다 돌린다. 끝나면 done 보고
-type Cycle = { machineId: string; world: MachineWorld; runner: CycleRunner | null; claw: ClawBody | null; live: LiveDolls; before: DollSpot[] };
+type Cycle = { machineId: string; gen: number; world: MachineWorld; runner: CycleRunner | null; claw: ClawBody | null; live: LiveDolls; before: DollSpot[]; reported: boolean };
 let cycle: Cycle | null = null;
 const TOP_Y = CLAW_REST.y + CABLE_TOP;
 function dropCycle() {
@@ -389,7 +395,7 @@ function runCycleFrame(dt: number) {
   for (const uid of r.won) live.remove(uid);
   socket?.send(encodeDone(machineId, r.won, r.poses));
   dropped.markDone(clock());
-  cycle.runner = null;
+  cycle.runner = null; cycle.reported = true;
 }
 function onDoneNo(machineId: string) {
   if (!cycle || cycle.machineId !== machineId) return;
@@ -577,25 +583,31 @@ async function showResult(m: Result, t: Ticket) {
   else { fx.afterClaw(); if (o === 'win') fx.win(); else fx.fail(); }
   if (doll) spinners.splice(0, spinners.length, ...spinners.filter((s) => !doll.userData.spin.includes(s)));
   showing.delete(m.m);
-  if (t.pending) { applyMachine(m.m, t.pending); t.pending = undefined; }
+  if (t.pending) { applyMachine(m.m, t.pending, t.gen); t.pending = undefined; }
   t.done = true;
   if (mine) showingMe = false;
 }
 
-// 새 배치(machine)를 넣는다 — 내 판의 live 모드는 여기서 끝나고 무더기로 돌아간다
-function applyMachine(id: string, dolls: DollSpot[]) {
+// 새 배치(machine)를 넣는다 — 그 판(gen)의 live 모드는 여기서 끝나고 무더기로 돌아간다. 이미 다음 판이 시작됐으면 그 판의 구경·물리는 둔다
+function applyMachine(id: string, dolls: DollSpot[], gen: number) {
   bigZone.setContents(id, dolls);
-  if (cycle && cycle.machineId === id && !cycle.runner) dropCycle();
-  stopWatch(id);
+  if (cycle && cycle.machineId === id && cycle.reported && cycle.gen === gen) dropCycle();
+  if (watches.get(id)?.gen === gen) stopWatch(id);
 }
 
 // 구경 (물리 뽑기 설계 §4.5·§4.6): 남이 하는 기계는 인형을 따로 그리고, 받은 중계(pose) 사이를 보간해 집게·인형을 움직인다. 판 끝의 machine으로 맞춘다
-type Watch = { live: LiveDolls; receiver: PoseReceiver; poses: number };
+// 가까운 기계만 구경한다 — 매장 곳곳의 판을 다 따로 그리면 무겁다 (최종 리뷰 I6). 멀리서 시작된 판은 다가가도 끝의 machine으로만 맞는다
+type Watch = { live: LiveDolls; receiver: PoseReceiver; poses: number; gen: number };
 const watches = new Map<string, Watch>();
+const WATCH_REACH = 12;
 function startWatch(id: string) {
-  if (watches.has(id) || cycle?.machineId === id) return;
+  const w = watches.get(id);
+  if (w) { w.gen = genOf(id); return; } // 앞 판의 구경이 아직 끝나지 않았다(결과 모션 중) — 이 판의 것으로 잇는다
+  if (cycle?.machineId === id) return;
+  const spot = spotOf.get(id)!;
+  if (!me || Math.hypot(me.pos.x - spot.x, me.pos.z - spot.z) > WATCH_REACH) return;
   bigZone.activateClaw(id);
-  watches.set(id, { live: bigZone.live(id), receiver: new PoseReceiver(), poses: 0 });
+  watches.set(id, { live: bigZone.live(id), receiver: new PoseReceiver(), poses: 0, gen: genOf(id) });
 }
 function stopWatch(id: string) {
   const w = watches.get(id);
