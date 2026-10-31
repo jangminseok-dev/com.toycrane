@@ -17,13 +17,15 @@ VALLEY_MAX = 0.30   # 위층 인형을 받칠 두 바닥 인형 사이 최대 �
 DOLL_H, DOLL_W = 0.34, 0.16  # 기계 속 인형을 감싸는 타원체: 높이, 가로 반지름
 SINK = 0.06         # 위층 인형이 받침 사이에 파묻히는 깊이
 PART_RADII = (("head", 0.05), ("body", 0.10), ("arm", 0.14))
-# (성공, 놓침), 나머지는 헛잡음. 보통 난이도(사용자 결정 2026-10-31) — 머리를 맞혀도 7판에 하나꼴, 4단계 근성 게이지가 받쳐 준다
-ODDS = {"head": (0.15, 0.40), "body": (0.08, 0.45), "arm": (0.03, 0.45)}
+# (성공, 놓침), 나머지는 헛잡음. 성공에는 그 자리 집게 힘(claw_strength)을 곱한다 — 보통 인형 머리를 노리면
+# 흔들림까지 넣어 10판에 3~4번, 몸통은 그 절반쯤 (사용자 결정 2026-10-31, tests/domain/test_crane.py의 aim_rate로 확인)
+ODDS = {"head": (0.41, 0.40), "body": (0.20, 0.45), "arm": (0.08, 0.45)}
 TIER_WIN = {"rare": 0.5, "gold": 0.3}  # 희귀·황금은 성공 확률 × 배율, 줄어든 만큼 놓침으로
 # 체형: 폭(키는 같음) · 부위 판정 반지름 배율 · 놓침에 더하는 값 — 뚱뚱은 잘 잡히지만 무거워 떨어뜨리고, 마른은 빠져나가지만 들면 안 떨어진다
 BODY_W = {"n": 1.0, "c": 1.15, "s": 0.88}
 BODY_REACH = {"n": 1.0, "c": 1.25, "s": 0.8}
 BODY_SLIP = {"n": 0.0, "c": 0.10, "s": -0.10}
+STRENGTH_SPREAD = 0.25  # 집게 힘이 평균에서 ±25%까지 (claw_strength)
 SWAY_MAX = 0.07  # 내려갈 때 집게가 흔들려 노린 자리에서 벗어나는 최대 거리(m) — 머리(5cm)를 노려도 몸통에 걸릴 수 있게
 
 
@@ -129,6 +131,15 @@ def clamp_claw(x: float, z: float) -> tuple[float, float]:
     return min(max(x, -w), w), min(max(z, -d), d)
 
 
+def claw_strength(x: float, z: float) -> float:
+    """집게 힘 배율: 구멍 가장자리 0.75 → 구멍에서 가장 먼 모서리 1.25 (사용자 결정 2026-10-31 — 멀리 있는 인형은 세게, 가까운 인형은 약하게)."""
+    hx, hz, hr = MACHINE_SPEC.hole
+    w, d = MACHINE_SPEC.play_half
+    far = max(math.hypot(cx - hx, cz - hz) for cx in (-w, w) for cz in (-d, d))
+    t = min(max((math.hypot(x - hx, z - hz) - hr) / (far - hr), 0.0), 1.0)
+    return 1.0 + STRENGTH_SPREAD * (2 * t - 1)
+
+
 def judge(spots: list[DollSpot], x: float, z: float, roll: float) -> Grab:
     """roll은 0~1 난수. 손이 닿는 인형(체형만큼 넓거나 좁게) 중 가장 높이 있는 것(같으면 가까운 것)을 노린다."""
     near = [(i, math.hypot(s.x - x, s.z - z)) for i, s in enumerate(spots)]
@@ -142,6 +153,8 @@ def judge(spots: list[DollSpot], x: float, z: float, roll: float) -> Grab:
     if doll.rare:
         factor = TIER_WIN["gold" if doll.rare == "gold" else "rare"]
         win, slip = win * factor, slip + win * (1 - factor)
+    held = min(win * claw_strength(doll.x, doll.z), 1.0)  # 멀면 세게 쥐어 덜 떨어뜨리고, 가까우면 약해 더 떨어뜨린다
+    win, slip = held, max(slip + win - held, 0.0)
     slip = min(max(slip + BODY_SLIP[doll.body], 0.0), 1.0 - win)
     outcome = "win" if roll < win else "slip" if roll < win + slip else "miss"
     return Grab(outcome, part, index)

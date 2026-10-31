@@ -98,7 +98,7 @@ async def test_result_reports_where_the_claw_actually_landed():
 
 async def test_slip_moves_the_doll_nearby_and_tells_everyone():
     """놓친 인형은 근처로 굴러가고, 새 배치를 모두에게 알린다. 결과에는 잡은 인형 번호(i)를 싣는다."""
-    locks, conns, bag, contents, it = setup(roll=0.3)  # 머리 놓침 구간
+    locks, conns, bag, contents, it = setup(roll=0.6)  # 머리 놓침 구간 (성공 약 0.36, 놓침 약 0.45)
     before = list(contents.stored["A-1"].dolls)
     await it.drop(DropCommand("c-1", 0.0, 0.0, now=15.0))
     result = next(m for _, m in conns.broadcasts if m["t"] == "result")

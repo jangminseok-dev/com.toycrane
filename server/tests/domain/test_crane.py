@@ -26,29 +26,41 @@ def test_part_depends_on_distance_to_the_nearest_doll(x, part):
     assert judge(SPOTS, x, -0.0, roll=0.99).part == part
 
 
-# 보통 난이도(사용자 결정 2026-10-31): 머리 15%·몸통 8%·팔 3% 성공, 놓침은 그대로
-@pytest.mark.parametrize("roll, outcome", [(0.14, "win"), (0.54, "slip"), (0.56, "miss")])
-def test_head_odds(roll, outcome):
-    assert judge(SPOTS, 0.0, 0.0, roll).outcome == outcome
+# 머리 41%·몸통 20%·팔 8% 성공에 그 자리 집게 힘(K)을 곱하고, 줄어든 만큼 놓침이 는다 (사용자 결정 2026-10-31)
+def head_win_slip(k_doll: DollSpot = DollSpot("bunny", 0.0, 0.0, 0.0), tier: float = 1.0) -> tuple[float, float]:
+    k = claw_strength(k_doll.x, k_doll.z)
+    return 0.41 * tier * k, 0.40 + 0.41 * (1 - tier) + 0.41 * tier * (1 - k)
+
+
+def test_head_odds():
+    win, slip = head_win_slip()
+    assert judge(SPOTS, 0.0, 0.0, win - 0.001).outcome == "win"
+    assert judge(SPOTS, 0.0, 0.0, win + 0.001).outcome == "slip"
+    assert judge(SPOTS, 0.0, 0.0, win + slip - 0.001).outcome == "slip"
+    assert judge(SPOTS, 0.0, 0.0, win + slip + 0.001).outcome == "miss"
 
 
 def test_rare_and_gold_win_less():
-    assert judge([DollSpot("bear", 0, 0, 0, rare="star")], 0, 0, 0.15 * 0.5 + 0.001).outcome == "slip"
-    assert judge([DollSpot("bear", 0, 0, 0, rare="gold")], 0, 0, 0.15 * 0.3 + 0.001).outcome == "slip"
-    assert judge([DollSpot("bear", 0, 0, 0, rare="gold")], 0, 0, 0.15 * 0.3 - 0.001).outcome == "win"
+    rare_win, _ = head_win_slip(tier=0.5)
+    gold_win, _ = head_win_slip(tier=0.3)
+    assert judge([DollSpot("bear", 0, 0, 0, rare="star")], 0, 0, rare_win + 0.001).outcome == "slip"
+    assert judge([DollSpot("bear", 0, 0, 0, rare="gold")], 0, 0, gold_win + 0.001).outcome == "slip"
+    assert judge([DollSpot("bear", 0, 0, 0, rare="gold")], 0, 0, gold_win - 0.001).outcome == "win"
 
 
 # 체형과 난이도 (설계 2026-10-31 인형 채우기 §4.5): 뚱뚱은 잘 잡히지만 들다 떨어뜨리고, 마른은 잘 빠져나가지만 잡으면 잘 나온다
 def test_chubby_dolls_are_easier_to_hit_but_slip_more():
     chubby, plain = DollSpot("bear", 0, 0, 0, body="c"), DollSpot("bear", 0, 0, 0)
     assert judge([chubby], 0.06, 0, 0.99).part == "head" and judge([plain], 0.06, 0, 0.99).part == "body"
-    assert judge([chubby], 0, 0, 0.15 + 0.40 + 0.05).outcome == "slip"  # 놓침 0.40 + 0.10
+    win, slip = head_win_slip()
+    assert judge([chubby], 0, 0, win + slip + 0.05).outcome == "slip"  # 놓침 + 0.10
 
 
 def test_slim_dolls_slip_through_but_hold_once_lifted():
     slim = DollSpot("bear", 0, 0, 0, body="s")
     assert judge([slim], 0.115, 0, 0.0).index is None  # 팔 범위 0.14×0.8 밖
-    assert judge([slim], 0, 0, 0.15 + 0.30 + 0.01).outcome == "miss"  # 놓침 0.40 − 0.10
+    win, slip = head_win_slip()
+    assert judge([slim], 0, 0, win + slip - 0.10 + 0.01).outcome == "miss"  # 놓침 − 0.10
 
 
 def test_empty_spot_always_misses():
@@ -109,3 +121,59 @@ def test_a_floor_doll_holding_others_falls_back_to_its_place():
     spots = [DollSpot("bear", 0.0, 0.0, 0.0), DollSpot("cat", 0.24, 0.0, 0.0), DollSpot("dog", 0.12, 0.0, 0.0, 0.2)]
     after = drop_nearby(spots, 0, random.Random(1))
     assert (after[0].x, after[0].z, after[0].y) == (0.0, 0.0, 0.0)
+
+
+# ---- 확률·집게 힘 조정 (사용자 결정 2026-10-31): 보통 인형 머리를 노리면 10판에 3~4번, 구멍에서 멀수록 집게 힘이 세다 ----
+from dataclasses import replace  # noqa: E402
+
+from toycrane.domain.crane import claw_strength  # noqa: E402
+
+
+def _covered(s: DollSpot, dolls: list[DollSpot]) -> bool:
+    return any(t.y > s.y and math.hypot(t.x - s.x, t.z - s.z) < 0.17 for t in dolls)
+
+
+def aim_rate(aim_off: float = 0.0, look: dict | None = None, trials: int = 6000, seed: int = 7) -> float:
+    """실제 판처럼: 위가 막히지 않은 인형 하나를 골라 (aim_off만큼 비켜) 노리고, 흔들림을 거쳐 판정한다."""
+    rng, wins, n = random.Random(seed), 0, 0
+    while n < trials:
+        dolls = generate_stock("bear", rng).dolls
+        open_ = [i for i, s in enumerate(dolls) if not s.rare and not _covered(s, dolls)]
+        i = rng.choice(open_)
+        if look:
+            dolls[i] = replace(dolls[i], **look)
+        angle = rng.uniform(0, 2 * math.pi)
+        x, z = clamp_claw(*sway(dolls[i].x + math.cos(angle) * aim_off, dolls[i].z + math.sin(angle) * aim_off, rng))
+        wins += judge(dolls, x, z, rng.random()).outcome == "win"
+        n += 1
+    return wins / n
+
+
+def test_head_aim_wins_three_or_four_in_ten():
+    assert 0.30 <= aim_rate() <= 0.40
+
+
+def test_body_aim_wins_about_half_as_often():
+    assert 0.13 <= aim_rate(aim_off=0.08) <= 0.22
+
+
+def test_rare_wins_about_half_and_gold_a_third():
+    assert 0.13 <= aim_rate(look={"rare": "star"}) <= 0.22
+    assert 0.08 <= aim_rate(look={"rare": "gold"}) <= 0.15
+
+
+def test_claw_strength_grows_with_distance_from_the_hole():
+    hx, hz, hr = MACHINE_SPEC.hole
+    w, d = MACHINE_SPEC.play_half
+    assert claw_strength(hx + hr, hz) == pytest.approx(0.75)
+    assert claw_strength(w, -d) == pytest.approx(1.25)  # 구멍에서 가장 먼 모서리
+    assert claw_strength(hx + hr, hz) < claw_strength(0.0, 0.0) < claw_strength(w, -d)
+
+
+def test_far_dolls_hold_better_than_near_ones():
+    hx, hz, hr = MACHINE_SPEC.hole
+    w, d = MACHINE_SPEC.play_half
+    near, far = DollSpot("bear", hx + hr + 0.02, hz, 0.0), DollSpot("bear", w - 0.02, -d + 0.02, 0.0)
+    roll = 0.40
+    assert judge([near], near.x, near.z, roll).outcome == "slip"
+    assert judge([far], far.x, far.z, roll).outcome == "win"
