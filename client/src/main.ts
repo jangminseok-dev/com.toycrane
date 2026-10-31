@@ -22,6 +22,7 @@ import { loadRapier, rapierNow, rapierReady } from './physics/rapier';
 import { MachineWorld } from './physics/machineWorld';
 import { ClawBody } from './physics/clawBody';
 import { CycleRunner } from './physics/clawCycle';
+import { PoseReceiver, PoseSender } from './physics/relay';
 import { CLAW } from './data/claw';
 import { closeAction, nextDelay, retrying } from './net/reconnect';
 import { safeStorage } from './net/storage';
@@ -71,6 +72,8 @@ document.body.appendChild(renderer.domElement);
 // controlAt('lever'|'drop'): 하는 기계의 레버·하강 버튼 화면 자리(e2e가 누를 곳)
 Object.assign(window, { __toycrane: {
   drawCalls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles,
+  contents: (id: string) => bigZone.contentsOf(id), // e2e: 이 화면이 아는 기계 속 배치
+  watching: (id: string) => watches.has(id),
   controlAt: (part: 'lever' | 'drop') => {
     if (!session) return null;
     const [x, y, z] = CONTROLS[part];
@@ -225,6 +228,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       break;
     case 'play':
       busy.set(m.m, m.id, now / 1000);
+      startWatch(m.m); // 남의 판: 그 기계의 인형을 따로 그리고 중계(pose)를 기다린다
       after(m.m, () => {
         const rig = remotes.rigOf(m.id);
         if (rig && busy.who(m.m, clock()) === m.id) playing.set(m.m, startPlaying(rig, tw, spotOf.get(m.m)!.ry + Math.PI));
@@ -232,13 +236,14 @@ function onMessage(m: ServerMsg, guest: Guest) {
       break;
     case 'play_ok': startPlay(m.m, m.limit, m.coins); break;
     case 'done_no': onDoneNo(m.m); break;
-    case 'pose': break; // 구경꾼 중계 — Task 12
+    case 'pose': watches.get(m.m)?.receiver.push(m, now / 1000); break;
     case 'play_no':
       if (m.why !== 'playing') toast({ busy: '다른 사람이 하는 중이에요', coins: UI.noCoinsToast, far: '기계 앞에 서 주세요' }[m.why]);
       if (seated === m.m) { run.stop(); nextRunAt = null; showSeat(); } // 이어 하던 판을 못 시작했으면 멈추고 다시 묻는다
       break;
     case 'free':
       busy.clear(m.m);
+      stopWatch(m.m);
       void playing.get(m.m)?.stop(); playing.delete(m.m);
       if (session?.machineId === m.m || awaiting === m.m) { endPlay(); toast('시간이 지나 기계가 풀렸어요'); }
       else if (seated === m.m) { endPlay(); toast('자리를 비운 사이 다른 사람이 시작했어요'); }
@@ -294,7 +299,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
     case 'move': remotes.move(m, now); break;
     case 'leave':
       // 나간 사람이 하던 기계도 푼다 (서버 free가 오지 않는 경우의 안전망)
-      for (const id of busy.clearPlayer(m.id)) { void playing.get(id)?.stop(); playing.delete(id); }
+      for (const id of busy.clearPlayer(m.id)) { void playing.get(id)?.stop(); playing.delete(id); stopWatch(id); }
       remotes.remove(m.id);
       break;
     case 'correct': me?.correct({ x: m.x, z: m.z }); break;
@@ -373,6 +378,7 @@ function runCycleFrame(dt: number) {
   rig?.setCable(TOP_Y - claw.y); rig?.setOpen(claw.open);
   for (const p of world.poses()) live.set(p.uid, p.p, p.q);
   topView?.update({ x: claw.x, z: claw.z });
+  poseSender.frame(machineId, claw, world.movingPoses(), clock());
   if (!done) return;
   const r = runner.done();
   for (const uid of r.won) live.remove(uid);
@@ -573,7 +579,37 @@ async function showResult(m: Result, t: Ticket) {
 function applyMachine(id: string, dolls: DollSpot[]) {
   bigZone.setContents(id, dolls);
   if (cycle && cycle.machineId === id && !cycle.runner) dropCycle();
+  stopWatch(id);
 }
+
+// 구경 (물리 뽑기 설계 §4.5·§4.6): 남이 하는 기계는 인형을 따로 그리고, 받은 중계(pose) 사이를 보간해 집게·인형을 움직인다. 판 끝의 machine으로 맞춘다
+type Watch = { live: LiveDolls; receiver: PoseReceiver; poses: number };
+const watches = new Map<string, Watch>();
+function startWatch(id: string) {
+  if (watches.has(id) || cycle?.machineId === id) return;
+  bigZone.activateClaw(id);
+  watches.set(id, { live: bigZone.live(id), receiver: new PoseReceiver(), poses: 0 });
+}
+function stopWatch(id: string) {
+  const w = watches.get(id);
+  if (!w) return;
+  w.live.dispose(); watches.delete(id);
+  bigZone.clawOf(id).position.copy(CLAW_REST);
+  const rig = bigZone.rigOf(id);
+  if (rig) { rig.setCable(CABLE_TOP); rig.setOpen(0.35); }
+  if (!showing.has(id)) bigZone.releaseClaw(id);
+}
+function updateWatches(nowSec: number) {
+  for (const [id, w] of watches) {
+    const { claw, dolls } = w.receiver.sample(nowSec);
+    if (claw[1] <= 0) continue; // 아직 중계가 없다
+    const rig = bigZone.rigOf(id), group = bigZone.clawOf(id);
+    group.position.set(claw[0], claw[1], claw[2]);
+    rig?.setCable(TOP_Y - claw[1]); rig?.setOpen(claw[3]);
+    for (const p of dolls.values()) w.live.set(p.uid, p.p, p.q);
+  }
+}
+const poseSender = new PoseSender((msg) => socket?.send(msg));
 
 // 기계 앞자리 가까이면 그 기계: 비었으면 "🪙1 넣고 하기", 남이 하면 구경 중
 function showMachineUi(): boolean {
@@ -767,6 +803,7 @@ function frame(now: number) {
   updateEffects(dt);
   for (const sp of spinners) sp.obj.rotation.y += dt * sp.speed;
   remotes.update(now);
+  updateWatches(now / 1000);
   bigZone.update(now / 1000);
   renderer.render(scene, camera);
 }
