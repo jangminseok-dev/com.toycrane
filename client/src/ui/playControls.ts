@@ -3,7 +3,7 @@
 import type { PlayPhase } from '../game/playSession';
 import { backdropBlur } from './glass';
 
-let timerEl: HTMLDivElement | null = null, hintEl: HTMLDivElement | null = null;
+let timerEl: HTMLDivElement | null = null, hintEl: HTMLSpanElement | null = null, timeEl: HTMLSpanElement | null = null;
 let playing = false;
 
 const HINTS: Record<PlayPhase, string> = {
@@ -27,28 +27,30 @@ function build() {
     document.body.appendChild(el);
     return el;
   };
-  timerEl = pill('calc(env(safe-area-inset-top) + 60px)', '800 18px -apple-system, "Apple SD Gothic Neo", sans-serif');
-  hintEl = pill('calc(env(safe-area-inset-top) + 104px)', '700 14px -apple-system, "Apple SD Gothic Neo", sans-serif');
+  // 남은 시간과 안내를 한 알약에 — 두 줄로 쌓으면 뒷판 모니터(위에서 본 화면)를 가린다
+  timerEl = pill('calc(env(safe-area-inset-top) + 60px)', '800 16px -apple-system, "Apple SD Gothic Neo", sans-serif');
+  hintEl = document.createElement('span');
+  Object.assign(hintEl.style, { font: '700 13px -apple-system, "Apple SD Gothic Neo", sans-serif', marginLeft: '8px', opacity: '.85' });
+  timeEl = document.createElement('span');
+  timerEl.append(timeEl, hintEl);
 }
 
 export function showPlayControls(): void {
   if (!timerEl) build();
   playing = true;
   timerEl!.style.display = 'block';
-  hintEl!.style.display = 'block';
 }
 
 export function hidePlayControls(): void {
   playing = false;
   if (timerEl) timerEl.style.display = 'none';
-  if (hintEl) hintEl.style.display = 'none';
 }
 
 export function setTimer(seconds: number, phase: PlayPhase): void {
-  if (!timerEl || !hintEl) return;
-  timerEl.textContent = `${Math.max(0, Math.ceil(seconds))}초`;
+  if (!timerEl || !hintEl || !timeEl) return;
+  timeEl.textContent = `${Math.max(0, Math.ceil(seconds))}초`;
   if (hintEl.textContent !== HINTS[phase]) hintEl.textContent = HINTS[phase];
-  hintEl.style.display = HINTS[phase] ? 'block' : 'none';
+  hintEl.style.display = HINTS[phase] ? 'inline' : 'none';
 }
 
 let againBtn: HTMLButtonElement | null = null, standBtn: HTMLButtonElement | null = null;

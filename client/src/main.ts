@@ -28,6 +28,7 @@ import { setHud, setInfo, toast } from './ui/hud';
 import { eulReul } from './ui/josa';
 import { hidePlayControls, hideSeatControls, setTimer, showPlayControls, showSeatControls } from './ui/playControls';
 import { buildMachineControls, type MachineControls } from './world/machineControls';
+import { buildTopView, type TopView } from './world/topView';
 import { showWinCard } from './ui/winCard';
 import { setStatus } from './ui/status';
 import { makeAvatar, type Avatar } from './world/avatar';
@@ -36,7 +37,7 @@ import { COUNTERS, MACHINES, MACHINE_SPEC, frontSpot, nearestMachine } from './d
 import { buildBigZone } from './world/bigZone';
 import { makeDoll } from './world/dolls';
 import { burst, updateEffects } from './world/effects';
-import { CLAW_REST, CONTROLS } from './world/machine';
+import { CLAW_REST, CONTROLS, FELT_COLORS } from './world/machine';
 import { playResult, startPlaying } from './world/motions';
 import { buildCoinCounters } from './world/coinCounter';
 import { buildDecor } from './world/decor';
@@ -295,6 +296,8 @@ function startPlay(machineId: string, limit: number, coins: number) {
   showPlayControls();
   controls?.dispose();
   controls = buildMachineControls(bigZone.worldOf(machineId));
+  topView?.dispose(); // 뒷판 모니터: 위에서 본 기계 안 (설계 §3.9)
+  topView = buildTopView(renderer, scene, bigZone.worldOf(machineId), FELT_COLORS[MACHINES.findIndex((m) => m.id === machineId) % FELT_COLORS.length]);
   if (myAvatar) {
     myAvatar.root.visible = false; // 정면 카메라를 가리지 않게 (다른 사람 화면에는 보임)
     playing.set(machineId, startPlaying(myAvatar.rig, tw, spotOf.get(machineId)!.ry + Math.PI, sfx.coin));
@@ -308,6 +311,7 @@ function sendDrop() {
   if (!session) return;
   socket?.send(encodeDrop(session.claw.x, session.claw.z));
   controls?.dispose(); controls = null; heldButton = null;
+  topView?.dispose(); topView = null;
   bigZone.showAim(session.machineId, false);
   awaiting = session.machineId;
   dropped = session;
@@ -323,6 +327,7 @@ function endPlay() {
   }
   session = null; awaiting = null; dropped = null; seated = null;
   controls?.dispose(); controls = null; heldButton = null;
+  topView?.dispose(); topView = null;
   hidePlayControls(); hideSeatControls(); setInfo(null);
   if (myAvatar) myAvatar.root.visible = true;
 }
@@ -330,6 +335,7 @@ function endPlay() {
 // 기계 버튼 누르기 (설계 §3.10): PC는 마우스로, 휴대폰은 손가락으로 기계에 그려진 ①·② 버튼을 누르고 있는다(숫자 1·2 키도).
 // ①을 떼면 멈추고, ②를 떼면 내린다
 let controls: MachineControls | null = null;
+let topView: TopView | null = null;
 let heldButton: 1 | 2 | null = null;
 const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
 function pressButton(button: 1 | 2) {
@@ -476,6 +482,7 @@ function frame(now: number) {
         const claw = bigZone.clawOf(session.machineId);
         swingOf(session.machineId);
         claw.position.set(session.claw.x, CLAW_REST.y, session.claw.z);
+        topView?.update(session.claw);
         // 겨냥 고리는 집게 아래 인형 머리 위(없으면 바닥)에 놓는다
         claw.getObjectByName('aim')!.position.y = aimHeight(bigZone.contentsOf(session.machineId), session.claw.x, session.claw.z) - CLAW_REST.y;
       }

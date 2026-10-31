@@ -4,6 +4,7 @@ import type { Occluder } from '../game/occlusion';
 import { bakeByMaterial, fadeMaterials, materialCloner, mergeBuckets } from './bake';
 import { makeDoll } from './dolls';
 import { dollPose } from './dollPose';
+import { TOP_LAYER } from './topView';
 import { CHROME, idleClawGeometry, makeClawRig, type ClawRig } from './claw';
 import { CLAW_REST, DOLL_FLOOR, DOLL_SCALE, bulbSpots, ledBaseMat, ledFlashMat, makeMachineParts } from './machine';
 
@@ -128,7 +129,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
         }
       });
     }
-    for (const m of mergeBuckets(buckets, block.row.cloner.remap)) { m.castShadow = false; block.group.add(m); }
+    for (const m of mergeBuckets(buckets, block.row.cloner.remap)) { m.castShadow = false; m.layers.enable(TOP_LAYER); block.group.add(m); } // 위에서 본 화면에도
     block.dirty = false;
   }
 
