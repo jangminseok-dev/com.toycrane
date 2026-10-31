@@ -17,7 +17,7 @@ import { RemotePlayers } from './game/remotePlayers';
 import { installJoystick } from './input/joystick';
 import { readKeyboard } from './input/keyboard';
 import { admit, createGuest, getGuest, type Guest } from './net/api';
-import { encodeCounterBeg, encodeDrop, encodeMove, encodePlay, encodeStand, encodeTake, encodeTick, lookOf, type DollSpot, type Result, type ServerMsg } from './net/protocol';
+import { encodeBeg, encodeCounterBeg, encodeDrop, encodeGive, encodeMove, encodePlay, encodeStand, encodeTake, encodeTick, lookOf, type DollSpot, type Result, type ServerMsg } from './net/protocol';
 import { closeAction, nextDelay, retrying } from './net/reconnect';
 import { safeStorage } from './net/storage';
 import { StoreSocket, storeUrl } from './net/storeSocket';
@@ -38,13 +38,14 @@ import { buildBigZone } from './world/bigZone';
 import { PLAIN, makeDoll } from './world/dolls';
 import { burst, updateEffects } from './world/effects';
 import { CLAW_REST, CONTROLS, FELT_COLORS } from './world/machine';
-import { playResult, startPlaying } from './world/motions';
+import { playGive, playHappy, playResult, playSulk, startBegging, startPlaying } from './world/motions';
 import { buildCoinCounters } from './world/coinCounter';
 import { buildDecor } from './world/decor';
 import { buildStore } from './world/storeScene';
-import { ALL_COPY, UI } from './world/copy';
+import { ALL_COPY, BEGGING, UI } from './world/copy';
+import { openGiveSheet } from './ui/giveSheet';
 // 창구 손 닿는 거리(서버 WINDOW_REACH 1.5m)보다 조금 안쪽 — 걷는 사이 위치가 조금 어긋나도 서버가 거절하지 않게
-const COUNTER_REACH = 1.3, TAKE_LIMIT = 15;
+const COUNTER_REACH = 1.3, TAKE_LIMIT = 15, GIVE_REACH = 1.3;
 import { loadFonts } from './ui/fonts';
 
 const GUEST_KEY = 'toycrane.guestId';
@@ -203,7 +204,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       if (myAvatar) { scene.remove(myAvatar.root); myAvatar.dispose(); }
       myAvatar = makeAvatar(m.you.color, guest.nickname);
       scene.add(myAvatar.root);
-      for (const p of m.players) remotes.add(p, now);
+      for (const p of m.players) { remotes.add(p, now); if (p.beg != null) remotes.setBegging(p.id, p.beg, tw); }
       bigZone.resetSeen(); // 다시 접속했으면 그사이 채워진 인형을 한꺼번에 떨어뜨리지 않는다
       for (const [id, spots] of Object.entries(m.machines)) bigZone.setContents(id, spots);
       wallet = { coins: m.coins, bag: m.bag };
@@ -258,11 +259,13 @@ function onMessage(m: ServerMsg, guest: Guest) {
       if (m.why === 'far') toast(UI.giveNo.far);
       else counterNote = { text: UI.enough, until: now / 1000 + 3 };
       break;
-    case 'cbeg': {
-      const mine = m.id === myId;
-      if (mine && m.n > 0) window.setTimeout(() => toast(UI.gotCoins(m.n)), 3000); // 3초 조르기 모션 뒤 (Task 8: 모션)
+    case 'cbeg': void counterBegShow(m.id, m.c, m.n); break;
+    case 'beg':
+      if (m.id === myId) setMyBegging(m.room !== null);
+      else remotes.setBegging(m.id, m.room, tw);
       break;
-    }
+    case 'gave': void gaveShow(m.from, m.to, m.n); break;
+    case 'give_no': toast(UI.giveNo[m.why] ?? UI.giveNo.poor); break;
     case 'cbeg_no':
       counterNote = { text: m.why === 'wait' ? UI.begWait(Math.max(1, Math.ceil(m.wait / 60))) : m.why === 'full' ? UI.full : UI.giveNo.far, until: now / 1000 + 4 };
       break;
@@ -272,7 +275,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       if (m.got > 0) toast(`🪙 +${m.got}`); // 준 사람(got<0)에게는 '줬어요' 알림이 따로 간다
       if (seated) showSeat();
       break;
-    case 'join': remotes.add(m.p, now); break;
+    case 'join': remotes.add(m.p, now); if (m.p.beg != null) remotes.setBegging(m.p.id, m.p.beg, tw); break;
     case 'move': remotes.move(m, now); break;
     case 'leave':
       // 나간 사람이 하던 기계도 푼다 (서버 free가 오지 않는 경우의 안전망)
@@ -487,6 +490,61 @@ function showMachineUi(): boolean {
   return true;
 }
 
+// ---------- 조르기·주기 (교환소 개편 설계 §4.3·§4.4·§4.8) ----------
+let myBegging = false, myBeg: { stop(): Promise<void> } | null = null;
+const rigOfPlayer = (id: string) => (id === myId ? myAvatar?.rig ?? null : remotes.rigOf(id));
+function setMyBegging(on: boolean) {
+  myBegging = on;
+  myAvatar?.setTag(on ? BEGGING : null);
+  if (on && !myBeg && myAvatar) myBeg = startBegging(myAvatar.rig, tw);
+  else if (!on && myBeg) { void myBeg.stop(); myBeg = null; }
+}
+
+// 교환소 조르기: 그 사람이 3초 조르고 → 받으면 기뻐하며 코인이 튀고, 쿨타임이면 시무룩 (모두의 화면)
+async function counterBegShow(id: string, counter: number, n: number) {
+  const rig = rigOfPlayer(id);
+  if (rig) {
+    const c = COUNTERS[counter];
+    rig.root.rotation.y = Math.atan2(c.x - rig.root.position.x, c.z - rig.root.position.z);
+    const beg = startBegging(rig, tw);
+    await tw.wait(3);
+    await beg.stop();
+  }
+  if (n > 0) {
+    const c = COUNTERS[counter];
+    burst(scene, new THREE.Vector3(c.window[0], 1.4, c.window[1]), [0xffd36b, 0xfff6b0, 0xff9fd8], 26);
+    if (rig) await playHappy(rig, tw);
+    if (id === myId) toast(UI.gotCoins(n));
+  } else if (rig) await playSulk(rig, tw);
+}
+
+// 코인 주기: 주는 사람이 건네고 받는 사람이 기뻐한다 (모두의 화면), 두 사람에게 알림
+async function gaveShow(from: string, to: string, n: number) {
+  const giver = rigOfPlayer(from), taker = rigOfPlayer(to);
+  if (to === myId) toast(UI.gaveYou(remotes.nickOf(from), n));
+  if (from === myId) toast(UI.youGave(n));
+  if (giver && taker) {
+    const a = giver.root.position, b = taker.root.position;
+    void playGive(giver, tw, Math.atan2(b.x - a.x, b.z - a.z));
+    burst(scene, new THREE.Vector3(b.x, 1.6, b.z), [0xffd36b, 0xff7ab6, 0xfff6b0], 18);
+    await playHappy(taker, tw);
+  }
+}
+
+// 맵(기계 앞·교환소 근처가 아닌 곳): 조르는 사람이 가까우면 '주기', 아니면 '조르기'·'그만 조르기'
+function showMapUi() {
+  if (!me) return;
+  const beggar = myBegging ? null : remotes.beggarNear(me.pos, GIVE_REACH);
+  if (beggar) {
+    const max = Math.min(wallet.coins, beggar.room);
+    setAction(UI.give, () => {
+      if (max > 0) openGiveSheet({ nick: beggar.nick, max, onGive: (n) => socket?.send(encodeGive(beggar.id, n)) });
+    }, { status: max > 0 ? UI.someoneBegs(beggar.nick) : wallet.coins > 0 ? UI.giveNo.full : UI.giveNo.poor, dim: max === 0 });
+    return;
+  }
+  setAction(myBegging ? UI.stopBeg : UI.beg, () => socket?.send(encodeBeg(!myBegging)));
+}
+
 // '교환소 가기': 걸어서 가장 가까운 교환소 창구 앞까지 장애물을 돌아 저절로 걷는다. 손으로 움직이면 멈춘다 (설계 §3.11).
 // 도착하면 저절로 받지 않고 '코인 받기'·'조르기' 중에 고른다 (교환소 개편 설계 §4.5)
 function startCoinWalk() {
@@ -554,12 +612,12 @@ function frame(now: number) {
         if (clock() >= nextRunAt) { nextRunAt = null; socket?.send(encodePlay(seated)); }
       } else setInfo(left > 0 ? UI.continueIn(Math.ceil(left)) : null);
     } else if (!awaiting) {
-      if (Math.hypot(input.x, input.z) > 0) walker.cancel(); // 손으로 움직이면 저절로 걷기를 멈춘다
+      if (Math.hypot(input.x, input.z) > 0) { walker.cancel(); if (myBegging) setMyBegging(false); } // 손으로 움직이면 저절로 걷기·조르기를 멈춘다 (서버도 끝낸다)
       me.autoTarget = walker.next(me.pos);
       me.drive(input, dt);
       const goal = walker.counter !== null ? COUNTERS[walker.counter].window : null;
       if (goal && Math.hypot(me.pos.x - goal[0], me.pos.z - goal[1]) < 0.3) walker.cancel(); // 창구 앞에 닿으면 멈춘다
-      if (!showMachineUi()) showCounterUi(now / 1000);
+      if (!showMachineUi() && !showCounterUi(now / 1000)) showMapUi();
     }
     const moving = Math.hypot(me.dir.x, me.dir.z) > 0 && !atMachine;
     myAvatar.root.position.set(me.pos.x, 0, me.pos.z);

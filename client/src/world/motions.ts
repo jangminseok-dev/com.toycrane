@@ -114,3 +114,52 @@ export async function playResult(rig: AvatarRig, tw: Tweens, o: Outcome, doll: T
   await tw.tween(0.3, (k) => { const s = Math.sin(k * Math.PI); rig.backpack.scale.set(1 + s * 0.25, 1 - s * 0.18, 1 + s * 0.25); });
   await pose(rig, tw, 0.4, REST_L, REST_R, (k) => { r.rotation.y = lerp(face + Math.PI * 1.78, face + Math.PI, k); });
 }
+
+// ---- 조르기·주기·기쁨·시무룩 (교환소 개편 설계 §4.8) — 끝나면 손·고개·웅크림이 쉬는 자리로 돌아온다 ----
+const BEG_L = V(-0.1, 0.95, 0.4), BEG_R = V(0.1, 0.95, 0.4), GIVE_R = V(0.3, 0.9, 0.75);
+
+async function settle(rig: AvatarRig, tw: Tweens, dur = 0.25) {
+  const tilt = rig.head.rotation.z, nod = rig.head.rotation.x, crouch = rig.crouch;
+  await pose(rig, tw, dur, REST_L, REST_R, (k) => {
+    rig.head.rotation.z = lerp(tilt, 0, k); rig.head.rotation.x = lerp(nod, 0, k); rig.crouch = lerp(crouch, 0, k);
+  });
+  rig.head.rotation.set(0, 0, 0); rig.crouch = 0; rig.handL.copy(REST_L); rig.handR.copy(REST_R);
+}
+
+// 조르기: 두 손을 가슴 앞에 모으고 폴짝폴짝, 고개를 갸웃 — stop()까지 되풀이
+export function startBegging(rig: AvatarRig, tw: Tweens): { stop(): Promise<void> } {
+  let stopped = false;
+  const run = (async () => {
+    await pose(rig, tw, 0.2, BEG_L, BEG_R);
+    for (let i = 0; !stopped; i++) {
+      await tw.tween(0.5, (k) => {
+        rig.crouch = -Math.sin(k * Math.PI) * 0.06; // 폴짝
+        rig.head.rotation.z = (i % 2 ? -1 : 1) * Math.sin(k * Math.PI) * 0.22; // 갸웃
+      }, ease.lin);
+    }
+    await settle(rig, tw);
+  })();
+  return { stop: () => { stopped = true; return run; } };
+}
+
+// 주기: 받는 사람 쪽(toward, 세계 방향)으로 몸을 돌려 오른손을 내밀었다 거둔다
+export async function playGive(rig: AvatarRig, tw: Tweens, toward: number): Promise<void> {
+  rig.root.rotation.y = toward;
+  await pose(rig, tw, 0.3, null, GIVE_R, (k) => { rig.crouch = Math.sin(k * Math.PI) * 0.03; });
+  await tw.wait(0.25);
+  await settle(rig, tw, 0.3);
+}
+
+// 받고 기뻐하기: 두 팔을 번쩍 들고 두 번 폴짝
+export async function playHappy(rig: AvatarRig, tw: Tweens): Promise<void> {
+  await pose(rig, tw, 0.2, P.upL, P.upR);
+  await tw.tween(0.8, (k) => { rig.crouch = -Math.abs(Math.sin(k * Math.PI * 2)) * 0.12; }, ease.lin);
+  await settle(rig, tw);
+}
+
+// 거절당해 시무룩: 어깨가 처지고 고개를 떨군다
+export async function playSulk(rig: AvatarRig, tw: Tweens): Promise<void> {
+  await pose(rig, tw, 0.35, P.sadL, P.sadR, (k) => { rig.head.rotation.x = k * 0.35; rig.crouch = k * 0.06; });
+  await tw.wait(0.6);
+  await settle(rig, tw, 0.35);
+}

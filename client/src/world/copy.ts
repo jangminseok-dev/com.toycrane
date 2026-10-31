@@ -43,6 +43,10 @@ export const UI = {
   gaveYou: (nick: string, n: number) => `${nick} 님이 코인 ${n}개를 줬어요`,
   youGave: (n: number) => `코인 ${n}개를 줬어요`,
   noCoinsToast: '코인이 없어요. 교환소에서 받을 수 있어요',
+  giveTitle: (nick: string) => `${nick} 님에게 줄 코인`,
+  giveCount: (n: number) => `${n}개`,
+  giveMax: '최대',
+  cancel: '닫기',
   giveNo: {
     gone: '그 사람이 매장을 나갔어요', stopped: '이미 그만 조르고 있어요', far: '조금 더 가까이 가 주세요', poor: '코인이 모자라요',
     full: '그 사람 코인이 가득 찼어요', self: '나에게는 줄 수 없어요', playing: '한 판이 끝나면 줄 수 있어요',

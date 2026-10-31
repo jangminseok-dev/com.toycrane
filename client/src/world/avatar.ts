@@ -27,6 +27,7 @@ export interface Avatar {
   setWalking(on: boolean): void;
   update(t: number): void;
   dispose(): void; // 장면에서 뺄 때 이 아바타만의 GPU 자원(이름표) 해제
+  setTag(text: string | null): void; // 이름표 아래 작은 꼬리표 ('조르는 중'), null이면 뗀다
 }
 
 const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
@@ -56,6 +57,7 @@ export function makeAvatar(color: number, nickname: string): Avatar {
   const hands = [-1, 1].map(() => part(SPH, skin, [0, 0, 0], [0.13, 0.13, 0.13]));
   root.add(...hands);
   const label = makeLabel(nickname); label.position.set(0, 2.25, 0); root.add(label);
+  let tag: THREE.Sprite | null = null;
   root.scale.setScalar(0.85);
 
   const phase = Math.random() * 6;
@@ -65,7 +67,13 @@ export function makeAvatar(color: number, nickname: string): Avatar {
   return {
     root,
     rig,
-    dispose() { disposeLabel(label); },
+    dispose() { disposeLabel(label); if (tag) disposeLabel(tag); },
+    setTag(text) {
+      if (tag) { root.remove(tag); disposeLabel(tag); tag = null; }
+      if (!text) return;
+      tag = makeLabel(text); tag.name = 'tag'; tag.position.set(0, 1.98, 0); tag.scale.set(0.8, 0.2, 1);
+      root.add(tag);
+    },
     setWalking(on) { walking = on; },
     update(t) {
       const s = Math.sin(t * 2.4 + phase);

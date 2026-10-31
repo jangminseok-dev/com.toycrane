@@ -1,9 +1,12 @@
 import * as THREE from 'three';
 import type { Move, PlayerView } from '../net/protocol';
 import { makeAvatar, type Avatar, type AvatarRig } from '../world/avatar';
+import { BEGGING } from '../world/copy';
+import { startBegging } from '../world/motions';
+import type { Tweens } from './tween';
 import { extrapolate, isMoving, type RemoteState } from './remote';
 
-type Remote = { avatar: Avatar; state: RemoteState; shown: THREE.Vector2; nick: string };
+type Remote = { avatar: Avatar; state: RemoteState; shown: THREE.Vector2; nick: string; room: number | null; begging: { stop(): Promise<void> } | null };
 const SMOOTH = 0.2; // 매 프레임 추정 위치로 20%씩 다가간다
 
 // 같은 매장의 다른 사람들: 받은 위치에서 추정한 곳으로 부드럽게 따라 움직인다
@@ -22,6 +25,7 @@ export class RemotePlayers {
       state: { pos: { x: p.x, z: p.z }, dir: { x: p.dx, z: p.dz }, receivedAt: nowMs },
       shown: new THREE.Vector2(p.x, p.z),
       nick: p.nick,
+      room: null, begging: null,
     });
   }
 
@@ -41,6 +45,31 @@ export class RemotePlayers {
   // 모션(기계 앞 코인·조이스틱·결과)을 그 사람 아바타에 입힐 때
   rigOf(id: string): AvatarRig | null {
     return this.remotes.get(id)?.avatar.rig ?? null;
+  }
+
+  // 맵 조르기 (교환소 개편 설계 §4.3): room이 있으면 '조르는 중' 꼬리표와 조르기 모션, null이면 멈춘다
+  setBegging(id: string, room: number | null, tw: Tweens): void {
+    const r = this.remotes.get(id);
+    if (!r) return;
+    r.room = room;
+    r.avatar.setTag(room !== null ? BEGGING : null);
+    if (room !== null && !r.begging) r.begging = startBegging(r.avatar.rig, tw);
+    else if (room === null && r.begging) { void r.begging.stop(); r.begging = null; }
+  }
+
+  roomOf(id: string): number | null {
+    return this.remotes.get(id)?.room ?? null;
+  }
+
+  // 손 닿는 거리 안에서 가장 가까운 조르는 사람
+  beggarNear(pos: { x: number; z: number }, reach: number): { id: string; nick: string; room: number } | null {
+    let best: { id: string; nick: string; room: number; d: number } | null = null;
+    for (const [id, r] of this.remotes) {
+      if (r.room === null) continue;
+      const d = Math.hypot(r.shown.x - pos.x, r.shown.y - pos.z);
+      if (d <= reach && (!best || d < best.d)) best = { id, nick: r.nick, room: r.room, d };
+    }
+    return best && { id: best.id, nick: best.nick, room: best.room };
   }
 
   nickOf(id: string): string {
