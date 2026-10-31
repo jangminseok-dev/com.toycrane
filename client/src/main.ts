@@ -202,6 +202,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       myAvatar = makeAvatar(m.you.color, guest.nickname);
       scene.add(myAvatar.root);
       for (const p of m.players) remotes.add(p, now);
+      bigZone.resetSeen(); // 다시 접속했으면 그사이 채워진 인형을 한꺼번에 떨어뜨리지 않는다
       for (const [id, spots] of Object.entries(m.machines)) bigZone.setContents(id, spots);
       wallet = { coins: m.coins, bag: m.bag };
       setHud(wallet.coins, wallet.bag);

@@ -79,13 +79,13 @@ const goldMatcap = once(() => canvasTex(256, 256, (g) => {
   g.fillStyle = 'rgba(255,255,255,.85)'; g.beginPath(); g.ellipse(92, 78, 26, 14, -0.6, 0, Math.PI * 2); g.fill();
   g.fillStyle = 'rgba(255,240,190,.5)'; g.beginPath(); g.ellipse(170, 190, 30, 10, -0.7, 0, Math.PI * 2); g.fill();
 }));
-// 다람쥐 무늬: 구 UV 기준 x=64가 앞, x=192가 등. 등에 진한 줄·밝은 줄, 얼굴 아래·배는 밝게 — 몸 색마다 하나
-const shade = (hex: string, toward: number, k: number) => '#' + new THREE.Color(hex).lerp(new THREE.Color(toward), k).getHexString();
-const squirrelTex = keyed((base) => canvasTex(256, 128, (g) => {
-  g.fillStyle = base; g.fillRect(0, 0, 256, 128);
-  g.fillStyle = shade(base, 0xffffff, 0.75); g.beginPath(); g.ellipse(64, 80, 46, 40, 0, 0, Math.PI * 2); g.fill();
-  g.fillStyle = shade(base, 0xffffff, 0.65); for (const dx of [-14, 14]) g.fillRect(192 + dx - 3, 6, 6, 100);
-  g.fillStyle = shade(base, 0x2a1a10, 0.6); g.fillRect(188, 0, 8, 112); for (const dx of [-26, 26]) g.fillRect(192 + dx - 3, 12, 6, 90);
+// 다람쥐 무늬: 구 UV 기준 x=64가 앞, x=192가 등. 등에 진한 줄·밝은 줄, 얼굴 아래·배는 밝게.
+// 무채색 한 장에 몸 색을 곱한다 — 기계 속 무더기에서는 그 색을 꼭짓점 색으로 옮겨 색이 달라도 재질 하나로 합친다
+const squirrelTex = once(() => canvasTex(256, 128, (g) => {
+  g.fillStyle = '#e4e4e4'; g.fillRect(0, 0, 256, 128);
+  g.fillStyle = '#ffffff'; g.beginPath(); g.ellipse(64, 80, 46, 40, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#f6f6f6'; for (const dx of [-14, 14]) g.fillRect(192 + dx - 3, 6, 6, 100);
+  g.fillStyle = '#5a5a5a'; g.fillRect(188, 0, 8, 112); for (const dx of [-26, 26]) g.fillRect(192 + dx - 3, 12, 6, 90);
   g.fillRect(61, 0, 6, 20);
 }));
 
@@ -93,7 +93,7 @@ const squirrelTex = keyed((base) => canvasTex(256, 128, (g) => {
 export const goldToon = once(() => toonWith({ color: 0xffd36b, emissive: 0x7a5200, emissiveIntensity: 0.35 }));
 // 진짜 금으로 만든 인형(매우 희귀)의 온몸
 export const goldMaterial = once(() => new THREE.MeshMatcapMaterial({ matcap: goldMatcap() }));
-export const squirrelMat = keyed((base) => toonWith({ color: 0xffffff, map: squirrelTex(base) }));
+export const squirrelMat = keyed((base) => toonWith({ color: new THREE.Color(base).getHex(), map: squirrelTex() }));
 // 특수효과(희귀) 몸 재질 — 은은하게 빛나는 무늬
 const EFFECT_LOOKS: Record<string, { tex: () => THREE.Texture; glow: number; strength: number; spark: number }> = {
   star: { tex: starTex, glow: 0x6b4bd6, strength: 0.22, spark: 0xffe27a },

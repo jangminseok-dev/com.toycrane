@@ -25,6 +25,7 @@ export interface BigZone {
   releaseClaw(machineId: string): void;
   hideControls(machineId: string, hidden: boolean): void; // 내가 하는 동안 기계 그림의 레버·하강 버튼을 숨긴다 (움직이는 것을 따로 그리므로)
   pileOf(machineId: string): number[]; // 지금 무더기에 합쳐 그린 인형 번호 (떨어지는 중인 새 인형은 빠짐)
+  resetSeen(): void; // 다시 접속한 welcome 앞에: 다음에 받는 내용을 처음 받는 것처럼 (그사이 채워진 인형을 한꺼번에 떨어뜨리지 않게)
   update(t: number): void; // 깜빡임, 바뀐 행의 인형 다시 합치기, 새 인형 떨어지기, 희귀 반짝임
   occluders: Occluder[]; // 행 2개: 벽 줄, 섬
 }
@@ -51,35 +52,46 @@ const bulbGeo = new THREE.IcosahedronGeometry(0.024, 0); // 2.4cm라 각진 작�
 const rigPool: ClawRig[] = [];
 
 // 인형 겉모습(캐릭터·색·표정·희귀)마다 lite 모양을 재질별로 한 번만 합쳐 두고, 다시 합칠 때는 옮겨 붙이기만 한다.
-// 무늬 없는 툰 칠 부품은 색을 꼭짓점 색으로 옮겨 공용 재질 하나(DOLL_VC)로 모은다 — 색이 여러 가지여도 그리기 호출이 늘지 않게.
-// 무늬가 있는 재질(특수효과·황금·다람쥐 줄무늬)만 따로 묶인다 (설계 2026-10-31 인형 채우기 §5)
+// 빛나지 않는 툰 칠 부품은 색을 꼭짓점 색으로 옮겨 공용 재질(무늬 없으면 DOLL_VC, 다람쥐 줄무늬처럼 무채색 무늬면 그 무늬마다 하나)로
+// 모은다 — 색이 여러 가지여도 그리기 호출이 늘지 않게. 빛나는 특수효과·황금만 따로 묶인다 (설계 2026-10-31 인형 채우기 §5)
 type Part = { geo: THREE.BufferGeometry; mat: THREE.Material };
 const DOLL_VC = toonWith({ color: 0xffffff, vertexColors: true });
-const plainToon = (m: THREE.Material): m is THREE.MeshToonMaterial =>
-  m instanceof THREE.MeshToonMaterial && !m.map && m.emissive.getHex() === 0 && !m.vertexColors;
+const tintedVC = new Map<THREE.Texture, THREE.Material>();
+const tintable = (m: THREE.Material): m is THREE.MeshToonMaterial => m instanceof THREE.MeshToonMaterial && m.emissive.getHex() === 0 && !m.vertexColors;
+// 합쳐 둔 모양은 최근에 쓴 것만 이만큼 둔다 — 겉모습이 2천 가지 가까이라 다 두면 휴대폰 메모리가 넘친다(매장 무더기는 216개)
+export const LITE_CACHE_MAX = 300;
 const partsCache = new Map<string, Part[] | null>();
+export const liteCacheSize = () => partsCache.size;
 function liteParts(spot: DollSpot): Part[] | null {
   const look = lookOf(spot), key = `${spot[0]}|${look.color}|${look.face}|${look.rare}`;
-  if (!partsCache.has(key)) {
-    const doll = makeDoll(spot[0], look, true);
-    if (!doll) partsCache.set(key, null);
-    else {
-      const buckets = new Map<THREE.Material, { line: boolean; geos: THREE.BufferGeometry[] }>();
-      for (const m of bakeByMaterial(doll)) {
-        let mat = m.material as THREE.Material;
-        if (plainToon(mat)) {
-          const c = mat.color, n = m.geometry.getAttribute('position').count, colors = new Float32Array(n * 3);
-          for (let i = 0; i < n; i++) colors.set([c.r, c.g, c.b], i * 3);
-          m.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-          mat = DOLL_VC;
-        }
-        if (!buckets.has(mat)) buckets.set(mat, { line: false, geos: [] });
-        buckets.get(mat)!.geos.push(m.geometry);
+  const known = partsCache.get(key);
+  if (known !== undefined) { partsCache.delete(key); partsCache.set(key, known); return known; } // 최근에 쓴 것으로
+  const doll = makeDoll(spot[0], look, true);
+  let parts: Part[] | null = null;
+  if (doll) {
+    const buckets = new Map<THREE.Material, { line: boolean; geos: THREE.BufferGeometry[] }>();
+    for (const m of bakeByMaterial(doll)) {
+      let mat = m.material as THREE.Material;
+      if (tintable(mat)) {
+        const c = mat.color, n = m.geometry.getAttribute('position').count, colors = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) colors.set([c.r, c.g, c.b], i * 3);
+        m.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        const map = mat.map;
+        if (map && !tintedVC.has(map)) tintedVC.set(map, toonWith({ color: 0xffffff, map, vertexColors: true }));
+        mat = map ? tintedVC.get(map)! : DOLL_VC;
       }
-      partsCache.set(key, mergeBuckets(buckets).map((m) => ({ geo: m.geometry, mat: m.material as THREE.Material })));
+      if (!buckets.has(mat)) buckets.set(mat, { line: false, geos: [] });
+      buckets.get(mat)!.geos.push(m.geometry);
     }
+    parts = mergeBuckets(buckets).map((m) => ({ geo: m.geometry, mat: m.material as THREE.Material }));
   }
-  return partsCache.get(key)!;
+  partsCache.set(key, parts);
+  while (partsCache.size > LITE_CACHE_MAX) {
+    const [oldest, gone] = partsCache.entries().next().value!;
+    gone?.forEach((p) => p.geo.dispose()); // 무더기에는 복제해 붙이므로 원본은 지워도 된다
+    partsCache.delete(oldest);
+  }
+  return parts;
 }
 // 새로 채워진 인형: 위 0.6m에서 0.6초 동안 떨어져 한 번 톡 튄다
 const FALL_SECONDS = 0.6, FALL_HEIGHT = 0.6;
@@ -228,6 +240,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
       u.contents = dolls; u.block.dirty = true;
     },
     pileOf: (id) => units.get(id)?.baked ?? [],
+    resetSeen() { for (const u of units.values()) u.seen = null; },
     contentsOf: (id) => units.get(id)?.contents ?? [],
     clawOf: (id) => unit(id).claw,
     worldOf: (id) => unit(id).anchor,

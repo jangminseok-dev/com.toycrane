@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { beforeAll, expect, test } from 'vitest';
 import { MACHINES } from '../data/storeLayout';
 import { stubCanvas } from '../test/canvasStub';
-import { buildBigZone } from './bigZone';
+import { LITE_CACHE_MAX, buildBigZone, liteCacheSize } from './bigZone';
 import { CONTROLS } from './machine';
 import { spot } from '../test/spots';
 
@@ -202,4 +202,42 @@ test('chubby dolls are drawn wider', () => {
   };
   expect(width('c')).toBeGreaterThan(width('n') * 1.08);
   expect(width('s')).toBeLessThan(width('n') * 0.94);
+});
+
+// 다람쥐는 줄무늬 그림이 있어도 색마다 재질이 따로 생기지 않는다 — 무늬는 무채색 한 장, 색은 꼭짓점 색으로 (최종 리뷰 I2)
+test('squirrels of every color share one striped material', () => {
+  const count = (colors: number[]) => {
+    const scene = new THREE.Scene();
+    const zone = buildBigZone(scene);
+    zone.setContents('A-10', colors.map((c, i) => spot('squirrel', -0.3 + (i % 3) * 0.25, -0.25 + Math.floor(i / 3) * 0.22, i, 0, { color: c })));
+    zone.update(0);
+    return materialsIn(scene, 'dolls-big-wall-1');
+  };
+  expect(count([0, 1, 2, 3, 4, 5])).toBe(count([0, 0, 0, 0, 0, 0]));
+});
+
+// 다시 접속한 welcome은 처음 받는 것처럼 — 그사이 채워진 인형이 한꺼번에 떨어지지 않게 (최종 리뷰 M2)
+test('a reconnect does not drop every doll refilled meanwhile', () => {
+  const scene = new THREE.Scene();
+  const zone = buildBigZone(scene);
+  const dolls = nineDolls('octopus', 0);
+  zone.setContents('C-6', dolls.slice(0, 5));
+  zone.update(0);
+  zone.resetSeen();
+  zone.setContents('C-6', dolls);
+  zone.update(0.1);
+  expect(zone.pileOf('C-6')).toHaveLength(9);
+});
+
+// 인형 겉모습마다 합쳐 둔 모양은 끝없이 쌓이지 않는다 — 오래 하면 휴대폰 메모리가 넘친다 (최종 리뷰 M7)
+test('baked doll shapes are kept to a bounded number', () => {
+  const scene = new THREE.Scene();
+  const zone = buildBigZone(scene);
+  const kinds = MACHINES.map((m) => m.kind);
+  for (let round = 0; round < 60; round++) {
+    zone.setContents('C-6', Array.from({ length: 9 }, (_, i) => spot(kinds[(round * 9 + i) % kinds.length], (i % 3) * 0.2 - 0.2, Math.floor(i / 3) * 0.2 - 0.2, 0, 0, { color: (round + i) % 6, face: Math.floor(round / 6) % 5 })));
+    zone.update(round);
+  }
+  expect(liteCacheSize()).toBeLessThanOrEqual(LITE_CACHE_MAX);
+  expect(LITE_CACHE_MAX).toBeLessThan(500);
 });
