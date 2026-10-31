@@ -41,9 +41,23 @@ test('pressing the drop button works once and stops the lever', () => {
   expect(s.claw).toEqual(at);
 });
 
-test('a result that never comes is given up after a while', () => {
+// 물리 뽑기 설계 §4.4: 내린 뒤에는 집게 한 바퀴(물리)가 돈다 — 레버는 더 이상 집게를 못 움직이고, 결과 대기는 보고(done)를 보낸 때부터 잰다
+test('after the drop the lever no longer moves the claw and the phase is cycle', () => {
   const s = new PlaySession('A-1', 20, 0);
-  s.requestDrop(3);
-  expect(s.resultOverdue(10)).toBe(false);
-  expect(s.resultOverdue(11.5)).toBe(true);
+  s.update(1, { x: 1, z: 0 }, 1);
+  const at = { ...s.claw };
+  expect(s.phase).toBe('lever');
+  expect(s.requestDrop(2)).toBe('drop');
+  expect(s.phase).toBe('cycle');
+  s.update(1, { x: -1, z: 0 }, 3);
+  expect(s.claw).toEqual(at);
+});
+
+test('the result wait starts when the report is sent, not at the drop', () => {
+  const s = new PlaySession('A-1', 20, 0);
+  s.requestDrop(2);
+  expect(s.resultOverdue(15)).toBe(false); // 한 바퀴(최대 15초)가 도는 중
+  s.markDone(16);
+  expect(s.resultOverdue(23)).toBe(false);
+  expect(s.resultOverdue(24.5)).toBe(true);
 });

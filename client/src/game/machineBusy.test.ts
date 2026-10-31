@@ -25,3 +25,11 @@ test('a finished round keeps the machine for the player during the hold time', (
   expect(b.who('A-1', 129)).toBe('p1');
   expect(b.who('A-1', 130.5)).toBeNull();
 });
+
+// 물리 뽑기 설계 §4.4: 남이 하는 기계는 레버 시간 + 집게 한 바퀴(12초) + 멈춤 대기(3초) + 여유 동안 "하는 중"
+test('a machine stays busy through the claw cycle and settle time', () => {
+  const b = new MachineBusy(20, 20, 15);
+  b.set('A-1', 'p1', 0);
+  expect(b.who('A-1', 20 + 15 + 2)).toBe('p1');
+  expect(b.who('A-1', 20 + 15 + 4)).toBeNull();
+});

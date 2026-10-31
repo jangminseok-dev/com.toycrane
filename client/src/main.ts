@@ -8,7 +8,6 @@ import { blocksView, machineCameraPose } from './game/machineCamera';
 import { MachineBusy } from './game/machineBusy';
 import { PlaySession } from './game/playSession';
 import { Swing } from './game/swing';
-import { runClaw } from './world/clawShow';
 import { Tweens, ease } from './game/tween';
 import { sfx, unlockAudio } from './audio/sfx';
 import { AutoWalk, nearestCounter } from './game/autoWalk';
@@ -18,7 +17,12 @@ import { RemotePlayers } from './game/remotePlayers';
 import { installJoystick } from './input/joystick';
 import { readKeyboard } from './input/keyboard';
 import { admit, createGuest, getGuest, type Guest } from './net/api';
-import { encodeBeg, encodeCounterBeg, encodeDrop, encodeGive, encodeMove, encodePlay, encodeStand, encodeTake, encodeTick, lookOf, type Coins, type DollSpot, type Result, type ServerMsg } from './net/protocol';
+import { encodeBeg, encodeCounterBeg, encodeDone, encodeGive, encodeMove, encodePlay, encodeStand, encodeTake, encodeTick, lookOf, uidOf, type Coins, type DollSpot, type Result, type ServerMsg } from './net/protocol';
+import { loadRapier, rapierNow, rapierReady } from './physics/rapier';
+import { MachineWorld } from './physics/machineWorld';
+import { ClawBody } from './physics/clawBody';
+import { CycleRunner } from './physics/clawCycle';
+import { CLAW } from './data/claw';
 import { closeAction, nextDelay, retrying } from './net/reconnect';
 import { safeStorage } from './net/storage';
 import { StoreSocket, storeUrl } from './net/storeSocket';
@@ -35,10 +39,11 @@ import { setStatus } from './ui/status';
 import { makeAvatar, type Avatar } from './world/avatar';
 import { DOLLS, GOLD, SETS, dollName } from './data/catalog';
 import { COUNTERS, MACHINES, MACHINE_SPEC, frontSpot, nearestMachine } from './data/storeLayout';
-import { buildBigZone } from './world/bigZone';
+import { buildBigZone, type LiveDolls } from './world/bigZone';
 import { PLAIN, makeDoll } from './world/dolls';
 import { burst, updateEffects } from './world/effects';
 import { CLAW_REST, CONTROLS, FELT_COLORS } from './world/machine';
+import { CABLE_TOP } from './world/claw';
 import { playGive, playHappy, playResult, playSulk, startBegging, startPlaying } from './world/motions';
 import { buildCoinCounters } from './world/coinCounter';
 import { buildDecor } from './world/decor';
@@ -99,7 +104,7 @@ let session: PlaySession | null = null;
 let awaiting: string | null = null;
 let seated: string | null = null;
 let holdFrom = 0; // 서버가 내 자리를 잡아 둔 시각(내 결과를 받은 때 = 내린 때) — 판 사이 남은 시간은 여기서 센다
-const busy = new MachineBusy(MACHINE_SPEC.play_seconds, MACHINE_SPEC.hold_seconds);
+const busy = new MachineBusy(MACHINE_SPEC.play_seconds, MACHINE_SPEC.hold_seconds, CLAW.cycle_seconds + CLAW.settle_seconds);
 let dropped: PlaySession | null = null; // 내리고 결과를 기다리는 판 (8초 넘게 못 받으면 포기)
 const clock = () => performance.now() / 1000;
 const spotOf = new Map(MACHINES.map((m) => [m.id, m]));
@@ -207,7 +212,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       myAvatar = makeAvatar(m.you.color, guest.nickname);
       scene.add(myAvatar.root);
       for (const p of m.players) { remotes.add(p, now); if (p.beg != null) remotes.setBegging(p.id, p.beg, tw); }
-      bigZone.resetSeen(); // 다시 접속했으면 그사이 채워진 인형을 한꺼번에 떨어뜨리지 않는다
+      scheduleRapier(); // 물리 모듈은 입장 뒤 한가할 때 받는다 (물리 뽑기 설계 §4.1)
       for (const [id, spots] of Object.entries(m.machines)) bigZone.setContents(id, spots);
       wallet = { coins: m.coins, bag: m.bag };
       setHud(wallet.coins, wallet.bag);
@@ -226,6 +231,8 @@ function onMessage(m: ServerMsg, guest: Guest) {
       });
       break;
     case 'play_ok': startPlay(m.m, m.limit, m.coins); break;
+    case 'done_no': onDoneNo(m.m); break;
+    case 'pose': break; // 구경꾼 중계 — Task 12
     case 'play_no':
       if (m.why !== 'playing') toast({ busy: '다른 사람이 하는 중이에요', coins: UI.noCoinsToast, far: '기계 앞에 서 주세요' }[m.why]);
       if (seated === m.m) { run.stop(); nextRunAt = null; showSeat(); } // 이어 하던 판을 못 시작했으면 멈추고 다시 묻는다
@@ -238,7 +245,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       break;
     case 'result': {
       busy.hold(m.m, m.id, now / 1000); // 서버가 그 사람이 이어서 할 수 있게 자리를 잡아 둔다
-      if (m.id === myId) holdFrom = now / 1000; // 집게 연출이 길어도 남은 시간은 서버와 같게
+      if (m.id === myId) holdFrom = now / 1000; // 보고한 때 = 서버가 자리를 잡아 둔 때
       const t: Ticket = { done: false };
       tickets.set(m.m, t);
       after(m.m, () => showResult(m, t));
@@ -247,7 +254,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
     case 'machine': {
       const t = tickets.get(m.m);
       if (t && !t.done) t.pending = m.dolls; // 집게·모션 연출이 끝난 뒤에 바꾼다
-      else bigZone.setContents(m.m, m.dolls);
+      else applyMachine(m.m, m.dolls);
       break;
     }
     case 'bag': wallet.bag = m.n; setHud(wallet.coins, wallet.bag); break;
@@ -338,17 +345,90 @@ function startPlay(machineId: string, limit: number, coins: number) {
   }
   bigZone.showAim(machineId, true);
   bigZone.activateClaw(machineId); // 움직이는 집게로 바꿔 끼운다 (흔들림이 보이게)
+  // 기계 속 물리 세계(물리 뽑기 설계 §4.4): 안 앉은 인형이 있으면 먼저 앉히고, 한 판 동안 인형을 따로 그린다
+  const R = rapierNow();
+  if (R) {
+    settleMachine(machineId);
+    const world = new MachineWorld(R, bigZone.contentsOf(machineId));
+    cycle = { machineId, world, runner: null, claw: null, live: bigZone.live(machineId), before: bigZone.contentsOf(machineId) };
+  }
   if (me && socket) { me.dir = { x: 0, z: 0 }; socket.send(encodeMove(me.pos, me.dir)); }
+}
+
+// 내 판의 물리: 레버 동안은 세계만 들고 있다가, 내리면 집게 한 바퀴(CycleRunner)를 프레임마다 돌린다. 끝나면 done 보고
+type Cycle = { machineId: string; world: MachineWorld; runner: CycleRunner | null; claw: ClawBody | null; live: LiveDolls; before: DollSpot[] };
+let cycle: Cycle | null = null;
+const TOP_Y = CLAW_REST.y + CABLE_TOP;
+function dropCycle() {
+  if (!cycle) return;
+  cycle.claw?.dispose(); cycle.world.dispose(); cycle.live.dispose();
+  cycle = null;
+}
+function runCycleFrame(dt: number) {
+  if (!cycle?.runner || !cycle.claw || !dropped) return;
+  const { runner, claw, world, live, machineId } = cycle;
+  const done = runner.advance(dt);
+  const rig = bigZone.rigOf(machineId), group = bigZone.clawOf(machineId);
+  group.position.set(claw.x, claw.y, claw.z);
+  rig?.setCable(TOP_Y - claw.y); rig?.setOpen(claw.open);
+  for (const p of world.poses()) live.set(p.uid, p.p, p.q);
+  topView?.update({ x: claw.x, z: claw.z });
+  if (!done) return;
+  const r = runner.done();
+  for (const uid of r.won) live.remove(uid);
+  socket?.send(encodeDone(machineId, r.won, r.poses));
+  dropped.markDone(clock());
+  cycle.runner = null;
+}
+function onDoneNo(machineId: string) {
+  if (!cycle || cycle.machineId !== machineId) return;
+  toast(UI.saveFailed);
+  bigZone.setContents(machineId, cycle.before); // 서버는 판 시작 전 그대로다 (물리 뽑기 설계 §9.7)
+  dropCycle();
+  if (awaiting === machineId) sitDown(machineId, false);
+}
+
+// 채우기 앉히기 (물리 뽑기 설계 §9.2): 8m 안의 기계에 안 앉은 인형이 있고 물리가 준비됐으면 그 화면이 1초 안쪽 계산으로 앉힌다 (프레임당 한 대)
+const SETTLE_REACH = 8;
+function settleMachine(id: string): void {
+  const R = rapierNow();
+  if (!R || !bigZone.unsettled(id).length) return;
+  const world = new MachineWorld(R, bigZone.contentsOf(id));
+  world.settle(CLAW.settle_seconds);
+  bigZone.settleWith(id, world.poses());
+  world.dispose();
+}
+function settleNearby(): void {
+  if (!me || !rapierReady()) return;
+  for (const m of MACHINES) {
+    if (Math.hypot(m.x - me.pos.x, m.z - me.pos.z) > SETTLE_REACH || !bigZone.unsettled(m.id).length) continue;
+    settleMachine(m.id);
+    return;
+  }
+}
+let rapierScheduled = false;
+function scheduleRapier(): void {
+  if (rapierScheduled) return;
+  rapierScheduled = true;
+  const start = () => { loadRapier().catch((e) => { console.error(e); rapierScheduled = false; }); };
+  if ('requestIdleCallback' in window) (window as Window & { requestIdleCallback(cb: () => void): void }).requestIdleCallback(start);
+  else setTimeout(start, 2000);
 }
 
 function sendDrop() {
   if (!session) return;
-  socket?.send(encodeDrop(session.claw.x, session.claw.z));
   dropControls(); letGoOfLever();
-  topView?.dispose(); topView = null;
   bigZone.showAim(session.machineId, false);
   awaiting = session.machineId;
   dropped = session;
+  const R = rapierNow();
+  if (cycle && R && cycle.machineId === session.machineId) {
+    cycle.claw = new ClawBody(R, cycle.world);
+    cycle.runner = new CycleRunner(cycle.world, cycle.claw, session.claw.x, session.claw.z);
+  } else { // 물리가 없으면(있을 수 없지만) 빈손으로 보고한다
+    socket?.send(encodeDone(session.machineId, [], []));
+    dropped.markDone(clock());
+  }
   session = null;
   hidePlayControls();
 }
@@ -360,6 +440,7 @@ function endPlay() {
     if (!showing.has(id)) bigZone.releaseClaw(id);
   }
   session = null; awaiting = null; dropped = null; seated = null;
+  dropCycle();
   run.stop(); nextRunAt = null;
   dropControls(); letGoOfLever();
   topView?.dispose(); topView = null;
@@ -414,6 +495,7 @@ function sitDown(machineId: string, won: boolean) {
   else { run.stop(); showSeat(); }
 }
 function playAgain(id: string, plays: number) {
+  if (!rapierReady()) { scheduleRapier(); toast(UI.physicsLoading); return; }
   run.start(plays, wallet.coins);
   socket?.send(encodePlay(id));
 }
@@ -447,18 +529,19 @@ async function showResult(m: Result, t: Ticket) {
   if (mine) showingMe = true;
   await playing.get(m.m)?.stop(); playing.delete(m.m);
   const spot = spotOf.get(m.m)!, face = spot.ry + Math.PI;
-  const info = m.k ? DOLLS[m.k] : undefined, rare = !!m.rv, tier = m.rv === GOLD.id ? 'gold' : rare ? 'rare' : '';
-  const name = m.k ? dollName(m.k, m.c ?? 0, m.rv ?? '') : '';
+  const first = m.won[0];
+  const info = first ? DOLLS[first[0]] : undefined, rare = !!first?.[2], tier = first?.[2] === GOLD.id ? 'gold' : rare ? 'rare' : '';
+  const name = first ? dollName(first[0], first[1], first[2]) : '';
   const front = frontSpot(spot);
   const near = mine || (!!me && Math.hypot(me.pos.x - front.x, me.pos.z - front.z) < 6);
   const rig = mine ? null : remotes.rigOf(m.id);
-  const won = m.i != null ? bigZone.contentsOf(m.m)[m.i] : undefined; // 잡은 인형 (연출 전 무더기 그대로)
-  const doll = rig && m.o === 'win' && m.k ? makeDoll(m.k, won ? lookOf(won) : { ...PLAIN, color: m.c ?? 0, rare: m.rv ?? '' }) : null;
+  const doll = rig && first ? makeDoll(first[0], { ...PLAIN, color: first[1], rare: first[2] }) : null;
   if (doll) spinners.push(...doll.userData.spin);
+  const o = m.won.length ? 'win' : 'miss';
   const fx = {
     bonk: () => { if (near) sfx.bonk(); },
-    claw: () => runClaw({ tw, zone: bigZone, swing: swingOf(m.m), takePending: () => { const p = t.pending; t.pending = undefined; return p; } }, m, near), // 멀리서는 귀·옆 인형 연출 생략
-    afterClaw: () => { if (mine && awaiting === m.m) sitDown(m.m, m.o === 'win'); },
+    claw: async () => {}, // 집게는 물리가 이미 움직였다(내 판) / 중계로 보였다(남의 판, Task 12)
+    afterClaw: () => { if (mine && awaiting === m.m) sitDown(m.m, o === 'win'); },
     pop: () => { if (near) sfx.pop(); },
     win: () => {
       bigZone.flash(m.m, tier === 'gold', 3.2);
@@ -472,17 +555,24 @@ async function showResult(m: Result, t: Ticket) {
         tower.showMessage(tier === 'gold' ? '★★ 매우 희귀! ★★' : '★ 희귀 뽑기! ★', `${nick} 님이 ${name}${eulReul(name)} 뽑았어요`, true, tier === 'gold' ? 8 : 6);
       }
       if (mine && info) showWinCard(name, SETS.find((x) => x.id === info.set)?.name ?? '', tier, wallet.bag);
+      if (mine && m.won.length > 1) toast(UI.wonMore(m.won.length - 1)); // 탑이 무너져 여럿이 빠지면 모두 내 것 (물리 뽑기 설계 §9.1)
       return rare ? 1.7 : 1.0;
     },
     fail: () => { if (mine) sfx.fail(); },
   };
-  if (rig) await playResult(rig, tw, m.o, doll, fx, face);
-  else { fx.bonk(); await fx.claw(); fx.afterClaw(); if (m.o === 'win') fx.win(); else fx.fail(); }
+  if (rig) await playResult(rig, tw, o, doll, fx, face);
+  else { fx.afterClaw(); if (o === 'win') fx.win(); else fx.fail(); }
   if (doll) spinners.splice(0, spinners.length, ...spinners.filter((s) => !doll.userData.spin.includes(s)));
   showing.delete(m.m);
-  if (t.pending) { bigZone.setContents(m.m, t.pending); t.pending = undefined; }
+  if (t.pending) { applyMachine(m.m, t.pending); t.pending = undefined; }
   t.done = true;
   if (mine) showingMe = false;
+}
+
+// 새 배치(machine)를 넣는다 — 내 판의 live 모드는 여기서 끝나고 무더기로 돌아간다
+function applyMachine(id: string, dolls: DollSpot[]) {
+  bigZone.setContents(id, dolls);
+  if (cycle && cycle.machineId === id && !cycle.runner) dropCycle();
 }
 
 // 기계 앞자리 가까이면 그 기계: 비었으면 "🪙1 넣고 하기", 남이 하면 구경 중
@@ -494,7 +584,8 @@ function showMachineUi(): boolean {
   if (who && who !== myId) { setAction(null); setInfo(UI.watching); return true; }
   setInfo(null);
   const more = runSize(wallet.coins);
-  if (wallet.coins > 0) setAction(UI.playOne, () => playAgain(near.id, 1), { badge: 1, extra: more && { label: UI.playRun(more.plays), badge: more.plays, onPress: () => playAgain(near.id, more.plays) } });
+  if (!rapierReady()) { scheduleRapier(); setAction(UI.playOne, () => {}, { badge: 1, dim: true, status: UI.physicsLoading }); } // 물리 모듈을 받는 중 (설계 §4.1)
+  else if (wallet.coins > 0) setAction(UI.playOne, () => playAgain(near.id, 1), { badge: 1, extra: more && { label: UI.playRun(more.plays), badge: more.plays, onPress: () => playAgain(near.id, more.plays) } });
   else setAction(UI.goCounter, startCoinWalk, { status: UI.noCoins });
   return true;
 }
@@ -608,6 +699,8 @@ function frame(now: number) {
     const stick = joystick.read();
     const input = Math.hypot(stick.x, stick.z) > 0 ? stick : readKeyboard();
     if (dropped && awaiting && dropped.resultOverdue(now / 1000)) { endPlay(); toast('결과를 받지 못했어요'); }
+    runCycleFrame(dt); // 내린 뒤 집게 한 바퀴(물리)
+    settleNearby(); // 가까운 기계의 안 앉은 인형 앉히기
     const atMachine = session?.machineId ?? awaiting ?? seated; // 기계 카메라를 쓰는 동안
     joystick.setEnabled(!atMachine); // 기계 앞에서는 기계 버튼으로 — 걷기 조이스틱은 숨긴다
     const myMachine = atMachine ? spotOf.get(atMachine) : undefined;
@@ -617,7 +710,7 @@ function frame(now: number) {
       // 시간이 다 되면 여기서 내리고(sendDrop이 session을 비운다) — 그 뒤엔 session을 읽지 않는다 (읽으면 그리기 고리가 멈춘다)
       const playId = session.machineId;
       if (session.update(dt, leverInput, now / 1000) === 'drop') sendDrop();
-      else {
+      else if (session.phase === 'lever') {
         setTimer(session.remaining, run.label());
         controls?.update(now / 1000);
         controls?.setLever(leverInput.x, leverInput.z);
@@ -632,8 +725,8 @@ function frame(now: number) {
       }
       me.autoTarget = frontSpot(spotOf.get(playId)!); // 기계 앞자리 가운데로 (카메라 구도가 늘 같게)
       me.drive({ x: 0, z: 0 }, dt);
-    } else if (showingMe) {
-      me.drive({ x: 0, z: 0 }, dt); // 내 결과 모션 동안은 제자리
+    } else if (showingMe || cycle?.runner) {
+      me.drive({ x: 0, z: 0 }, dt); // 내 결과 모션·집게 한 바퀴 동안은 제자리
     } else if (seated) {
       me.autoTarget = frontSpot(spotOf.get(seated)!); // 판 사이에도 기계 앞자리에 그대로
       me.drive({ x: 0, z: 0 }, dt);
