@@ -70,19 +70,3 @@ test('the drop label fits inside the button top', () => {
   const size = label.geometry.boundingBox!.getSize(new THREE.Vector3());
   expect(Math.max(size.x, size.y)).toBeLessThanOrEqual(0.8 * 2 * 0.055 + 1e-9);
 });
-
-// 이어 하는 중 조작대 가운데의 작은 "그만" 버튼 (사용자 2026-11-01: 화면 구석 글자 버튼 말고 기계 위에) — 보일 때만 눌린다
-test('the stop button on the console is picked only while shown', () => {
-  const anchor = new THREE.Group(); anchor.position.set(3, 0, -6); anchor.rotation.y = Math.PI;
-  const controls = buildMachineControls(anchor);
-  expect(pickAt(controls, anchor, CONTROLS.stop)).toBeNull();
-  controls.showStop(true);
-  expect(pickAt(controls, anchor, CONTROLS.stop)).toBe('stop');
-  expect(pickAt(controls, anchor, CONTROLS.lever)).toBe('lever'); // 레버·잡기 자리는 그대로
-  expect(pickAt(controls, anchor, CONTROLS.drop)).toBe('drop');
-  let label: THREE.Mesh | undefined;
-  anchor.traverse((o) => { if (o.name === 'stop-label') label = o as THREE.Mesh; });
-  expect(label!.userData.text).toBe('그만');
-  controls.showStop(false);
-  expect(pickAt(controls, anchor, CONTROLS.stop)).toBeNull();
-});

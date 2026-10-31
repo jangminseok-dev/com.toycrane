@@ -147,14 +147,6 @@ export function prepTex(): THREE.CanvasTexture {
 }
 
 // 하강 버튼 윗면 글씨: 흰 '잡기'와 그 아래 흰 화살표(▼), 진한 빨강 테두리. 밖은 투명
-// 글씨만 있는 작은 버튼 윗면 ('그만')
-export function buttonLabelTex(text: string, edge: string): THREE.CanvasTexture {
-  return canvasTex(256, 256, (g) => {
-    g.font = `104px ${SIGN_FONT}`;
-    outlined(g, text, 128, 156, edge, 14, '#ffffff');
-  });
-}
-
 export function dropLabelTex(text: string): THREE.CanvasTexture {
   return canvasTex(256, 256, (g) => {
     g.font = `76px ${SIGN_FONT}`; // 윗면 안에 넉넉히 (가장자리 20% 이상 비움)

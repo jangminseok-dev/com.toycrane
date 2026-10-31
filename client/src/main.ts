@@ -77,10 +77,10 @@ Object.assign(window, { __toycrane: {
   physicsMs: () => (physicsMs.length ? physicsMs.reduce((a, b) => a + b, 0) / physicsMs.length : 0),
   settledIds: () => [...settledHere],
   watching: (id: string) => watches.has(id),
-  controlAt: (part: 'lever' | 'drop' | 'stop') => {
-    if (!controlsAt || (part === 'stop' && !run.remaining())) return null;
+  controlAt: (part: 'lever' | 'drop') => {
+    if (!session) return null;
     const [x, y, z] = CONTROLS[part];
-    const p = bigZone.worldOf(controlsAt).localToWorld(new THREE.Vector3(x, y + 0.02, z)).project(camera);
+    const p = bigZone.worldOf(session.machineId).localToWorld(new THREE.Vector3(x, y + 0.02, z)).project(camera);
     return { x: ((p.x + 1) / 2) * innerWidth, y: ((1 - p.y) / 2) * innerHeight };
   },
 } });
@@ -345,11 +345,11 @@ function startPlay(machineId: string, limit: number, coins: number) {
   session = new PlaySession(machineId, limit, clock());
   run.began();
   seated = null; nextRunAt = null; hideSeatControls();
+  if (run.remaining() > 0) showRunPause(stopRun); // 이어 하는 중에는 판 도중에도 "그만하기" — 이번 판 뒤에 멈춘다 (사용자 2026-11-01)
   setAction(null); setInfo(null);
   showPlayControls(); showHint();
   dropControls();
   controls = buildMachineControls(bigZone.worldOf(machineId)); controlsAt = machineId;
-  controls.showStop(run.remaining() > 0); // 이어 하는 중에는 조작대의 '그만' 버튼 — 이번 판 뒤에 멈춘다 (사용자 2026-11-01)
   bigZone.hideControls(machineId, true); // 기계 그림의 고정 레버·버튼은 숨긴다 — 남으면 기울일 때 잔상처럼 하나 더 보인다
   topView?.dispose(); // 뒷판 모니터: 위에서 본 기계 안 (설계 §3.9)
   topView = buildTopView(renderer, scene, bigZone.worldOf(machineId), FELT_COLORS[MACHINES.findIndex((m) => m.id === machineId) % FELT_COLORS.length]);
@@ -439,7 +439,7 @@ function scheduleRapier(): void {
 
 function sendDrop() {
   if (!session) return;
-  letGoOfLever(); // 레버·잡기는 그대로 둔다(집게가 도는 동안·판 사이에도 '그만'을 누를 수 있게) — 다음 판 시작이나 일어설 때 걷는다
+  dropControls(); letGoOfLever();
   bigZone.showAim(session.machineId, false);
   awaiting = session.machineId;
   dropped = session;
@@ -485,14 +485,12 @@ const LEVER_PX = 60, LEVER_DEAD = 0.12;
 const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
 function letGoOfLever() { leverDrag = null; leverInput = { x: 0, z: 0 }; controls?.setPressed(false); }
 renderer.domElement.addEventListener('pointerdown', (e) => {
-  if (!controls) return;
+  if (!session || !controls) return;
   ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   raycaster.setFromCamera(ndc, camera);
   const part = controls.pick(raycaster);
   if (!part) return;
   e.preventDefault();
-  if (part === 'stop') { navigator.vibrate?.(15); stopRun(); return; }
-  if (!session) return; // 집게가 도는 동안·판 사이에는 레버·잡기가 듣지 않는다
   if (part === 'lever') { leverDrag = { id: e.pointerId, x: e.clientX, y: e.clientY }; return; }
   controls.setPressed(true);
   navigator.vibrate?.(15);
@@ -515,7 +513,7 @@ let nextRunAt: number | null = null;
 function sitDown(machineId: string, won: boolean) {
   awaiting = null; dropped = null;
   seated = machineId;
-  if (run.next(wallet.coins)) { nextRunAt = clock() + (won ? 2.4 : 1.2); showRunPause(standUp); }
+  if (run.next(wallet.coins)) { nextRunAt = clock() + (won ? 2.4 : 1.2); showRunPause(stopRun); } // 판 사이의 그만하기도 '이어 하기 멈춤' — 그만둘지는 그다음 버튼으로
   else { run.stop(); showSeat(); }
 }
 function playAgain(id: string, plays: number) {
@@ -530,9 +528,10 @@ function showSeat() {
   showSeatControls(wallet.coins > 0 ? () => playAgain(id, 1) : null, more && { ...more, onPress: () => playAgain(id, more.plays) },
     standUp, () => { standUp(); startCoinWalk(); });
 }
+// 이어 하기 멈춤(오른쪽 아래 그만하기, 이어 하는 중 내내 보인다): 판 도중·집게가 도는 동안이면 이번 판 뒤에, 판 사이면 바로 "한 판 더 / 그만하기"를 묻는다
 function stopRun() {
-  run.stop(); controls?.showStop(false);
-  if (seated) { nextRunAt = null; hideSeatControls(); showSeat(); } // 판 사이에 눌렀으면 다음 판을 안 시작하고 바로 묻는다
+  run.stop();
+  if (seated) { nextRunAt = null; hideSeatControls(); showSeat(); }
   else { hideSeatControls(); toast(UI.runStopped); }
 }
 function standUp() {
