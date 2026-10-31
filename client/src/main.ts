@@ -393,7 +393,11 @@ function showQueueUi(nowSec: number) {
 
 // ---------- 매 프레임 ----------
 let last = performance.now();
+// three.js는 그리기 콜백이 한 번이라도 예외를 던지면 다음 프레임을 요청하지 않아 화면이 영영 멈춘다 — 한 프레임의 실수가 게임 전체를 멈추지 않게 잡아 둔다
 renderer.setAnimationLoop((now) => {
+  try { frame(now); } catch (e) { console.error(e); }
+});
+function frame(now: number) {
   const dt = Math.min((now - last) / 1000, 0.05); last = now;
   if (me && myAvatar) {
     const stick = joystick.read();
@@ -401,7 +405,9 @@ renderer.setAnimationLoop((now) => {
     if (dropped && awaiting && dropped.resultOverdue(now / 1000)) { endPlay(); toast('결과를 받지 못했어요'); }
     const atMachine = session?.machineId ?? awaiting ?? seated; // 기계 카메라를 쓰는 동안
     if (session) {
-      // 조이스틱·키가 집게를 움직이고 캐릭터는 기계 앞에 서 있다
+      // 조이스틱·키가 집게를 움직이고 캐릭터는 기계 앞에 서 있다.
+      // 시간이 다 되면 여기서 내리고(sendDrop이 session을 비운다) — 그 뒤엔 session을 읽지 않는다 (읽으면 그리기 고리가 멈춘다)
+      const playId = session.machineId;
       if (session.update(dt, input, now / 1000) === 'drop') sendDrop();
       else {
         setTimer(session.remaining);
@@ -411,7 +417,7 @@ renderer.setAnimationLoop((now) => {
         // 겨냥 고리는 집게 아래 인형 머리 위(없으면 바닥)에 놓는다
         claw.getObjectByName('aim')!.position.y = aimHeight(bigZone.contentsOf(session.machineId), session.claw.x, session.claw.z) - CLAW_REST.y;
       }
-      me.autoTarget = frontSpot(spotOf.get(session.machineId)!); // 기계 앞자리 가운데로 (카메라 구도가 늘 같게)
+      me.autoTarget = frontSpot(spotOf.get(playId)!); // 기계 앞자리 가운데로 (카메라 구도가 늘 같게)
       me.drive({ x: 0, z: 0 }, dt);
     } else if (showingMe) {
       me.drive({ x: 0, z: 0 }, dt); // 내 결과 모션 동안은 제자리
@@ -454,6 +460,6 @@ renderer.setAnimationLoop((now) => {
   remotes.update(now);
   bigZone.update(now / 1000);
   renderer.render(scene, camera);
-});
+}
 
 ensureGuest().then(enter);
