@@ -294,8 +294,9 @@ function startPlay(machineId: string, limit: number, coins: number) {
   seated = null; hideSeatControls();
   setAction(null); setInfo(null);
   showPlayControls();
-  controls?.dispose();
-  controls = buildMachineControls(bigZone.worldOf(machineId));
+  dropControls();
+  controls = buildMachineControls(bigZone.worldOf(machineId)); controlsAt = machineId;
+  bigZone.hideControls(machineId, true); // 기계 그림의 고정 레버·버튼은 숨긴다 — 남으면 기울일 때 잔상처럼 하나 더 보인다
   topView?.dispose(); // 뒷판 모니터: 위에서 본 기계 안 (설계 §3.9)
   topView = buildTopView(renderer, scene, bigZone.worldOf(machineId), FELT_COLORS[MACHINES.findIndex((m) => m.id === machineId) % FELT_COLORS.length]);
   if (myAvatar) {
@@ -310,7 +311,7 @@ function startPlay(machineId: string, limit: number, coins: number) {
 function sendDrop() {
   if (!session) return;
   socket?.send(encodeDrop(session.claw.x, session.claw.z));
-  controls?.dispose(); controls = null; letGoOfLever();
+  dropControls(); letGoOfLever();
   topView?.dispose(); topView = null;
   bigZone.showAim(session.machineId, false);
   awaiting = session.machineId;
@@ -326,7 +327,7 @@ function endPlay() {
     if (!showing.has(id)) bigZone.releaseClaw(id);
   }
   session = null; awaiting = null; dropped = null; seated = null;
-  controls?.dispose(); controls = null; letGoOfLever();
+  dropControls(); letGoOfLever();
   topView?.dispose(); topView = null;
   hidePlayControls(); hideSeatControls(); setInfo(null);
   if (myAvatar) myAvatar.root.visible = true;
@@ -334,7 +335,12 @@ function endPlay() {
 
 // 기계 조작 (설계 §3.10, 3차): PC는 마우스로, 휴대폰은 손가락으로 기계에 그려진 레버를 잡고 끌면 집게가 그쪽으로 자유롭게 가고(놓으면 멈춤),
 // 하강 버튼을 누르면 내린다. 레버는 처음 누른 곳에서 60px 끌면 최고 속도
-let controls: MachineControls | null = null;
+let controls: MachineControls | null = null, controlsAt: string | null = null;
+function dropControls() {
+  controls?.dispose(); controls = null;
+  if (controlsAt) bigZone.hideControls(controlsAt, false);
+  controlsAt = null;
+}
 let topView: TopView | null = null;
 let leverDrag: { id: number; x: number; y: number } | null = null;
 let leverInput = { x: 0, z: 0 };

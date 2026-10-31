@@ -6,7 +6,7 @@ import { makeDoll } from './dolls';
 import { dollPose } from './dollPose';
 import { TOP_LAYER } from './topView';
 import { CHROME, idleClawGeometry, makeClawRig, type ClawRig } from './claw';
-import { CLAW_REST, DOLL_FLOOR, DOLL_SCALE, bulbSpots, ledBaseMat, ledFlashMat, makeMachineParts } from './machine';
+import { CLAW_REST, DOLL_FLOOR, DOLL_SCALE, bulbSpots, ledBaseMat, ledFlashMat, makeControlParts, makeMachineParts } from './machine';
 
 // 기계 속 인형 한 칸: [인형 id, x, z, 몸 돌림, 얹힌 높이] — 서버 welcome·machine 메시지와 같은 모양
 import type { DollSpot } from '../net/protocol';
@@ -22,6 +22,7 @@ export interface BigZone {
   activateClaw(machineId: string): ClawRig; // 하는 동안 그 기계에 움직이는 집게를 빌려 준다
   rigOf(machineId: string): ClawRig | null;
   releaseClaw(machineId: string): void;
+  hideControls(machineId: string, hidden: boolean): void; // 내가 하는 동안 기계 그림의 레버·하강 버튼을 숨긴다 (움직이는 것을 따로 그리므로)
   update(t: number): void; // 깜빡임, 바뀐 행의 인형 다시 합치기
   occluders: Occluder[]; // 행 2개: 벽 줄, 섬
 }
@@ -103,6 +104,20 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     row.group.add(mesh);
     return { row, mesh };
   });
+  // 레버 막대·공과 하강 버튼: 행마다 재질별 InstancedMesh (기계 그림에 합치면 하는 기계 것만 숨길 수 없다)
+  const controlParts = bakeByMaterial(makeControlParts());
+  const machineAt = (spot: MachineSpot) => new THREE.Matrix4().makeRotationY(spot.ry).setPosition(spot.x, 0, spot.z);
+  const controlRows = rows.map((row) => {
+    const meshes = controlParts.map((p) => {
+      const mesh = new THREE.InstancedMesh(p.geometry, row.cloner.remap(p.material as THREE.Material), row.spots.length);
+      mesh.name = `controls-${row.group.name}`; mesh.castShadow = false;
+      row.spots.forEach((spot, j) => mesh.setMatrixAt(j, machineAt(spot)));
+      row.group.add(mesh);
+      return mesh;
+    });
+    return { row, meshes };
+  });
+  const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
   let bulbKey = '';
   const flashMats = new Map(rows.map((r) => [r, { hot: r.cloner.remap(ledFlashMat().hot), gold: r.cloner.remap(ledFlashMat().gold) }]));
 
@@ -164,6 +179,13 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
       rig.root.removeFromParent(); rig.setOpen(0.35); rig.setCable(0.05); rig.swing.rotation.set(0, 0, 0);
       for (const c of [...rig.grip.children]) rig.grip.remove(c);
       rigPool.push(rig); u.rig = null; u.idle.visible = true;
+    },
+    hideControls(id, hidden) {
+      const u = unit(id), spot = MACHINES.find((m) => m.id === id)!, j = u.row.spots.indexOf(spot);
+      for (const mesh of controlRows.find((c) => c.row === u.row)!.meshes) {
+        mesh.setMatrixAt(j, hidden ? HIDDEN : machineAt(spot));
+        mesh.instanceMatrix.needsUpdate = true;
+      }
     },
     update(t) {
       for (const block of blocks) if (block.dirty) rebuild(block);

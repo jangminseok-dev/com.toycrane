@@ -3,6 +3,7 @@ import { beforeAll, expect, test } from 'vitest';
 import { MACHINES } from '../data/storeLayout';
 import { stubCanvas } from '../test/canvasStub';
 import { buildBigZone } from './bigZone';
+import { CONTROLS } from './machine';
 
 beforeAll(stubCanvas);
 
@@ -89,3 +90,40 @@ test('marquee bulbs are cheap little gems', () => {
   const geo = bulbs.geometry;
   expect((geo.index ? geo.index.count : geo.attributes.position.count) / 3).toBeLessThanOrEqual(40);
 });
+
+// 내가 하는 기계에는 움직이는 레버·하강 버튼(machineControls)을 따로 그린다. 기계 그림의 고정 레버·버튼이 그 밑에 남으면
+// 레버를 기울이거나 버튼을 누를 때 원래 자리에 하나가 더 보인다(잔상) — 하는 동안 그 기계의 고정 레버·버튼은 숨는다
+test('the lever and drop button of the machine I play are not drawn twice', () => {
+  const scene = new THREE.Scene();
+  const zone = buildBigZone(scene);
+  scene.updateMatrixWorld(true);
+  const id = MACHINES[3].id;
+  const ballAt = zone.worldOf(id).localToWorld(new THREE.Vector3(CONTROLS.lever[0], CONTROLS.lever[1] + 0.1, CONTROLS.lever[2]));
+  const domeAt = zone.worldOf(id).localToWorld(new THREE.Vector3(...CONTROLS.drop));
+  expect([redNear(scene, ballAt), redNear(scene, domeAt)]).toEqual([1, 1]);
+  zone.hideControls(id, true);
+  expect([redNear(scene, ballAt), redNear(scene, domeAt)]).toEqual([0, 0]);
+  zone.hideControls(id, false);
+  expect([redNear(scene, ballAt), redNear(scene, domeAt)]).toEqual([1, 1]);
+});
+
+// p에서 5cm 안에 꼭짓점이 있는 빨간(레버 공·하강 버튼 색) 그림의 수 — 여러 기계가 든 InstancedMesh는 기계마다 따로 센다
+function redNear(scene: THREE.Scene, p: THREE.Vector3): number {
+  let n = 0;
+  const v = new THREE.Vector3(), m = new THREE.Matrix4();
+  const near = (pos: THREE.BufferAttribute, world: THREE.Matrix4) => {
+    for (let i = 0; i < pos.count; i++) if (v.fromBufferAttribute(pos, i).applyMatrix4(world).distanceTo(p) < 0.05) return true;
+    return false;
+  };
+  scene.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    const mat = mesh.material as THREE.MeshToonMaterial | undefined;
+    if (!mesh.isMesh || !mat?.color || mat.color.getHex() !== 0xff3b5c) return;
+    const pos = mesh.geometry.getAttribute('position') as THREE.BufferAttribute;
+    if ((mesh as THREE.InstancedMesh).isInstancedMesh) {
+      const inst = mesh as THREE.InstancedMesh;
+      for (let k = 0; k < inst.count; k++) { inst.getMatrixAt(k, m); if (near(pos, m.premultiply(inst.matrixWorld))) n++; }
+    } else if (near(pos, mesh.matrixWorld)) n++;
+  });
+  return n;
+}

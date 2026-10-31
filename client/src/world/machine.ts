@@ -75,6 +75,16 @@ export type MachineParts = {
   ledGeo: THREE.BufferGeometry; // 기계의 LED 띠·테두리 전부를 꼭짓점 색으로 한 덩어리 (기계 안 좌표)
 };
 
+// 기계 안 좌표의 레버 막대·공과 하강 버튼 — 모든 기계가 같은 모양이라 행마다 InstancedMesh로 그린다(world/bigZone.ts)
+export function makeControlParts(): THREE.Group {
+  const g = G(), m = new THREE.Group();
+  const [lx, ly, lz] = CONTROLS.lever, [dx, dy, dz] = CONTROLS.drop;
+  m.add(part(g.stick, toon(CHROME), [lx, ly + 0.04, lz], [1, 1, 1], [0, 0, 0], 0));
+  m.add(part(g.ball, toon(0xff3b5c), [lx, ly + 0.1, lz]));
+  m.add(part(g.dome, toon(0xff3b5c), [dx, dy, dz], [1.45, 0.6, 1.45], [0, 0, 0], 1.04));
+  return m;
+}
+
 // index: 배치 순서 (몸통·펠트 색, 이름표, 안내 카드를 돌려 쓰는 기준)
 export function makeMachineParts(spot: MachineSpot, index: number): MachineParts {
   const g = G(), mat = M(), m = new THREE.Group();
@@ -90,15 +100,12 @@ export function makeMachineParts(spot: MachineSpot, index: number): MachineParts
   add(flat(g.flap, mat.flap, [-0.36, 0.41, 0.565], [0.5, 0, 0]));
   add(part(g.coinPlate, chrome, [0.42, 0.5, 0.54], [1, 1, 1], [0, 0, 0], 0));
   add(flat(g.sticker, mat.sticker, [0.42, 0.7, 0.53]));
-  // 조작대: 흰 판 + 레버(크롬 받침·빨간 공) + 버튼 둘(빨강·파랑, 크롬 고리)
+  // 조작대: 흰 판 + 레버 크롬 받침 + 하강 버튼 크롬 고리 (움직이는 레버 막대·공과 버튼은 makeControlParts — 하는 기계에서 숨길 수 있게 따로 그린다)
   add(part(g.deck, white, [0, 0.875, 0.62], [1, 1, 1], [0, 0, 0], 1.03));
   const [lx, ly, lz] = CONTROLS.lever;
   add(part(g.leverBase, chrome, [lx, ly, lz], [1, 1, 1], [0, 0, 0], 0));
-  add(part(g.stick, chrome, [lx, ly + 0.04, lz], [1, 1, 1], [0, 0, 0], 0));
-  add(part(g.ball, toon(0xff3b5c), [lx, ly + 0.1, lz]));
   const [dx, dy, dz] = CONTROLS.drop;
   add(part(g.ring, chrome, [dx, dy - 0.01, dz], [1.45, 1, 1.45], [0, 0, 0], 0));
-  add(part(g.dome, toon(0xff3b5c), [dx, dy, dz], [1.45, 0.6, 1.45], [0, 0, 0], 1.04));
   // 유리 칸: 크롬 기둥 · 펠트 · 뒷판 그림 · 천장 조명판 · 레일
   for (const [x, z] of [[-0.57, -0.5], [0.57, -0.5], [-0.57, 0.5], [0.57, 0.5]]) add(part(g.pillar, chrome, [x, 1.4, z], [1, 1, 1], [0, 0, 0], 1.04));
   add(part(g.felt, toon(FELT_COLORS[felt]), [0, 0.86, 0], [1, 1, 1], [0, 0, 0], 0));
