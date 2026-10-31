@@ -6,8 +6,9 @@
 const [base, out, port = '9461'] = process.argv.slice(2);
 const fs = await import('node:fs');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const SPEED = 3.2, FRONT_C6 = { x: 0, z: -5.4 }, WINDOW_0 = { x: -2.9, z: -2.6 };
+const SPEED = 3.2, FRONT_C6 = { x: 0, z: -5.4 };
 const LAYOUT = JSON.parse(fs.readFileSync(new URL('../../shared/store_layout.json', import.meta.url), 'utf8'));
+const WINDOW_0 = { x: LAYOUT.counters[0].window[0], z: LAYOUT.counters[0].window[1] };
 
 // 0.25m 격자에서 장애물(0.35m 여유)을 피하는 가장 짧은 길 (shot.mjs와 같은 방식)
 const CELL = 0.25, HALF = 12.3, N = Math.round((HALF * 2) / CELL) + 1;
@@ -96,11 +97,11 @@ async function measure(mode) {
   await sleep(2500);
   const walk = await sample();
   await goTo(WINDOW_0);
-  await click('줄 서기');
-  await sleep(6000);
+  await click('코인 받기'); // 교환소 개편(5단계): 줄 없이 바로
+  await sleep(1500);
   await goTo(FRONT_C6);
   await sleep(500);
-  if (!(await click('넣고 하기'))) throw new Error('기계 앞에서 시작하지 못함');
+  if (!(await click('한 판 하기'))) throw new Error('기계 앞에서 시작하지 못함');
   await sleep(2000);
   const machine = await sample(); // 기계 앞 화면(뒷판 모니터 포함)
   await fetch(`http://127.0.0.1:${port}/json/close/${tab.id}`);

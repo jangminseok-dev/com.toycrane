@@ -179,7 +179,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
   const twinkleMat = new THREE.MeshBasicMaterial({ map: twinkleTex(), transparent: true, depthWrite: false });
   const instanced = (row: Row, geo: THREE.BufferGeometry, mat: THREE.Material, n: number, name: string) => {
     const mesh = new THREE.InstancedMesh(geo, row.cloner.remap(mat), n);
-    mesh.name = `${name}-${row.group.name}`; mesh.count = 0; mesh.visible = false; mesh.frustumCulled = false; mesh.renderOrder = 2;
+    mesh.name = `${name}-${row.group.name}`; mesh.count = 0; mesh.visible = false; mesh.renderOrder = 2; // 경계 구는 개수가 바뀔 때 다시 잰다(화면 밖이면 그리지 않게)
     row.group.add(mesh);
     return mesh;
   };
@@ -308,7 +308,9 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
         for (const key of ['rare', 'gold', 'twinkle'] as const) {
           const mesh = m[key];
           if (!n[key] && !mesh.count) continue;
+          const changed = mesh.count !== n[key];
           mesh.count = n[key]; mesh.visible = n[key] > 0; mesh.instanceMatrix.needsUpdate = true;
+          if (changed && n[key] > 0) mesh.computeBoundingSphere();
           if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
         }
       }

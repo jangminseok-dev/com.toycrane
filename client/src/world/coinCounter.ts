@@ -8,7 +8,7 @@ import { canvasTex, part, toon } from './toon';
 
 // 작은 코인 교환소 (설계 2026-10-31 교환소 개편 §3.1·§4.5): 장애물 상자(폭 1.3m·깊이 0.7m)만 한 부스 — 흰 몸통, 빨간 카운터,
 // 황동 창살(가운데 창구는 짧게), 분홍 뒷판, 지붕 간판 '코인 교환소', 창구 앞 발자국 한 쌍(정해진 줄 자리는 없음).
-// 4곳을 재질별로 한 덩어리로 합쳐 그리기 호출을 늘리지 않는다 — 내 캐릭터를 가리면 4곳이 함께 흐려진다
+// 교환소마다 재질별로 합친다 — 4곳을 한 덩어리로 합치면 카메라 뒤에 있어도 늘 그려진다. 내 캐릭터를 가리는 곳만 흐려진다
 const BODY = 0xf8f3fb, W = 1.3, D = 0.7;
 // 4곳이 함께 쓰는 재질 (부스마다 새로 만들면 합칠 때 재질 수만큼 그리기 호출이 는다)
 let shared: { stripe: THREE.Material; sign: THREE.Material } | null = null;
@@ -47,21 +47,20 @@ const footTex = () => canvasTex(128, 128, (g) => {
 export function buildCoinCounters(scene: THREE.Scene): Occluder[] {
   const foot = new THREE.MeshBasicMaterial({ map: footTex(), transparent: true, depthWrite: false });
   const footGeo = new THREE.PlaneGeometry(0.45, 0.45);
-  const root = new THREE.Group(), boxes: THREE.Box3[] = [];
-  for (const c of COUNTERS) {
+  return COUNTERS.map((c) => {
+    const root = new THREE.Group();
     const anchor = new THREE.Group(); anchor.position.set(c.x, 0, c.z); anchor.rotation.y = c.ry;
     anchor.add(booth()); root.add(anchor);
     const f = new THREE.Mesh(footGeo, foot);
     f.rotation.set(-Math.PI / 2, 0, c.ry + Math.PI); f.position.set(c.window[0], 0.013, c.window[1]);
     root.add(f);
-    anchor.updateMatrixWorld(true);
-    boxes.push(new THREE.Box3().setFromObject(anchor)); // 부스만 (발자국은 낮아서 가리지 않음)
-  }
-  root.traverse((o) => { o.castShadow = false; });
-  const cloner = materialCloner(), group = new THREE.Group();
-  group.name = 'coin-counters';
-  root.updateMatrixWorld(true);
-  for (const m of bakeByMaterial(root, cloner.remap)) group.add(m);
-  scene.add(group);
-  return boxes.map((box) => ({ box, setOpacity: (o: number) => fadeMaterials(cloner.materials, o) }));
+    root.traverse((o) => { o.castShadow = false; });
+    root.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(anchor); // 부스만 (발자국은 낮아서 가리지 않음)
+    const cloner = materialCloner(), group = new THREE.Group();
+    group.name = `coin-counter-${c.id}`;
+    for (const m of bakeByMaterial(root, cloner.remap)) group.add(m);
+    scene.add(group);
+    return { box, setOpacity: (o: number) => fadeMaterials(cloner.materials, o) };
+  });
 }
