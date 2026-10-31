@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import { COUNTERS } from '../data/storeLayout';
 import { QueueClient } from './queueClient';
 
 test('walks to my place in line', () => {
@@ -45,4 +46,15 @@ test('second in line asks again once when the head stalls', () => {
   expect(q.tick(slot, 19)).toBeNull();
   q.onQueue(0, ['p8', 'me'], 'me', 19); // 맨 앞이 바뀌면 다시 센다
   expect(q.tick(slot, 27.6)).toBe('requeue');
+});
+
+// 저절로 걸어갈 곳: 그 줄의 맨 끝 빈자리 (꽉 차면 마지막 자리)
+test('entry spot is the first free place at the end of that line', () => {
+  const q = new QueueClient();
+  const [k] = COUNTERS;
+  expect(q.entrySpot(0)).toEqual({ x: k.queue[0][0], z: k.queue[0][1] });
+  q.onQueue(0, ['a', 'b'], 'me', 0);
+  expect(q.entrySpot(0)).toEqual({ x: k.queue[2][0], z: k.queue[2][1] });
+  q.onQueue(0, ['a', 'b', 'c', 'd', 'e', 'f'], 'me', 0);
+  expect(q.entrySpot(0)).toEqual({ x: k.queue[5][0], z: k.queue[5][1] });
 });

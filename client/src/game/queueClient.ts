@@ -48,6 +48,12 @@ export class QueueClient {
     return c >= 0 ? c : null;
   }
 
+  // 그 줄 끝의 빈자리(꽉 차면 마지막 자리) — 저절로 걸어갈 곳
+  entrySpot(c: number): Vec2 {
+    const k = COUNTERS[c], [x, z] = k.queue[Math.min(this.lengths[c], k.queue.length - 1)];
+    return { x, z };
+  }
+
   target(): Vec2 | null {
     if (this.counter === null) return null;
     const [x, z] = COUNTERS[this.counter].queue[this.place];

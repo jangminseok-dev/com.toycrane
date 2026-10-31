@@ -82,7 +82,7 @@ function buildSeat() {
 export function showSeatControls(again: (() => void) | null, stand: () => void, noCoins: () => void): void {
   if (!againBtn) buildSeat();
   onAgain = again ?? noCoins; onStand = stand;
-  againBtn!.textContent = again ? '🪙1\n한 번 더' : '코인이\n없어요';
+  againBtn!.textContent = again ? '🪙1\n한 번 더' : '교환소로\n가기';
   againBtn!.style.opacity = again ? '1' : '.55';
   againBtn!.style.display = 'block';
   standBtn!.style.display = 'block';
