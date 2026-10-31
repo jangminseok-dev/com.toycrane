@@ -170,8 +170,12 @@ def test_give_limit_respects_both_wallets():
   - 메시지(서버 → 화면)
     - `coins {n, got}`(그대로).
     - `take_no {c, why: "far"|"enough"}`.
-    - `cbeg {id, c, n}`: 방송. n은 받은 수, 거절이면 0. 모두 3초 모션 뒤 결과를 그린다.
-    - `cbeg_no {c, why: "wait"|"full"|"far", wait: 초}`: 본인에게.
+    - `cbeg {id, c, n}`: 방송. 모두 그 사람의 3초 조르기 모션 뒤 결과를 그린다.
+      - 받으면 n은 받은 수.
+      - 쿨타임 거절이면 n=0(시무룩 모션).
+    - `cbeg_no {c, why: "wait"|"full"|"far", wait: 초}`: 본인에게, 상태 줄용.
+      - `wait`이면 위 방송(n=0)과 함께 보낸다.
+      - `full`·`far`이면 방송 없이 이것만.
   - `WalletPort.beg(guest_id, n, cap, cooldown, now) -> int | None`: 쿨타임이 지났고 cap 미만이면 n을 더하고(cap까지) `begged_at = now`로 바꾼 뒤 새 잔액. 아니면 None.
   - `WalletPort.begged_at(guest_id) -> float | None`.
   - D1 SQL은 어댑터 모듈 상수 `BEG_SQL`(upsert + `ON CONFLICT DO UPDATE ... WHERE (begged_at IS NULL OR begged_at <= ?now - ?cooldown) AND coins < ?cap RETURNING coins`)로 둔다. 파이썬 sqlite3로 그 상수를 직접 시험한다.
@@ -210,7 +214,7 @@ def test_beg_sql_caps_at_99():  # 90개 + 40 → 99
 
 **Files:**
 - Create: 슬라이스 `beg`(맵 조르기 켜고 끄기), 슬라이스 `give`
-- Modify: `entities/player.py`(`begging: bool = False`), `player_view.py`(`beg: bool`), `move_interactor.py`, `wallet_port.py`·`d1_wallet_adapter.py`(`transfer`), messages·connections·router·fixtures
+- Modify: `entities/player.py`(`begging: bool = False`), `player_view.py`(`beg: int | None` — 조르는 중이면 더 받을 수 있는 코인 수, 아니면 None), `move_interactor.py`, `wallet_port.py`·`d1_wallet_adapter.py`(`transfer`), messages·connections·router·fixtures
 - Test: `test_beg_interactor.py`, `test_give_interactor.py`, `test_move_interactor.py`, `test_wallet_sql.py`
 
 **Interfaces:**
@@ -218,12 +222,12 @@ def test_beg_sql_caps_at_99():  # 90개 + 40 → 99
   - 메시지
     - 화면 → 서버: `{"t":"beg","on":true|false}`, `{"t":"give","to":player_id,"n":int}`.
     - 서버 → 화면
-      - `beg {id, on}`(방송).
+      - `beg {id, room}`(방송). room은 조르는 중이면 `WALLET_CAP − 그 사람 코인`, 끝나면 null. 주기 창의 최대를 화면이 알게 한다.
       - `gave {from, to, n}`(방송 — 주기·기쁨 모션과 알림).
       - `give_no {why: "gone"|"stopped"|"far"|"poor"|"full"|"self"|"playing"}`(주는 사람에게).
       - `coins`(두 사람 각각).
-  - 플레이어 보기(welcome·join의 플레이어)에 `beg` 필드.
-  - 움직이면 조르기가 끝난다: `MoveInteractor`가 `heading`이 0이 아니고 조르는 중이면 `begging=False`로 바꾸고 `beg {id, on:false}`를 방송한다.
+  - 플레이어 보기(welcome·join의 플레이어)에 `beg` 필드(room 또는 null).
+  - 움직이면 조르기가 끝난다: `MoveInteractor`가 `heading`이 0이 아니고 조르는 중이면 `begging=False`로 바꾸고 `beg {id, room:null}`를 방송한다.
   - `WalletPort.transfer(giver, receiver, n, cap, now) -> tuple[int, int] | None`.
     - SQL 상수 `TRANSFER_SQL`: 받는 사람 지갑 행을 `INSERT OR IGNORE`로 만든 뒤, UPDATE 한 문장이 두 행을 CASE로 바꾼다. 조건은 주는 사람 코인 ≥ n, 받는 사람 + n ≤ cap.
     - 성공하면 (주는 사람 잔액, 받는 사람 잔액), 실패하면 None.
@@ -235,7 +239,7 @@ def test_beg_sql_caps_at_99():  # 90개 + 40 → 99
       - 같은 게스트(`self`)
       - 주는 사람이 기계 잠금을 가짐(`playing`)
       - `n < 1`이거나 `give_limit`보다 큼(`poor`/`full`)
-    - 성공하면 받는 사람의 조르기 상태를 끄고 `beg off`와 `gave`를 방송한 뒤, 각자에게 `coins`를 보낸다.
+    - 성공하면 받는 사람의 조르기 상태를 끄고 `beg {id, room:null}`와 `gave`를 방송한 뒤, 각자에게 `coins`를 보낸다.
 
 - [ ] **Step 1: 실패하는 테스트**
 
@@ -268,7 +272,7 @@ def test_give_sql_never_breaks_wallets():  # Review Focus 2
 **Interfaces:**
 - Produces:
   - `PROTOCOL = 3`.
-  - 새 메시지 타입: `TakeNo`, `CounterBeg`, `CounterBegNo`, `Beg`, `Gave`, `GiveNo`. `PlayerView.beg`.
+  - 새 메시지 타입: `TakeNo`, `CounterBeg`, `CounterBegNo`, `Beg`(`{ t:'beg'; id; room: number | null }`), `Gave`, `GiveNo`. `PlayerView.beg: number | null`.
   - 인코더: `encodeTake(c)`, `encodeCounterBeg(c)`, `encodeBeg(on)`, `encodeGive(to, n)`. `encodeQueue`·`encodeUnqueue`는 지운다.
   - `copy.ts`에 화면 문구를 모두 옮긴다(스펙 §4.7 표의 '바꿀 문구' 그대로). 이름 예:
     - `UI.playOne`, `UI.playRun(n)`, `UI.again`, `UI.againRun(n)`, `UI.stand`.
@@ -366,8 +370,8 @@ def test_give_sql_never_breaks_wallets():  # Review Focus 2
     - `playHappy(rig, tw)`(폴짝 + 하트·코인 반짝은 `effects.burst`).
     - `playSulk(rig, tw)`.
   - `Avatar.setTag(text: string | null)`: 이름표 옆 작은 꼬리표('조르는 중').
-  - `RemotePlayers.setBegging(id, on)`: 모션 시작·정지와 꼬리표.
-  - 주기 창 `openGiveSheet({ nick, max, onGive(n), onCancel })`
+  - `RemotePlayers.setBegging(id, room: number | null)`: 모션 시작·정지와 꼬리표, room 기억(`roomOf(id)`).
+  - 주기 창 `openGiveSheet({ nick, max, onGive(n), onCancel })` — max = `min(내 코인, roomOf(그 사람))`, 0이면 버튼 위에 `UI.full`
     - 1~max, 기본 1, −/+/'최대', '주기'.
     - 순수 함수 `clampGive(n, max)`.
   - 버튼
