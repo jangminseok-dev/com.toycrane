@@ -289,11 +289,11 @@ LAYOUT = {'machine': {'front': 1.15,
            {'kind': 'figure', 'rect': [1.6, 11.75, 11.2, 14], 'ry': 3.141593},
            {'kind': 'shelf', 'rect': [8.2, 0, 9.2, 6], 'ry': -1.570796}]}
 
-CLAW = {'base_force': 6.25,
+CLAW = {'base_force': 5.0,
  'spread': 0.4,
  'quality': {'three': 1.0, 'two': 0.5},
  'carry_relax': 0.6,
- 'rare': {'rare': 0.82, 'gold': 0.75},
+ 'rare': {'rare': 0.65, 'gold': 0.55},
  'hole': {'size': 0.34, 'lip': 0.06},
  'max_wins': 3,
  'cycle_seconds': 12,

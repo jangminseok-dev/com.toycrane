@@ -1,9 +1,9 @@
 {
-  "base_force": 6.25,
+  "base_force": 5.0,
   "spread": 0.4,
   "quality": {"three": 1.0, "two": 0.5},
   "carry_relax": 0.6,
-  "rare": {"rare": 0.82, "gold": 0.75},
+  "rare": {"rare": 0.65, "gold": 0.55},
   "hole": {"size": 0.34, "lip": 0.06},
   "max_wins": 3,
   "cycle_seconds": 12,

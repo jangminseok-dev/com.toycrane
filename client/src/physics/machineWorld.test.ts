@@ -117,3 +117,21 @@ test('refilled dolls never end up lying across the hole', () => {
   expect(world.poses()).toHaveLength(2);
   world.dispose();
 });
+
+// 봉제 인형은 구르지 않는다 (사용자 2026-11-01 "너무 가벼운가, 계속 굴러다녀"): 밀리면 10cm 안팎 가고 멈춘다 —
+// 특히 누운 인형은 머리·몸 공 반지름이 달라 고깔처럼 천천히 빙 도는데, 감쇠가 작으면 40cm를 5초 동안 굴렀다
+test('a pushed doll stops within 20cm and a second and a half', () => {
+  const cases: [string, 'n' | 'c', [number, number, number, number]][] = [['octopus', 'c', [0, 0, 0, 1]], ['bear', 'n', [Math.SQRT1_2, 0, 0, Math.SQRT1_2]], ['whale', 'n', [0, 0, 0, 1]]];
+  for (const [kind, body, q] of cases) {
+    const world = new MachineWorld(R, [[kind, -0.2, DOLL_FLOOR + (q[0] ? 0.11 : 0), 0, q[0], q[1], q[2], q[3], 0, body, 0, '', 1]]);
+    world.settle(2);
+    const b = world.bodyOf(1)!, p0 = b.translation();
+    b.setLinvel({ x: 0.8, y: 0, z: 0 }, true);
+    let t = 0;
+    while (world.movingPoses().length && t < 6) { world.step(1 / 120); t += 1 / 120; }
+    const p1 = b.translation();
+    expect(Math.hypot(p1.x - p0.x, p1.z - p0.z), kind).toBeLessThan(0.2);
+    expect(t, kind).toBeLessThan(1.5);
+    world.dispose();
+  }
+});

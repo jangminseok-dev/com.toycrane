@@ -46,9 +46,18 @@ export class ClawBody {
 
   // 허브(몸통 바닥 공)가 어느 인형에 닿았나 — 내려가다 멈추는 기준
   hubTouching(): boolean {
+    return this.hubDoll() !== null;
+  }
+
+  // 허브가 얹힌 인형 (가장 가까운 것) — 손가락은 그 인형을 감싸며 아래쪽에 걸리므로, 쥘 때 이 인형을 우선한다
+  hubDoll(): number | null {
     const hub = new THREE.Vector3(this.x, this.y - 0.03, this.z);
-    for (const uid of this.world.uids()) if (this.world.balls(uid).some((b) => hub.distanceTo(b.c) <= b.r + HUB_R + 0.004)) return true;
-    return false;
+    let best: number | null = null, gap = Infinity;
+    for (const uid of this.world.uids()) for (const b of this.world.balls(uid)) {
+      const d = hub.distanceTo(b.c) - b.r - HUB_R;
+      if (d <= 0.004 && d < gap) { gap = d; best = uid; }
+    }
+    return best;
   }
 
   // 손가락 끝 가운데 가장 낮은 높이

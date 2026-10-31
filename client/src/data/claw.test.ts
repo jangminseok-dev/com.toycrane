@@ -13,7 +13,7 @@ test('claw strength grows from the hole edge to the far corner', () => {
 
 test('claw table carries the spec numbers', () => {
   expect(CLAW.quality).toEqual({ three: 1, two: 0.5 });
-  expect(CLAW.rare).toEqual({ rare: 0.82, gold: 0.75 }); // 0.85는 1000판에서 희귀 22.2%(기준 22% 이하)
+  expect(CLAW.rare).toEqual({ rare: 0.65, gold: 0.55 }); // 감쇠를 올린 뒤(인형이 안 흔들려 덜 끊김) 1000판 기준에 맞춘 값
   expect(CLAW.hole).toEqual({ size: 0.34, lip: 0.06 });
   expect(CLAW.max_wins).toBe(3);
   expect(CLAW.carry_relax).toBeGreaterThan(0);

@@ -75,6 +75,10 @@ export class CycleRunner {
         const touching = c.touching();
         let best: [number, number] | null = null;
         for (const [uid, n] of touching) if (n >= 2 && (!best || n > best[1])) best = [uid, n];
+        // 허브가 얹힌 인형(탑 꼭대기)은 긴 손가락이 아래 인형에 먼저 닿아도 계속 오므려 그 인형을 걸어 올린다 — 끝까지 닿지 않으면 그제야 아래 인형
+        const under = c.hubDoll(), onUnder = under === null ? 0 : (touching.get(under) ?? 0);
+        if (under !== null && onUnder >= 2) best = [under, onUnder];
+        else if (under !== null && best && k < 1) best = null;
         if (best) { c.grip(best[0], best[1] >= 3 ? 'three' : 'two' as GripQuality, this.opts.baseForce); this.held = best[0]; this.go('lift'); }
         else if (k >= 1) this.go('lift');
         break;
