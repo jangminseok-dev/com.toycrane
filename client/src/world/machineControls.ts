@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { AIM_ORDER } from './bigZone';
 import { DROP_LABEL } from './copy';
 import { CONTROLS } from './machine';
 import { dropLabelTex } from './signs';
@@ -34,7 +35,7 @@ export function buildMachineControls(anchor: THREE.Object3D): MachineControls {
   // 윗면 글씨 '잡기' + 아래 화살표: 버튼 자식이라 함께 눌린다 (버튼의 납작한 크기를 그대로 받아 가로 1.5배로 넓어진다)
   const labelMat = new THREE.MeshBasicMaterial({ map: dropLabelTex(DROP_LABEL), transparent: true, depthWrite: false });
   const label = new THREE.Mesh(LABEL, labelMat);
-  label.name = 'drop-label'; label.userData.text = DROP_LABEL; label.rotation.x = -Math.PI / 2; label.position.y = 0.057; label.renderOrder = 1;
+  label.name = 'drop-label'; label.userData.text = DROP_LABEL; label.rotation.x = -Math.PI / 2; label.position.y = 0.057;
   dome.add(label);
   const dropHit = new THREE.Mesh(DROP_HIT, hitMat); dropHit.position.set(dx, dy + 0.04, dz); dropHit.userData.part = 'drop';
   const [lx, ly, lz] = CONTROLS.lever;
@@ -43,7 +44,7 @@ export function buildMachineControls(anchor: THREE.Object3D): MachineControls {
   lever.add(part(BALL, toonWith({ color: 0xff3b5c }), [0, 0.09, 0], [1.03, 1.03, 1.03]));
   const leverHit = new THREE.Mesh(LEVER_HIT, hitMat); leverHit.position.set(lx, ly + 0.08, lz); leverHit.userData.part = 'lever';
   group.add(dome, dropHit, lever, leverHit);
-  group.traverse((o) => { o.castShadow = false; });
+  group.traverse((o) => { o.castShadow = false; o.renderOrder = AIM_ORDER + 1; }); // 겨냥 고리(깊이 무시) 뒤에 그려 고리를 덮는다
   anchor.add(group);
   return {
     pick(ray) {

@@ -28,8 +28,10 @@ export interface BigZone {
 }
 
 const aimGeo = new THREE.RingGeometry(0.035, 0.06, 28);
-// 인형 더미에 가려도 보이게 맨 위에 그린다
-const aimMat = new THREE.MeshBasicMaterial({ color: 0xff3b8f, transparent: true, opacity: 0.85, depthWrite: false, depthTest: false });
+// 인형 더미에 가려도 보이게 깊이를 무시하고 그린다. 불투명 목록에서 renderOrder 10으로 그려, 그 뒤(11)에 그리는 내 기계의 레버·버튼이
+// 고리를 덮는다 — 반투명이면 맨 마지막에 그려져 집게가 앞쪽에 있을 때 레버 공 위에 겹쳐 보였다
+export const AIM_ORDER = 10;
+const aimMat = new THREE.MeshBasicMaterial({ color: 0xff3b8f, depthWrite: false, depthTest: false });
 // 기계 속 인형은 행 안에서 기계 4~6대씩 묶어 합친다 — 한 기계가 바뀌면 그 묶음만 다시 합친다(행 전체는 휴대폰에서 멈칫함)
 const BLOCK_MAX = 6;
 type Row = { group: THREE.Group; cloner: ReturnType<typeof materialCloner>; spots: MachineSpot[] };
@@ -86,7 +88,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     claw.add(idle);
     // 겨냥 고리: 집게를 따라 펠트 바닥에 비친다(실제 크레인 게임의 집게 그림자처럼)
     const aim = new THREE.Mesh(aimGeo, aimMat);
-    aim.name = 'aim'; aim.visible = false; aim.renderOrder = 10; aim.rotation.x = -Math.PI / 2; aim.position.y = DOLL_FLOOR + 0.012 - CLAW_REST.y;
+    aim.name = 'aim'; aim.visible = false; aim.renderOrder = AIM_ORDER; aim.rotation.x = -Math.PI / 2; aim.position.y = DOLL_FLOOR + 0.012 - CLAW_REST.y;
     claw.add(aim);
     anchor.add(led, claw);
     row.group.add(anchor);

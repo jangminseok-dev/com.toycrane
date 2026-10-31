@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { beforeAll, expect, test } from 'vitest';
 import { stubCanvas } from '../test/canvasStub';
 import { CONTROLS } from './machine';
+import { buildBigZone } from './bigZone';
 import { buildMachineControls } from './machineControls';
 
 beforeAll(stubCanvas);
@@ -45,4 +46,17 @@ test('the drop button reads 잡기 with a down arrow and sinks with the button',
   const y0 = label.getWorldPosition(new THREE.Vector3()).y;
   controls.setPressed(true); anchor.updateMatrixWorld(true);
   expect(label.getWorldPosition(new THREE.Vector3()).y).toBeLessThan(y0 - 0.01);
+});
+
+// 겨냥 고리는 인형에 가려도 보이게 깊이를 무시하고 그린다. 그 뒤에 레버·버튼을 그려야, 집게가 앞쪽(상품 구멍 근처)에 있을 때
+// 고리가 레버 공 위에 겹쳐 잔상처럼 보이지 않는다 (2026-10-31 사용자 보고)
+test('the live lever and button are drawn after the aim ring so the ring never shows over them', () => {
+  const zone = buildBigZone(new THREE.Scene());
+  const aim = zone.clawOf('C-6').getObjectByName('aim') as THREE.Mesh;
+  buildMachineControls(zone.worldOf('C-6'));
+  expect((aim.material as THREE.Material).transparent).toBe(false); // 불투명 목록은 renderOrder 순서대로 그린다
+  const drawn: THREE.Mesh[] = [];
+  zone.worldOf('C-6').getObjectByName('live-controls')!.traverse((o) => { if ((o as THREE.Mesh).isMesh) drawn.push(o as THREE.Mesh); });
+  expect(drawn.length).toBeGreaterThan(3);
+  for (const m of drawn) expect(m.renderOrder).toBeGreaterThan(aim.renderOrder);
 });
