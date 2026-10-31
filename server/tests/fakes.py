@@ -131,6 +131,9 @@ class FakeConnections:
     def broadcast_play(self, except_conn, machine_id, player_id) -> None:
         self.broadcasts.append((except_conn, server_messages.play(machine_id, player_id)))
 
+    def send_done_no(self, conn_id, machine_id, why) -> None:
+        self.direct.append((conn_id, server_messages.done_no(machine_id, why)))
+
     def broadcast_result(self, machine_id, player_id, won) -> None:
         self.broadcasts.append((None, server_messages.result(machine_id, player_id, won)))
 

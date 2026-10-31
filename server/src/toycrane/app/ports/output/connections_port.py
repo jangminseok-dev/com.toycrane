@@ -64,6 +64,10 @@ class ConnectionsPort(ABC):
     def broadcast_play(self, except_conn: str, machine_id: str, player_id: str) -> None: ...
 
     @abstractmethod
+    def send_done_no(self, conn_id: str, machine_id: str, why: str) -> None:
+        """판 보고 거절(치명 규칙) — 기계는 판 시작 전 그대로."""
+
+    @abstractmethod
     def broadcast_result(self, machine_id: str, player_id: str, won: list[tuple[str, int, str, int]]) -> None:
         """본인 포함 모두에게."""
 

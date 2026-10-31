@@ -80,6 +80,9 @@ class WsConnectionsAdapter(ConnectionsPort):
     def broadcast_play(self, except_conn: str, machine_id: str, player_id: str) -> None:
         self._to_all_except(except_conn, server_messages.play(machine_id, player_id))
 
+    def send_done_no(self, conn_id: str, machine_id: str, why: str) -> None:
+        self._to_one(conn_id, server_messages.done_no(machine_id, why))
+
     def broadcast_result(self, machine_id: str, player_id: str, won: list[tuple[str, int, str, int]]) -> None:
         self._to_all_except(None, server_messages.result(machine_id, player_id, won))
 

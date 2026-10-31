@@ -90,9 +90,11 @@ async def test_already_playing_and_unknown_machine():
 async def test_expired_lock_is_taken_over():
     reg, locks, conns, wallet, it = setup()
     locks.lock("c-2", "A-1", 0.0)
-    await it.start(PlayStartCommand("c-1", "A-1", now=24.0))
+    await it.start(PlayStartCommand("c-1", "A-1", now=30.0))  # 20초 + 집게 한 바퀴 15초 + 여유 3초 안에는 아직 그 사람 판
+    assert conns.direct == [("c-1", play_no("A-1", "busy"))]
+    await it.start(PlayStartCommand("c-1", "A-1", now=39.0))
     assert (None, free("A-1")) in conns.broadcasts
-    assert conns.direct == [("c-1", play_ok("A-1", 2, 20))] and locks.holder("A-1") == ("c-1", 24.0)
+    assert conns.direct[-1] == ("c-1", play_ok("A-1", 2, 20)) and locks.holder("A-1") == ("c-1", 39.0)
 
 
 async def test_second_start_during_coin_spend_is_busy():

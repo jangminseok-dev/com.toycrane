@@ -48,6 +48,8 @@ def generate_stock(kind: str, rng: random.Random) -> MachineStock:
 def on_taken(stock: MachineStock, uids: list[int], now: float) -> MachineStock:
     """뽑혀 나간 인형(번호)을 빼고, 채우기 시계가 멈춰 있었으면 지금부터 30초."""
     gone = set(uids)
+    if not gone:
+        return stock
     return MachineStock([d for d in stock.dolls if d.uid not in gone], stock.next_at if stock.next_at is not None else now + REFILL_SECONDS, stock.next_uid)
 
 
