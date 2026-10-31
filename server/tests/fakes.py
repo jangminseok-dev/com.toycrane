@@ -132,6 +132,15 @@ class FakeConnections:
     def send_bag(self, conn_id, total) -> None:
         self.direct.append((conn_id, server_messages.bag(total)))
 
+    def broadcast_spawn(self, machine_id, kind, rare) -> None:
+        self.broadcasts.append((None, server_messages.spawn(machine_id, kind, rare)))
+
+    def broadcast_stock(self, due_in) -> None:
+        self.broadcasts.append((None, server_messages.stock(due_in)))
+
+    def send_stock(self, conn_id, due_in) -> None:
+        self.direct.append((conn_id, server_messages.stock(due_in)))
+
 
 class FakeWallet:
     """지갑(D1) 가짜 — 게스트별 코인 수."""

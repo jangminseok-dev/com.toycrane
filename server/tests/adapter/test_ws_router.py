@@ -15,3 +15,8 @@ def test_decode_keeps_typed_objects():
 def test_stand_message_has_a_handler():
     from toycrane.adapter.inbound.ws.ws_router import HANDLERS
     assert "stand" in HANDLERS
+
+
+def test_tick_message_has_a_handler():
+    from toycrane.adapter.inbound.ws.ws_router import HANDLERS
+    assert "tick" in HANDLERS

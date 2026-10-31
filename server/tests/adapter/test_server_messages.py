@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from toycrane.adapter.inbound.ws.schemas.server_messages import (
-    bag, coins, correct, free, join, leave, machine, move, play, play_no, play_ok, queue, queue_no, result, welcome,
+    bag, coins, correct, free, join, leave, machine, move, play, play_no, play_ok, queue, queue_no, result, spawn, stock, welcome,
 )
 from toycrane.app.dtos.drop_dto import ResultView
 from toycrane.app.dtos.player_view import PlayerView
@@ -70,3 +70,9 @@ def test_a_miss_on_empty_felt_has_no_color_or_rare():
     msg = result(ResultView("A-3", "p1", 0.3, 0.3, "miss", "none", None, None))
     assert (msg["c"], msg["rv"]) == (None, None)
     assert free("A-3") == FX["server_free"] and bag(3) == FX["server_bag"]
+
+
+def test_stock_messages_match_fixtures():
+    assert spawn("B-3", "bear", "gold") == FX["server_spawn"]
+    assert stock(12.5) == FX["server_stock"]
+    assert stock(12.54) == {"t": "stock", "in": 12.5} and stock(None) == {"t": "stock", "in": None}

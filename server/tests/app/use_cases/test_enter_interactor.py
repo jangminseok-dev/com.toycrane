@@ -6,10 +6,13 @@ import pytest
 
 from fakes import (
     BrokenOccupancy, FakeBag, FakeConnections, FakeContents, FakeLocks, FakeOccupancy, FakeQueues, FakeRegistry, FakeWallet, player,
+    stocks_with_empty,
 )
 from toycrane.adapter.inbound.ws.schemas.server_messages import join, leave
 from toycrane.app.dtos.enter_dto import EnterCommand, StoreFull
+from toycrane.app.dtos.stock_dto import StockCommand
 from toycrane.app.use_cases.enter_interactor import EnterInteractor
+from toycrane.app.use_cases.stock_interactor import StockInteractor
 
 
 def enter_interactor(reg=None, conns=None, occ=None, new_id=lambda: "p-1", wallet=None, bag=None, contents=None, queues=None, locks=None):
@@ -146,3 +149,12 @@ async def test_enter_survives_wallet_read_failure():
     conns = FakeConnections()
     await enter_interactor(conns=conns, wallet=BrokenWallet()).enter(cmd("c-1", "g-1"))
     assert conns.direct[0][1]["t"] == "welcome" and conns.direct[0][1]["coins"] == 0
+
+
+# Review Focus 1: 몇 시간 비어 있던 매장에 처음 들어와도 입장 화면에 이미 채워진 기계가 보인다 (입장 전에 채우기를 돌린다 — enter_handler)
+async def test_enter_sees_the_caught_up_stock():
+    conns, contents = FakeConnections(), FakeContents(stocks_with_empty("A-1", next_at=30.0), due=30.0)
+    await StockInteractor(contents, FakeLocks(), conns, random.Random(3)).refill(StockCommand(now=4000.0))
+    await enter_interactor(conns=conns, contents=contents).enter(cmd("c-1", "g-1", now=4000.0))
+    welcome = next(m for c, m in conns.direct if m["t"] == "welcome")
+    assert len(welcome["machines"]["A-1"]) == 9

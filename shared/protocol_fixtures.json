@@ -29,6 +29,9 @@
   "server_play": { "t": "play", "m": "A-3", "id": "p1" },
   "server_result": { "t": "result", "m": "A-3", "id": "p1", "x": 0.12, "z": -0.05, "o": "win", "part": "head", "k": "bunny", "i": 0, "c": 2, "rv": "" },
   "server_machine": { "t": "machine", "m": "A-3", "dolls": [["bear", 0.2, 0.1, 0.5, 0.0, 3, "s", 4, "", 7]] },
+  "server_spawn": { "t": "spawn", "m": "B-3", "k": "bear", "rv": "gold" },
+  "server_stock": { "t": "stock", "in": 12.5 },
+  "client_tick": { "t": "tick" },
   "server_free": { "t": "free", "m": "A-3" },
   "server_bag": { "t": "bag", "n": 3 },
   "bad_client_moves": [

@@ -79,6 +79,14 @@ def machine(machine_id: str, spots: list[DollSpot]) -> dict:
     return {"t": "machine", "m": machine_id, "dolls": _spots(spots)}
 
 
+def spawn(machine_id: str, kind: str, rare: str) -> dict:
+    return {"t": "spawn", "m": machine_id, "k": kind, "rv": rare}
+
+
+def stock(due_in: float | None) -> dict:
+    return {"t": "stock", "in": None if due_in is None else round(due_in, 1)}
+
+
 def free(machine_id: str) -> dict:
     return {"t": "free", "m": machine_id}
 

@@ -59,3 +59,14 @@ class ConnectionsPort(ABC):
 
     @abstractmethod
     def send_bag(self, conn_id: str, total: int) -> None: ...
+
+    @abstractmethod
+    def broadcast_spawn(self, machine_id: str, kind: str, rare: str) -> None:
+        """희귀·황금이 채워졌다 — 매장 전광판에 띄운다."""
+
+    @abstractmethod
+    def broadcast_stock(self, due_in: float | None) -> None:
+        """다음 채울 때까지 남은 초(가득이면 None) — 그때 화면이 tick을 보내 서버를 깨운다."""
+
+    @abstractmethod
+    def send_stock(self, conn_id: str, due_in: float | None) -> None: ...

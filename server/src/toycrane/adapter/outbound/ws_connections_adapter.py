@@ -78,6 +78,15 @@ class WsConnectionsAdapter(ConnectionsPort):
     def broadcast_free(self, machine_id: str) -> None:
         self._to_all_except(None, server_messages.free(machine_id))
 
+    def broadcast_spawn(self, machine_id: str, kind: str, rare: str) -> None:
+        self._to_all_except(None, server_messages.spawn(machine_id, kind, rare))
+
+    def broadcast_stock(self, due_in: float | None) -> None:
+        self._to_all_except(None, server_messages.stock(due_in))
+
+    def send_stock(self, conn_id: str, due_in: float | None) -> None:
+        self._to_one(conn_id, server_messages.stock(due_in))
+
     def send_bag(self, conn_id: str, total: int) -> None:
         self._to_one(conn_id, server_messages.bag(total))
 
