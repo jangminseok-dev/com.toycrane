@@ -1,11 +1,14 @@
-// 기계 한 판 화면(리퀴드 글라스): 위쪽 가운데 남은 시간과 조작 안내. 집게는 기계에 그려진 레버와 하강 버튼으로 움직인다(설계 2026-10-31 §3.10, 3차).
+// 기계 한 판 화면(리퀴드 글라스): 위쪽 가운데 남은 시간(여러 판이면 옆에 작은 '2/5판'), 판이 시작할 때 3초만 그 아래 조작 안내.
+// 집게는 기계에 그려진 레버와 하강 버튼으로 움직인다(설계 2026-10-31 §3.10, 3차). 문구는 copy.ts(가운데 점 없이).
 // 판 사이에는 오른쪽 아래에 "🪙1 한 번 더"(스페이스), 그 위 "🪙5 다섯 판 더", 옆에 "그만하기"(Esc). 여러 판을 이어 하는 중에는 "그만하기"만
+import { UI } from '../world/copy';
+import { buttonParts } from './actionButton';
 import { backdropBlur } from './glass';
 
-let timerEl: HTMLDivElement | null = null, hintEl: HTMLSpanElement | null = null, timeEl: HTMLSpanElement | null = null;
+let timerEl: HTMLDivElement | null = null, hintEl: HTMLDivElement | null = null, timeEl: HTMLSpanElement | null = null, runEl: HTMLSpanElement | null = null;
+let hintTimer = 0;
 let playing = false;
 
-const HINT = '레버로 움직이고 · 잡기 버튼을 눌러요';
 
 function build() {
   const pill = (top: string, font: string) => {
@@ -20,12 +23,15 @@ function build() {
     document.body.appendChild(el);
     return el;
   };
-  // 남은 시간과 안내를 한 알약에 — 두 줄로 쌓으면 뒷판 모니터(위에서 본 화면)를 가린다
-  timerEl = pill('calc(env(safe-area-inset-top) + 60px)', '800 16px -apple-system, "Apple SD Gothic Neo", sans-serif');
-  hintEl = document.createElement('span');
-  Object.assign(hintEl.style, { font: '700 13px -apple-system, "Apple SD Gothic Neo", sans-serif', marginLeft: '8px', opacity: '.85' });
+  // 알약에는 남은 시간만 — 안내는 판이 시작할 때 3초만 그 아래에 (계속 두면 뒷판 모니터를 가린다)
+  timerEl = pill('calc(env(safe-area-inset-top) + 60px)', '800 18px -apple-system, "Apple SD Gothic Neo", sans-serif');
   timeEl = document.createElement('span');
-  timerEl.append(timeEl, hintEl);
+  runEl = document.createElement('span');
+  Object.assign(runEl.style, { marginLeft: '8px', padding: '2px 8px', borderRadius: '999px', font: '800 12px -apple-system, "Apple SD Gothic Neo", sans-serif', background: 'rgba(255,95,170,.18)' });
+  timerEl.append(timeEl, runEl);
+  hintEl = pill('calc(env(safe-area-inset-top) + 104px)', '700 13px -apple-system, "Apple SD Gothic Neo", sans-serif');
+  hintEl.textContent = UI.hint;
+  hintEl.style.transition = 'opacity .4s';
 }
 
 export function showPlayControls(): void {
@@ -37,14 +43,24 @@ export function showPlayControls(): void {
 export function hidePlayControls(): void {
   playing = false;
   if (timerEl) timerEl.style.display = 'none';
+  if (hintEl) hintEl.style.display = 'none';
 }
 
-// run: 여러 판을 이어 하는 중이면 "2/5판"
+// 판이 시작할 때 조작 안내를 3초만
+export function showHint(): void {
+  if (!hintEl) build();
+  clearTimeout(hintTimer);
+  hintEl!.style.display = 'block'; hintEl!.style.opacity = '1';
+  hintTimer = window.setTimeout(() => { hintEl!.style.opacity = '0'; hintTimer = window.setTimeout(() => { hintEl!.style.display = 'none'; }, 400); }, 3000);
+}
+
+// run: 여러 판을 이어 하는 중이면 옆에 작은 "2/5판"
 export function setTimer(seconds: number, run: string | null = null): void {
-  if (!timerEl || !hintEl || !timeEl) return;
-  const text = `${Math.max(0, Math.ceil(seconds))}초${run ? ` · ${run}` : ''}`;
+  if (!timerEl || !timeEl || !runEl) return;
+  const text = `${Math.max(0, Math.ceil(seconds))}초`;
   if (timeEl.textContent !== text) timeEl.textContent = text;
-  if (hintEl.textContent !== HINT) hintEl.textContent = HINT;
+  if (runEl.textContent !== (run ?? '')) runEl.textContent = run ?? '';
+  runEl.style.display = run ? 'inline' : 'none';
 }
 
 let againBtn: HTMLButtonElement | null = null, moreBtn: HTMLButtonElement | null = null, standBtn: HTMLButtonElement | null = null;
@@ -72,7 +88,7 @@ function buildSeat() {
   backdropBlur(moreBtn, 'blur(12px) saturate(180%)');
   moreBtn.addEventListener('click', () => onMore?.());
   standBtn = document.createElement('button');
-  standBtn.textContent = '그만하기';
+  standBtn.textContent = UI.stand;
   Object.assign(standBtn.style, {
     position: 'fixed', zIndex: '15', right: 'calc(env(safe-area-inset-right) + 146px)', bottom: 'calc(env(safe-area-inset-bottom) + 64px)',
     padding: '12px 18px', borderRadius: '999px', cursor: 'pointer', touchAction: 'manipulation',
@@ -89,14 +105,31 @@ function buildSeat() {
   document.body.append(againBtn, moreBtn, standBtn);
 }
 
-// again이 null이면 코인이 없어 한 번 더 할 수 없다(버튼은 흐리게, 누르면 안내). more: 여러 판 이어 하기 (코인이 두 개 이상일 때)
-export function showSeatControls(again: (() => void) | null, more: { plays: number; name: string; onPress: () => void } | null, stand: () => void, noCoins: () => void): void {
+// 동그란 버튼 안: 할 일 한 줄 + 아래 작은 코인 배지
+function paintRound(el: HTMLButtonElement, label: string, badge: number | null): void {
+  const parts = buttonParts(label, badge), key = `${parts.text}|${parts.badge ?? ''}`;
+  if (el.dataset.key === key) return;
+  el.dataset.key = key;
+  el.textContent = parts.text;
+  if (parts.badge) {
+    const chip = document.createElement('div');
+    chip.textContent = parts.badge;
+    Object.assign(chip.style, { font: '800 13px -apple-system, "Apple SD Gothic Neo", sans-serif', marginTop: '4px', opacity: '.85' });
+    el.appendChild(chip);
+  }
+}
+
+// again이 null이면 코인이 없어 한 번 더 할 수 없다(버튼은 흐리게 '교환소 가기'). more: 여러 판 이어 하기 (코인이 두 개 이상일 때)
+export function showSeatControls(again: (() => void) | null, more: { plays: number; onPress: () => void } | null, stand: () => void, noCoins: () => void): void {
   if (!againBtn) buildSeat();
   onAgain = again ?? noCoins; onMore = more?.onPress ?? null; onStand = stand;
-  againBtn!.textContent = again ? '🪙1\n한 번 더' : '교환소로\n가기';
+  paintRound(againBtn!, again ? UI.again : UI.goCounter, again ? 1 : null);
   againBtn!.style.opacity = again ? '1' : '.55';
   againBtn!.style.display = 'block';
-  moreBtn!.textContent = more ? `🪙${more.plays} ${more.name} 더` : '';
+  if (more) {
+    const parts = buttonParts(UI.againRun(more.plays), more.plays);
+    moreBtn!.textContent = `${parts.text}  ${parts.badge}`;
+  }
   moreBtn!.style.display = more ? 'block' : 'none';
   standBtn!.style.display = 'block';
 }

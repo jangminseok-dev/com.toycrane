@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { aimHeight } from './aim';
+import { aimHeight, aimVisible } from './aim';
 import type { DollSpot } from '../net/protocol';
 import { spot } from '../test/spots';
 
@@ -32,4 +32,11 @@ test('dolls resting on others are higher', () => {
 test('the higher doll wins where two overlap', () => {
   const spots: DollSpot[] = [spot('bear', 0, 0, 0, 0), spot('cat', 0.05, 0, 0, 0.22)];
   expect(aimHeight(spots, 0.02, 0)).toBeCloseTo(aimHeight([spot('cat', 0.05, 0, 0, 0.22)], 0.02, 0));
+});
+
+// 집게가 상품 구멍 위(시작 자리)에 있으면 겨냥 고리를 숨긴다 — 인형이 없는 곳이고, 레버 공 뒤에 걸쳐 보였다 (교환소 개편 설계 §4.7)
+test('the aim ring hides while the claw is over the prize hole', () => {
+  expect(aimVisible({ x: -0.36, z: 0.27 })).toBe(false);
+  expect(aimVisible({ x: -0.2, z: 0.3 })).toBe(false);
+  expect(aimVisible({ x: 0, z: 0 })).toBe(true);
 });

@@ -33,6 +33,11 @@ export class PlayRun {
     this.played = 0;
   }
 
+  // 판 사이: 곧 시작할 판이 몇 번째인지
+  upcoming(): number {
+    return this.played + 1;
+  }
+
   // 남은 시간 옆에 보이는 "2/5판" (한 판씩 할 때는 없음). upcoming: 판 사이에 다음 판 번호로
   label(upcoming = false): string | null {
     return this.total > 1 ? `${this.played + (upcoming ? 1 : 0)}/${this.total}판` : null;

@@ -46,3 +46,9 @@ test('between plays of a run it names the play that comes next', () => {
   run.start(5, 9); run.began();
   expect(run.label(true)).toBe('2/5판');
 });
+
+test('between plays it knows which play comes next', () => {
+  const run = new PlayRun();
+  run.start(5, 9); run.began();
+  expect(run.upcoming()).toBe(2);
+});

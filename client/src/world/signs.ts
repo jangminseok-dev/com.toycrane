@@ -3,9 +3,8 @@ import { PREP, STICKER, WALL_SIGN } from './copy';
 import { canvasTex } from './toon';
 
 // 간판·안내 카드·스티커·뒷판·번호판·벽 간판·준비 중 그림 (시제품 docs/reference/prototypes/spike-look-a.html의 그림을 따름).
-// 글꼴은 ui/fonts.ts가 미리 불러 둔 Jua(간판)·Gaegu(손글씨)이고, 없으면 시스템 글꼴로 그린다
+// 글꼴은 ui/fonts.ts가 미리 불러 둔 Jua(간판)이고, 없으면 시스템 글꼴로 그린다
 const SIGN_FONT = '"Jua", "Apple SD Gothic Neo", -apple-system, sans-serif';
-const HAND_FONT = '"Gaegu", "Apple SD Gothic Neo", -apple-system, sans-serif';
 const css = (c: number) => '#' + new THREE.Color(c).getHexString();
 
 // 같은 그림이 매번 같게(별·무늬 자리) 나오도록 고정된 난수
@@ -55,8 +54,8 @@ export function popTex(text: string, bg: number, fg: number): THREE.CanvasTextur
   return canvasTex(320, 220, (g) => {
     g.fillStyle = css(bg); rounded(g, 8, 8, 304, 204, 26); g.fill();
     g.setLineDash([14, 9]); g.lineWidth = 5; g.strokeStyle = css(fg); rounded(g, 24, 24, 272, 172, 16); g.stroke(); g.setLineDash([]);
-    fit(g, text, (s) => `700 ${s}px ${HAND_FONT}`, 92, 250);
-    g.fillStyle = css(fg); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 160, 118);
+    fit(g, text, (s) => `${s}px ${SIGN_FONT}`, 64, 240); // 간판 글꼴로 가운데 단정하게
+    g.fillStyle = css(fg); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 160, 114);
     star(g, 48, 50, 15, css(fg)); star(g, 274, 174, 11, css(fg));
   });
 }
@@ -118,9 +117,9 @@ export function prepTex(): THREE.CanvasTexture {
 // 하강 버튼 윗면 글씨: 흰 '잡기'와 그 아래 흰 화살표(▼), 진한 빨강 테두리. 밖은 투명
 export function dropLabelTex(text: string): THREE.CanvasTexture {
   return canvasTex(256, 256, (g) => {
-    g.font = `96px ${SIGN_FONT}`;
-    outlined(g, text, 128, 104, '#8a0f2a', 16, '#ffffff');
-    g.beginPath(); g.moveTo(84, 150); g.lineTo(172, 150); g.lineTo(128, 214); g.closePath();
+    g.font = `76px ${SIGN_FONT}`; // 윗면 안에 넉넉히 (가장자리 20% 이상 비움)
+    outlined(g, text, 128, 108, '#8a0f2a', 14, '#ffffff');
+    g.beginPath(); g.moveTo(100, 152); g.lineTo(156, 152); g.lineTo(128, 194); g.closePath();
     g.lineJoin = 'round'; g.lineWidth = 16; g.strokeStyle = '#8a0f2a'; g.stroke();
     g.fillStyle = '#ffffff'; g.fill();
   });

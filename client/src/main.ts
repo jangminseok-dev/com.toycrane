@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { CAMERA_OFFSETS, followCamera } from './game/followCamera';
 import { InputSampler } from './game/inputSampler';
 import { LocalPlayer } from './game/localPlayer';
-import { aimHeight } from './game/aim';
+import { aimHeight, aimVisible } from './game/aim';
 import { machineCameraPose } from './game/machineCamera';
 import { MachineBusy } from './game/machineBusy';
 import { PlaySession } from './game/playSession';
@@ -26,7 +26,7 @@ import { setAction } from './ui/actionButton';
 import { askNickname, hideEntry, showFull, showMessage, showWelcomeBack } from './ui/entry';
 import { setHud, setInfo, toast } from './ui/hud';
 import { eulReul, iGa } from './ui/josa';
-import { hidePlayControls, hideSeatControls, setTimer, showPlayControls, showRunPause, showSeatControls } from './ui/playControls';
+import { hidePlayControls, hideSeatControls, setTimer, showHint, showPlayControls, showRunPause, showSeatControls } from './ui/playControls';
 import { PlayRun, runSize } from './game/playRun';
 import { buildMachineControls, type MachineControls } from './world/machineControls';
 import { buildTopView, type TopView } from './world/topView';
@@ -301,7 +301,7 @@ function startPlay(machineId: string, limit: number, coins: number) {
   run.began();
   seated = null; nextRunAt = null; hideSeatControls();
   setAction(null); setInfo(null);
-  showPlayControls();
+  showPlayControls(); showHint();
   dropControls();
   controls = buildMachineControls(bigZone.worldOf(machineId)); controlsAt = machineId;
   bigZone.hideControls(machineId, true); // 기계 그림의 고정 레버·버튼은 숨긴다 — 남으면 기울일 때 잔상처럼 하나 더 보인다
@@ -469,8 +469,8 @@ function showMachineUi(): boolean {
   if (who && who !== myId) { setAction(null); setInfo(UI.watching); return true; }
   setInfo(null);
   const more = runSize(wallet.coins);
-  if (wallet.coins > 0) setAction('🪙1 넣고 하기', () => playAgain(near.id, 1), more && { label: `🪙${more.plays} ${more.name}`, onPress: () => playAgain(near.id, more.plays) });
-  else setAction('코인이 없어요 · 교환소로', startCoinWalk);
+  if (wallet.coins > 0) setAction(UI.playOne, () => playAgain(near.id, 1), { badge: 1, extra: more && { label: UI.playRun(more.plays), badge: more.plays, onPress: () => playAgain(near.id, more.plays) } });
+  else setAction(UI.goCounter, startCoinWalk, { status: UI.noCoins });
   return true;
 }
 
@@ -521,7 +521,9 @@ function frame(now: number) {
         claw.position.set(session.claw.x, CLAW_REST.y, session.claw.z);
         topView?.update(session.claw);
         // 겨냥 고리는 집게 아래 인형 머리 위(없으면 바닥)에 놓는다
-        claw.getObjectByName('aim')!.position.y = aimHeight(bigZone.contentsOf(session.machineId), session.claw.x, session.claw.z) - CLAW_REST.y;
+        const aim = claw.getObjectByName('aim')!;
+        aim.position.y = aimHeight(bigZone.contentsOf(session.machineId), session.claw.x, session.claw.z) - CLAW_REST.y;
+        aim.visible = aimVisible(session.claw); // 상품 구멍 위(시작 자리)에서는 숨긴다
       }
       me.autoTarget = frontSpot(spotOf.get(playId)!); // 기계 앞자리 가운데로 (카메라 구도가 늘 같게)
       me.drive({ x: 0, z: 0 }, dt);
@@ -532,9 +534,9 @@ function frame(now: number) {
       me.drive({ x: 0, z: 0 }, dt);
       const left = MACHINE_SPEC.hold_seconds - (now / 1000 - holdFrom);
       if (nextRunAt !== null) {
-        setInfo(`다음 판 · ${run.label(true)}`);
+        setInfo(UI.nextRun(run.upcoming()));
         if (clock() >= nextRunAt) { nextRunAt = null; socket?.send(encodePlay(seated)); }
-      } else setInfo(left > 0 ? `이어서 하기 · ${Math.ceil(left)}초` : null);
+      } else setInfo(left > 0 ? UI.continueIn(Math.ceil(left)) : null);
     } else if (!awaiting) {
       if (Math.hypot(input.x, input.z) > 0) walker.cancel(); // 손으로 움직이면 저절로 걷기를 멈춘다
       me.autoTarget = queue.target() ?? walker.next(me.pos);

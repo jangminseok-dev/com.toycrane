@@ -1,5 +1,6 @@
 import type { DollSpot } from '../net/protocol';
 import { headOf } from '../world/dolls';
+import { MACHINE_SPEC } from '../data/storeLayout';
 import { DOLL_FLOOR, DOLL_SCALE } from '../world/machine';
 
 const ON_FLOOR = DOLL_FLOOR + 0.012;
@@ -16,4 +17,10 @@ export function aimHeight(spots: DollSpot[], x: number, z: number): number {
     top = Math.max(top, h + 0.005);
   }
   return top;
+}
+
+// 겨냥 고리를 보일까: 집게가 상품 구멍 위(시작 자리)면 숨긴다 — 인형이 없는 곳이고, 레버 공 뒤에 걸쳐 보였다 (교환소 개편 설계 §4.7)
+export function aimVisible(claw: { x: number; z: number }): boolean {
+  const [hx, hz, hr] = MACHINE_SPEC.hole;
+  return Math.hypot(claw.x - hx, claw.z - hz) >= hr;
 }

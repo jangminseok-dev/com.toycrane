@@ -13,7 +13,7 @@ const STICK = new THREE.CylinderGeometry(0.01, 0.01, 0.09, 10).translate(0, 0.04
 const BALL = new THREE.SphereGeometry(0.04, 16, 12);
 const LEVER_HIT = new THREE.BoxGeometry(0.34, 0.24, 0.34), DROP_HIT = new THREE.BoxGeometry(0.34, 0.18, 0.32);
 const PRESS_DEPTH = 0.015, GLOW = 0.7, TILT = 0.4;
-const LABEL = new THREE.PlaneGeometry(0.09, 0.09);
+const LABEL = new THREE.PlaneGeometry(0.08, 0.08); // 윗면 지름(0.11)의 73% — 글씨가 밖으로 나가지 않게
 
 export type ControlPart = 'lever' | 'drop';
 export type MachineControls = {

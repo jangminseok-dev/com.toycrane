@@ -60,3 +60,13 @@ test('the live lever and button are drawn after the aim ring so the ring never s
   expect(drawn.length).toBeGreaterThan(3);
   for (const m of drawn) expect(m.renderOrder).toBeGreaterThan(aim.renderOrder);
 });
+
+// '잡기' 글씨가 버튼 윗면 밖으로 삐져나가지 않는다 — 글씨 판이 윗면 지름의 80% 안 (사용자 화면 2026-10-31)
+test('the drop label fits inside the button top', () => {
+  const anchor = new THREE.Group();
+  buildMachineControls(anchor);
+  const label = anchor.getObjectByName('drop-label') as THREE.Mesh;
+  label.geometry.computeBoundingBox();
+  const size = label.geometry.boundingBox!.getSize(new THREE.Vector3());
+  expect(Math.max(size.x, size.y)).toBeLessThanOrEqual(0.8 * 2 * 0.055 + 1e-9);
+});
