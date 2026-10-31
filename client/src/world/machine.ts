@@ -1,131 +1,142 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MachineSpot } from '../data/storeLayout';
-import { MACHINE_NAMES } from './copy';
-import { marqueeTex, plateTex } from './signs';
-import { SPH_LO, canvasTex, part, toon, toonWith } from './toon';
+import { MACHINE_NAMES, POP_CARDS } from './copy';
+import { backArtTex, plateTex, popTex, signTex, stickerTex } from './signs';
+import { part, toon } from './toon';
 
-// 큰인형 기계 (시제품 docs/reference/prototypes/spike-arcade-big-v3.html makeMachine, 578~711행).
-// 실제 크레인 게임기 구성: 아래 캐비닛(투입구·조작대·상품 출구) / 유리 칸(펠트 바닥·상품 구멍·투명 가림막·뒷판) / 위 간판(이름판·전구)
-const BODY = 0xf8f3fb, PANEL = 0x2b2433;
+// 큰인형 기계 — 밝은 일본 게임센터 모양 (설계 2026-10-31-toycrane-graphics-a-design.md §4.1, 시제품 spike-look-a.html).
+// 아래 캐비닛(원색 몸통·흰 앞판·상품 출구·코인 투입구·레버와 버튼 둘) / 유리 칸(크롬 기둥·펠트·뒷판 그림·상품 구멍과 투명 가림막·
+// 천장 조명판·레일·유리 반사 줄·손글씨 안내 카드) / 위 간판(몸통 색 상자·이름판·번호판, 둘레 전구는 bigZone이 행마다 한 덩어리로)
 export const CLAW_REST = new THREE.Vector3(0.1, 1.95, 0); // 기계 안 좌표
 export const DOLL_FLOOR = 0.87; // 펠트 위 인형 바닥 높이
 export const DOLL_SCALE = 0.3; // 기계 속 인형 크기
 
-// 간판 색: 배치 순서대로 돌려 쓴다 (기계 이름표는 copy.ts)
-const TOPS = [0xff7ab6, 0xb48cff, 0xff9fcf, 0x8f7bff];
-const LED_COLORS = { white: new THREE.Color(0xffffff), pink: new THREE.Color(0xff8fe0), blue: new THREE.Color(0x4fd8ff) };
+// 기계마다 원색 몸통·펠트 색을 배치 순서대로 돌려 쓴다
+export const MACHINE_COLORS = [0xe8384f, 0xffb81f, 0x2f7cf6, 0xff4f9a, 0x22b36b, 0x8b5cf6, 0xff8a1f, 0x12b5cb];
+export const FELT_COLORS = [0x8fd3ff, 0xff9ec7, 0xffe08a, 0xb7e4a8];
+const BACK_ART: [number, number][] = [[0xe8f7ff, 0xc6e7ff], [0xffe8ee, 0xffc6d4], [0xfff8de, 0xffeaa8], [0xebfbf1, 0xc9f2da]];
+const POP_COLORS: [number, number][] = [[0xffe14d, 0xe8384f], [0xfff36b, 0xe8384f], [0xfff36b, 0x16a05b], [0xff4f9a, 0xffffff], [0xffffff, 0x2f6fe0], [0xffe14d, 0x7c4ff0]];
+const LED = { sky: new THREE.Color(0x7fd6ff), pink: new THREE.Color(0xff6fb5), slot: new THREE.Color(0x66ffcc) };
+const WHITE = 0xf8f6fb, CHROME = 0xd3d6de, DARK = 0x1b1820;
 
 const once = <T>(make: () => T) => { let v: T | undefined; return () => (v ??= make()); };
+const cached = <T>(make: (key: string) => T) => { const m = new Map<string, T>(); return (key: string) => { if (!m.has(key)) m.set(key, make(key)); return m.get(key)!; }; };
 type V3 = [number, number, number];
 const flat = (geo: THREE.BufferGeometry, mat: THREE.Material, pos: V3, rot: V3 = [0, 0, 0]) => {
   const m = new THREE.Mesh(geo, mat); m.position.set(...pos); m.rotation.set(...rot); return m;
 };
+const rbox = (w: number, h: number, d: number, r: number) => new RoundedBoxGeometry(w, h, d, 3, r);
 
 const G = once(() => ({
-  cabinet: new THREE.BoxGeometry(1.2, 0.85, 1.05), ledStrip: new THREE.BoxGeometry(1.16, 0.03, 0.02), chuteRing: new THREE.BoxGeometry(0.42, 0.34, 0.02),
-  chute: new THREE.BoxGeometry(0.32, 0.24, 0.03), coinPlate: new THREE.BoxGeometry(0.16, 0.22, 0.02), coinSlot: new THREE.BoxGeometry(0.03, 0.1, 0.03),
-  card: new THREE.BoxGeometry(0.18, 0.12, 0.03), cardScreen: new THREE.PlaneGeometry(0.13, 0.07), panel: new THREE.BoxGeometry(1.2, 0.08, 0.28),
-  panelLed: new THREE.BoxGeometry(1.16, 0.02, 0.02), stick: new THREE.CylinderGeometry(0.015, 0.015, 0.1, 8), button: new THREE.CylinderGeometry(0.07, 0.07, 0.04, 16),
-  felt: new THREE.BoxGeometry(1.12, 0.02, 0.98), back: new THREE.PlaneGeometry(1.12, 1.08), inner: new THREE.BoxGeometry(1.04, 0.03, 0.05),
-  hole: new THREE.PlaneGeometry(0.3, 0.3), glass: new THREE.BoxGeometry(1.14, 1.1, 1.0), pillar: new THREE.BoxGeometry(0.06, 1.1, 0.06),
-  header: new THREE.BoxGeometry(1.26, 0.5, 1.11), marquee: new THREE.PlaneGeometry(1.0, 0.31), plate: new THREE.PlaneGeometry(0.26, 0.13), plateBox: new THREE.BoxGeometry(0.3, 0.17, 0.04),
-  bulb: new THREE.SphereGeometry(0.026, 8, 6), bar: new THREE.BoxGeometry(0.03, 0.15, 0.02), acryl: new THREE.BoxGeometry(0.34, 0.2, 0.34),
-  pole: new THREE.CylinderGeometry(0.012, 0.012, 0.85, 8),
+  cabinet: rbox(1.2, 0.85, 1.05, 0.04), front: rbox(1.04, 0.5, 0.02, 0.008), chute: rbox(0.32, 0.24, 0.03, 0.01),
+  flap: new THREE.BoxGeometry(0.3, 0.01, 0.06), coinPlate: rbox(0.16, 0.22, 0.03, 0.01), sticker: new THREE.PlaneGeometry(0.2, 0.1),
+  deck: rbox(1.2, 0.07, 0.28, 0.02), leverBase: new THREE.CylinderGeometry(0.05, 0.055, 0.02, 20), stick: new THREE.CylinderGeometry(0.01, 0.01, 0.09, 10),
+  ball: new THREE.SphereGeometry(0.04, 16, 12), ring: new THREE.CylinderGeometry(0.065, 0.068, 0.025, 24), dome: new THREE.SphereGeometry(0.055, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+  pillar: rbox(0.06, 1.1, 0.06, 0.015), felt: new THREE.BoxGeometry(1.12, 0.02, 0.98), back: new THREE.PlaneGeometry(1.12, 1.08),
+  hole: new THREE.PlaneGeometry(0.3, 0.3), acryl: new THREE.BoxGeometry(0.34, 0.2, 0.34), rim: rbox(0.34, 0.012, 0.012, 0.004),
+  ceilingLight: new THREE.PlaneGeometry(1.0, 0.85), rail: rbox(1.08, 0.022, 0.022, 0.008), glass: new THREE.BoxGeometry(1.14, 1.1, 1.0),
+  streak: new THREE.PlaneGeometry(0.06, 0.55), streakThin: new THREE.PlaneGeometry(0.025, 0.55), pop: new THREE.PlaneGeometry(0.2, 0.14),
+  header: rbox(1.26, 0.5, 1.11, 0.04), sign: new THREE.PlaneGeometry(1.0, 0.31), plate: new THREE.PlaneGeometry(0.26, 0.11), plateBox: rbox(0.3, 0.15, 0.04, 0.012),
+  ledStrip: new THREE.BoxGeometry(1.16, 0.03, 0.02), ledBar: new THREE.BoxGeometry(0.3, 0.012, 0.012), ledSide: new THREE.BoxGeometry(0.012, 0.24, 0.012),
+  slot: new THREE.BoxGeometry(0.016, 0.08, 0.006), pillarLed: new THREE.BoxGeometry(0.015, 1.0, 0.015),
 }));
 const EDGES = once(() => ({ glass: new THREE.EdgesGeometry(G().glass), acryl: new THREE.EdgesGeometry(G().acryl) }));
 
-const M = once(() => {
-  const backdropTex = canvasTex(256, 256, (g) => {
-    g.fillStyle = '#f3e6ff'; g.fillRect(0, 0, 256, 256);
-    g.fillStyle = 'rgba(255,111,176,.35)'; g.font = '40px sans-serif'; g.textAlign = 'center';
-    for (let y = 0; y < 5; y++) for (let x = 0; x < 4; x++) g.fillText((x + y) % 2 ? '★' : '♥', 32 + x * 64 + (y % 2) * 32, 40 + y * 52);
-  });
-  // 기계 위 체크무늬 삼각 깃발
-  const flagTex = canvasTex(64, 64, (g) => {
-    g.fillStyle = '#ffffff'; g.fillRect(0, 0, 64, 64);
-    g.fillStyle = '#ff5fa2'; g.fillRect(0, 0, 32, 32); g.fillRect(32, 32, 32, 32);
-  }, [7, 7]);
-  flagTex.rotation = Math.PI / 4;
-  const flagShape = new THREE.Shape();
-  flagShape.moveTo(0, 0); flagShape.lineTo(0.44, -0.2); flagShape.lineTo(0, -0.4); flagShape.closePath();
-  return {
-    glass: new THREE.MeshBasicMaterial({ color: 0xe8f8ff, transparent: true, opacity: 0.1, depthWrite: false }),
-    edge: new THREE.LineBasicMaterial({ color: 0x3b2a5a }),
-    acryl: new THREE.MeshBasicMaterial({ color: 0xe8fbff, transparent: true, opacity: 0.25, depthWrite: false }),
-    acrylEdge: new THREE.LineBasicMaterial({ color: 0xffffff }),
-    hole: new THREE.MeshBasicMaterial({ color: 0x1a1226 }),
-    felt: toonWith({ color: 0xfff0f7, emissive: 0xfff0f7, emissiveIntensity: 0.45 }),
-    backdrop: new THREE.MeshBasicMaterial({ map: backdropTex, color: 0xe6e0ea }),
-    cardScreen: new THREE.MeshBasicMaterial({ color: 0x4fd8ff }),
-    flag: new THREE.MeshLambertMaterial({ map: flagTex, side: THREE.DoubleSide }),
-    flagGeo: new THREE.ShapeGeometry(flagShape),
-  };
+// 재질: 같은 것은 모든 기계가 나눠 쓴다(행마다 합칠 때 그리기 호출이 늘지 않게). 기계마다 다른 그림은 간판·번호판·안내 카드뿐
+const M = once(() => ({
+  glass: new THREE.MeshBasicMaterial({ color: 0xe8f8ff, transparent: true, opacity: 0.1, depthWrite: false }),
+  edge: new THREE.LineBasicMaterial({ color: 0x3b2a5a }),
+  acryl: new THREE.MeshBasicMaterial({ color: 0xe8fbff, transparent: true, opacity: 0.25, depthWrite: false }),
+  acrylEdge: new THREE.LineBasicMaterial({ color: 0xffffff }),
+  hole: new THREE.MeshBasicMaterial({ color: 0x1a1226 }),
+  light: new THREE.MeshBasicMaterial({ color: 0xffffff }),
+  streak: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, depthWrite: false }),
+  flap: new THREE.MeshBasicMaterial({ color: 0xe8fbff, transparent: true, opacity: 0.35, depthWrite: false }),
+  sticker: new THREE.MeshBasicMaterial({ map: stickerTex(), alphaTest: 0.5 }),
+}));
+const backMat = cached((k) => { const [c1, c2] = BACK_ART[Number(k)]; return new THREE.MeshBasicMaterial({ map: backArtTex(c1, c2) }); });
+const popMat = cached((k) => { const i = Number(k), [bg, fg] = POP_COLORS[i]; return new THREE.MeshBasicMaterial({ map: popTex(POP_CARDS[i], bg, fg), alphaTest: 0.5, side: THREE.DoubleSide }); });
+const signMat = cached((k) => { const [name, color] = k.split('|'); return new THREE.MeshBasicMaterial({ map: signTex(name, Number(color)) }); });
+
+// 간판 둘레 전구 자리(기계 안 좌표, 간판 앞면보다 앞): 위·아래 변과 양옆, 0.05m 간격
+export const bulbSpots = once((): THREE.Vector3[] => {
+  const pts: THREE.Vector3[] = [], cx = 0, cy = 2.2, z = 0.575, bw = 0.54, bh = 0.19, step = 0.05;
+  for (let x = -bw; x <= bw + 1e-6; x += step) pts.push(new THREE.Vector3(cx + x, cy + bh, z), new THREE.Vector3(cx + x, cy - bh, z));
+  for (let y = -bh + step; y < bh - 1e-6; y += step) pts.push(new THREE.Vector3(cx - bw, cy + y, z), new THREE.Vector3(cx + bw, cy + y, z));
+  return pts;
 });
 
 export type MachineParts = {
   statics: THREE.Group; // 움직이지 않는 부분 (기계 자리·방향에 놓임, 행마다 합침)
-  ledGeo: THREE.BufferGeometry; // 기계의 LED 전부를 꼭짓점 색으로 한 덩어리 (기계 안 좌표)
+  ledGeo: THREE.BufferGeometry; // 기계의 LED 띠·테두리 전부를 꼭짓점 색으로 한 덩어리 (기계 안 좌표)
 };
 
-// index: 배치 순서 (이름표·간판 색·깃발을 돌려 쓰는 기준)
+// index: 배치 순서 (몸통·펠트 색, 이름표, 안내 카드를 돌려 쓰는 기준)
 export function makeMachineParts(spot: MachineSpot, index: number): MachineParts {
   const g = G(), mat = M(), m = new THREE.Group();
   m.position.set(spot.x, 0, spot.z); m.rotation.y = spot.ry;
   const add = (o: THREE.Object3D) => { m.add(o); return o; };
-  // 아래 캐비닛
-  add(part(g.cabinet, toon(BODY), [0, 0.425, 0], [1, 1, 1], [0, 0, 0], 1.02));
-  add(part(g.chute, toon(PANEL), [-0.36, 0.3, 0.535], [1, 1, 1], [0, 0, 0], 0));
-  // 코인 투입구 · 카드 단말기
-  add(part(g.coinPlate, toon(0xc9c9d6), [0.42, 0.62, 0.53], [1, 1, 1], [0, 0, 0], 0));
-  add(part(g.coinSlot, toon(PANEL), [0.42, 0.64, 0.535], [1, 1, 1], [0, 0, 0], 0));
-  add(part(g.card, toon(PANEL), [0.15, 0.62, 0.535], [1, 1, 1], [0, 0, 0], 0));
-  add(flat(g.cardScreen, mat.cardScreen, [0.15, 0.63, 0.552]));
-  // 조작대: 검은 판 + 조이스틱 + 내리기 버튼
-  add(part(g.panel, toon(PANEL), [0, 0.86, 0.62]));
-  add(part(g.stick, toon(0x3b2a5a), [-0.25, 0.93, 0.66], [1, 1, 1], [0, 0, 0], 0));
-  add(part(SPH_LO, toon(0xff5fa2), [-0.25, 0.99, 0.66], [0.05, 0.05, 0.05]));
-  add(part(g.button, toon(0xff3b6b), [0.25, 0.92, 0.66]));
-  // 유리 칸: 펠트 바닥, 뒷판 그림, 앞 위쪽 실내등
-  add(flat(g.felt, mat.felt, [0, 0.86, 0]));
-  add(flat(g.back, mat.backdrop, [0, 1.4, -0.48]));
-  add(flat(g.inner, new THREE.MeshBasicMaterial({ color: 0xffffff }), [0, 1.91, 0.44]));
-  // 상품 구멍 + 투명 아크릴 가림막 (앞 왼쪽 구석)
+  const color = MACHINE_COLORS[index % MACHINE_COLORS.length], felt = index % FELT_COLORS.length;
+  const chrome = toon(CHROME), white = toon(WHITE);
+  // 아래 캐비닛: 원색 몸통 + 흰 앞판 + 상품 출구(투명 덮개) + 크롬 코인 투입구·스티커
+  const cabinet = add(part(g.cabinet, toon(color), [0, 0.425, 0], [1, 1, 1], [0, 0, 0], 1.02));
+  cabinet.name = 'cabinet';
+  add(part(g.front, white, [0, 0.42, 0.528], [1, 1, 1], [0, 0, 0], 0));
+  add(part(g.chute, toon(DARK), [-0.36, 0.3, 0.54], [1, 1, 1], [0, 0, 0], 0));
+  add(flat(g.flap, mat.flap, [-0.36, 0.41, 0.565], [0.5, 0, 0]));
+  add(part(g.coinPlate, chrome, [0.42, 0.5, 0.54], [1, 1, 1], [0, 0, 0], 0));
+  add(flat(g.sticker, mat.sticker, [0.42, 0.7, 0.53]));
+  // 조작대: 흰 판 + 레버(크롬 받침·빨간 공) + 버튼 둘(빨강·파랑, 크롬 고리)
+  add(part(g.deck, white, [0, 0.875, 0.62], [1, 1, 1], [0, 0, 0], 1.03));
+  add(part(g.leverBase, chrome, [-0.3, 0.92, 0.66], [1, 1, 1], [0, 0, 0], 0));
+  add(part(g.stick, chrome, [-0.3, 0.96, 0.66], [1, 1, 1], [0, 0, 0], 0));
+  add(part(g.ball, toon(0xff3b5c), [-0.3, 1.02, 0.66]));
+  for (const [x, c] of [[0.12, 0xff3b5c], [0.32, 0x3b8bff]] as const) {
+    add(part(g.ring, chrome, [x, 0.915, 0.66], [1, 1, 1], [0, 0, 0], 0));
+    add(part(g.dome, toon(c), [x, 0.925, 0.66], [1, 0.45, 1], [0, 0, 0], 1.04));
+  }
+  // 유리 칸: 크롬 기둥 · 펠트 · 뒷판 그림 · 천장 조명판 · 레일
+  for (const [x, z] of [[-0.57, -0.5], [0.57, -0.5], [-0.57, 0.5], [0.57, 0.5]]) add(part(g.pillar, chrome, [x, 1.4, z], [1, 1, 1], [0, 0, 0], 1.04));
+  add(part(g.felt, toon(FELT_COLORS[felt]), [0, 0.86, 0], [1, 1, 1], [0, 0, 0], 0));
+  add(flat(g.back, backMat(String(felt)), [0, 1.4, -0.48]));
+  add(flat(g.ceilingLight, mat.light, [0, 1.93, 0], [Math.PI / 2, 0, 0]));
+  for (const z of [-0.42, 0.42]) add(part(g.rail, chrome, [0, 1.9, z], [1, 1, 1], [0, 0, 0], 0));
+  // 상품 구멍 + 투명 아크릴 가림막 + 크롬 테두리 (앞 왼쪽 구석)
   add(flat(g.hole, mat.hole, [-0.36, 0.875, 0.27], [-Math.PI / 2, 0, 0]));
   add(flat(g.acryl, mat.acryl, [-0.36, 0.97, 0.27]));
   add(new THREE.LineSegments(EDGES().acryl, mat.acrylEdge)).position.set(-0.36, 0.97, 0.27);
-  // 유리 + 기둥
+  add(part(g.rim, chrome, [-0.36, 1.07, 0.1], [1, 1, 1], [0, 0, 0], 0));
+  add(part(g.rim, chrome, [-0.19, 1.07, 0.27], [1, 1, 1], [0, Math.PI / 2, 0], 0));
+  // 유리 + 테두리 + 만화식 대각 반사 줄 + 손글씨 안내 카드
   add(flat(g.glass, mat.glass, [0, 1.4, 0]));
   add(new THREE.LineSegments(EDGES().glass, mat.edge)).position.y = 1.4;
-  for (const [x, z] of [[-0.57, -0.5], [0.57, -0.5], [-0.57, 0.5], [0.57, 0.5]]) add(part(g.pillar, toon(BODY), [x, 1.4, z], [1, 1, 1], [0, 0, 0], 0));
-  // 위 간판 + 이름판 + 번호판
-  add(part(g.header, toon(BODY), [0, 2.2, 0], [1, 1, 1], [0, 0, 0], 1.02));
-  add(flat(g.marquee, new THREE.MeshBasicMaterial({ map: marqueeTex(MACHINE_NAMES[index % MACHINE_NAMES.length], TOPS[index % TOPS.length]) }), [0, 2.2, 0.558]));
-  add(flat(g.plate, new THREE.MeshBasicMaterial({ map: plateTex(spot.id) }), [-0.42, 2.55, 0.5]));
-  add(part(g.plateBox, toon(BODY), [-0.42, 2.55, 0.47], [1, 1, 1], [0, 0, 0], 1.04));
-  if (index % 2 === 1) {
-    const f = new THREE.Group();
-    f.add(part(g.pole, toon(0xd8d0e0), [0, 0.425, 0], [1, 1, 1], [0, 0, 0], 0));
-    f.add(flat(mat.flagGeo, mat.flag, [0.012, 0.85, 0]));
-    f.position.set(0.4, 2.45, -0.3); f.rotation.z = -0.12;
-    add(f);
-  }
+  add(flat(g.streak, mat.streak, [0.22, 1.5, 0.505], [0, 0, -0.5]));
+  add(flat(g.streakThin, mat.streak, [0.31, 1.5, 0.505], [0, 0, -0.5]));
+  add(flat(g.pop, popMat(String(index % POP_CARDS.length)), [0.4, 1.72, 0.47], [0, 0, -0.12]));
+  // 위 간판: 몸통 색 상자 + 이름판 + 번호판
+  add(part(g.header, toon(color), [0, 2.2, 0], [1, 1, 1], [0, 0, 0], 1.02));
+  add(flat(g.sign, signMat(`${MACHINE_NAMES[index % MACHINE_NAMES.length]}|${color}`), [0, 2.2, 0.558]));
+  add(part(g.plateBox, white, [-0.42, 2.53, 0.47], [1, 1, 1], [0, 0, 0], 1.04));
+  add(flat(g.plate, new THREE.MeshBasicMaterial({ map: plateTex(spot.id) }), [-0.42, 2.53, 0.492]));
   m.traverse((o) => { o.castShadow = false; });
 
-  // LED: 바닥 파란 띠·상품 출구 테두리·조작대 아래 띠·기둥 분홍 막대·간판 전구 → 꼭짓점 색으로 한 덩어리
+  // LED: 바닥 띠·상품 출구 테두리·투입 슬롯·앞 기둥 줄 → 꼭짓점 색으로 한 덩어리
   const leds: THREE.BufferGeometry[] = [];
-  const led = (geo: THREE.BufferGeometry, color: THREE.Color, pos: V3) => {
+  const led = (geo: THREE.BufferGeometry, c: THREE.Color, pos: V3) => {
     const l = geo.clone().translate(...pos);
     const n = l.attributes.position.count, cols = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) cols.set([color.r, color.g, color.b], i * 3);
+    for (let i = 0; i < n; i++) cols.set([c.r, c.g, c.b], i * 3);
     l.setAttribute('color', new THREE.BufferAttribute(cols, 3));
     leds.push(l);
   };
-  led(g.ledStrip, LED_COLORS.blue, [0, 0.05, 0.535]);
-  led(g.chuteRing, LED_COLORS.blue, [-0.36, 0.3, 0.53]);
-  led(g.panelLed, LED_COLORS.blue, [0, 0.815, 0.76]);
-  for (const x of [-0.57, 0.57]) for (let i = 0; i < 6; i++) led(g.bar, LED_COLORS.pink, [x, 0.95 + i * 0.18, 0.535]);
-  for (const y of [2.0, 2.4]) for (let i = 0; i < 8; i++) led(g.bulb, i % 2 ? LED_COLORS.pink : LED_COLORS.white, [-0.525 + i * 0.15, y, 0.565]);
+  led(g.ledStrip, LED.sky, [0, 0.05, 0.535]);
+  for (const y of [0.18, 0.42]) led(g.ledBar, LED.pink, [-0.36, y, 0.56]);
+  for (const x of [-0.52, -0.2]) led(g.ledSide, LED.pink, [x, 0.3, 0.56]);
+  led(g.slot, LED.slot, [0.42, 0.53, 0.558]);
+  const tint = new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.6);
+  for (const x of [-0.53, 0.53]) led(g.pillarLed, tint, [x, 1.4, 0.49]);
   const ledGeo = mergeGeometries(leds.map((l) => (l.index ? l.toNonIndexed() : l)))!;
 
   return { statics: m, ledGeo };

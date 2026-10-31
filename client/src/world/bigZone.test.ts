@@ -69,3 +69,14 @@ test('a machine borrows the moving claw while in use', () => {
   expect(idle.visible).toBe(true);
   expect(rig.root.parent).toBeNull();
 });
+
+// 간판 전구가 켜졌다 꺼지며 돈다 (행마다 인스턴싱 한 덩어리)
+test('marquee bulbs chase around over time', () => {
+  const scene = new THREE.Scene();
+  const zone = buildBigZone(scene);
+  const bulbs = scene.getObjectByName('bulbs-big-island') as THREE.InstancedMesh;
+  zone.update(0);
+  const a = Array.from(bulbs.instanceColor!.array);
+  zone.update(0.2);
+  expect(Array.from(bulbs.instanceColor!.array)).not.toEqual(a);
+});

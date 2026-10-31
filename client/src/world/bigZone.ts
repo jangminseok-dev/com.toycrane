@@ -4,7 +4,7 @@ import type { Occluder } from '../game/occlusion';
 import { bakeByMaterial, fadeMaterials, materialCloner, mergeBuckets } from './bake';
 import { makeDoll } from './dolls';
 import { CHROME, idleClawGeometry, makeClawRig, type ClawRig } from './claw';
-import { CLAW_REST, DOLL_FLOOR, DOLL_SCALE, ledBaseMat, ledFlashMat, makeMachineParts } from './machine';
+import { CLAW_REST, DOLL_FLOOR, DOLL_SCALE, bulbSpots, ledBaseMat, ledFlashMat, makeMachineParts } from './machine';
 
 // 기계 속 인형 한 칸: [인형 id, x, z, 몸 돌림, 얹힌 높이] — 서버 welcome·machine 메시지와 같은 모양
 import type { DollSpot } from '../net/protocol';
@@ -33,8 +33,11 @@ type Row = { group: THREE.Group; cloner: ReturnType<typeof materialCloner>; spot
 type Block = { row: Row; group: THREE.Group; spots: MachineSpot[]; dirty: boolean };
 type Unit = {
   row: Row; block: Block; anchor: THREE.Group; claw: THREE.Group; idle: THREE.Mesh; rig: ClawRig | null;
-  led: THREE.Mesh; contents: DollSpot[]; flashUntil: number; gold: boolean;
+  led: THREE.Mesh; contents: DollSpot[]; flashUntil: number; gold: boolean; bulbStart: number;
 };
+// 간판 둘레 전구: 행마다 InstancedMesh 하나, 켜졌다 꺼지며 돈다(3개 중 하나가 어둡게, 초당 8칸). 당첨 땐 그 기계 전구가 분홍·금색으로 깜빡
+const BULB = { bright: new THREE.Color(0xfff4c8), dim: new THREE.Color(0x8a8070), hot: new THREE.Color(0xff5fa2), gold: new THREE.Color(0xffd36b) };
+const bulbGeo = new THREE.SphereGeometry(0.024, 10, 8);
 const rigPool: ClawRig[] = [];
 
 // 인형 종류마다 lite 모양을 재질별로 한 번만 합쳐 두고, 다시 합칠 때는 옮겨 붙이기만 한다
@@ -84,8 +87,21 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     claw.add(aim);
     anchor.add(led, claw);
     row.group.add(anchor);
-    units.set(spot.id, { row, block, anchor, claw, idle, rig: null, led, contents: [], flashUntil: 0, gold: false });
+    units.set(spot.id, { row, block, anchor, claw, idle, rig: null, led, contents: [], flashUntil: 0, gold: false, bulbStart: row.spots.indexOf(spot) * bulbSpots().length });
   });
+  const bulbRows = rows.map((row) => {
+    const spots = bulbSpots(), mesh = new THREE.InstancedMesh(bulbGeo, row.cloner.remap(new THREE.MeshBasicMaterial({ color: 0xffffff })), row.spots.length * spots.length);
+    mesh.name = `bulbs-${row.group.name}`;
+    const machine = new THREE.Matrix4(), bulb = new THREE.Matrix4();
+    row.spots.forEach((spot, j) => {
+      machine.makeRotationY(spot.ry).setPosition(spot.x, 0, spot.z);
+      spots.forEach((p, k) => mesh.setMatrixAt(j * spots.length + k, bulb.makeTranslation(p.x, p.y, p.z).premultiply(machine)));
+    });
+    for (let i = 0; i < mesh.count; i++) mesh.setColorAt(i, BULB.bright);
+    row.group.add(mesh);
+    return { row, mesh };
+  });
+  let bulbKey = '';
   const flashMats = new Map(rows.map((r) => [r, { hot: r.cloner.remap(ledFlashMat().hot), gold: r.cloner.remap(ledFlashMat().gold) }]));
 
   // 묶음의 인형을 다시 합친다 (성공한 판마다 그 기계가 든 묶음 하나)
@@ -153,6 +169,19 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
       for (const u of units.values()) {
         const flashing = now < u.flashUntil, mats = flashMats.get(u.row)!;
         u.led.material = flashing && blink ? (u.gold ? mats.gold : mats.hot) : u.row.cloner.remap(ledBaseMat());
+      }
+      // 전구는 칸이 바뀔 때만 다시 칠한다 (깜빡이는 기계가 있으면 깜빡임 박자도)
+      const tick = Math.floor(t * 8), flashing = [...units.values()].filter((u) => now < u.flashUntil);
+      const key = `${tick}|${flashing.length ? blink : '-'}|${flashing.map((u) => u.bulbStart).join(',')}`;
+      if (key !== bulbKey) {
+        bulbKey = key;
+        for (const { mesh } of bulbRows) for (let i = 0; i < mesh.count; i++) mesh.setColorAt(i, (i + tick) % 3 === 0 ? BULB.dim : BULB.bright);
+        const n = bulbSpots().length;
+        for (const u of flashing) {
+          const mesh = bulbRows.find((b) => b.row === u.row)!.mesh;
+          for (let k = 0; k < n; k++) mesh.setColorAt(u.bulbStart + k, blink ? (u.gold ? BULB.gold : BULB.hot) : BULB.dim);
+        }
+        for (const { mesh } of bulbRows) mesh.instanceColor!.needsUpdate = true;
       }
     },
   };

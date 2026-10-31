@@ -112,14 +112,3 @@ export function prepTex(): THREE.CanvasTexture {
     g.font = `120px ${SIGN_FONT}`; outlined(g, PREP, 256, 150, '#ffffff', 16, '#5a3a1a');
   });
 }
-
-// 예전 간판(교환소에서 아직 씀): 흰빛에서 기계 색으로 가는 그라데이션 + 굵은 글씨
-export function marqueeTex(text: string, color: number, h = 160): THREE.CanvasTexture {
-  return canvasTex(512, h, (g) => {
-    const grd = g.createLinearGradient(0, 0, 0, h);
-    grd.addColorStop(0, '#ffffff'); grd.addColorStop(0.3, css(color)); grd.addColorStop(1, css(color));
-    g.fillStyle = grd; g.fillRect(0, 0, 512, h);
-    const fs = fit(g, text, (s) => `900 ${s}px -apple-system, "Apple SD Gothic Neo", sans-serif`, h * 0.5, 450);
-    outlined(g, text, 256, h / 2 + 4, '#3b2a5a', fs * 0.18, '#ffffff');
-  });
-}
