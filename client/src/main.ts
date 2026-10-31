@@ -52,6 +52,8 @@ Object.assign(document.body.style, { margin: '0', overflow: 'hidden', background
 // 캔버스는 화면에 고정해 꽉 채운다 — 픽셀 폭을 박으면 휴대폰에서 페이지가 넓어져 축소돼 보인다
 Object.assign(renderer.domElement.style, { position: 'fixed', inset: '0', width: '100%', height: '100%', display: 'block', touchAction: 'none' });
 document.body.appendChild(renderer.domElement);
+// 성능 측정용(client/e2e/perf.mjs): 마지막으로 그린 화면의 그리기 호출·삼각형 수
+Object.assign(window, { __toycrane: { drawCalls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles } });
 const scene = new THREE.Scene();
 const tower = buildStore(scene);
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
