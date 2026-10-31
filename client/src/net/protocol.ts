@@ -41,7 +41,9 @@ const isPlayer = (v: unknown): v is PlayerView => {
   return !!o && typeof o === 'object' && str(o.id) && str(o.nick) && num(o.color) && pose(o);
 };
 
-const isSpot = (v: unknown) => Array.isArray(v) && (v.length === 4 || (v.length === 5 && num(v[4]))) && str(v[0]) && num(v[1]) && num(v[2]) && num(v[3]);
+// 서버가 보내는 10칸 [캐릭터, x, z, r, y, 색, 체형, 표정, 희귀, 번호] — 4단계 Task 7에서 타입과 함께 10칸만 받게 좁힌다
+const isVariant = (v: unknown[]) => v.length === 10 && num(v[4]) && num(v[5]) && str(v[6]) && num(v[7]) && str(v[8]) && num(v[9]);
+const isSpot = (v: unknown) => Array.isArray(v) && (v.length === 4 || (v.length === 5 && num(v[4])) || isVariant(v)) && str(v[0]) && num(v[1]) && num(v[2]) && num(v[3]);
 const isMachines = (v: unknown) => !!v && typeof v === 'object' && Object.values(v).every((spots) => Array.isArray(spots) && spots.every(isSpot));
 
 export function decode(raw: string): ServerMsg | null {

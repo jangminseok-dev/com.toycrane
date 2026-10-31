@@ -21,3 +21,5 @@ class ResultView:
     part: str  # "head" | "body" | "arm" | "none"
     kind: str | None  # 노린 인형 (빈 곳이면 None)
     index: int | None = None  # 그 인형이 기계 속 배치에서 몇 번째인지 — 모든 화면이 같은 인형을 들어 올리게
+    color: int | None = None  # 그 인형의 색 (가방·당첨 카드 이름)
+    rare: str | None = None  # 그 인형의 희귀 단계: "" 일반 · 효과 id · "gold"

@@ -170,18 +170,55 @@ class FakeBag:
 
 
 class FakeContents:
-    """기계 속 배치 저장소(DO 저장소) 가짜."""
+    """기계 속 인형 저장소(DO 저장소) 가짜: 기계 id → MachineStock, 가장 이른 채울 시각(due)."""
 
-    def __init__(self, stored: dict | None = None) -> None:
+    def __init__(self, stored: dict | None = None, due: float | None = None) -> None:
         self.stored = dict(stored or {})
+        self.due = due
         self.saves = 0
+        self.loads = 0
 
     async def load(self) -> dict:
+        self.loads += 1
         return dict(self.stored)
 
-    async def save(self, contents: dict) -> None:
-        self.stored = dict(contents)
+    async def save(self, stocks: dict) -> None:
+        from toycrane.domain.stock import due
+
+        self.stored = dict(stocks)
+        self.due = due(stocks)
         self.saves += 1
+
+    async def due_at(self) -> float | None:
+        return self.due
+
+
+class FakeStorage:
+    """DO 저장소(ctx.storage) 가짜 — 값은 문자열 그대로 (to_py가 통과시킨다)."""
+
+    def __init__(self, initial: dict | None = None) -> None:
+        self.data = dict(initial or {})
+        self.gets = 0
+
+    async def get(self, key: str):
+        self.gets += 1
+        return self.data.get(key)
+
+    async def put(self, key: str, value) -> None:
+        self.data[key] = value
+
+
+def stocks_with_empty(machine_id: str, next_at: float) -> dict:
+    """24대를 모두 채우고 machine_id만 하나 비워 둔(next_at에 채울) 매장."""
+    import random
+
+    from toycrane.domain.layout import MACHINES
+    from toycrane.domain.stock import MachineStock, generate_stock
+
+    stocks = {m: generate_stock(spot.kind, random.Random(0)) for m, spot in MACHINES.items()}
+    full = stocks[machine_id]
+    stocks[machine_id] = MachineStock(full.dolls[1:], next_at, full.next_uid)
+    return stocks
 
 
 class FakeQueues:

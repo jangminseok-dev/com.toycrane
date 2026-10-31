@@ -59,7 +59,7 @@ class EnterInteractor(EnterUseCase):
         # D1·DO 저장소 읽기를 먼저 끝낸다 — 목록을 바꾼 뒤(put~welcome) 기다리면 그 사이 온 leave·join을 welcome이 덮는다
         coins = await _or_zero(self._wallet.balance(cmd.guest_id))
         bag = await _or_zero(self._bag.total(cmd.guest_id))
-        machines = await ensure_contents(self._contents, self._rng)
+        stocks = await ensure_contents(self._contents, self._rng)
         refund = 0
         for conn_id, old in self._registry.entries():
             if old.guest_id == cmd.guest_id:
@@ -83,7 +83,7 @@ class EnterInteractor(EnterUseCase):
         snapshot = StoreSnapshot(
             coins=min(coins + refund, WALLET_CAP),
             bag=bag,
-            machines=machines,
+            machines={m: s.dolls for m, s in stocks.items()},
             queues=[[m.player_id for m in self._queues.members(c.id)] for c in COUNTERS],
             plays=self._locks.plays(),
         )

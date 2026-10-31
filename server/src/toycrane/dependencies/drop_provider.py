@@ -11,6 +11,6 @@ from toycrane.app.use_cases.drop_interactor import DropInteractor
 
 def get_drop_use_case(ctx, env) -> DropUseCase:
     return DropInteractor(
-        AttachmentPlayerRegistry(ctx), AttachmentPlayLocks(ctx), DoStorageMachineContents(ctx.storage),
+        AttachmentPlayerRegistry(ctx), AttachmentPlayLocks(ctx), DoStorageMachineContents(ctx.storage, str(ctx.id)),
         D1BagAdapter(env.DB), WsConnectionsAdapter(ctx), random.Random(),
     )

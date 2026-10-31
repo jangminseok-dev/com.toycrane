@@ -21,7 +21,7 @@ def get_enter_use_case(ctx, env) -> EnterUseCase:
         new_player_id=lambda: uuid.uuid4().hex,
         wallet=D1WalletAdapter(env.DB),
         bag=D1BagAdapter(env.DB),
-        contents=DoStorageMachineContents(ctx.storage),
+        contents=DoStorageMachineContents(ctx.storage, str(ctx.id)),
         queues=AttachmentQueueRegistry(ctx),
         locks=AttachmentPlayLocks(ctx),
         rng=random.Random(),
