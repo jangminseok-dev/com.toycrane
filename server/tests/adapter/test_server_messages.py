@@ -21,7 +21,7 @@ def test_welcome_matches_fixture():
         coins=5, bag=2,
         machines={"A-1": [DollSpot("bunny", 0.1204, 0.87, -0.0501, (0, 0, 0, 1), 2, "n", 1, "", 1), DollSpot("bunny", -0.2, None, 0.1, (0, 0, 0, 1), 0, "c", 3, "star", 2)]},
         plays={"A-3": "p2"},
-        figures={"F-1": (0.0041, 1.0324, -0.0031, 0.0, 0.0123, 0.0, 1.0)},
+        figures={"F-1": (0.0041, 1.0543, -0.0031, 0.0, 0.0123, 0.0, 1.0)},
     )
     assert welcome(fx["store"], view(fx["you"]), [view(p) for p in fx["players"]], snap) == fx
 
