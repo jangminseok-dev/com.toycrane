@@ -352,3 +352,22 @@ test('while playing a machine, rows behind it are hidden and come back after', (
   zone.hideRowsBehind(null);
   expect(visible()).toEqual([true, true, true]);
 });
+
+// 큰 홀(설계 2026-11-01 §6): 내 자리에서 먼(18m 넘게) 묶음은 인형 외곽선 덩어리를 그리지 않는다 — 몇 픽셀 크기라 티가 안 나고 삼각형은 절반 가까이 준다
+test('blocks far from the focus drop their doll outlines and bring them back when near', () => {
+  const scene = new THREE.Scene();
+  const zone = buildBigZone(scene);
+  zone.setContents('A-1', nineDolls('bear', 0));
+  fill(zone);
+  const block = scene.getObjectByName('dolls-big-d1-0')!;
+  const outlines = () => (block.children as THREE.Mesh[]).filter((m) => (m.material as THREE.Material).side === THREE.BackSide);
+  expect(outlines().length).toBeGreaterThan(0);
+  zone.setFocus(30, 0);
+  expect(outlines().every((m) => !m.visible)).toBe(true);
+  zone.setFocus(-16, 0);
+  expect(outlines().every((m) => m.visible)).toBe(true);
+  zone.setFocus(30, 0);
+  zone.setContents('A-1', nineDolls('cat', 1)); fill(zone); // 다시 합쳐도 먼 상태를 지킨다
+  expect(outlines().length).toBeGreaterThan(0);
+  expect(outlines().every((m) => !m.visible)).toBe(true);
+});

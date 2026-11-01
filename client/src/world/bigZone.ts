@@ -5,6 +5,7 @@ import { bakeByMaterial, fadeMaterials, materialCloner, mergeBuckets } from './b
 import { BODY_W, makeDoll } from './dolls';
 import { dollPose } from './dollPose';
 import { bakePlush } from './plushBake';
+import { PLUSH_OUTLINE } from './plush/kit';
 import { rareTagTex, twinkleTex } from './signs';
 import { TOP_LAYER } from './topView';
 import { CHROME, idleClawGeometry, makeClawRig, type ClawRig } from './claw';
@@ -31,6 +32,7 @@ export interface BigZone {
   live(machineId: string): LiveDolls; // 한 판 동안 그 기계의 인형을 무더기에서 빼 따로 그린다 (물리·중계 자세를 입히려고)
   update(t: number): void; // 깜빡임, 바뀐 행의 인형 다시 합치기(새 겉모습은 프레임마다 조금씩 지어 다 지은 묶음부터), 희귀 반짝임
   pending(): number; // 아직 다시 합치지 못한 묶음 수
+  setFocus(x: number, z: number): void; // 내 자리 — 먼 묶음은 인형 외곽선을 끈다
   hideRowsBehind(machineId: string | null): void; // 기계 앞 화면: 그 기계보다 뒤에 있는 줄을 숨긴다(null이면 모두 보임) — 휴대폰 그리기 호출 (큰 홀 설계 §6)
   occluders: Occluder[]; // 행 2개: 벽 줄, 섬
 }
@@ -43,7 +45,10 @@ const aimMat = new THREE.MeshBasicMaterial({ color: 0xff3b8f, depthWrite: false,
 // 기계 속 인형은 행 안에서 기계 4~6대씩 묶어 합친다 — 한 기계가 바뀌면 그 묶음만 다시 합친다(행 전체는 휴대폰에서 멈칫함)
 const BLOCK_MAX = 6;
 type Row = { group: THREE.Group; cloner: ReturnType<typeof materialCloner>; spots: MachineSpot[] };
-type Block = { row: Row; group: THREE.Group; spots: MachineSpot[]; dirty: boolean };
+type Block = { row: Row; group: THREE.Group; spots: MachineSpot[]; dirty: boolean; far: boolean };
+// 내 자리에서 이만큼(m) 넘게 먼 묶음은 인형 외곽선 덩어리를 그리지 않는다 — 몇 픽셀이라 티가 안 나고 삼각형이 절반 가까이 준다 (큰 홀 설계 §6).
+// 경계에서 깜빡이지 않게 1m 여유
+const FAR_DIST = 18, FAR_SLACK = 1;
 // live 모드: 인형 하나하나를 따로 그리는 메시 (set으로 자세를 입히고, 없어진 번호는 지운다)
 export type LiveDolls = { set(uid: number, p: [number, number, number], q: [number, number, number, number]): void; remove(uid: number): void; dispose(): void };
 type Unit = {
@@ -113,7 +118,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     return Array.from({ length: count }, (_, i) => {
       const group = new THREE.Group(); group.name = `dolls-${row.group.name}-${i}`;
       row.group.add(group);
-      return { row, group, spots: row.spots.slice(i * size, (i + 1) * size), dirty: false };
+      return { row, group, spots: row.spots.slice(i * size, (i + 1) * size), dirty: false, far: false };
     });
   });
 
@@ -225,7 +230,8 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
         }
       });
     }
-    for (const m of mergeBuckets(buckets, block.row.cloner.remap)) { m.castShadow = false; m.layers.enable(TOP_LAYER); block.group.add(m); } // 위에서 본 화면에도
+    const outline = block.row.cloner.remap(PLUSH_OUTLINE);
+    for (const m of mergeBuckets(buckets, block.row.cloner.remap)) { m.castShadow = false; m.layers.enable(TOP_LAYER); if (m.material === outline) m.visible = !block.far; block.group.add(m); } // 위에서 본 화면에도
     block.dirty = false;
   }
 
@@ -361,6 +367,16 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     },
     pending() {
       return blocks.filter((b) => b.dirty).length;
+    },
+    setFocus(x, z) {
+      const outlines = new Map(rows.map((r) => [r, r.cloner.remap(PLUSH_OUTLINE)]));
+      for (const block of blocks) {
+        const cx = block.spots.reduce((a, s) => a + s.x, 0) / block.spots.length, cz = block.spots.reduce((a, s) => a + s.z, 0) / block.spots.length;
+        const d = Math.hypot(cx - x, cz - z), far = block.far ? d > FAR_DIST - FAR_SLACK : d > FAR_DIST + FAR_SLACK;
+        if (far === block.far) continue;
+        block.far = far;
+        for (const m of block.group.children as THREE.Mesh[]) if (m.material === outlines.get(block.row)) m.visible = !far;
+      }
     },
     hideRowsBehind(machineId) {
       const m = machineId ? MACHINES.find((x) => x.id === machineId) : undefined;
