@@ -153,3 +153,37 @@ test("a doll dropped onto another doll's foot rests on it", () => {
 test('every kind has at most twenty colliders', () => {
   for (const id of Object.keys(DOLLS)) expect(dollColliders([id, 0, 0, 0, 0, 0, 0, 1, 0, 'n', 0, '', 1]).shapes.length, id).toBeLessThanOrEqual(20);
 });
+
+// 앉히기가 끝나기 직전 구멍에 빠진 인형은 천장 아래(떨어뜨리는 높이)로 옮겨진다 — 그때 시간이 끝나면 공중에 멈춘 채 저장됐다 (라이브 C-4·C-7, 높이 1.85m)
+test('a doll that falls into the hole just before settling ends does not freeze in the air', () => {
+  const [hx, hz] = MACHINE_SPEC.hole;
+  const world = new MachineWorld(R, [['bear', hx, DOLL_FLOOR + 0.3, hz, 0, 0, 0, 1, 0, 'n', 0, '', 1]]);
+  world.settle(0.5);
+  expect(world.bodyOf(1)!.translation().y).toBeLessThan(DOLL_FLOOR + 0.3);
+  world.dispose();
+});
+
+// 앉히기를 프레임마다 조금씩 돌려도(화면이 한 프레임에 기계 하나를 다 앉히면 50~150ms 멈칫) 한 번에 앉힌 것과 자리가 똑같다 — 기기 사이 결정성
+test('settling a little at a time lands every doll exactly where settling at once does', () => {
+  const spots: DollSpot[] = MACHINES.slice(0, 1).flatMap(() => ['bear', 'cat', 'octopus', 'dino', 'penguin', 'sheep'].map((k, i) => [k, -0.25 + (i % 3) * 0.25, null, -0.2 + Math.floor(i / 3) * 0.3, 0, 0, 0, 1, i % 6, 'n', 0, '', i + 1] as DollSpot));
+  const once = new MachineWorld(R, spots);
+  once.settle(3);
+  const slow = new MachineWorld(R, spots);
+  const run = slow.settling(3);
+  let n = 0;
+  while (!run.next().done) n++;
+  expect(n).toBeGreaterThan(100);
+  expect(slow.poses()).toEqual(once.poses());
+  once.dispose(); slow.dispose();
+});
+
+// 벽에 바짝 붙은 자리에서 떨어뜨린 인형이 벽에 박혀 마찰로 걸린 채 떨어뜨리는 높이(1.8m)에서 잠들었다 (라이브 C-4·C-7, 옛 모양으로 벽에 기댄 자리를 새 모양으로 다시 떨어뜨림).
+// 떨어뜨리는 자리는 그 인형의 폭만큼 벽 안쪽으로
+test('a doll dropped right against a wall falls to the floor instead of hanging there', () => {
+  for (const [x, z] of [[-0.16, -0.47], [0.44, -0.41], [0.03, 0.42], [-0.5, 0]] as [number, number][]) {
+    const world = new MachineWorld(R, [['octopus', x, null, z, 0, 0, 0, 1, 0, 'c', 0, '', 1]]);
+    world.settle(3);
+    expect(world.bodyOf(1)!.translation().y, `${x},${z}`).toBeLessThan(DOLL_FLOOR + 0.3);
+    world.dispose();
+  }
+});

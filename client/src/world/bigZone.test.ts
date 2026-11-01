@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { beforeAll, expect, test } from 'vitest';
+import { beforeAll, expect, test, vi } from 'vitest';
 import { DOLLS } from '../data/catalog';
 import { MACHINES } from '../data/storeLayout';
 import { stubCanvas } from '../test/canvasStub';
@@ -317,3 +317,14 @@ test('a store full of new looks is built a little each frame', () => {
   scene.traverse((o) => { if (o.name.startsWith('dolls-')) drawn += o.children.length; });
   expect(drawn).toBeGreaterThan(0);
 }, 120_000);
+
+// 왕관 달린 인형(희귀·황금·효과)도 무더기에서 재질별로 빠짐없이 합쳐진다 — 왕관 도형만 uv가 없어 합치기가 실패하고 그 재질 덩어리가 통째로 빠졌다 (배포 뒤 콘솔 오류)
+test('crowned dolls bake into the pile without dropping a material', () => {
+  const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    const zone = buildBigZone(new THREE.Scene());
+    zone.setContents('C-6', ['star', 'gold', 'galaxy'].map((rare, i) => spot('octopus', -0.2 + i * 0.2, 0, 0, 0, { rare, color: 5, face: 4 })));
+    fill(zone);
+    expect(err.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('mergeGeometries'))).toEqual([]);
+  } finally { err.mockRestore(); }
+}, 60_000);

@@ -43,6 +43,7 @@ import { DOLLS, GOLD, SETS, dollName } from './data/catalog';
 import { COUNTERS, MACHINES, MACHINE_SPEC, frontSpot, nearestMachine } from './data/storeLayout';
 import { buildBigZone, type LiveDolls } from './world/bigZone';
 import { PLAIN, makeDoll } from './world/dolls';
+import { grounded } from './world/dollPose';
 import { burst, updateEffects } from './world/effects';
 import { CLAW_REST, CONTROLS, FELT_COLORS } from './world/machine';
 import { CABLE_TOP } from './world/claw';
@@ -221,7 +222,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       scene.add(myAvatar.root);
       for (const p of m.players) { remotes.add(p, now); if (p.beg != null) remotes.setBegging(p.id, p.beg, tw); }
       scheduleRapier(); // 물리 모듈은 입장 뒤 한가할 때 받는다 (물리 뽑기 설계 §4.1)
-      for (const [id, spots] of Object.entries(m.machines)) bigZone.setContents(id, spots);
+      for (const [id, spots] of Object.entries(m.machines)) bigZone.setContents(id, spots.map(grounded));
       wallet = { coins: m.coins, bag: m.bag };
       setHud(wallet.coins, wallet.bag);
       myId = m.you.id;
@@ -416,23 +417,43 @@ function onDoneNo(machineId: string) {
 
 // 채우기 앉히기 (물리 뽑기 설계 §9.2): 8m 안의 기계에 안 앉은 인형이 있고 물리가 준비됐으면 그 화면이 1초 안쪽 계산으로 앉힌다 (프레임당 한 대)
 const SETTLE_REACH = 8;
+// 한 프레임에 앉히기에 쓰는 시간(ms): 기계 하나를 한 프레임에 다 앉히면 50~150ms 멈칫해 집게가 뚝뚝 끊겨 보였다(사용자 2026-11-01).
+// 걸음 순서는 한 번에 앉힐 때와 같아 기기 사이 결과도 같다
+const SETTLE_MS = 4;
 const settledHere = new Set<string>(); // 이 화면이 앉힌 기계 (e2e 결정성 확인)
+type Settling = { id: string; contents: DollSpot[]; world: MachineWorld; run: Generator<void, number, void> };
+let settling: Settling | null = null;
+function startSettling(R: NonNullable<ReturnType<typeof rapierNow>>, id: string): Settling {
+  const contents = bigZone.contentsOf(id), world = new MachineWorld(R, contents);
+  return { id, contents, world, run: world.settling(CLAW.settle_seconds) };
+}
+function finishSettling(s: Settling): void {
+  settledHere.add(s.id);
+  bigZone.settleWith(s.id, s.world.poses());
+  s.world.dispose();
+  if (settling === s) settling = null;
+}
+// 한 판 직전: 그 기계는 지금 끝까지 앉힌다 (걸어오는 동안 조금씩 앉히던 중이면 이어서)
 function settleMachine(id: string): void {
   const R = rapierNow();
   if (!R || !bigZone.unsettled(id).length) return;
-  settledHere.add(id);
-  const world = new MachineWorld(R, bigZone.contentsOf(id));
-  world.settle(CLAW.settle_seconds);
-  bigZone.settleWith(id, world.poses());
-  world.dispose();
+  const s = settling?.id === id && settling.contents === bigZone.contentsOf(id) ? settling : startSettling(R, id);
+  while (!s.run.next().done) { /* 끝까지 */ }
+  finishSettling(s);
 }
 function settleNearby(): void {
-  if (!me || !rapierReady()) return;
-  for (const m of MACHINES) {
-    if (Math.hypot(m.x - me.pos.x, m.z - me.pos.z) > SETTLE_REACH || !bigZone.unsettled(m.id).length) continue;
-    settleMachine(m.id);
-    return;
+  const R = rapierNow();
+  if (!me || !R) return;
+  if (settling && bigZone.contentsOf(settling.id) !== settling.contents) { settling.world.dispose(); settling = null; } // 그새 배치가 바뀜 — 다시
+  if (!settling) {
+    // 가까운 기계부터 — 다가가는 기계가 먼저 앉아 있어야 한 판을 누를 때 남은 앉히기가 몰리지 않는다
+    let m: (typeof MACHINES)[number] | null = null, best = SETTLE_REACH;
+    for (const c of MACHINES) { const d = Math.hypot(c.x - me.pos.x, c.z - me.pos.z); if (d <= best && bigZone.unsettled(c.id).length > 0) { m = c; best = d; } }
+    if (!m) return;
+    settling = startSettling(R, m.id);
   }
+  const s = settling, until = performance.now() + SETTLE_MS;
+  while (performance.now() < until) if (s.run.next().done) { finishSettling(s); return; }
 }
 let rapierScheduled = false;
 function scheduleRapier(): void {
@@ -609,7 +630,7 @@ async function showResult(m: Result, t: Ticket) {
 
 // 새 배치(machine)를 넣는다 — 그 판(gen)의 live 모드는 여기서 끝나고 무더기로 돌아간다. 이미 다음 판이 시작됐으면 그 판의 구경·물리는 둔다
 function applyMachine(id: string, dolls: DollSpot[], gen: number) {
-  bigZone.setContents(id, dolls);
+  bigZone.setContents(id, dolls.map(grounded));
   if (cycle && cycle.machineId === id && cycle.reported && cycle.gen === gen) dropCycle();
   if (watches.get(id)?.gen === gen) stopWatch(id);
 }

@@ -42,6 +42,7 @@ export class MachineWorld {
   private holeOpen = false;
   private cushions = new Map<number, number>(); // 천천히 펴지는 인형 → 끝나는 시각
   private target: number | null = null;
+  private redroppedAt = -Infinity; // 마지막으로 다시 떨어뜨린 시각 (앉히기 한도를 그때부터 다시 센다)
   private dropped = new Set<number>(); // 이번 세계에서 채우기로 떨어뜨린 인형 — 구멍 위 걸침 규칙은 이들에게만 (판에서 밀려 간 인형은 그대로, 사용자 결정)
 
   constructor(readonly R: Rapier, spots: DollSpot[]) {
@@ -54,7 +55,8 @@ export class MachineWorld {
       const uid = s[12];
       this.spots.set(uid, s);
       if (s[2] === null) {
-        const body = this.addDoll(s, [s[1], this.dropHeight(s), s[3]], [0, 0, 0, 1]);
+        const [x, z] = this.inside(s, s[1], s[3]);
+        const body = this.addDoll(s, [x, this.dropHeight(s), z], [0, 0, 0, 1]);
         body.setEnabled(false);
         this.pending.push({ uid, at: drops * DROP_GAP });
         this.dropped.add(uid);
@@ -65,6 +67,15 @@ export class MachineWorld {
   }
 
   // 그 인형을 떨어뜨릴 원점 높이: 천장 아래로 인형 키만큼 (원점은 발)
+  // 떨어뜨리는 자리(돌림 없음)를 그 인형의 폭만큼 벽 안쪽으로 — 벽에 박힌 채 떨어뜨리면 마찰로 걸려 떨어뜨리는 높이(1.8m)에서 잠들었다
+  // (라이브 C-4·C-7: 옛 모양으로 벽에 기댄 자리를 새 모양으로 다시 떨어뜨림)
+  private inside(spot: DollSpot, x: number, z: number): [number, number] {
+    const shapes = dollColliders(spot).shapes, [W, D] = MACHINE_SPEC.play_half;
+    const w = W + WALL_MARGIN - DROP_CLEAR - Math.max(...shapes.map((b) => Math.abs(b.at[0]) + b.r));
+    const d = D + WALL_MARGIN - DROP_CLEAR - Math.max(...shapes.map((b) => Math.abs(b.at[2]) + b.r));
+    return [Math.min(Math.max(x, -w), w), Math.min(Math.max(z, -d), d)];
+  }
+
   private dropHeight(spot: DollSpot): number {
     const top = Math.max(...dollColliders(spot).shapes.map((b) => b.at[1] + b.r));
     return CEILING - top - DROP_CLEAR;
@@ -143,12 +154,25 @@ export class MachineWorld {
 
   // 모두 잠들 때까지 돌리고 쓴 초를 돌려준다 — 한도(maxSeconds)는 마지막 인형이 떨어진 뒤부터 센다 (최종 리뷰 I9)
   settle(maxSeconds = REFILL_SETTLE): number {
+    const run = this.settling(maxSeconds);
+    let r = run.next();
+    while (!r.done) r = run.next();
+    return r.value;
+  }
+
+  // settle()을 한 걸음씩: 화면이 프레임마다 조금씩 돌린다(기계 하나를 한 프레임에 다 앉히면 50~150ms 멈칫했다, 사용자 2026-11-01).
+  // 걸음 순서는 settle()과 같아 앉힌 자리도 같다
+  *settling(maxSeconds = REFILL_SETTLE): Generator<void, number, void> {
     const from = this.time;
     // 끝나는 기준은 엔진의 잠듦(참된 멈춤) — 중계용 속도 문턱(still)으로 끊으면 기어가는 중에 앉힌 자리가 적힌다
     const awake = () => [...this.bodies.values()].some((b) => b.isEnabled() && !b.isSleeping());
     let lastDrop = this.pending.reduce((t, p) => Math.max(t, p.at), from);
+    // 구멍에 빠져 천장 아래로 옮긴 인형이 있으면 그때부터 다시 센다 — 한도 직전에 빠진 인형이 공중에 멈춘 채 굳었다(라이브 C-4·C-7).
+    // 몇 번이고 빠지는 일에 대비해 전체 한도는 네 배
+    const hardStop = lastDrop + maxSeconds * 4;
+    const until = () => Math.min(Math.max(lastDrop, this.redroppedAt) + maxSeconds, hardStop);
     for (let round = 0; ; round++) {
-      while (this.time < lastDrop + maxSeconds && (this.pending.length > 0 || awake())) this.tick();
+      while (this.time < until() && (this.pending.length > 0 || awake())) { this.tick(); yield; }
       // 채우기로 떨어진 인형이 구멍 위에 걸쳤으면(거저 뽑기) 구멍에서 먼 빈 칸에 다시 떨어뜨리고 더 앉힌다
       const over = this.straddling();
       if (!over.length || round >= STRADDLE_ROUNDS) break;
@@ -200,8 +224,9 @@ export class MachineWorld {
   }
 
   private redrop(uid: number, b: Body): void {
-    const [x, z] = this.freeSpotAway(uid);
-    b.setTranslation({ x, y: this.dropHeight(this.spots.get(uid)!), z }, true);
+    this.redroppedAt = this.time;
+    const spot = this.spots.get(uid)!, [x, z] = this.inside(spot, ...this.freeSpotAway(uid));
+    b.setTranslation({ x, y: this.dropHeight(spot), z }, true);
     b.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
     b.setLinvel({ x: 0, y: 0, z: 0 }, true);
     b.setAngvel({ x: 0, y: 0, z: 0 }, true);

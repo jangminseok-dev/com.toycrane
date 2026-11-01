@@ -1,7 +1,7 @@
 {
   "client_move": { "t": "move", "x": 1.5, "z": -2.0, "dx": 0.707, "dz": -0.707 },
   "server_welcome": {
-    "t": "welcome", "v": 5,
+    "t": "welcome", "v": 6,
     "store": 1,
     "you": { "id": "p1", "nick": "말랑 토끼", "color": 3, "x": 2.4, "z": 0.0, "dx": 0, "dz": 0, "beg": null },
     "players": [{ "id": "p2", "nick": "곰돌이", "color": 5, "x": -1.2, "z": 2.08, "dx": 1, "dz": 0, "beg": 94 }],

@@ -101,3 +101,16 @@ test('after the doll slips the claw closes its fingers while lifting', () => {
   expect(openAtTop).toBeLessThan(0.05);
   world.dispose();
 });
+
+// 끊길 쥠(들 힘이 무게에 못 미치거나 옆 인형에 걸림)도 몇 cm 들렸다가 미끄러져 떨어진다 — 1cm도 안 들린 채 빈손으로 올라가면 '잡는 시늉만' 보였다 (사용자 2026-11-01). 결과(놓침)는 같다
+test('a grip too weak to hold the doll still lifts it a little before it slips', () => {
+  const world = new MachineWorld(R, [standing(1, 0.3, -0.2)]);
+  world.settle(1);
+  const y0 = world.bodyOf(1)!.translation().y;
+  let rise = 0;
+  const r = runCycle(world, new ClawBody(R, world), 0.3, -0.2, { baseForce: 0.3, frame: () => { const b = world.bodyOf(1); if (b) rise = Math.max(rise, b.translation().y - y0); } });
+  expect(r.held).toBe(1); expect(r.slipped).toBe(true);
+  expect(rise).toBeGreaterThan(0.04);
+  expect(rise).toBeLessThan(0.25);
+  world.dispose();
+});

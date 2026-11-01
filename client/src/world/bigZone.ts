@@ -89,18 +89,22 @@ function liteParts(spot: DollSpot): Part[] | null {
   const doll = makeDoll(spot[0], look, true);
   let parts: Part[] | null = null;
   if (doll) {
+    // 조각마다 속성을 맞춘 뒤(uniform) 한 번에 합친다 — 재질별로 먼저 합치면 uv 없는 왕관과 uv 있는 몸이 한 재질(외곽선)에서 만나 합치기가 실패하고 그 덩어리가 통째로 빠졌다
     const buckets = new Map<THREE.Material, { line: boolean; geos: THREE.BufferGeometry[] }>();
-    for (const m of bakeByMaterial(doll)) {
+    doll.updateMatrixWorld(true);
+    doll.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
       let mat = m.material as THREE.Material;
-      uniform(m.geometry);
+      const geo = uniform(m.geometry.clone().applyMatrix4(m.matrixWorld));
       if (tintable(mat)) {
-        const c = mat.color, col = m.geometry.getAttribute('color') as THREE.BufferAttribute;
+        const c = mat.color, col = geo.getAttribute('color') as THREE.BufferAttribute;
         for (let i = 0; i < col.count; i++) col.setXYZ(i, col.getX(i) * c.r, col.getY(i) * c.g, col.getZ(i) * c.b);
         mat = mat.map ? plushVCWithMap(mat.map) : PLUSH_VC;
       }
       if (!buckets.has(mat)) buckets.set(mat, { line: false, geos: [] });
-      buckets.get(mat)!.geos.push(m.geometry);
-    }
+      buckets.get(mat)!.geos.push(geo);
+    });
     parts = mergeBuckets(buckets).map((m) => ({ geo: m.geometry, mat: m.material as THREE.Material }));
   }
   partsCache.set(key, parts);

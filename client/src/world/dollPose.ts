@@ -17,6 +17,14 @@ export function dollPose(spot: DollSpot, others: DollSpot[] = []): DollPoseResul
   return { position: new THREE.Vector3(x, floor, z), quaternion: new THREE.Quaternion().setFromAxisAngle(UP, (uidOf(spot) * 1.7) % (Math.PI * 2)), provisional: true };
 }
 
+// 서버에 '앉은' 자리로 적혔어도 바닥에서 0.8m 넘게 위면 앉은 자리가 아니다 — 앉히기가 끝나기 직전 구멍에 빠져 천장 아래로 옮겨진 인형이
+// 그대로 저장됐다(2026-11-01 배포, 원인은 고침). 자리(x, z)·변형·번호만 남기고 안 앉은 인형으로 다시 앉힌다
+const FLOAT_LIMIT = 0.8;
+export function grounded(spot: DollSpot): DollSpot {
+  if (spot[2] === null || spot[2] <= DOLL_FLOOR + FLOAT_LIMIT) return spot;
+  return [spot[0], spot[1], null, spot[3], 0, 0, 0, 1, spot[8], spot[9], spot[10], spot[11], spot[12]];
+}
+
 // 인형 머리 중심(기계 안 좌표) — 겨냥·시뮬레이션이 노리는 점
 export function headAt(spot: DollSpot, others: DollSpot[] = []): THREE.Vector3 {
   const { position, quaternion } = dollPose(spot, others);

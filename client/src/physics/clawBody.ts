@@ -13,6 +13,9 @@ import { ALL, GROUP_TARGET, GROUP_TIP, STEP, groups, type MachineWorld, type Rap
 export type GripQuality = 'three' | 'two';
 const HUB_R = 0.055, TIP_R = 0.018, TOUCH = 0.012; // 허브 공·손가락 끝 공 반지름, 닿음으로 치는 여유(m)
 const LOAD_AVG_SECONDS = 0.1;
+// 쥔 뒤 처음 이만큼(초)은 끊지 않고, 그동안 끊길 힘이 걸렸던 쥠은 이 시간이 끝날 때 놓는다 — 결과(놓침)는 예전과 같고 모습만 다르다.
+// 그대로면 약한 쥠·옆 인형에 걸린 인형이 1cm도 안 들린 채 빈손으로 올라가 '잡는 시늉만' 보였다(사용자 2026-11-01)
+const SLIP_LIFT_SECONDS = 0.8;
 export const SPRING_K = 150, SPRING_C = 3; // 스프링 세기(N/m)·감쇠(N·s/m, 상대 속도) — 0.25kg 인형이 약 1.6cm 늘어나 매달린다. 너무 뻣뻣하면 잠깐의 출렁임에도 끊어진다
 
 export class ClawBody {
@@ -22,6 +25,8 @@ export class ClawBody {
   private heldUid: number | null = null;
   private maxForce = 0;
   private relax = 1; // 옮기는 동안 풀리는 비율 (1 = 그대로)
+  private gripAge = 0; // 쥔 뒤 흐른 시간(초)
+  private slipLater = false; // 처음 SLIP_LIFT_SECONDS 동안 끊길 힘이 걸렸다 — 그 시간이 끝나면 놓는다
   private loadAvg = 0; // 드는 힘(위쪽 성분)의 0.1초 평균 — 출렁이는 순간값이 아니라 버티는 힘으로 끊김을 판단
   private anchorDoll = new THREE.Vector3();
   private anchorClaw = new THREE.Vector3();
@@ -130,6 +135,8 @@ export class ClawBody {
     this.heldUid = uid;
     this.relax = 1;
     this.loadAvg = 0;
+    this.gripAge = 0;
+    this.slipLater = false;
     body.wakeUp();
     for (const t of this.tips) t.setSensor(true); // 쥔 뒤에는 손가락이 인형을 받쳐 들지 않는다 — 관절(쥠의 힘)만이 든다
     this.hub.setSensor(true); // 허브도 — 머리 위에 얹힌 허브가 들어 올리는 인형을 막으면 관절이 늘어나 끊어진다
@@ -151,13 +158,18 @@ export class ClawBody {
   // 쥠 = 붙는 점끼리를 잇는 스프링을 매 걸음 직접 건다(힘 = 세기 × 벌어진 거리 − 감쇠 × 인형 속도, 인형의 붙는 점에).
   // 걸린 힘이 최대 힘(옮기는 동안 relax만큼 풀림)을 넘으면 끊어진다 — 들다 떨어뜨림. world.step 전에 부른다
   update(): void {
+    // 단단한 손가락 끝(내려가는 동안)에 닿은 인형은 천천히만 밀린다 — 끝과 벽·옆 인형 사이에 끼었다가 1.7m/s로 튀어 나갔다
+    if (!this.tips[0].isSensor()) this.cushionPressed();
     if (this.heldUid === null) return;
     const body = this.world.bodyOf(this.heldUid);
     if (!body) { this.release(); return; }
     const { onDoll, onClaw } = this.anchors(body);
     const pull = onClaw.clone().sub(onDoll).multiplyScalar(SPRING_K);
     this.loadAvg += (Math.max(0, pull.y) - this.loadAvg) * (STEP / LOAD_AVG_SECONDS); // 드는 힘(위쪽 성분)만 — 매달려 흔들리는 옆 방향은 미끄러짐이 아니다
-    if (this.loadAvg > this.maxForce * this.relax) { this.release(); return; }
+    this.gripAge += STEP;
+    const over = this.loadAvg > this.maxForce * this.relax;
+    if (this.gripAge < SLIP_LIFT_SECONDS) this.slipLater ||= over;
+    else if (over || this.slipLater) { this.release(); return; }
     const v = body.linvel();
     const force = pull.sub(new THREE.Vector3(v.x, v.y, v.z).sub(this.vel).multiplyScalar(SPRING_C));
     body.resetForces(true); body.resetTorques(true);
@@ -205,9 +217,14 @@ export class ClawBody {
   // 오므리기 시작: 손가락 끝이 인형을 밀어 넘어뜨리지 않게(쇠 손가락은 무한히 세다) 닿기만 재는 상태로. 허브는 쥘 때까지 단단하다.
   // 내려오며 끝에 바닥으로 눌린 옆 인형은 끝이 사라지는 순간 튀어 오르지 않게 천천히 펴진다
   softHands(): void {
+    this.cushionPressed();
+    for (const t of this.tips) t.setSensor(true);
+  }
+
+  // 손가락 끝에 닿은(눌린) 인형들을 잠깐 천천히 움직이게 한다 (MachineWorld.cushion)
+  private cushionPressed(): void {
     const tips = this.tips.map((t) => { const p = t.translation(); return new THREE.Vector3(p.x, p.y, p.z); });
     this.world.cushion(this.world.uids().filter((uid) => this.world.balls(uid).some((b) => tips.some((p) => p.distanceTo(b.c) < b.r + TIP_R + TOUCH))));
-    for (const t of this.tips) t.setSensor(true);
   }
 
   // 손가락을 벌려 놓은 뒤: 다시 인형을 밀 수 있는 손가락으로

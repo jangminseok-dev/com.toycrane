@@ -47,3 +47,12 @@ test('the claw feels chubby dolls wider and crowns on rare ones', () => {
   expect(chubbyHead.r).toBeGreaterThan(plainHead.r * 1.1);
   expect(solidsOf([spot('bear', 0, 0, 0, 0, { rare: 'gold' })])[0].some((h) => h.part === 'crown')).toBe(true);
 });
+
+// 천장 아래에 '앉은' 자리로 저장된 인형(앉히기 끝 직전 구멍에 빠져 옮겨진 채 굳은 것, 라이브 C-4·C-7 1.85m)은 안 앉은 인형으로 다시 앉힌다
+test('a doll saved hanging near the ceiling is treated as not settled', async () => {
+  const { grounded } = await import('./dollPose');
+  const high = spot('dino', 0.44, -0.41, 0, 0.98), low = spot('dino', 0, 0, 0, 0.3);
+  expect(grounded(high)[2]).toBeNull();
+  expect(grounded(high)[12]).toBe(high[12]);
+  expect(grounded(low)).toBe(low);
+});
