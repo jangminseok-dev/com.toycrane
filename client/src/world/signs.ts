@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { AD_SIGNS, PREP, RARE_TAG, STICKER, WALL_SIGN } from './copy';
+import { AD_SLOTS } from './ads';
+import { PREP, RARE_TAG, STICKER, WALL_SIGN } from './copy';
 import { canvasTex } from './toon';
 
 // 간판·안내 카드·스티커·뒷판·번호판·벽 간판·준비 중 그림 (시제품 docs/reference/prototypes/spike-look-a.html의 그림을 따름).
@@ -92,16 +93,16 @@ export function plateTex(id: string): THREE.CanvasTexture {
 }
 
 // 벽 간판 "toycrane 게임센터": 흰 바탕 + 무지개 띠 + 별
-// 벽 광고 간판 10장을 한 그림에 (가로 2칸 × 세로 5칸, 칸마다 512×256): 위에 작게 'toycrane', 가운데 크게 '광고문의N'.
-// i번째 간판의 UV 칸은 adSignCell(i) (교환소 개편 설계 §4.6)
-export const AD_COLS = 2, AD_ROWS = 5;
+// 광고 자리 14칸을 한 그림에 (가로 2칸 × 세로 7칸, 칸마다 512×256): 위에 작게 'toycrane', 가운데 크게 광고 문구(또는 그림).
+// i번째 자리(0부터, 광고 id − 1)의 UV 칸은 adSignCell(i) — 0~9 벽 간판, 10~13 광장 광고판 (교환소 개편 §4.6, 큰 홀 2026-11-01 §3)
+export const AD_COLS = 2, AD_ROWS = 7;
 export function adSignCell(i: number): { u: number; v: number; w: number; h: number } {
   return { u: (i % AD_COLS) / AD_COLS, v: 1 - (Math.floor(i / AD_COLS) + 1) / AD_ROWS, w: 1 / AD_COLS, h: 1 / AD_ROWS };
 }
 export function adSignsTex(): THREE.CanvasTexture {
   const colors = ['#ff4f9a', '#2f7cf6', '#22b36b', '#ff9f1c', '#8b5cf6'];
-  return canvasTex(512 * AD_COLS, 256 * AD_ROWS, (g) => {
-    AD_SIGNS.forEach((text, i) => {
+  const tex = canvasTex(512 * AD_COLS, 256 * AD_ROWS, (g) => {
+    AD_SLOTS.forEach(({ text }, i) => {
       const x = (i % AD_COLS) * 512, y = Math.floor(i / AD_COLS) * 256, color = colors[i % colors.length];
       g.fillStyle = '#fbf8ff'; g.fillRect(x, y, 512, 256);
       g.lineWidth = 10; g.strokeStyle = color; rounded(g, x + 10, y + 10, 492, 236, 26); g.stroke();
@@ -110,6 +111,18 @@ export function adSignsTex(): THREE.CanvasTexture {
       outlined(g, text, x + 256, y + 158, '#ffffff', size * 0.14, color);
     });
   });
+  // 그림 광고: 불러온 뒤 그 칸을 그림으로 덮는다 (노드 시험에는 Image가 없다)
+  if (typeof Image !== 'undefined') AD_SLOTS.forEach(({ image }, i) => {
+    if (!image) return;
+    const img = new Image();
+    img.onload = () => {
+      const g = (tex.image as HTMLCanvasElement).getContext('2d')!;
+      g.drawImage(img, (i % AD_COLS) * 512, Math.floor(i / AD_COLS) * 256, 512, 256);
+      tex.needsUpdate = true;
+    };
+    img.src = image;
+  });
+  return tex;
 }
 
 // 희귀가 든 기계 위 이름표: 위 절반 분홍 '★ 희귀', 아래 절반 금색 '★★ 황금' (교환소 개편 설계 §4.7.1)

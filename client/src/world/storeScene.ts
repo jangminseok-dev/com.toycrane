@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { PLAZA_RADIUS, ROOM_HALF, ROOM_HEIGHT, SPAWN_RADIUS, TOWER_HALF } from './layout';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { adSignCell, adSignsTex } from './signs';
+import { AD_SLOTS } from './ads';
+import { AD_BOARDS } from '../data/storeLayout';
 import { canvasTex, outlineMat, part, toon, toonWith } from './toon';
 import { DOLLS } from '../data/catalog';
 import { fadeMaterials, materialCloner } from './bake';
@@ -16,6 +18,7 @@ export type HubTower = {
   box: THREE.Box3;
   setOpacity(opacity: number): void;
   showMessage(line1: string, line2: string, gold: boolean, seconds: number): void; // 4면 전광판 문구를 잠깐 바꾼다(희귀 알림)
+  update(t: number): void; // 알림이 없을 때 8초마다 다음 광고(광고 자리 차례로)와 인사를 번갈아 띄운다 (큰 홀 설계 2026-11-01 §3)
 };
 
 export function buildStore(scene: THREE.Scene): HubTower {
@@ -25,6 +28,7 @@ export function buildStore(scene: THREE.Scene): HubTower {
   addWallsAndCeiling(scene);
   addZones(scene);
   addEntrance(scene);
+  addPlazaAds(scene);
   return addDisplayTower(scene);
 }
 
@@ -170,6 +174,7 @@ function floorLabels(scene: THREE.Scene, labels: [string, number, number][]) {
 // 피규어 모델은 피규어 뽑기 단계에서 — 지금 상자 속은 우리 인형. 인형·상자는 재질별로 합쳐 그린다
 const TIERS: [number, number, number][] = [[TOWER_HALF * 2, 0, 0.9], [2.5, 0.9, 1.7], [1.8, 1.7, 2.5]]; // 폭, 아래, 위
 const BOARD = { w: 2.6, y0: 3.0, y1: 4.3 };
+const AD_SECONDS = 8; // 탑 전광판이 광고를 바꾸는 간격
 function addDisplayTower(scene: THREE.Scene): HubTower {
   const root = new THREE.Group(); root.name = 'display-tower';
   scene.add(root);
@@ -217,7 +222,7 @@ function addDisplayTower(scene: THREE.Scene): HubTower {
   };
   const idle = draw('toycrane', '어서 오세요', false);
   const screenTex = canvasTex(512, 384, idle);
-  let restoreTimer = 0;
+  let restoreTimer = 0, alerting = false, shown = 0; // shown: 지금 띄운 칸(0 = 인사, k = 광고 자리 k)
   const redraw = (paint: (g: CanvasRenderingContext2D) => void) => {
     paint((screenTex.image as HTMLCanvasElement).getContext('2d')!);
     screenTex.needsUpdate = true;
@@ -237,8 +242,16 @@ function addDisplayTower(scene: THREE.Scene): HubTower {
     box: new THREE.Box3(new THREE.Vector3(-TOWER_HALF, 0, -TOWER_HALF), new THREE.Vector3(TOWER_HALF, BOARD.y1, TOWER_HALF)),
     showMessage(line1, line2, gold, seconds) {
       redraw(draw(line1, line2, gold));
+      alerting = true;
       clearTimeout(restoreTimer);
-      restoreTimer = window.setTimeout(() => redraw(idle), seconds * 1000);
+      restoreTimer = setTimeout(() => { alerting = false; shown = 0; redraw(idle); }, seconds * 1000) as unknown as number;
+    },
+    update(t) {
+      if (alerting) return;
+      const k = Math.floor(t / AD_SECONDS) % (AD_SLOTS.length + 1);
+      if (k === shown) return;
+      shown = k;
+      redraw(k === 0 ? idle : draw(AD_SLOTS[k - 1].text, 'toycrane 광고', false));
     },
     setOpacity(opacity) {
       for (const m of mats) {
@@ -249,6 +262,25 @@ function addDisplayTower(scene: THREE.Scene): HubTower {
       fadeMaterials(cloner.materials, opacity);
     },
   };
+}
+
+// 광장 광고판(설계 2026-11-01 §3): 기둥 위 양면 판 4개, 면은 ±z(걷기 카메라가 늘 북쪽을 봐서 남쪽 면이 보인다).
+// 판마다 광고 자리 하나(shared/ads.json) — 벽 간판과 같은 그림의 칸을 쓴다. 판 앞뒤 한 덩어리 + 기둥 한 덩어리
+function addPlazaAds(scene: THREE.Scene) {
+  const W = 2.4, H = 1.4, Y = 1.6;
+  const faces = AD_BOARDS.flatMap(({ x, z, slot }) => [0, Math.PI].map((ry) => {
+    const geo = new THREE.PlaneGeometry(W, H), uv = geo.getAttribute('uv') as THREE.BufferAttribute, cell = adSignCell(slot - 1);
+    for (let k = 0; k < uv.count; k++) uv.setXY(k, cell.u + uv.getX(k) * cell.w, cell.v + uv.getY(k) * cell.h);
+    return geo.translate(0, 0, 0.06).rotateY(ry).translate(x, Y, z);
+  }));
+  const boards = new THREE.Mesh(mergeGeometries(faces)!, new THREE.MeshBasicMaterial({ map: adSignsTex() }));
+  boards.name = 'plaza-ads';
+  scene.add(boards);
+  const frame = mergeGeometries(AD_BOARDS.flatMap(({ x, z }) => [
+    new THREE.BoxGeometry(W + 0.12, H + 0.12, 0.1).translate(x, Y, z),
+    new THREE.BoxGeometry(0.14, Y - H / 2, 0.14).translate(x, (Y - H / 2) / 2, z),
+  ]))!;
+  scene.add(part(frame, toon(0xfbf8ff)));
 }
 
 // 입구(남쪽 벽 가운데): 기둥 둘과 가로대를 한 덩어리로 — 걷기 카메라가 북쪽을 보므로 남쪽으로 걸어갈 때만 보인다

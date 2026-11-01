@@ -864,6 +864,7 @@ function frame(now: number) {
   remotes.update(now);
   updateWatches(now / 1000);
   bigZone.update(now / 1000);
+  tower.update(now / 1000); // 알림이 없을 때 광고를 번갈아 (큰 홀 설계 §3)
   renderer.render(scene, camera);
 }
 

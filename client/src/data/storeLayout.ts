@@ -18,6 +18,9 @@ export const OBSTACLES = layout.obstacles as [number, number, number, number][];
 // 아직 없는 기계 자리의 "준비 중" 장식과 쉼터(누를 수 없음). rect는 장애물과 같은 상자 — 벽 쪽 변은 밀려날 때 늘 안쪽으로 가게 벽 너머(±23)까지
 export type DecorSpot = { kind: 'figure' | 'ring' | 'pusher' | 'shelf' | 'bench'; rect: [number, number, number, number]; ry: number };
 export const DECOR = layout.decor as DecorSpot[];
+// 광장 광고판(양면, 면은 ±z): 자리와 광고 자리 번호(shared/ads.json의 id). 장애물에도 들어 있다
+export type AdBoardSpot = { x: number; z: number; slot: number };
+export const AD_BOARDS = layout.ad_boards as AdBoardSpot[];
 
 // 기계 앞에 서서 하는 자리 (ry=0이면 +z 쪽)
 export function frontSpot(m: MachineSpot): Vec2 {

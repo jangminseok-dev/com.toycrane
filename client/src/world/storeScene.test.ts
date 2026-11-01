@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { beforeAll, expect, test } from 'vitest';
-import { stubCanvas } from '../test/canvasStub';
+import { drawnTexts, stubCanvas } from '../test/canvasStub';
+import { adSignCell } from './signs';
 import { ROOM_HALF, ROOM_HEIGHT, TOWER_HALF } from './layout';
 import { buildStore } from './storeScene';
 
@@ -68,4 +69,33 @@ test('the walls enclose the big hall', () => {
   const all = walls.reduce((a, b) => a.union(b), new THREE.Box3());
   expect(all.min.x).toBeCloseTo(-ROOM_HALF); expect(all.max.x).toBeCloseTo(ROOM_HALF);
   expect(all.min.z).toBeCloseTo(-ROOM_HALF); expect(all.max.z).toBeCloseTo(ROOM_HALF);
+});
+
+// 광장 광고판 4개(양면) — 광고 자리 11~14, 사람들이 모이는 광장 둘레 (설계 2026-11-01 §3)
+test('four plaza ad boards show slots 11 to 14', () => {
+  drawnTexts.length = 0;
+  const scene = new THREE.Scene(); buildStore(scene);
+  const ads = scene.getObjectByName('plaza-ads') as THREE.Mesh;
+  expect(ads).toBeDefined();
+  const uv = ads.geometry.getAttribute('uv') as THREE.BufferAttribute, faces = uv.count / 4;
+  expect(faces).toBe(8); // 4개 × 앞뒤
+  const used = new Set<number>();
+  for (let f = 0; f < faces; f++) for (let slot = 11; slot <= 14; slot++) {
+    const c = adSignCell(slot - 1);
+    if (Math.abs(uv.getX(f * 4) - c.u) < 1e-6 && Math.abs(Math.min(uv.getY(f * 4), uv.getY(f * 4 + 2)) - c.v) < 1e-6) used.add(slot);
+  }
+  expect([...used].sort()).toEqual([11, 12, 13, 14]);
+  for (const slot of [11, 12, 13, 14]) expect(drawnTexts).toContain(`광고문의${slot}`);
+});
+
+// 진열탑 전광판: 알림이 없을 때 8초마다 광고 문구를 번갈아 띄우고, 희귀 알림 중에는 그대로
+test('the tower board shows an ad when idle', () => {
+  const scene = new THREE.Scene(); const tower = buildStore(scene);
+  drawnTexts.length = 0; tower.update(8.1);
+  expect(drawnTexts).toContain('광고문의1');
+  drawnTexts.length = 0; tower.update(8.5);
+  expect(drawnTexts).toHaveLength(0); // 같은 칸이면 다시 그리지 않음
+  tower.showMessage('희귀 등장!', 'C-6에 고양이 등장!', false, 5);
+  drawnTexts.length = 0; tower.update(16.2);
+  expect(drawnTexts).toHaveLength(0);
 });
