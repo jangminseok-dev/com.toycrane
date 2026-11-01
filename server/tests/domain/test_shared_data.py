@@ -62,3 +62,16 @@ def test_every_window_is_reachable_from_the_hub():
     for c in layout.COUNTERS:
         assert not any(x0 < c.window.x < x1 and z0 < c.window.z < z1 for x0, z0, x1, z1 in layout.OBSTACLES)
         assert clamp_to_floor(c.window) == c.window
+
+# 9단계 피규어 뽑기: 동쪽 14대(F-1~F-14), 광장 쪽(−x)을 봄 — 화면과 같은 공용 배치
+def test_figures_come_from_shared_layout():
+    assert shared_data.FIGURE == json.loads((SHARED / "figure.json").read_text(encoding="utf-8"))
+    from toycrane.domain.layout import FIGURES, front_spot, machine_spot
+
+    assert len(FIGURES) == 14
+    f1 = FIGURES["F-1"]
+    assert (f1.x, f1.z, f1.ry, f1.row) == (13.2, -8.1, -1.570796, "f1")
+    f = front_spot(f1)
+    assert (round(f.x, 2), round(f.z, 2)) == (12.05, -8.1)
+    assert machine_spot("F-14") is FIGURES["F-14"]
+    assert machine_spot("C-6") is not None and machine_spot("X-1") is None

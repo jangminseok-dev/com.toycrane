@@ -17,8 +17,8 @@ import { outlineMat, part, toon } from './toon';
 // 휴대폰 그리기 호출을 아끼려고 왼쪽·오른쪽마다 [꼭짓점 색 툰 한 덩어리 · 외곽선 · 천 덮개 · 준비 중 판] 넷으로 합친다
 const ROOM = ROOM_HALF, PASTEL = [0xffc6dc, 0xd9c8ff, 0xbdeedd, 0xffe2a8];
 const MAX_DEPTH = 2.2; // 가장 깊은 장식(미는 뽑기) — 벽 너머까지 늘린 장애물 상자도 앞면에서 이만큼만 쓴다
-// 줄을 따라 칸 사이 간격(m) — 큰 홀(설계 2026-11-01 §3): 피규어 줄마다 7대, 고리 줄마다 5대, 미는 뽑기 4대, 벤치 2개
-const SPACING: Record<Exclude<DecorSpot['kind'], 'shelf'>, number> = { figure: 2.6, ring: 1.84, pusher: 2.8, bench: 2.5 };
+// 줄을 따라 칸 사이 간격(m) — 큰 홀(설계 2026-11-01 §3): 고리 줄마다 5대, 미는 뽑기 4대, 벤치 2개 (피규어는 9단계부터 진짜 기계)
+const SPACING: Record<Exclude<DecorSpot['kind'], 'shelf'>, number> = { ring: 1.84, pusher: 2.8, bench: 2.5 };
 const SHELF_DOLLS = ['bear', 'bunny', 'chick', 'penguin', 'cat', 'pig'];
 // 진열장 인형은 종마다 한 번만 짓고 복사한다(도형·재질 공유) — 무더기용 판은 makePlush가 붙들지 않는다
 const shelfDolls = new Map<string, THREE.Group | null>();
@@ -28,7 +28,6 @@ type V3 = [number, number, number];
 const once = <T>(make: () => T) => { let v: T | undefined; return () => (v ??= make()); };
 const G = once(() => ({
   miniBase: new RoundedBoxGeometry(0.9, 0.8, 0.9, 2, 0.03), miniCover: new RoundedBoxGeometry(0.94, 0.9, 0.94, 2, 0.08), miniTop: new RoundedBoxGeometry(0.94, 0.3, 0.94, 2, 0.03),
-  figBase: new RoundedBoxGeometry(1.0, 0.85, 1.0, 2, 0.03), figCover: new RoundedBoxGeometry(1.04, 1.0, 1.04, 2, 0.09), figTop: new RoundedBoxGeometry(1.04, 0.32, 1.04, 2, 0.03),
   pushBase: new RoundedBoxGeometry(2.2, 0.9, 2.0, 2, 0.04), pushCover: new RoundedBoxGeometry(2.24, 0.8, 2.04, 2, 0.1), pushTop: new RoundedBoxGeometry(2.24, 0.3, 0.5, 2, 0.04),
   seat: new RoundedBoxGeometry(1.6, 0.12, 0.5, 2, 0.04), leg: new THREE.BoxGeometry(0.1, 0.4, 0.4),
   card: new THREE.PlaneGeometry(0.5, 0.25),
@@ -44,9 +43,6 @@ function unit(kind: DecorSpot['kind'], i: number, len: number): { solid: THREE.G
   if (kind === 'ring') {
     add(g.miniBase, color, [0, 0.4, 0]); cover(g.miniCover, [0, 1.25, 0]); add(g.miniTop, color, [0, 1.85, 0]);
     card([0, 1.25, 0.48], 0.5);
-  } else if (kind === 'figure') {
-    add(g.figBase, color, [0, 0.425, 0]); cover(g.figCover, [0, 1.35, 0]); add(g.figTop, color, [0, 2.01, 0]);
-    card([0, 1.35, 0.53], 0.56);
   } else if (kind === 'pusher') {
     // 한 사람용 경품 미는 기계(설계 2026-11-01 §3): 넓은 받침 + 유리 덮개 + 뒤쪽 간판
     add(g.pushBase, color, [0, 0.45, 0]); cover(g.pushCover, [0, 1.3, 0]); add(g.pushTop, color, [0, 1.85, -0.75]);

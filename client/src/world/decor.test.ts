@@ -40,13 +40,16 @@ test('shelves build each doll kind once', () => {
   expect(vi.mocked(makeDoll).mock.calls.length).toBeLessThanOrEqual(6);
 }, 60_000);
 
-// 큰 홀(설계 2026-11-01 §3): 아직 없는 기계 자리마다 '준비 중' 덮개 기계 — 피규어 14대, 고리 10대, 미는 뽑기 4대, 쉼터 벤치
-test('every planned zone has covered machines: 14 figure, 10 ring, 4 pusher', () => {
+// 큰 홀(설계 2026-11-01 §3): 아직 없는 기계 자리마다 '준비 중' 덮개 기계 — 고리 10대, 미는 뽑기 4대, 쉼터 벤치.
+// 피규어 구역은 9단계부터 진짜 기계(shared/store_layout.json figures)라 장식이 없다
+test('every planned zone has covered machines: 10 ring, 4 pusher, no figure decor', () => {
   const scene = new THREE.Scene();
   buildDecor(scene);
   const count: Record<string, number> = {};
   scene.traverse((o) => { if (o.name.startsWith('decor-unit-')) { const k = o.name.slice('decor-unit-'.length); count[k] = (count[k] ?? 0) + 1; } });
-  expect(count).toMatchObject({ figure: 14, ring: 10, pusher: 4 });
+  expect(count).toMatchObject({ ring: 10, pusher: 4 });
+  expect(count.figure).toBeUndefined();
+  expect(DECOR.every((d) => (d.kind as string) !== 'figure')).toBe(true);
   expect(count.bench).toBeGreaterThanOrEqual(2);
 });
 
@@ -57,7 +60,7 @@ test('decor units stand right behind the front edge of their obstacle', () => {
   buildDecor(scene);
   const marks: THREE.Object3D[] = [];
   scene.traverse((o) => { if (o.name.startsWith('decor-unit-')) marks.push(o); });
-  expect(marks.length).toBeGreaterThan(30);
+  expect(marks.length).toBeGreaterThan(15);
   for (const m of marks) {
     const d = DECOR.find((s) => m.position.x >= s.rect[0] && m.position.x <= s.rect[2] && m.position.z >= s.rect[1] && m.position.z <= s.rect[3])!;
     expect(d, m.name).toBeDefined();
@@ -67,7 +70,7 @@ test('decor units stand right behind the front edge of their obstacle', () => {
   }
 });
 
-// 큰 홀 최종 리뷰 I1: 종류마다 한 무리로 합쳐도, 흐려지는 건 실제로 나를 가린 줄뿐 — 피규어 두 줄 사이 통로나 입구 길에 서면 아무것도 안 흐려진다
+// 큰 홀 최종 리뷰 I1: 종류마다 한 무리로 합쳐도, 흐려지는 건 실제로 나를 가린 줄뿐 — 고리 두 줄 사이 길이나 입구 길에 서면 아무것도 안 흐려진다
 test('decor fades only when a row really hides me', () => {
   const occluders = buildDecor(new THREE.Scene()), kinds = [...new Set(DECOR.map((d) => d.kind))];
   const fadeAt = (o: Occluder, at: { x: number; z: number }) => {
@@ -77,8 +80,8 @@ test('decor fades only when a row really hides me', () => {
     for (let i = 0; i < 30; i++) fader.update(0.1, eye, at);
     return v;
   };
-  const figure = occluders[kinds.indexOf('figure')], shelf = occluders[kinds.indexOf('shelf')];
-  expect(fadeAt(figure, { x: 15.7, z: 0 })).toBe(1); // 피규어 두 줄 사이 통로
+  const ring = occluders[kinds.indexOf('ring')], pusher = occluders[kinds.indexOf('pusher')], shelf = occluders[kinds.indexOf('shelf')];
+  expect(fadeAt(ring, { x: 0, z: -21 })).toBe(1); // 고리 두 줄 사이 길
   expect(fadeAt(shelf, { x: 0, z: 19 })).toBe(1); // 입구 길(두 진열장 사이)
-  expect(fadeAt(figure, { x: 13.2, z: -9.7 })).toBeLessThan(0.5); // 첫 줄 북쪽 끝 바로 뒤 — 가려지면 흐려진다
+  expect(fadeAt(pusher, { x: 0, z: -18.3 })).toBeLessThan(0.5); // 미는 뽑기 줄 바로 뒤 — 가려지면 흐려진다
 });
