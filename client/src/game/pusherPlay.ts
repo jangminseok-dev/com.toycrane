@@ -3,7 +3,7 @@ import { PUSHER, PUSHERS, isPusher } from '../data/pushers';
 import { encodeAct, type ItemWire, type PusherMsg } from '../net/protocol';
 import { PUSHER_WORD, UI } from '../world/copy';
 import { PUSH_BUTTON, buildPushButton, type PushButton, type PusherZone, type ShownItem } from '../world/pusherZone';
-import type { ButtonPlay } from './buttonPlay';
+import { FinishWaits, type ButtonPlay } from './buttonPlay';
 
 // 미는 뽑기 한 판(설계 2026-11-02 §4)의 화면 쪽: 판이 시작되면 미는 판이 선반 뒤에서 좌우로 오가고, '밀기'를 누른 순간(또는 시간이 다 되면)
 // 그 자리 x를 act로 보낸다. 서버가 정한 결과(pusher 메시지)를 모두가 같은 밀기로 그린다 — 뒤에 새 인형이 떨어지고(미는 판은 그 자리로),
@@ -35,7 +35,7 @@ class PusherSession {
   }
 }
 
-type Anim = { id: string; x: number; plateFrom: number; from: Map<number, ItemWire>; to: Map<number, ItemWire>; drop: ItemWire | null; fell: Set<number>; after: ItemWire[]; t: number; mine: boolean };
+type Anim = { id: string; seq: number; x: number; plateFrom: number; from: Map<number, ItemWire>; to: Map<number, ItemWire>; drop: ItemWire | null; fell: Set<number>; after: ItemWire[]; t: number; mine: boolean };
 
 export type PusherPlayDeps = { send(msg: string): void; onDrop(machineId: string): void; onOverdue(): void };
 
@@ -47,7 +47,7 @@ export class PusherPlay implements ButtonPlay {
   private button: PushButton | null = null;
   private waitingSince: number | null = null;
   private anims = new Map<string, Anim>();
-  private waiters = new Map<string, (() => void)[]>();
+  private waits = new FinishWaits(3000 + (DROP + PUSH + BACK) * 1000);
 
   constructor(readonly zone: PusherZone, private deps: PusherPlayDeps) {}
 
@@ -96,29 +96,19 @@ export class PusherPlay implements ButtonPlay {
     if (prev) this.settle(prev); // 앞 밀기가 덜 끝났으면 끝난 자리부터
     const from = new Map(this.zone.shelfOf(m.m).map((i) => [i[0], i] as const));
     this.anims.set(m.m, {
-      id: m.m, x: m.x, plateFrom: this.zone.plateOf(m.m).x, from, to: new Map(m.items.map((i) => [i[0], i] as const)),
+      id: m.m, seq: this.waits.arrived(m.m), x: m.x, plateFrom: this.zone.plateOf(m.m).x, from, to: new Map(m.items.map((i) => [i[0], i] as const)),
       drop: m.drop, fell: new Set(m.fell), after: m.items, t: 0, mine: m.m === this.playId,
     });
   }
 
-  finished(id: string): Promise<void> {
-    return new Promise((resolve) => {
-      const list = this.waiters.get(id) ?? [];
-      list.push(resolve); this.waiters.set(id, list);
-      setTimeout(() => this.releaseWaiters(id), 3000 + (DROP + PUSH + BACK) * 1000);
-    });
-  }
-
-  private releaseWaiters(id: string): void {
-    for (const w of this.waiters.get(id) ?? []) w();
-    this.waiters.delete(id);
-  }
+  // result를 받은 그 자리에서 — 뒤따르는 밀기가 끝나면 결과 연출이 나오게. 밀기가 안 오면 대비 시계로 넘어간다
+  finished(id: string): Promise<void> { return this.waits.wait(id); }
 
   private settle(a: Anim): void {
     this.zone.setShelf(a.id, a.after);
     this.zone.setPlate(a.id, a.x, 0);
     this.anims.delete(a.id);
-    this.releaseWaiters(a.id);
+    this.waits.finished(a.id, a.seq);
   }
 
   // 한 순간의 선반: 떨어지는 새 인형 → 밀리는 인형(전 자리 → 뒤 자리, 떨어질 인형은 앞 끝 너머로) → 떨어지는 인형

@@ -330,7 +330,8 @@ function onMessage(m: ServerMsg, guest: Guest) {
       if (m.id === myId) { holdFrom = now / 1000; playFor(m.m)?.resulted(m.m); } // 보고한 때 = 서버가 자리를 잡아 둔 때
       const t: Ticket = { done: false, gen: genOf(m.m) };
       tickets.set(m.m, t);
-      after(m.m, () => (isFigure(m.m) ? showFigureResult(m, t) : playFor(m.m) ? showPrizeResult(m, t) : showResult(m, t)));
+      const drawn = isFigure(m.m) ? undefined : playFor(m.m)?.finished(m.m); // 고리·미는 뽑기: 뒤따르는 찌르기·밀기를 지금부터 기다린다
+      after(m.m, () => (isFigure(m.m) ? showFigureResult(m, t) : drawn ? showPrizeResult(m, t, drawn) : showResult(m, t)));
       break;
     }
     case 'machine': {
@@ -795,12 +796,12 @@ async function showFigureResult(m: Result, t: Ticket) {
 
 // 보이는 경품 기계(고리·미는 뽑기, 설계 2026-11-02)의 결과: 결과 그리기(찌르기·밀기)가 끝난 뒤 — 내 판은 당첨 카드, 남의 판은 그 사람이 꺼내 보여 주기.
 // 희귀·황금이면 탑 알림
-async function showPrizeResult(m: Result, t: Ticket) {
+async function showPrizeResult(m: Result, t: Ticket, drawn: Promise<void>) {
   const bp = playFor(m.m)!, mine = m.id === myId;
   showing.add(m.m);
   if (mine) showingMe = true;
   await playing.get(m.m)?.stop(); playing.delete(m.m);
-  await bp.finished(m.m);
+  await drawn;
   const spot = spotOf.get(m.m)!, front = frontSpot(spot), first = m.won[0];
   const tier = first?.[2] === GOLD.id ? 'gold' : first?.[2] ? 'rare' : '';
   const name = first ? `${dollName(first[0], first[1], first[2])} ${bp.prizeWord}` : '';

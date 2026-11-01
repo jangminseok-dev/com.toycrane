@@ -4,7 +4,7 @@ import { encodeAct, type CardWire, type RingMsg } from '../net/protocol';
 import { FIGURE_CONTROLS, buildFigureControls, type FigureControls } from '../world/figureControls';
 import { RING_BUTTONS, RING_WORD, UI } from '../world/copy';
 import type { RingZone } from '../world/ringZone';
-import type { ButtonPlay } from './buttonPlay';
+import { FinishWaits, type ButtonPlay } from './buttonPlay';
 import { figureCameraPose } from './figureCamera';
 
 // 고리 뽑기 한 판(설계 2026-11-02 §3)의 화면 쪽: 조작대 버튼 ①(오른쪽)·②(위로) → ②를 떼면(또는 시간이 다 되면) 멈춘 자리를 act로 보내고,
@@ -39,7 +39,7 @@ class RingSession {
   }
 }
 
-type Anim = { id: string; x: number; y: number; peg: number; caught: boolean; card: CardWire | null; pegs: CardWire[]; t: number; mine: boolean };
+type Anim = { id: string; seq: number; x: number; y: number; peg: number; caught: boolean; card: CardWire | null; pegs: CardWire[]; t: number; mine: boolean };
 
 export type RingPlayDeps = { send(msg: string): void; onDrop(machineId: string): void; onOverdue(): void };
 
@@ -51,7 +51,7 @@ export class RingPlay implements ButtonPlay {
   private controls: FigureControls | null = null;
   private waitingSince: number | null = null;
   private anims = new Map<string, Anim>();
-  private waiters = new Map<string, (() => void)[]>();
+  private waits = new FinishWaits(3000 + (POKE_IN + POKE_HOLD + FLY) * 1000);
   private homing = new Map<string, { from: [number, number]; t: number }>();
 
   constructor(readonly zone: RingZone, private deps: RingPlayDeps) {}
@@ -102,23 +102,12 @@ export class RingPlay implements ButtonPlay {
   onRing(m: RingMsg): void {
     if (!SPOTS.has(m.m)) return;
     const card = m.peg >= 0 ? this.zone.boardOf(m.m)[m.peg] : null;
-    this.anims.set(m.m, { id: m.m, x: m.x, y: m.y, peg: m.peg, caught: m.caught, card, pegs: m.pegs, t: 0, mine: m.m === this.playId });
+    this.anims.set(m.m, { id: m.m, seq: this.waits.arrived(m.m), x: m.x, y: m.y, peg: m.peg, caught: m.caught, card, pegs: m.pegs, t: 0, mine: m.m === this.playId });
     this.homing.delete(m.m);
   }
 
-  // 그 기계의 다음(또는 지금) 찌르기가 끝나면 — 결과 연출(당첨 카드)이 그 뒤에 나오게. 3초 안에 찌르기가 없으면 그냥 넘어간다
-  finished(id: string): Promise<void> {
-    return new Promise((resolve) => {
-      const list = this.waiters.get(id) ?? [];
-      list.push(resolve); this.waiters.set(id, list);
-      setTimeout(() => this.releaseWaiters(id), 3000 + (POKE_IN + POKE_HOLD + FLY) * 1000);
-    });
-  }
-
-  private releaseWaiters(id: string): void {
-    for (const w of this.waiters.get(id) ?? []) w();
-    this.waiters.delete(id);
-  }
+  // result를 받은 그 자리에서 — 뒤따르는 찌르기가 끝나면 결과 연출(당첨 카드)이 나오게. 찌르기가 안 오면 대비 시계로 넘어간다
+  finished(id: string): Promise<void> { return this.waits.wait(id); }
 
   frame(dt: number, now: number): void {
     const s = this.session;
@@ -143,7 +132,7 @@ export class RingPlay implements ButtonPlay {
         if (a.peg >= 0) this.zone.showCard(id, a.peg, true);
         this.anims.delete(id);
         this.homing.set(id, { from: [a.x, a.y], t: 0 });
-        this.releaseWaiters(id);
+        this.waits.finished(id, a.seq);
       }
     }
     for (const [id, h] of this.homing) {
