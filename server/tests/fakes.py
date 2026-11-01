@@ -146,6 +146,9 @@ class FakeConnections:
     def broadcast_ring(self, machine_id, board, x, y, peg, caught) -> None:
         self.broadcasts.append((None, server_messages.ring(machine_id, board, x, y, peg, caught)))
 
+    def broadcast_pusher(self, machine_id, items, x, dropped, fell) -> None:
+        self.broadcasts.append((None, server_messages.pusher(machine_id, items, x, dropped, fell)))
+
     def broadcast_figure(self, machine_id, box, nudged) -> None:
         self.broadcasts.append((None, server_messages.figure(machine_id, box, nudged)))
 
@@ -259,6 +262,10 @@ class FakeRingBoards:
     async def save(self, boards: dict) -> None:
         self.stored = dict(boards)
         self.saves += 1
+
+
+class FakePusherShelves(FakeRingBoards):
+    """미는 뽑기 선반 저장소(DO 저장소) 가짜: 기계 id → 인형 튜플."""
 
 
 class FakeFigureBoxes:

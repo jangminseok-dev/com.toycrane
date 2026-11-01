@@ -4,11 +4,14 @@
 import math
 import random
 
-from fakes import FakeBag, FakeConnections, FakeLocks, FakeRegistry, FakeRingBoards, player
-from toycrane.adapter.inbound.ws.schemas.server_messages import done_no, result, ring
+from fakes import FakeBag, FakeConnections, FakeLocks, FakeRegistry, FakePusherShelves, FakeRingBoards, player
+from toycrane.adapter.inbound.ws.schemas.server_messages import done_no, pusher, result, ring
 from toycrane.app.dtos.act_dto import ActCommand
 from toycrane.app.use_cases.act_interactor import ActInteractor
+from toycrane.domain.layout import PUSHERS
+from toycrane.domain.pusher import Item, drop_in, push
 from toycrane.domain.ring import new_board, peg_xy
+from toycrane.domain.shared_data import PUSHER
 
 
 class Always(random.Random):
@@ -28,8 +31,13 @@ def setup(rng: random.Random | None = None):
     reg.put("c-1", player("p1", guest="g-1"))
     reg.put("c-2", player("p2", guest="g-2"))
     rings = FakeRingBoards({"R-1": new_board(random.Random(3))})
+    R = PUSHER["item"]["r"]
+    column = tuple(Item(k, "bear", k % 6, "", 0.0, -0.17 + k * 2 * R) for k in range(1, 7))  # 앞 끝까지 맞닿은 사슬
+    pushers = FakePusherShelves({p: column for p in PUSHERS})  # 네 대 모두 — 없는 선반을 만드느라 난수를 쓰지 않게
     locks.lock("c-1", "R-1", 10.0)
-    return locks, conns, bag, rings, ActInteractor(reg, locks, rings, bag, conns, rng=rng or random.Random(5))
+    it = ActInteractor(reg, locks, rings, pushers, bag, conns, rng=rng or random.Random(5))
+    it.pushers = pushers
+    return locks, conns, bag, rings, it
 
 
 async def test_ring_catch_puts_the_card_in_the_bag_and_restocks():
@@ -72,3 +80,31 @@ async def test_bad_act_is_refused_and_keeps_the_board():
     await it.act(ActCommand("c-1", "R-1", math.nan, 1.4, now=20.0))
     assert conns.direct == [("c-1", done_no("R-1", "bad"))]
     assert conns.broadcasts == [] and bag.added == [] and rings.stored["R-1"] == before
+
+
+async def test_pusher_push_drops_fallen_items_into_the_bag():
+    locks, conns, bag, rings, it = setup(random.Random(4))
+    locks.release("c-1")
+    locks.lock("c-1", "P-1", 10.0)
+    before = it.pushers.stored["P-1"]
+    await it.act(ActCommand("c-1", "P-1", 0.0, 0.0, now=20.0))
+    dropped = drop_in(before, random.Random(4))  # 이 판의 새 인형(같은 난수 순서)
+    after, fell = push(dropped, 0.0)
+    assert fell and [a[4] for a in bag.added] == ["pusher"] * len(fell)
+    assert [(a[1], a[2], a[3]) for a in bag.added] == [(f.kind, f.color, f.rare) for f in fell]
+    assert it.pushers.stored["P-1"] == after
+    new = next(i for i in dropped if i.uid not in {b.uid for b in before})
+    assert conns.broadcasts == [
+        (None, result("P-1", "p1", [(f.kind, f.color, f.rare, f.uid) for f in fell])),
+        (None, pusher("P-1", after, 0.0, new, [f.uid for f in fell])),
+    ]
+
+
+async def test_bad_pusher_act_is_refused_and_keeps_the_shelf():
+    locks, conns, bag, rings, it = setup()
+    locks.release("c-1")
+    locks.lock("c-1", "P-1", 10.0)
+    before = it.pushers.stored["P-1"]
+    await it.act(ActCommand("c-1", "P-1", 5.0, 0.0, now=20.0))
+    assert conns.direct == [("c-1", done_no("P-1", "bad"))]
+    assert conns.broadcasts == [] and bag.added == [] and it.pushers.stored["P-1"] == before

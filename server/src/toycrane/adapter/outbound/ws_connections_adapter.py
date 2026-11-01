@@ -98,6 +98,9 @@ class WsConnectionsAdapter(ConnectionsPort):
     def broadcast_ring(self, machine_id: str, board, x: float, y: float, peg: int | None, caught: bool) -> None:
         self._to_all_except(None, server_messages.ring(machine_id, board, x, y, peg, caught))
 
+    def broadcast_pusher(self, machine_id: str, items, x: float, dropped, fell: list[int]) -> None:
+        self._to_all_except(None, server_messages.pusher(machine_id, items, x, dropped, fell))
+
     def broadcast_free(self, machine_id: str) -> None:
         self._to_all_except(None, server_messages.free(machine_id))
 

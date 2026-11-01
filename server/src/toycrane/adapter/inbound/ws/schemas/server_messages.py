@@ -50,6 +50,16 @@ def ring(machine_id: str, board, x: float, y: float, peg: int | None, caught: bo
     return {"t": "ring", "m": machine_id, "pegs": [[c.kind, c.color, c.rare] for c in board], "x": round(x, 3), "y": round(y, 3), "peg": -1 if peg is None else peg, "caught": caught}
 
 
+def _item(i) -> list:
+    return [i.uid, i.kind, i.color, i.rare, round(i.x, 3), round(i.z, 3)]
+
+
+def pusher(machine_id: str, items, x: float, dropped, fell: list[int]) -> dict:
+    """미는 뽑기 한 판(설계 2026-11-02 §4): 민 자리 x, 판 뒤 선반 인형(보이는 경품), 이 판에 뒤에 떨어진 새 인형(없으면 null), 앞으로 떨어진 인형 번호 —
+    모두가 같은 밀기를 그린다."""
+    return {"t": "pusher", "m": machine_id, "x": round(x, 3), "items": [_item(i) for i in items], "drop": _item(dropped) if dropped else None, "fell": fell}
+
+
 def join(p: PlayerView) -> dict:
     return {"t": "join", "p": _player(p)}
 
