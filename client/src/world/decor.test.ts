@@ -26,7 +26,7 @@ test('shelf dolls keep their painted faces', () => {
   const scene = new THREE.Scene();
   buildDecor(scene);
   const shelf = scene.children.find((o) => o.name.startsWith('decor-shelf'))!;
-  const mats = (shelf.children as THREE.Mesh[]).map((m) => m.material as THREE.MeshBasicMaterial);
+  const mats = (shelf.children.filter((o) => (o as THREE.Mesh).isMesh) as THREE.Mesh[]).map((m) => m.material as THREE.MeshBasicMaterial); // 칸 표지(빈 물체)는 빼고
   expect(mats.some((m) => m.map && m.transparent)).toBe(true);
   expect(mats.filter((m) => m.side === THREE.BackSide)).toHaveLength(1);
 });
@@ -37,3 +37,13 @@ test('shelves build each doll kind once', () => {
   buildDecor(new THREE.Scene());
   expect(vi.mocked(makeDoll).mock.calls.length).toBeLessThanOrEqual(6);
 }, 60_000);
+
+// 큰 홀(설계 2026-11-01 §3): 아직 없는 기계 자리마다 '준비 중' 덮개 기계 — 피규어 14대, 고리 10대, 미는 뽑기 4대, 쉼터 벤치
+test('every planned zone has covered machines: 14 figure, 10 ring, 4 pusher', () => {
+  const scene = new THREE.Scene();
+  buildDecor(scene);
+  const count: Record<string, number> = {};
+  scene.traverse((o) => { if (o.name.startsWith('decor-unit-')) { const k = o.name.slice('decor-unit-'.length); count[k] = (count[k] ?? 0) + 1; } });
+  expect(count).toMatchObject({ figure: 14, ring: 10, pusher: 4 });
+  expect(count.bench).toBeGreaterThanOrEqual(2);
+});
