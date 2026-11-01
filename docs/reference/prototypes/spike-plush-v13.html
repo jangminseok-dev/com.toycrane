@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>봉제인형 시제품 v13</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #f6ebee; overflow: hidden; font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; }
+  canvas { display: block; }
+  #hud { position: fixed; left: 16px; top: 16px; background: rgba(255,255,255,.86); border-radius: 14px; padding: 10px 14px; font-size: 13px; color: #4a3550; max-width: 360px; box-shadow: 0 4px 18px rgba(80,40,120,.1); }
+  #hud h1 { font-size: 15px; margin: 0 0 4px; }
+  #hud p { margin: 3px 0; line-height: 1.4; }
+  #views button { margin: 6px 6px 0 0; border: 0; border-radius: 999px; padding: 7px 12px; font-weight: 700; background: #ffc9dd; color: #5a2a4a; cursor: pointer; }
+  body.shot #hud { display: none; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="hud">
+  <h1>봉제인형 시제품 v13 (버리는 코드)</h1>
+  <p>왼쪽 v9 · 가운데 곰 · 오른쪽 고양이 — 더 카툰: 또렷한 2단 음영 + 굵은 외곽선 + 그린 눈, 머리 큰 비율</p>
+  <p>털 표현 없이 매끈한 무광 천. 광택은 눈만. 마우스로 돌려 보세요.</p>
+  <div id="views"></div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { DecalGeometry } from 'three/addons/geometries/DecalGeometry.js';
+
+const params = new URLSearchParams(location.search);
+if (params.has('shot')) document.body.classList.add('shot');
+const LOOK = params.get('look') ?? 'cel';
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.95;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf6ebee);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.1, 60);
+const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true;
+
+// 제품 사진 같은 조명: 따뜻한 주광 + 약한 채움 + 뒤에서 가장자리를 살리는 빛
+scene.add(new THREE.HemisphereLight(0xfffaff, 0xe2cfd8, LOOK === 'cel' ? 0.9 : 0.55));
+const key = new THREE.DirectionalLight(0xfff0e0, 2.6); key.position.set(2.5, 5, 4); key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048); key.shadow.radius = 8; key.shadow.bias = -0.0004;
+Object.assign(key.shadow.camera, { left: -5, bottom: -5, right: 5, top: 5 }); scene.add(key);
+const fill = new THREE.DirectionalLight(0xeee6ff, 0.5); fill.position.set(-4, 2.5, 3); scene.add(fill);
+const rim = new THREE.DirectionalLight(0xffffff, 1.3); rim.position.set(-2, 4, -5); scene.add(rim);
+const floor = new THREE.Mesh(new THREE.CircleGeometry(10, 64), new THREE.MeshStandardMaterial({ color: 0xf1e3e8, roughness: 1 }));
+floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+
+// ---------- 털: 셸 없이 표면에서 결(색 얼룩 + 요철)을 그린다 ----------
+// curly = 곱슬(부클레): 둥근 곱슬 덩어리, 덩어리마다 조금씩 다른 색, 그 사이 어두운 골 / minky = 보들(밍크): 아주 고운 잔털 결
+const FUR_GLSL = `
+varying vec3 vFurPos;
+uniform float uFreq, uBump, uDark, uMottle, uKind, uSeam;
+vec3 fh3(vec3 p) { p = vec3(dot(p, vec3(127.1, 311.7, 74.7)), dot(p, vec3(269.5, 183.3, 246.1)), dot(p, vec3(113.5, 271.9, 124.6))); return fract(sin(p) * 43758.5453123); }
+float vn(vec3 p) {
+  vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  float a = fh3(i).x, b = fh3(i + vec3(1, 0, 0)).x, c = fh3(i + vec3(0, 1, 0)).x, d = fh3(i + vec3(1, 1, 0)).x;
+  float e = fh3(i + vec3(0, 0, 1)).x, f1 = fh3(i + vec3(1, 0, 1)).x, g = fh3(i + vec3(0, 1, 1)).x, h = fh3(i + vec3(1, 1, 1)).x;
+  return mix(mix(mix(a, b, f.x), mix(c, d, f.x), f.y), mix(mix(e, f1, f.x), mix(g, h, f.x), f.y), f.z);
+}
+vec3 wor(vec3 p) {
+  vec3 i = floor(p), f = fract(p); float d1 = 8.0, d2 = 8.0, id = 0.0;
+  for (int z = -1; z <= 1; z++) for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+    vec3 g = vec3(float(x), float(y), float(z)); vec3 o = fh3(i + g); vec3 r = g + o - f; float d = dot(r, r);
+    if (d < d1) { d2 = d1; d1 = d; id = o.y; } else if (d < d2) { d2 = d; }
+  }
+  return vec3(sqrt(d1), sqrt(d2), id);
+}
+float furH(vec3 p, out float tone) {
+  if (uKind < 0.5) {
+    vec3 w = wor(p * uFreq); float a = 1.0 - smoothstep(0.0, 0.62, w.x); a = a * a * (3.0 - 2.0 * a);
+    vec3 w2 = wor(p * uFreq * 2.3 + 7.1); float b = 1.0 - smoothstep(0.0, 0.62, w2.x);
+    tone = (w.z - 0.5) * 0.16 + (vn(p * uFreq * 7.0) - 0.5) * 0.1;
+    return clamp(a * 0.7 + b * 0.3, 0.0, 1.0);
+  }
+  if (uKind > 1.5) {
+    float fiber = vn(p * vec3(uFreq, uFreq * 0.3, uFreq)), clump = vn(p * uFreq * 0.12 + 3.3);
+    tone = (clump - 0.5) * 0.22 + (vn(p * uFreq * 2.2) - 0.5) * 0.14;
+    return fiber * 0.55 + clump * 0.45;
+  }
+  tone = (vn(p * uFreq * 4.0) - 0.5) * 0.05;
+  return vn(p * vec3(uFreq, uFreq * 0.25, uFreq)) * 0.55 + vn(p * uFreq * 2.5) * 0.45;
+}`;
+
+const VELVET = new URLSearchParams(location.search).get('fur') !== '1';
+// 부드러운 셀 음영: 어두운 단 · 밝은 단 두 개, 그 사이를 선형으로 살짝 번지게 (딱딱한 만화보다 인형답게)
+const CEL = new THREE.DataTexture(new Uint8Array([165, 165, 165, 165, 165, 165, 165, 165, 255, 255, 255, 255, 255, 255, 255, 255]), 16, 1, THREE.RedFormat);
+CEL.minFilter = CEL.magFilter = THREE.LinearFilter; CEL.needsUpdate = true;
+function celMat(color) {
+  const m = new THREE.MeshToonMaterial({ color, gradientMap: CEL, vertexColors: true });
+  m.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `
+      float rimF = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.0);
+      outgoingLight += diffuseColor.rgb * 0.22 * smoothstep(0.35, 0.5, rimF);
+      #include <opaque_fragment>`);
+  };
+  return m;
+}
+const OUTLINE = new THREE.MeshBasicMaterial({ color: 0x3f2a4f, side: THREE.BackSide, polygonOffset: true, polygonOffsetFactor: 3, polygonOffsetUnits: 12 }); // 몸에 거의 붙은 부위의 껍질이 몸 앞으로 비쳐 긁힌 자국처럼 보이지 않게 조금 뒤로 민다
+// 뒷면 외곽선: 법선 쪽으로 조금 부풀린 껍질을 뒷면만 그린다 (게임 속 툰 외곽선과 같은 방식)
+function hull(part, w = 0.02) {
+  const g = new THREE.BufferGeometry(); g.setIndex(part.index ? part.index.clone() : null);
+  const p = part.attributes.position.clone(), n = part.attributes.normal;
+  for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) + n.getX(i) * w, p.getY(i) + n.getY(i) * w, p.getZ(i) + n.getZ(i) * w);
+  g.setAttribute('position', p); return g;
+}
+function withOutline(mesh, parts) {
+  if (LOOK !== 'cel') return mesh;
+  const o = new THREE.Mesh(mergeGeometries(parts.map((x) => hull(x)), false), OUTLINE); mesh.add(o); return mesh;
+}
+function furMat(color, kind, o = {}) {
+  if (VELVET && LOOK === 'cel') return celMat(color);
+  if (VELVET) return new THREE.MeshStandardMaterial({ color, roughness: 1, metalness: 0, envMapIntensity: 0.35, vertexColors: true }); // v9 무광 천
+  const c = new THREE.Color(color);
+  const m = new THREE.MeshPhysicalMaterial({
+    color: c, roughness: 1, metalness: 0, envMapIntensity: 0.25, vertexColors: true, // 정점 색 = 미리 구운 주름 그늘(AO)
+    sheen: o.sheen ?? (kind === 'minky' ? 0.35 : 0.3), sheenRoughness: 0.9, sheenColor: c.clone().lerp(new THREE.Color(0xffffff), 0.45), // 천의 보송한 가장자리 (반짝임 아님)
+  });
+  const u = {
+    uFreq: { value: o.freq ?? { curly: 20, minky: 55, fluffy: 80 }[kind] }, uBump: { value: o.bump ?? { curly: 2.6, minky: 0.6, fluffy: 1.4 }[kind] },
+    uDark: { value: o.dark ?? (kind === 'curly' ? 0.6 : kind === 'fluffy' ? 0.72 : 0.86) }, uMottle: { value: o.mottle ?? 0.08 }, uKind: { value: { curly: 0, minky: 1, fluffy: 2 }[kind] },
+    uSeam: { value: o.seam ? 1 : 0 },
+  };
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, u);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vFurPos;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFurPos = position;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\n' + FUR_GLSL)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        float ftone; float fh = furH(vFurPos, ftone);
+        // 봉제선: 머리·몸 앞 가운데를 따라 박음질한 골
+        float seam = uSeam * (1.0 - smoothstep(0.0, 0.008, abs(vFurPos.x))) * (step(1.0, vFurPos.y) + step(0.15, vFurPos.y) * step(vFurPos.y, 0.95) * step(0.0, vFurPos.z));
+        fh = mix(fh, 0.0, clamp(seam, 0.0, 1.0) * 0.85);
+        diffuseColor.rgb *= mix(uDark, 1.0, fh) * (1.0 + ftone + uMottle * (vn(vFurPos * 3.0) - 0.5) * 2.0) * (1.0 - 0.15 * clamp(seam, 0.0, 1.0));`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        {
+          vec3 sx = normalize(dFdx(-vViewPosition)), sy = normalize(dFdy(-vViewPosition));
+          vec3 r1 = cross(sy, normal), r2 = cross(normal, sx);
+          float det = dot(sx, r1) * faceDirection;
+          vec3 grad = sign(det) * (uBump * dFdx(fh) * r1 + uBump * dFdy(fh) * r2);
+          normal = normalize(abs(det) * normal - grad);
+        }`);
+  };
+  return m;
+}
+const matte = (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.95, metalness: 0, envMapIntensity: 0.3 });
+const beadMat = new THREE.MeshPhysicalMaterial({ color: 0x0d090b, roughness: 0.05, clearcoat: 1, clearcoatRoughness: 0.03 }); // 구슬 눈 (광택은 눈만)
+
+// ---------- 모양 도구 ----------
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const hash = (x, y, z) => { const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return s - Math.floor(s); };
+function vnoise(x, y, z) {
+  const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z), xf = x - xi, yf = y - yi, zf = z - zi;
+  const sx = xf * xf * (3 - 2 * xf), sy = yf * yf * (3 - 2 * yf), sz = zf * zf * (3 - 2 * zf), L = (a, b, t) => a + (b - a) * t;
+  const c = (dx, dy, dz) => hash(xi + dx, yi + dy, zi + dz);
+  return L(L(L(c(0, 0, 0), c(1, 0, 0), sx), L(c(0, 1, 0), c(1, 1, 0), sx), sy), L(L(c(0, 0, 1), c(1, 0, 1), sx), L(c(0, 1, 1), c(1, 1, 1), sx), sy), sz);
+}
+// 인형 하나를 만드는 동안 모든 부위의 대략적인 공(가리개)을 모아 둔다 — 주름 그늘(AO)을 정점에 미리 굽는 데 쓴다
+let OCC = [];
+const occ = (c, r) => { OCC.push({ c: c.clone(), r }); return OCC.length - 1; };
+function sph(r, p, s = [1, 1, 1], rot = [0, 0, 0], seg = 64) {
+  const g = new THREE.SphereGeometry(r, seg, Math.round(seg * 0.75)); g.scale(...s);
+  g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...rot))); g.translate(p.x, p.y, p.z);
+  g.userData.own = [occ(p, r * (s[0] + s[1] + s[2]) / 3)]; return g;
+}
+function tube(points, r, taper = () => 1) {
+  const curve = new THREE.CatmullRomCurve3(points), seg = 48, rad = 32;
+  const g = new THREE.TubeGeometry(curve, seg, r, rad, false), pos = g.attributes.position, p = new THREE.Vector3(), c = new THREE.Vector3();
+  for (let i = 0; i <= seg; i++) {
+    const k = taper(i / seg); curve.getPointAt(i / seg, c);
+    for (let j = 0; j <= rad; j++) { const idx = i * (rad + 1) + j; p.fromBufferAttribute(pos, idx).sub(c).multiplyScalar(k).add(c); pos.setXYZ(idx, p.x, p.y, p.z); }
+  }
+  g.computeVertexNormals();
+  const n = Math.max(2, Math.ceil(curve.getLength() / 0.07));
+  g.userData.own = Array.from({ length: n + 1 }, (_, i) => occ(curve.getPointAt(i / n), r * taper(i / n)));
+  return g;
+}
+// 몸통: (높이, 반지름) 윤곽을 매끈하게 이어 돌린 배 모양 한 덩어리, 앞뒤로 조금 납작하게
+function pear(profile, flatZ, zOff = 0) {
+  const curve = new THREE.CatmullRomCurve3(profile.map(([y, r]) => V(r, y, 0)));
+  const pts = curve.getPoints(48).map((q) => new THREE.Vector2(Math.max(q.x, 0.0001), q.y));
+  pts[0].x = 0.0001; pts[pts.length - 1].x = 0.0001;
+  const g = new THREE.LatheGeometry(pts, 64); g.scale(1, 1, flatZ); g.translate(0, 0, zOff);
+  g.userData.own = profile.filter(([, r]) => r > 0.05).map(([y, r]) => occ(V(0, y, zOff), r * 0.9));
+  return g;
+}
+// 고양이 귀: 아래는 넓고 위는 둥글게 뾰족한 납작한 물방울
+function earShape(r, p, side, flat, lean) {
+  const g = new THREE.SphereGeometry(r, 48, 36), pos = g.attributes.position, v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i); const t = Math.min(1, Math.max(0, (v.y / r + 1) / 2)), k = 1 - 0.8 * Math.pow(t, 1.5);
+    pos.setXYZ(i, v.x * k, v.y * 1.3, v.z * k * flat);
+  }
+  g.computeVertexNormals();
+  g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(lean, 0, -side * 0.32))); g.translate(p.x, p.y, p.z);
+  g.userData.own = [occ(p, r * 0.75)]; return g;
+}
+// 주름 그늘(AO): 다른 부위가 가리는 만큼 어둡게 (공 가리개의 해석식) + 바닥에 가까운 아랫면
+function bakeAO(g, strength = LOOK === 'cel' ? 0.25 : 0.75) {
+  const p = g.attributes.position, n = g.attributes.normal, col = new Float32Array(p.count * 3), v = new THREE.Vector3(), nn = new THREE.Vector3(), d = new THREE.Vector3();
+  const own = new Set(g.userData.own ?? []);
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i); nn.fromBufferAttribute(n, i);
+    let sum = 0;
+    OCC.forEach((o, j) => {
+      if (own.has(j)) return;
+      d.subVectors(o.c, v); const dist = Math.max(d.length(), o.r), h = o.r / dist;
+      sum += h * h * Math.max(0, (nn.dot(d.normalize()) + h) / (1 + h));
+    });
+    let ao = 1 - Math.min(0.6, strength * Math.max(0, sum - 0.08));
+    ao *= 1 - 0.35 * Math.max(0, -nn.y) * Math.max(0, 1 - v.y / 0.4);
+    col.set([ao, ao, ao], i * 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3)); return g;
+}
+// 솜을 채운 천처럼 표면을 아주 살짝 울퉁불퉁하게 (외곽선이 매끈한 공처럼 보이지 않게). 법선은 그대로 둔다
+function lumpy(g, amp, freq) {
+  const p = g.attributes.position, n = g.attributes.normal, v = new THREE.Vector3(), nn = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i); nn.fromBufferAttribute(n, i);
+    v.addScaledVector(nn, (vnoise(v.x * freq, v.y * freq, v.z * freq) - 0.5) * 2 * amp); p.setXYZ(i, v.x, v.y, v.z);
+  }
+  return g;
+}
+function pinchSeam(g) {
+  const p = g.attributes.position, n = g.attributes.normal, v = new THREE.Vector3(), nn = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i); const ax = Math.abs(v.x);
+    if (ax > 0.045 || !(v.y > 1.0 || (v.y > 0.15 && v.y < 0.95 && v.z > 0))) continue;
+    nn.fromBufferAttribute(n, i); v.addScaledVector(nn, -0.012 * (1 - ax / 0.045) ** 2); p.setXYZ(i, v.x, v.y, v.z);
+  }
+  return g;
+}
+function meshOf(parts, mat, lump, seam, outline = true) {
+  const done = parts.map((x) => { bakeAO(x); if (seam) pinchSeam(x); return lump ? lumpy(x, lump[0], lump[1]) : x; });
+  const g = mergeGeometries(done, false);
+  const m = new THREE.Mesh(g, mat); m.castShadow = true; m.receiveShadow = LOOK !== 'cel'; return outline ? withOutline(m, done) : m; // 카툰은 제 몸에 지는 딱딱한 그림자를 받지 않는다
+}
+
+// 앞에서 본 (x, y) 자리의 표면 점·법선 (자수·눈·코를 표면에 붙일 때)
+const ray = new THREE.Raycaster();
+function surf(targets, x, y) {
+  ray.set(V(x, y, 6), V(0, 0, -1));
+  const hit = ray.intersectObjects(targets, false)[0];
+  if (!hit) throw new Error(`표면 없음 ${x},${y}`);
+  return { p: hit.point.clone(), n: hit.face.normal.clone().transformDirection(hit.object.matrixWorld) };
+}
+function facing(obj, s) { obj.position.copy(s.p); obj.lookAt(s.p.clone().add(s.n)); return obj; }
+// 실로 수놓은 선: 앞에서 본 점들을 표면에 붙여 가는 관으로
+function stitch(targets, pts, r, mat) {
+  const ps = pts.map(([x, y]) => { const s = surf(targets, x, y); return s.p.addScaledVector(s.n, r * 0.4); });
+  const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(ps), 32, r, 10, false), mat); m.castShadow = true; return m;
+}
+// 표면에 투사해 붙이는 그림 (애니 눈·볼터치)
+function decal(targets, x, y, w, h, tex, mat) {
+  const s = surf(targets, x, y);
+  const rotm = new THREE.Matrix4().lookAt(s.p.clone().add(s.n), s.p, V(0, 1, 0));
+  const parts = targets.map((t) => new DecalGeometry(t, s.p, new THREE.Euler().setFromRotationMatrix(rotm), V(w, h, 0.25)));
+  const g = mergeGeometries(parts.filter((p) => p.attributes.position.count > 0), false);
+  return new THREE.Mesh(g, mat ?? new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: 1, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }));
+}
+function canvasTex(w, h, draw) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
+}
+
+// ---------- 그린 눈 ----------
+// 구슬 눈을 카툰으로: 세로 타원 검은 눈 + 큰 하이라이트 하나, 작은 것 하나
+const dotEyeTex = canvasTex(160, 200, (g, W, H) => {
+  g.beginPath(); g.ellipse(W / 2, H / 2, W * 0.42, H * 0.46, 0, 0, Math.PI * 2); g.fillStyle = '#1d1420'; g.fill();
+  g.fillStyle = '#fff';
+  g.beginPath(); g.ellipse(W * 0.4, H * 0.32, W * 0.15, H * 0.13, -0.4, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.arc(W * 0.62, H * 0.66, W * 0.07, 0, Math.PI * 2); g.fill();
+});
+function eyeTex(mirror) {
+  return canvasTex(256, 300, (g, W, H) => {
+    if (mirror) { g.translate(W, 0); g.scale(-1, 1); }
+    const cx = W / 2, cy = H * 0.54, rx = W * 0.38, ry = H * 0.4;
+    g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); g.fillStyle = '#25163a'; g.fill();
+    const gr = g.createLinearGradient(0, cy - ry, 0, cy + ry); gr.addColorStop(0, '#2c1a5c'); gr.addColorStop(0.5, '#5b3fc4'); gr.addColorStop(1, '#a98cff');
+    g.beginPath(); g.ellipse(cx, cy, rx * 0.86, ry * 0.88, 0, 0, Math.PI * 2); g.fillStyle = gr; g.fill();
+    g.beginPath(); g.ellipse(cx, cy + ry * 0.02, rx * 0.46, ry * 0.52, 0, 0, Math.PI * 2); g.fillStyle = '#170b2c'; g.fill();
+    g.fillStyle = '#fff';
+    g.beginPath(); g.ellipse(cx - rx * 0.28, cy - ry * 0.34, rx * 0.32, ry * 0.25, -0.4, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.arc(cx + rx * 0.34, cy + ry * 0.3, rx * 0.13, 0, Math.PI * 2); g.fill();
+  });
+}
+const blushTex = canvasTex(128, 80, (g, W, H) => {
+  const gr = g.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W / 2);
+  gr.addColorStop(0, 'rgba(255,110,160,0.85)'); gr.addColorStop(0.55, 'rgba(255,130,175,0.5)'); gr.addColorStop(1, 'rgba(255,160,195,0)');
+  g.save(); g.scale(1, H / W); g.fillStyle = gr; g.fillRect(0, 0, W, W); g.restore();
+});
+const paintMat = (tex) => new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: 1, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 });
+const glossEye = (tex) => new THREE.MeshPhysicalMaterial({ map: tex, transparent: true, roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.15, envMapIntensity: 0.5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 });
+
+// ---------- 곰 (카툰: 머리 큰 비율, 그린 구슬 눈) ----------
+function bear() {
+  OCC = [];
+  const g = new THREE.Group();
+  const fur = furMat(0xc4a6ee), cream = furMat(0xfff4e2);
+  const arm = (s) => [
+    tube([V(s * 0.2, 0.8, 0.02), V(s * 0.38, 0.68, 0.1), V(s * 0.42, 0.52, 0.22), V(s * 0.36, 0.4, 0.3)], 0.11, (t) => 0.95 + 0.3 * t),
+    sph(0.14, V(s * 0.36, 0.39, 0.31), [1, 0.92, 1]),
+  ];
+  const furParts = [
+    sph(0.6, V(0, 1.2, 0), [1.12, 0.94, 0.96]),                                                // 머리 (몸보다 크게)
+    ...[-1, 1].map((s) => sph(0.18, V(s * 0.5, 1.62, -0.06), [1, 1, 0.6], [0, 0, -s * 0.3])),  // 귀
+    pear([[0.02, 0], [0.05, 0.27], [0.14, 0.4], [0.28, 0.43], [0.44, 0.41], [0.6, 0.36], [0.74, 0.27], [0.84, 0.15], [0.88, 0]], 0.94, 0.02), // 몸 (작게)
+    ...arm(-1), ...arm(1),
+    ...[-1, 1].map((s) => sph(0.17, V(s * 0.23, 0.2, 0.2), [1, 0.85, 1.3])),                  // 허벅지
+    ...[-1, 1].map((s) => sph(0.16, V(s * 0.25, 0.16, 0.38), [1.05, 0.95, 1.1])),             // 발
+    sph(0.1, V(0, 0.35, -0.38)),                                                              // 꼬리
+  ];
+  const creamParts = [
+    sph(0.21, V(0, 1.04, 0.47), [1.3, 0.9, 0.75]),                                            // 주둥이
+    ...[-1, 1].map((s) => sph(0.1, V(s * 0.25, 0.16, 0.54), [1.05, 1, 0.3])),                 // 발바닥
+  ];
+  const innerParts = [-1, 1].map((s) => sph(0.11, V(s * 0.5, 1.61, 0.02), [1, 1, 0.32], [0, 0, -s * 0.3])); // 귓속
+  const furMesh = meshOf(furParts, fur), creamMesh = meshOf(creamParts, cream), innerMesh = meshOf(innerParts, cream, null, false, false);
+  g.add(furMesh, creamMesh, innerMesh); g.updateMatrixWorld(true);
+  const T = [furMesh, creamMesh];
+  for (const s of [-1, 1]) {
+    g.add(decal([furMesh], s * 0.21, 1.25, 0.095, 0.12, null, glossEye(dotEyeTex)));      // 그린 눈 (광택은 눈만)
+    g.add(decal([furMesh], s * 0.36, 1.06, 0.15, 0.09, null, paintMat(blushTex)));         // 볼터치
+  }
+  const thread = matte(0x3a2330);
+  const nose = facing(new THREE.Mesh(new THREE.SphereGeometry(0.055, 32, 24), new THREE.MeshToonMaterial({ color: 0x4a2c34, gradientMap: CEL })), surf(T, 0, 1.11));
+  nose.scale.set(1.4, 0.9, 0.55); g.add(nose);
+  g.add(stitch(T, [[0, 1.075], [0, 1.04]], 0.009, thread));
+  for (const s of [-1, 1]) g.add(stitch(T, [[0, 1.04], [s * 0.035, 1.018], [s * 0.066, 1.032]], 0.009, thread));
+  return g;
+}
+
+// ---------- 고양이 (카툰: 옆으로 넓은 찹쌀떡 머리, 큰 애니 눈, 얼굴판 없음) ----------
+function cat() {
+  OCC = [];
+  const g = new THREE.Group();
+  const coat = furMat(0xffd2a6), white = furMat(0xfffaf3), pink = furMat(0xffb3cd);
+  // 앞발: 어깨에서 짧고 통통하게 내려와 배 앞에 살짝 나온 동그란 발 (발가락 줄은 아래에서 수놓는다)
+  const arm = (s) => [
+    tube([V(s * 0.2, 0.78, 0.02), V(s * 0.3, 0.67, 0.13), V(s * 0.25, 0.545, 0.31)], 0.08, (t) => 1 + 0.25 * t),
+    sph(0.1, V(s * 0.25, 0.545, 0.31)),
+  ];
+  const coatParts = [
+    sph(0.6, V(0, 1.12, 0), [1.24, 0.86, 0.94]),                                             // 머리 (옆으로 넓은 찹쌀떡)
+    ...[-1, 1].map((s) => earShape(0.22, V(s * 0.5, 1.5, -0.02), s, 0.5, -0.05)),           // 귀 (머리 위 양 모서리)
+    pear([[0.02, 0], [0.05, 0.25], [0.14, 0.37], [0.28, 0.4], [0.44, 0.38], [0.6, 0.32], [0.72, 0.22], [0.8, 0.1], [0.82, 0]], 0.94, 0.02), // 몸 (작게)
+    ...arm(-1), ...arm(1),
+    ...[-1, 1].map((s) => sph(0.15, V(s * 0.21, 0.18, 0.2), [1, 0.85, 1.3])),               // 허벅지
+    ...[-1, 1].map((s) => sph(0.13, V(s * 0.22, 0.14, 0.37), [1, 0.82, 1.15])),             // 뒷발 (몸 색, 앞으로 둥글게)
+    tube([V(-0.02, 0.24, -0.12), V(0.1, 0.2, -0.32), V(0.34, 0.15, -0.33), V(0.47, 0.12, -0.08), V(0.4, 0.1, 0.18)], 0.08, (t) => 1 - 0.2 * t), // 꼬리 (몸 안에서 시작해 뒤로 나와 옆으로 감아 앞으로)
+    sph(0.08, V(-0.02, 0.24, -0.12)),
+  ];
+  const whiteParts = [
+    sph(0.07, V(0.39, 0.1, 0.2), [1, 0.9, 1.05]),                                            // 꼬리 끝
+  ];
+  const pinkParts = [
+    ...[-1, 1].map((s) => earShape(0.14, V(s * 0.5, 1.49, 0.04), s, 0.3, -0.05)),          // 귓속
+    ...[-1, 1].map((s) => sph(0.062, V(s * 0.22, 0.125, 0.505), [1.05, 0.9, 0.3])),         // 발바닥 큰 볼록이
+    ...[-1, 1].flatMap((s) => [-1, 0, 1].map((k) => sph(0.022, V(s * 0.22 + k * 0.042, 0.188 - Math.abs(k) * 0.012, 0.487), [1, 1, 0.35]))), // 발가락 볼록이 셋
+  ];
+  const coatMesh = meshOf(coatParts, coat), whiteMesh = meshOf(whiteParts, white), pinkMesh = meshOf(pinkParts, pink, null, false, false);
+  g.add(coatMesh, whiteMesh, pinkMesh); g.updateMatrixWorld(true);
+  const head = [coatMesh];
+  // 큰 눈은 얼굴 가운데보다 조금 아래, 넓게 (어려 보이는 비율)
+  for (const s of [-1, 1]) {
+    g.add(decal(head, s * 0.24, 1.08, 0.2, 0.235, null, glossEye(eyeTex(s < 0))));
+    g.add(decal(head, s * 0.42, 0.97, 0.16, 0.09, null, paintMat(blushTex)));
+  }
+  const nose = facing(new THREE.Mesh(new THREE.SphereGeometry(0.03, 24, 16), new THREE.MeshToonMaterial({ color: 0xff7fa8, gradientMap: CEL })), surf(head, 0, 0.99));
+  nose.scale.set(1.4, 0.85, 0.5); g.add(nose);
+  const thread = matte(0x4a2a3a);
+  g.add(stitch(head, [[0, 0.968], [0, 0.948]], 0.007, thread));
+  for (const s of [-1, 1]) g.add(stitch(head, [[0, 0.948], [s * 0.03, 0.93], [s * 0.058, 0.943]], 0.007, thread)); // ω 입
+  for (const s of [-1, 1]) for (const dy of [0.02, -0.02]) g.add(stitch(head, [[s * 0.47, 1.0 + dy], [s * 0.6, 1.0 + dy * 1.8]], 0.006, thread)); // 수염 (머리 가장자리 안쪽)
+  for (const s of [-1, 1]) for (const dx of [-0.026, 0.026]) g.add(stitch([coatMesh], [[s * 0.25 + dx, 0.52], [s * 0.25 + dx, 0.49]], 0.006, thread)); // 앞발 발가락 줄
+  // 이마 줄무늬 셋 (치즈 고양이) — 리본은 빼서 다른 유명 고양이 캐릭터와 닮지 않게
+  const stripeTex = canvasTex(160, 110, (c, W, H) => {
+    c.fillStyle = '#d4813f'; c.lineCap = 'round';
+    for (const [x, h] of [[0.3, 0.62], [0.5, 0.8], [0.7, 0.62]]) { c.beginPath(); c.ellipse(W * x, H * (1 - h / 2), W * 0.07, H * h / 2, 0, 0, Math.PI * 2); c.fill(); }
+  });
+  g.add(decal(head, 0, 1.37, 0.24, 0.16, null, paintMat(stripeTex)));
+  // 꼬리에도 같은 줄
+  return g;
+}
+
+// ---------- 비교용 v9 곰 (그대로) ----------
+function v9Bear() {
+  OCC = [];
+  const g = new THREE.Group();
+  const velvet = (color) => new THREE.MeshStandardMaterial({ color, roughness: 1, metalness: 0, envMapIntensity: 0.35 });
+  const s9 = (r, pos, scl = [1, 1, 1]) => sph(r, pos, scl, [0, 0, 0], 48);
+  const arm = (s) => [tube([V(s * 0.22, 0.86, 0), V(s * 0.45, 0.76, 0.08), V(s * 0.53, 0.58, 0.2), V(s * 0.47, 0.44, 0.34), V(s * 0.36, 0.4, 0.42)], 0.15, (t) => 0.95 + 0.25 * t), s9(0.2, V(s * 0.375, 0.405, 0.405), [1, 0.92, 1])];
+  const leg = (s) => [s9(0.22, V(s * 0.27, 0.27, 0.17), [1, 0.85, 1.25]), s9(0.19, V(s * 0.3, 0.2, 0.38), [1.05, 0.85, 1.25])];
+  const parts = {
+    fur: [s9(0.5, V(0, 1.2, 0), [1.08, 0.95, 1]), s9(0.19, V(-0.4, 1.56, -0.04)), s9(0.19, V(0.4, 1.56, -0.04)), s9(0.46, V(0, 0.55, 0), [1, 1.18, 0.92]), s9(0.42, V(0, 0.33, 0.03), [1.12, 0.68, 1.05]), ...arm(-1), ...arm(1), ...leg(-1), ...leg(1), s9(0.12, V(0, 0.42, -0.42))],
+    belly: [s9(0.3, V(0, 0.58, 0.24), [0.95, 1.1, 0.5]), s9(0.2, V(0, 1.07, 0.4), [1.25, 0.8, 0.6])],
+    inner: [s9(0.105, V(-0.4, 1.56, 0.08), [1, 1, 0.4]), s9(0.105, V(0.4, 1.56, 0.08), [1, 1, 0.4])],
+    pads: [s9(0.115, V(-0.3, 0.2, 0.59), [1.05, 0.9, 0.3]), s9(0.115, V(0.3, 0.2, 0.59), [1.05, 0.9, 0.3])],
+  };
+  for (const [ps, c] of [[parts.fur, 0xb79ae0], [parts.belly, 0xfff3dc], [parts.inner, 0xffc9d8], [parts.pads, 0xfff3dc]]) {
+    const m = new THREE.Mesh(mergeGeometries(ps, false), velvet(c)); m.castShadow = true; g.add(m);
+  }
+  const HEAD = { c: V(0, 1.2, 0), r: V(0.54, 0.475, 0.5) };
+  const onHead = (x, y, sink) => { const nx = x / HEAD.r.x, ny = (y - HEAD.c.y) / HEAD.r.y; return V(x, y, HEAD.r.z * Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny)) - sink); };
+  const eyeMat = new THREE.MeshPhysicalMaterial({ color: 0x120a10, roughness: 0.08, clearcoat: 1, clearcoatRoughness: 0.05 });
+  for (const s of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.068, 32, 24), eyeMat); e.position.copy(onHead(s * 0.2, 1.28, 0.03)); e.lookAt(e.position.clone().multiplyScalar(2).sub(HEAD.c)); e.scale.z = 0.75; g.add(e); }
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.075, 32, 24), velvet(0x3a2420)); nose.position.set(0, 1.13, 0.5); nose.scale.set(1.3, 0.8, 0.6); g.add(nose);
+  return g;
+}
+
+const old = v9Bear(); old.position.set(-2.5, 0, -0.2); old.rotation.y = 0.3; scene.add(old);
+const b = bear(); b.rotation.y = 0.05; scene.add(b);
+const k = cat(); k.position.set(2.5, 0, -0.2); k.rotation.y = -0.3; scene.add(k);
+window.__nan = [];
+for (const [nm, d] of [['old', old], ['bear', b], ['cat', k]]) d.traverse((o) => {
+  if (!o.isMesh) return;
+  if (!o.material.transparent) o.castShadow = true;
+  if ([...o.geometry.attributes.position.array].some(Number.isNaN)) window.__nan.push(nm);
+});
+
+// ---------- 보기 ----------
+const VIEWS = {
+  all: { pos: V(0, 2.3, 10.5), at: V(0, 0.85, 0), label: '셋 다' },
+  bear: { pos: V(0.25, 1.55, 3.7), at: V(0, 0.92, 0), label: '곰 가까이' },
+  cat: { pos: V(2.25, 1.55, 3.6), at: V(2.5, 0.92, -0.2), label: '고양이 가까이' },
+  bearface: { pos: V(0.05, 1.3, 2.1), at: V(0, 1.18, 0), label: '곰 얼굴' },
+  face: { pos: V(2.48, 1.3, 2.0), at: V(2.5, 1.18, -0.2), label: '고양이 얼굴' },
+  side: { pos: V(5.2, 1.6, 2.6), at: V(1.2, 0.8, 0), label: '옆에서' },
+  old: { pos: V(-2.75, 1.55, 3.5), at: V(-2.5, 0.92, -0.2), label: 'v9 가까이' },
+  back: { pos: V(3.6, 1.5, -3.6), at: V(2.5, 0.6, -0.2), label: '고양이 뒤' },
+  paws: { pos: V(2.35, 0.75, 1.75), at: V(2.45, 0.35, -0.1), label: '고양이 발' },
+};
+function setView(name) { const v = VIEWS[name] ?? VIEWS.all; camera.position.copy(v.pos); controls.target.copy(v.at); controls.update(); }
+const vb = document.getElementById('views');
+for (const [name, v] of Object.entries(VIEWS)) { const btn = document.createElement('button'); btn.textContent = v.label; btn.onclick = () => setView(name); vb.append(btn); }
+setView(params.get('view') ?? 'all');
+
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+let frames = 0;
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); if (++frames === 5) window.__ready = true; });
+</script>
+</body>
+</html>
