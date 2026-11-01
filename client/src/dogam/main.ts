@@ -64,10 +64,12 @@ hud.innerHTML = `<h1>인형 도감 시제품 (${ready.length}/24종)</h1>` +
 
 if (kind && q.get('look') === 'variants') {
   // 한 종의 변형: 색 6 · 표정 5 · 체형 3
-  DOLLS[kind].palette.forEach((c, i) => place(kind, { ...PLAIN, color: i, face }, (i - 2.5) * 1.3, -1.5, c.name));
+  DOLLS[kind].palette.forEach((c, i) => place(kind, { ...PLAIN, color: i, face }, (i - 2.5) * 1.3, -2.2, c.name));
   for (let f = 0; f < 5; f++) place(kind, { ...PLAIN, face: f }, (f - 2) * 1.3, 0, `표정 ${f}`);
-  (['n', 'c', 's'] as const).forEach((b, i) => place(kind, { ...PLAIN, body: b, face }, (i - 1) * 1.3, 1.5, { n: '보통', c: '통통', s: '날씬' }[b]));
-  camera.position.set(0, 4.2, 9.5); controls.target.set(0, 0.5, 0);
+  (['n', 'c', 's'] as const).forEach((b, i) => place(kind, { ...PLAIN, body: b, face }, (i - 2) * 1.3, 2.2, { n: '보통', c: '통통', s: '날씬' }[b]));
+  place(kind, { ...PLAIN, face, rare: 'star' }, 1.3, 2.2, '별빛 희귀');
+  place(kind, { ...PLAIN, face, rare: 'gold' }, 2.6, 2.2, '황금');
+  fit(1.1);
 } else if (kind) {
   place(kind, { ...PLAIN, face }, 0, 0, DOLLS[kind].name);
   const views: Record<string, [THREE.Vector3, THREE.Vector3]> = {

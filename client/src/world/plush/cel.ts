@@ -11,8 +11,9 @@ const RIM = `
   float rimF = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.0);
   outgoingLight += diffuseColor.rgb * 0.22 * smoothstep(0.35, 0.5, rimF);
   #include <opaque_fragment>`;
-export function cel(params: THREE.MeshToonMaterialParameters): THREE.MeshToonMaterial {
-  const m = new THREE.MeshToonMaterial({ ...params, gradientMap: CEL, vertexColors: true }); // 꼭짓점 색 = 미리 구운 주름 그늘(무더기에서는 그늘 × 색)
+// vc = 꼭짓점 색(주름 그늘)을 쓰는가 — 꼭짓점 색이 없는 도형(왕관 같은 기본 도형)에 켜면 검게 나온다
+export function cel(params: THREE.MeshToonMaterialParameters, vc = true): THREE.MeshToonMaterial {
+  const m = new THREE.MeshToonMaterial({ ...params, gradientMap: CEL, vertexColors: vc }); // 꼭짓점 색 = 미리 구운 주름 그늘(무더기에서는 그늘 × 색)
   m.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', RIM); };
   m.customProgramCacheKey = () => 'plush-cel';
   m.userData.plush = true;

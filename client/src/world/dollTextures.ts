@@ -105,6 +105,11 @@ const EFFECT_LOOKS: Record<string, { tex: () => THREE.Texture; glow: number; str
   aurora: { tex: auroraTex, glow: 0x5ad6a8, strength: 0.28, spark: 0x9fffd8 },
   cotton: { tex: cottonTex, glow: 0xd68ac0, strength: 0.15, spark: 0xffc8ef },
 };
+// 새 인형(plush)이 셀 음영 재질로 다시 만들 때 쓰는 무늬·빛 값
+export function effectLook(effect: string): { map: THREE.Texture; glow: number; strength: number } {
+  const e = EFFECT_LOOKS[effect] ?? EFFECT_LOOKS.star;
+  return { map: e.tex(), glow: e.glow, strength: e.strength };
+}
 export const effectMaterial = keyed((effect) => {
   const e = EFFECT_LOOKS[effect] ?? EFFECT_LOOKS.star;
   return toonWith({ color: 0xffffff, map: e.tex(), emissive: e.glow, emissiveIntensity: e.strength });
