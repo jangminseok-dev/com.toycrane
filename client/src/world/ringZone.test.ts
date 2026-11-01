@@ -39,3 +39,16 @@ test('the hook tip follows setHook and pokes toward the board', () => {
   expect(inn.z).toBeLessThan(out.z);
   expect(inn.z).toBeGreaterThan(RING.board.z);
 });
+
+// 날아가는 카드는 걸릴 때마다 새로 그린다 — 치울 때 그림·재질·도형을 버려 긴 시간 동안 메모리가 쌓이지 않게(최종 리뷰)
+test('a flying card releases its picture when it is put away', () => {
+  const zone = buildRingZone(new THREE.Scene());
+  const before = new Set(zone.worldOf('R-1').children);
+  zone.flyCard('R-1', ['bear', 1, ''], new THREE.Vector3(0, 1.2, 0));
+  const mesh = zone.worldOf('R-1').children.find((c) => !before.has(c)) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
+  let freed = 0;
+  for (const d of [mesh.geometry, mesh.material, mesh.material.map!]) d.addEventListener('dispose', () => freed++);
+  zone.flyCard('R-1', null, new THREE.Vector3());
+  expect(freed).toBe(3);
+  expect(zone.worldOf('R-1').children).not.toContain(mesh);
+});

@@ -161,7 +161,7 @@ export function buildRingZone(scene: THREE.Scene): RingZone {
     row.tex.needsUpdate = true;
   }
   const unit = (id: string) => { const u = units.get(id); if (!u) throw new Error(`no ring machine ${id}`); return u; };
-  const flying = new Map<string, { mesh: THREE.Mesh; key: string }>();
+  const flying = new Map<string, { mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>; key: string }>();
 
   return {
     setBoard(id, cards) {
@@ -179,9 +179,11 @@ export function buildRingZone(scene: THREE.Scene): RingZone {
     flyCard(id, card, at) {
       const u = unit(id), key = card ? card.join('|') : '';
       let f = flying.get(id);
-      if (!card) { if (f) { u.anchor.remove(f.mesh); flying.delete(id); } return; }
+      // 치우거나 바꿀 때 그 카드의 그림·재질·도형을 버린다(걸릴 때마다 새로 그리므로)
+      const free = (m: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>) => { u.anchor.remove(m); m.geometry.dispose(); m.material.map?.dispose(); m.material.dispose(); };
+      if (!card) { if (f) { free(f.mesh); flying.delete(id); } return; }
       if (!f || f.key !== key) {
-        if (f) u.anchor.remove(f.mesh);
+        if (f) free(f.mesh);
         const tex = canvasTex(SLOT_W, SLOT_H, (g) => drawCard(g, 0, 0, card));
         f = { mesh: new THREE.Mesh(new THREE.PlaneGeometry(RING.card.w, RING.card.h), new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.05 })), key };
         u.anchor.add(f.mesh); flying.set(id, f);
