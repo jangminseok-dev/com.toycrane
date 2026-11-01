@@ -1,4 +1,4 @@
-"""생성 파일 — shared/catalog.json·shared/store_layout.json·shared/claw.json·shared/figure.json을 고치고 scripts/gen_shared.py로 다시 생성한다."""
+"""생성 파일 — shared/catalog.json·shared/store_layout.json·shared/claw.json·shared/figure.json·shared/hook.json을 고치고 scripts/gen_shared.py로 다시 생성한다."""
 
 CATALOG = {'sets': [{'id': 'soft', 'name': '말랑 동물', 'color': '#ff7ab6'},
           {'id': 'forest', 'name': '숲속 친구들', 'color': '#2fbf8f'},
@@ -385,7 +385,7 @@ CLAW = {'base_force': 4.8,
           'panda': 0.94,
           'hamster': 1.2,
           'fox': 1.17,
-          'raccoon': 1.12,
+          'raccoon': 1.0,
           'squirrel': 1.37,
           'owl': 1.37,
           'deer': 0.97,
@@ -393,10 +393,10 @@ CLAW = {'base_force': 4.8,
           'penguin': 1.12,
           'frog': 1.07,
           'duck': 1.12,
-          'seal': 1.15,
+          'seal': 1.03,
           'octopus': 1.17,
-          'whale': 1.21,
-          'chick': 1.12,
+          'whale': 1.08,
+          'chick': 1.0,
           'pig': 0.82,
           'cow': 0.92,
           'dino': 1.29,
@@ -422,3 +422,25 @@ FIGURE = {'_note': '피규어 뽑기 기계 수치(9단계, 설계 2026-11-01-to
  'stuck': {'plays': 8, 'move': 0.004, 'turn': 0.035},
  'nudge': {'shift': [0.003, 0.006], 'twist_deg': [3, 7]},
  'start_jitter': {'shift': 0.006, 'twist_deg': 2}}
+
+HOOK = {'_note': '고리 걸기 기계 수치(설계 2026-11-02 ring-hook §3). 기계 좌표: 앞 +z, 오른쪽 +x, 길이 m. 평평한 선반(뒤 back_z ~ 앞 front_z, 윗면 y) 위에 '
+          '세운 상자 하나, 선반 앞 끝 ~ exit.front_z가 출구. 상자 윗면 가장자리에 고리 판(두께 t, 폭 d)이 glued만큼 붙고, 가장자리 밖으로 접히는 날개(안쪽 테 inner, '
+          '네모 구멍 hole, 바깥 테 outer)가 튀어나온다 — 날개는 위로 fold_max까지 접힌다. 집게는 피규어와 같은 팔 두 개(claw_scale 배), 고리에 걸린 채 집으로 돌아와 '
+          '놓는다',
+ 'shelf': {'y': 0.98, 'half_x': 0.4, 'back_z': -0.3, 'front_z': 0.12},
+ 'exit': {'front_z': 0.4},
+ 'box': {'w': 0.18, 'd': 0.14, 'h': 0.24, 'mass': 0.35},
+ 'ring': {'t': 0.008,
+          'd': 0.09,
+          'glued': 0.04,
+          'inner': 0.03,
+          'hole': 0.05,
+          'outer': 0.03,
+          'flap_mass': 0.01,
+          'fold_max': 1.4},
+ 'claw': {'scale': 1.5, 'arm_w': 0.006, 'close': -0.12},
+ 'power': {'grip': 1.0, 'lift': 1.0, 'carry': 0.6, 'max_lift': 1, 'max_clear': 1},
+ 'hold': {'base': 0.055, 'span': 0.265},
+ 'start': {'z': -0.1, 'shift': 0.02, 'twist_deg': 4},
+ 'stuck': {'plays': 5, 'progress': 0.02, 'lying_plays': 2},
+ 'odds': {'rare': 0.03, 'gold': 0.005}}

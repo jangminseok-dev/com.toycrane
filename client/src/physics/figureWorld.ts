@@ -2,6 +2,7 @@ import type RAPIER from '@dimforge/rapier3d-deterministic-compat';
 import { FIGURE, variantOf, type BoxKind, type Variant } from '../data/figures';
 import type { BoxWire } from '../net/protocol';
 import type { BoxPower, BoxWorld } from './boxWorld';
+import { clawShape, type ClawShape } from './figureClaw';
 import type { Rapier } from './rapier';
 
 // 피규어 기계 속 물리 세계(9단계, 설계 §3.2·§8): 기계 좌표(앞 +z, 오른쪽 +x). 고정 간격 1/120초.
@@ -24,9 +25,10 @@ export class FigureWorld implements BoxWorld {
   readonly variant: Variant;
   readonly dims: { w: number; d: number; h: number };
   readonly power: BoxPower;
-  readonly clawScale: number;
+  readonly clawShape: ClawShape;
   readonly floorY = FIGURE.bars.y - 0.12;
   readonly slipRule = 'corners' as const;
+  readonly carryHome = false;
   time = 0;
   private carry = 0;
   private crossZ: number | null = null; // 상자 가운데가 처음 막대 아래(두께만큼)로 내려간 걸음의 앞뒤 자리
@@ -34,7 +36,7 @@ export class FigureWorld implements BoxWorld {
   constructor(readonly R: Rapier, start: BoxWire, readonly kind: BoxKind) {
     const { bars, guards } = FIGURE, bz = barZ(kind);
     this.variant = variantOf(kind);
-    this.dims = this.variant.box; this.power = this.variant.power; this.clawScale = this.variant.claw_scale;
+    this.dims = this.variant.box; this.power = this.variant.power; this.clawShape = clawShape(this.variant.claw_scale);
     const { box } = this.variant;
     this.world = new R.World({ x: 0, y: -9.81, z: 0 });
     this.world.timestep = FIG_STEP;

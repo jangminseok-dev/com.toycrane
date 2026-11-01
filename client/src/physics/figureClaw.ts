@@ -42,7 +42,7 @@ export class FigureClaw {
   z: number;
 
   constructor(readonly R: Rapier, readonly fw: BoxWorld, x: number, z: number) {
-    const w = fw.world, y = FIGURE.claw.rest_y, S = clawShape(fw.clawScale), { head: HEAD, hinge: HINGE, elbow: ELBOW, tip: TIP, plateT: PLATE_T, plateW: PLATE_W, tipR: TIP_R } = S;
+    const w = fw.world, y = FIGURE.claw.rest_y, S = fw.clawShape, { head: HEAD, hinge: HINGE, elbow: ELBOW, tip: TIP, plateT: PLATE_T, plateW: PLATE_W, tipR: TIP_R } = S;
     const K = S.k, K5 = K ** 5;
     this.x = x; this.z = z;
     this.rail = w.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y, z));
@@ -67,7 +67,7 @@ export class FigureClaw {
       const joint = w.createImpulseJoint(R.JointData.revolute({ x: side * HINGE[0], y: HINGE[1], z: 0 }, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }), this.head, arm, true) as RAPIER.RevoluteImpulseJoint;
       joint.setContactsEnabled(false);
       joint.configureMotorModel(R.MotorModel.ForceBased);
-      joint.setLimits(side > 0 ? -CLOSE : -OPEN, side > 0 ? OPEN : CLOSE);
+      joint.setLimits(side > 0 ? -S.close : -S.open, side > 0 ? S.open : S.close); // 오므림 한도는 모양마다(고리 걸기 팔은 덜 오므린 채 멈춤)
       this.arms.push(arm); this.joints.push(joint);
     }
     this.release();
@@ -96,7 +96,7 @@ export class FigureClaw {
   private drive(open: boolean, force: number): void {
     this.joints.forEach((j, i) => {
       const side = i === 0 ? 1 : -1;
-      j.configureMotorPosition(open ? side * OPEN : -side * CLOSE, STIFF, DAMP);
+      j.configureMotorPosition(open ? side * this.fw.clawShape.open : -side * this.fw.clawShape.close, STIFF, DAMP);
       j.setMotorMaxForce(force);
     });
   }
@@ -130,11 +130,16 @@ export class FigureClaw {
     }
   }
 
+  // 팔(0 오른쪽, 1 왼쪽)과 그 팔 끝의 월드 자리 — 고리 걸기 판정
+  armBody(i: number): RAPIER.RigidBody { return this.arms[i]; }
+  tipLocal(i: number): { x: number; y: number; z: number } { const side = i === 0 ? 1 : -1; return { x: side * this.fw.clawShape.tip[0], y: this.fw.clawShape.tip[1], z: 0 }; }
+
   // 그림·중계용 팔 벌림 0(오므림)~1(벌림)
   armsOpen(): number {
     const a = this.arms.map((arm, i) => {
       const q = arm.rotation(), ang = 2 * Math.atan2(q.z, q.w), side = i === 0 ? 1 : -1;
-      return (side * ang + CLOSE) / (OPEN + CLOSE);
+      const { open, close } = this.fw.clawShape;
+      return (side * ang + close) / (open + close);
     });
     return Math.min(1, Math.max(0, (a[0] + a[1]) / 2));
   }

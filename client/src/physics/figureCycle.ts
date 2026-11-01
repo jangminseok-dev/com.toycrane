@@ -5,6 +5,7 @@ import type { BoxWorld } from './boxWorld';
 import { FIG_STEP } from './figureWorld';
 
 // 피규어 집게 한 바퀴(9단계): 내려감 → 오므림 → 올림 → 잠깐 → 놓음 → 집으로 → 상자가 멈출 때까지.
+// 고리 걸기(carryHome)는 잠깐 뒤 쥔 채 집으로 → 놓음 → 멈출 때까지(진짜 UFO 집게처럼 걸린 상자를 끌고 온다).
 // 걸음마다 집게를 먼저 움직이고 세계를 한 걸음 — 같은 입력이면 같은 결과(결정성). advance는 한 번에 최대 12걸음(밀린 시간은 버림)
 export type FigurePhase = 'descend' | 'close' | 'lift' | 'hold' | 'release' | 'home' | 'settle' | 'done';
 export type FigureCycleOptions = { onTick?: () => void };
@@ -44,7 +45,7 @@ export class FigureCycleRunner {
     const c = this.claw, C = this.world.power; // 그 기계 상자 종류의 집게 힘
     if (phase === 'close') c.grab(C.grip);
     else if (phase === 'lift') { c.watchBox(); c.setPower(C.lift); }
-    else if (phase === 'hold') c.setPower(C.carry);
+    else if (phase === 'hold' || (phase === 'home' && this.world.carryHome)) c.setPower(C.carry);
     else if (phase === 'release') c.release();
   }
 
@@ -62,18 +63,18 @@ export class FigureCycleRunner {
         this.cable = Math.max(0, this.cable - C.descend * FIG_STEP);
         c.setCable(this.cable);
         c.checkSlip();
-        if (this.cable <= 0) this.go('hold');
+        if (this.cable <= 0) this.go(w.carryHome ? 'home' : 'hold'); // 고리 걸기는 다 올라가면 바로 집으로(꼭대기에서 머물면 매달린 상자가 흔들려 빠졌다)
         break;
       case 'hold':
         c.checkSlip();
-        if (t >= HOLD_SECONDS) this.go('release');
+        if (t >= HOLD_SECONDS) this.go(w.carryHome ? 'home' : 'release');
         break;
       case 'release':
-        if (t >= RELEASE_SECONDS) this.go('home');
+        if (t >= RELEASE_SECONDS) this.go(w.carryHome ? 'settle' : 'home');
         break;
       case 'home': {
         const [hx, hz] = C.home, dx = hx - this.x, dz = hz - this.z, d = Math.hypot(dx, dz), s = C.speed * FIG_STEP;
-        if (d <= s) { this.x = hx; this.z = hz; this.go('settle'); } else { this.x += (dx / d) * s; this.z += (dz / d) * s; }
+        if (d <= s) { this.x = hx; this.z = hz; this.go(w.carryHome ? 'release' : 'settle'); } else { this.x += (dx / d) * s; this.z += (dz / d) * s; }
         c.setRail(this.x, this.z);
         break;
       }
@@ -81,6 +82,7 @@ export class FigureCycleRunner {
         if ((t >= SETTLE_MIN && w.still()) || t >= SETTLE_MAX) { this.phase = 'done'; return; }
         break;
     }
+    w.cycle?.(this.phase, c, this.x, this.z);
     w.tick();
     this.opts.onTick?.();
     if (this.phase === 'descend') {
