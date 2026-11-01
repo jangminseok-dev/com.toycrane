@@ -17,6 +17,8 @@ export const DROP_LABEL = '잡기'; // 하강 버튼 윗면 (화살표와 함께
 export const AD_SIGNS = [...AD_SLOTS, ...AD_TOWER].map((s) => s.text); // 광장 광고판 4개(1~4)와 진열탑 전광판 5개(5~9), shared/ads.json
 export const BEGGING = '조르는 중'; // 조르는 사람 이름표 옆
 export const RARE_TAG = { rare: '★ 희귀', gold: '★★ 황금' }; // 희귀가 든 기계 위 이름표
+export const FIGURE_SIGN = '피규어 뽑기'; // 피규어 기계 간판(9단계)
+export const FIGURE_BOX = 'toycrane 피규어 컬렉션'; // 랜덤 상자 윗면 — 캐릭터는 안 보인다
 
 const COUNT = ['', '한', '두', '세', '네', '다섯'];
 const ORDINAL = ['', '첫 번째', '두 번째', '세 번째', '네 번째', '다섯 번째'];
@@ -56,4 +58,4 @@ export const UI = {
     full: '그 사람 코인이 가득 찼어요', self: '나에게는 줄 수 없어요', playing: '한 판이 끝나면 줄 수 있어요',
   } as Record<string, string>,
 };
-export const ALL_COPY = [...Object.values(MACHINE_SIGNS), ...POP_CARDS, STICKER, ...WALL_SIGN, PREP, COUNTER_SIGN, DROP_LABEL, ...AD_SIGNS, ...Object.values(RARE_TAG), '0123456789-ABC'].join('');
+export const ALL_COPY = [...Object.values(MACHINE_SIGNS), ...POP_CARDS, STICKER, ...WALL_SIGN, PREP, COUNTER_SIGN, DROP_LABEL, ...AD_SIGNS, ...Object.values(RARE_TAG), FIGURE_SIGN, FIGURE_BOX, '0123456789-ABCF?!GET'].join('');

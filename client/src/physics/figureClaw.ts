@@ -16,6 +16,8 @@ const PLATE_T = 0.004, PLATE_W = 0.018, TIP_R = 0.008; // 판 두께 반, 판 �
 const ARM_MASS = 0.02;
 const OPEN = 0.35, CLOSE = 0.6; // 경첩 각(rad): 바깥으로 벌림, 안으로 오므림 한도
 const STIFF = 3, DAMP = 0.08, OPEN_FORCE = 0.3;
+// 그림이 물리와 같은 모양이 되게 내보낸다(figureZone)
+export const CLAW_SHAPE = { head: HEAD, hinge: HINGE, elbow: ELBOW, tip: TIP, plateT: PLATE_T, plateW: PLATE_W, tipR: TIP_R, open: OPEN, close: CLOSE };
 const GROUP_CLAW = 0x0002;
 const clawGroups = ((GROUP_CLAW << 16) | (0xffff & ~GROUP_CLAW)) >>> 0; // 집게끼리는 안 부딪힘
 
