@@ -1,18 +1,18 @@
 {
-  "walk_pc": 398,
+  "walk_pc": 509,
   "machine_pc": 103,
   "cycle_pc": 97,
-  "physics_pc_ms": 0.4,
-  "figure_pc": 69,
-  "walk_pc_tri": 2335364,
+  "physics_pc_ms": 0.6,
+  "figure_pc": 73,
+  "walk_pc_tri": 2284798,
   "machine_pc_tri": 342219,
-  "figure_pc_tri": 84548,
-  "walk_phone": 220,
+  "figure_pc_tri": 96536,
+  "walk_phone": 200,
   "machine_phone": 101,
   "cycle_phone": 95,
-  "physics_phone_ms": 0.52,
-  "figure_phone": 69,
-  "walk_phone_tri": 1727366,
+  "physics_phone_ms": 0.83,
+  "figure_phone": 73,
+  "walk_phone_tri": 1721822,
   "machine_phone_tri": 340179,
-  "figure_phone_tri": 84548
+  "figure_phone_tri": 96536
 }

@@ -1,8 +1,8 @@
 // 피규어 뽑기 한 판 e2e (9단계 Task 12): 화면(헤드리스 크롬)이 코인을 받고 F-1 앞에서 한 판 — 조작대 버튼 ①을 0.6초 눌렀다 떼면
 // 옆 대각선 시점으로 넘어가고, ②를 0.5초 눌렀다 떼면 집게가 내려가 물리 한 바퀴를 돌고 done(상자 uid 0)을 보낸다.
 // 관찰자(웹소켓)가 result와 figure(상자 자리만, 경품 없음)를 받고, 그 상자 자리가 화면이 아는 상자와 1cm 안에서 같은지 본다.
-// 사용: 헤드리스 크롬 --remote-debugging-port=<port>, `node client/e2e/figure.mjs <port> <url>`
-const [port, base] = process.argv.slice(2);
+// 사용: 헤드리스 크롬 --remote-debugging-port=<port>, `node client/e2e/figure.mjs <port> <url> [F-1|F-8 …]`
+const [port, base, ID = 'F-1'] = process.argv.slice(2); // 셋째 인자: 기계(F-1 긴 상자, F-8 정사각형 — 설계 §8)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 import { LAYOUT, frontOf, walk } from './nav.mjs';
 const post = (p, b) => fetch(base + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }).then((r) => r.json());
@@ -35,10 +35,10 @@ const hold = async (b, secs) => {
   return 'ok';
 };
 
-// 1) 코인 받기 → F-1 앞
+// 1) 코인 받기 → 기계 앞
 await walk(key, posOf, { x: LAYOUT.counters[1].window[0], z: LAYOUT.counters[1].window[1] }); await sleep(500);
 await click('코인 받기'); await sleep(900);
-await walk(key, posOf, frontOf('F-1')); await sleep(500);
+await walk(key, posOf, frontOf(ID)); await sleep(500);
 let ready = false;
 for (let i = 0; i < 100 && !ready; i++) { const b = await buttons(); ready = b.some((x) => x.includes('한 판 하기')) && !(await ev("document.body.innerText.includes('준비 중')")); if (!ready) await sleep(300); }
 console.log('buttons', JSON.stringify(await buttons()), 'ready', ready);
@@ -49,9 +49,9 @@ console.log('one', await hold(1, 0.6)); await sleep(900);
 const side = await ev('window.__toycrane.figureSide()');
 console.log('side', side);
 console.log('two', await hold(2, 0.5));
-let result, fig; for (let i = 0; i < 600 && !(result && fig); i++) { result = seen.slice(n0).find((m) => m.t === 'result' && m.m === 'F-1' && m.id === me.id); fig = seen.slice(n0).find((m) => m.t === 'figure' && m.m === 'F-1'); await sleep(50); }
+let result, fig; for (let i = 0; i < 600 && !(result && fig); i++) { result = seen.slice(n0).find((m) => m.t === 'result' && m.m === ID && m.id === me.id); fig = seen.slice(n0).find((m) => m.t === 'figure' && m.m === ID); await sleep(50); }
 await sleep(800);
-const box = await ev("JSON.stringify(window.__toycrane.figureBox('F-1'))").then((s) => JSON.parse(s ?? 'null'));
+const box = await ev(`JSON.stringify(window.__toycrane.figureBox('${ID}'))`).then((s) => JSON.parse(s ?? 'null'));
 const figs = seen.filter((m) => m.t === 'figure'), clean = figs.every((m) => Object.keys(m).sort().join() === 'box,m,nudged,t' && m.box.every((v) => typeof v === 'number'));
 const welcomeFigs = seen.find((m) => m.t === 'welcome')?.figures ?? {};
 const welcomeClean = Object.values(welcomeFigs).every((b) => Array.isArray(b) && b.length === 7 && b.every((v) => typeof v === 'number'));
@@ -59,5 +59,5 @@ const close = fig && box && Math.hypot(fig.box[0] - box[0], fig.box[1] - box[1],
 console.log('result', JSON.stringify(result && { won: result.won }), 'figure', JSON.stringify(fig?.box), 'screen', JSON.stringify(box), 'clean', clean, welcomeClean);
 console.log('errors', errors.slice(0, 3).join(' | ') || '-');
 const ok = ready && side > 0.9 && !!result && !!fig && close && clean && welcomeClean && errors.length === 0;
-console.log(ok ? 'PASS figure' : 'FAIL figure');
+console.log(ok ? `PASS figure ${ID}` : `FAIL figure ${ID}`);
 await fetch(`http://127.0.0.1:${port}/json/close/${t.id}`); watcher.close(); process.exit(ok ? 0 : 1);
