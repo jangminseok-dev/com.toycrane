@@ -97,6 +97,21 @@ describe.each(['long', 'square'] as const)('%s box', (kind) => {
   });
 });
 
+// 앞판을 넘어 기계 밖으로 날아간 상자는 당첨이 아니다(설계 §8.2 'GET 쪽으로만', 최종 리뷰 I1) — 지금 집게로는 이만한 속도가 안 나지만(시뮬 최고 1.34m/s)
+// 막대 아래로 내려가는 곳이 두 막대 사이가 아니면 빠진 것으로 세지 않는다
+test('a box thrown over the front plate is not a win', () => {
+  for (const kind of ['long', 'square'] as const) {
+    const B = variantOf(kind).box, start = lying(kind);
+    start[1] = bars.y + 0.12; start[2] = barZ(kind) + guards.front + B.h / 2 + 0.02; // 앞판 바로 바깥 위
+    const w = new FigureWorld(R, start, kind);
+    w.box.setLinvel({ x: 0, y: 0, z: 0.5 }, true);
+    settle(w, 3);
+    expect(w.boxPose()[1], kind).toBeLessThan(bars.y - variantOf(kind).box.h); // 정말 막대 아래로 떨어졌고
+    expect(w.fallen(), kind).toBe(false); // 그래도 당첨이 아니다
+    w.dispose();
+  }
+});
+
 // 정사각형은 누운 채로는 어떻게 돌려도 두 막대에 걸친다(설계 §8.3) — 옆으로 세우거나 크게 기울여야 빠진다
 test('a lying square box stays on the bars at any turn', () => {
   for (const yaw of [0, 20, 45, 70]) {

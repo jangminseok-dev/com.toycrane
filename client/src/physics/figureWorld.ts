@@ -23,6 +23,7 @@ export class FigureWorld {
   readonly variant: Variant;
   time = 0;
   private carry = 0;
+  private crossZ: number | null = null; // 상자 가운데가 처음 막대 아래(두께만큼)로 내려간 걸음의 앞뒤 자리
 
   constructor(readonly R: Rapier, start: BoxWire, readonly kind: BoxKind) {
     const { bars, guards } = FIGURE, bz = barZ(kind);
@@ -54,6 +55,10 @@ export class FigureWorld {
   tick(): void {
     this.world.step();
     this.time += FIG_STEP;
+    if (this.crossZ === null) {
+      const p = this.box.translation();
+      if (p.y < FIGURE.bars.y - this.variant.box.d) this.crossZ = p.z;
+    }
   }
 
   // 집게 없이 흘러가게(판 사이·시험): 한 번에 최대 4걸음, 넘치는 시간은 버린다
@@ -69,9 +74,11 @@ export class FigureWorld {
     return [p.x, p.y, p.z, q.x, q.y, q.z, q.w];
   }
 
-  // 상자가 막대 사이로 빠졌나 — 상자 가운데가 막대보다 상자 길이만큼 아래(앞뒤 틈은 상자 두께보다 좁아 막대 사이로만 갈 수 있다)
+  // 상자가 막대 사이로 빠졌나 — 상자 가운데가 막대보다 상자 길이만큼 아래이고, 막대 아래로 내려간 곳이 두 막대 사이(기울어 빠질 때의
+  // 여유 앞판까지 거리의 반). 앞뒤 틈은 상자 두께보다 좁지만, 앞판을 넘어 밖으로 떨어진 상자는 당첨이 아니다(설계 §8.2, 최종 리뷰 I1)
   fallen(): boolean {
-    return this.box.translation().y < FIGURE.bars.y - this.variant.box.h;
+    const inside = this.crossZ !== null && Math.abs(this.crossZ) < barZ(this.kind) + FIGURE.guards.front / 2;
+    return inside && this.box.translation().y < FIGURE.bars.y - this.variant.box.h;
   }
 
   still(): boolean {

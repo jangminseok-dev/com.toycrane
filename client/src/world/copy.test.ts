@@ -40,3 +40,8 @@ test('copy reads naturally', () => {
   expect(AD_SIGNS).toHaveLength(9);
   expect(AD_SIGNS[0]).toBe('광고문의1');
 });
+
+// 직원 도움은 낀 상자를 반듯이 다시 올려놓는다(설계 §8 개정) — 상자가 가운데로 옮겨지니 안내도 그대로 말한다(최종 리뷰 I2)
+test('the staff help toast says the box was put back', () => {
+  expect(UI.figureNudged).toBe('직원이 상자를 다시 올려놓아 줬어요');
+});
