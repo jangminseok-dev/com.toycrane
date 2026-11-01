@@ -37,7 +37,8 @@ const buttons = () => ev("[...document.querySelectorAll('button')].filter((x) =>
 const openBag = async () => { await ev("document.querySelector('.hud-bag').click()"); for (let i = 0; i < 40; i++) { const s = await ev("document.querySelector('.bag-list')?.innerText ?? null"); if (s !== null) return s; await sleep(100); } return null; };
 const closeBag = () => click('닫기');
 
-// 1) 빈 가방
+// 1) 빈 가방 — 가방 칸은 화면이 welcome을 받아야 생긴다(관찰자의 join이 먼저 올 수 있음)
+for (let i = 0; i < 100 && !(await ev("!!document.querySelector('.hud-bag')")); i++) await sleep(100);
 const empty = await openBag(); await closeBag();
 console.log('empty bag', JSON.stringify(empty));
 // 2) 코인 15개 → 기계 앞
