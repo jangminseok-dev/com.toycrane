@@ -86,9 +86,9 @@ if (kind && q.get('look') === 'variants') {
   const rows = SETS.filter((s) => !set || s.id === set);
   rows.forEach((s, r) => {
     const ids = Object.keys(DOLLS).filter((id) => DOLLS[id].set === s.id && SPECIES[id]);
-    ids.forEach((id, i) => place(id, { ...PLAIN, face }, (i - 2.5) * 1.5, (r - (rows.length - 1) / 2) * 2.2, DOLLS[id].name));
+    ids.forEach((id, i) => place(id, { ...PLAIN, face }, (i - 2.5) * 1.5, (r - (rows.length - 1) / 2) * 3.2, DOLLS[id].name));
   });
-  fit(0.35);
+  fit(rows.length > 1 ? 0.6 : 0.35);
 }
 controls.update();
 
