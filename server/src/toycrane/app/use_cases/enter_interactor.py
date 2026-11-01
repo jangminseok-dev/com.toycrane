@@ -16,6 +16,7 @@ from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
 from toycrane.app.ports.output.wallet_port import WalletPort
 from toycrane.app.use_cases.connection_cleanup import release_connection
 from toycrane.app.use_cases.figure_boxes import ensure_figures
+from toycrane.domain.hook import HOOK_RULES
 from toycrane.app.use_cases.machine_contents import ensure_contents
 from toycrane.app.use_cases.occupancy_note import note_occupancy
 from toycrane.domain.entities.player import Player
@@ -40,6 +41,7 @@ class EnterInteractor(EnterUseCase):
         bag: BagPort,
         contents: MachineContentsPort,
         figures: FigureBoxesPort,
+        hooks: FigureBoxesPort,
         locks: PlayLockPort,
         rng: random.Random,
     ) -> None:
@@ -51,6 +53,7 @@ class EnterInteractor(EnterUseCase):
         self._bag = bag
         self._contents = contents
         self._figures = figures
+        self._hooks = hooks
         self._locks = locks
         self._rng = rng
 
@@ -60,6 +63,7 @@ class EnterInteractor(EnterUseCase):
         bag = await _or_zero(self._bag.total(cmd.guest_id))
         stocks = await ensure_contents(self._contents, self._rng)
         figures = await ensure_figures(self._figures, self._rng)
+        hooks = await ensure_figures(self._hooks, self._rng, HOOK_RULES)  # 고리 걸기 상자도 같은 형식으로(welcome figures)
         for conn_id, old in self._registry.entries():
             if old.guest_id == cmd.guest_id:
                 # 같은 게스트의 이전 접속(네트워크가 바뀜·다른 탭): 하던 기계·줄을 정리하고 내보낸다
@@ -84,7 +88,7 @@ class EnterInteractor(EnterUseCase):
             bag=bag,
             machines={m: s.dolls for m, s in stocks.items()},
             plays=self._locks.plays(),
-            figures={m: s.box for m, s in figures.items()},
+            figures={m: s.box for m, s in {**figures, **hooks}.items()},
         )
         self._connections.send_welcome(cmd.conn_id, cmd.store_no, you, list(result.others), snapshot)
         self._connections.broadcast_join(cmd.conn_id, you)

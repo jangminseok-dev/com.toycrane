@@ -42,17 +42,18 @@ const random: Player = (_w, rand) => [home[0] + rand() * (hx - home[0]), -hz + r
 // 한 상자를 뽑을 때까지 판수(CAP판까지)
 function playsToWin(player: Player, seed: number): number {
   const rand = rng(seed), side = SIDES[seed % SIDES.length];
-  let box: BoxWire = hookStart(rand), still = 0, lying = 0, best = box[2];
+  let box: BoxWire = hookStart(rand), still = 0;
   for (let n = 1; n <= CAP; n++) {
     const w = new HookWorld(R, box, side);
     const [x, z] = player(w, rand);
     const r = runFigureCycle(w, new FigureClaw(R, w, x, z), x, z);
     w.dispose();
     if (r.won) return n;
-    // 직원: 8판 동안 출구 쪽(+z)으로 2cm도 못 나왔거나, 3판 동안 쓰러져(고리가 위를 못 봄) 있으면 처음 자리에 반듯이 세운다(서버 hook.py after_play)
-    if (r.box[2] > best + HOOK.stuck.progress) { best = r.box[2]; still = 0; } else still++;
-    lying = isLying(r.box) ? lying + 1 : 0;
-    if (still >= HOOK.stuck.plays || lying >= HOOK.stuck.lying_plays) { box = hookStart(rand); best = box[2]; still = 0; lying = 0; } else box = r.box;
+    // 직원(서버 hook.py after_play와 같은 규칙): 출구 쪽(+z)으로 progress만큼 못 나온 판이 plays번, 또는 쓰러진 판이 lying_plays번 이어지면
+    // 처음 자리에 반듯이 세운다(쓰러진 판도 still에 셈)
+    const lying = isLying(r.box);
+    still = !lying && r.box[2] > box[2] + HOOK.stuck.progress ? 0 : still + 1;
+    if (still >= HOOK.stuck.plays || (lying && still >= HOOK.stuck.lying_plays)) { box = hookStart(rand); still = 0; } else box = r.box;
   }
   return CAP + 1;
 }

@@ -75,6 +75,7 @@ def test_every_window_is_reachable_from_the_hub():
 # 9단계 피규어 뽑기: 동쪽 14대(F-1~F-14), 광장 쪽(−x)을 봄 — 화면과 같은 공용 배치
 def test_figures_come_from_shared_layout():
     assert shared_data.FIGURE == json.loads((SHARED / "figure.json").read_text(encoding="utf-8"))
+    assert shared_data.HOOK == json.loads((SHARED / "hook.json").read_text(encoding="utf-8"))
     from toycrane.domain.layout import FIGURES, front_spot, machine_spot
 
     assert len(FIGURES) == 14

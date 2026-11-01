@@ -19,7 +19,7 @@ from toycrane.app.use_cases.stock_interactor import StockInteractor
 def enter_interactor(reg=None, conns=None, occ=None, new_id=lambda: "p-1", wallet=None, bag=None, contents=None, locks=None):
     return EnterInteractor(
         reg or FakeRegistry(), conns or FakeConnections(), occ or FakeOccupancy(), new_player_id=new_id,
-        wallet=wallet or FakeWallet(), bag=bag or FakeBag(), contents=contents or FakeContents(), figures=FakeFigureBoxes(),
+        wallet=wallet or FakeWallet(), bag=bag or FakeBag(), contents=contents or FakeContents(), figures=FakeFigureBoxes(), hooks=FakeFigureBoxes(),
         locks=locks or FakeLocks(), rng=random.Random(1),
     )
 
@@ -158,3 +158,11 @@ async def test_enter_sees_the_caught_up_stock():
     await enter_interactor(conns=conns, contents=contents).enter(cmd("c-1", "g-1", now=4000.0))
     welcome = next(m for c, m in conns.direct if m["t"] == "welcome")
     assert len(welcome["machines"]["A-1"]) == 9
+
+
+# 고리 걸기(계획 12 Task 7): welcome의 상자 기계 자리에 고리 걸기 상자(R-1~R-10)도 — 피규어 상자와 같은 형식
+async def test_welcome_carries_hook_boxes():
+    conns = FakeConnections()
+    await enter_interactor(conns=conns).enter(cmd("c-1", "g-1"))
+    (_, msg), = conns.direct
+    assert {f"R-{i}" for i in range(1, 11)} <= set(msg["figures"]) and "F-1" in msg["figures"]

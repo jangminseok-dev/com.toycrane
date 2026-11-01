@@ -112,3 +112,23 @@ async def test_box_done_uses_the_given_rules_and_zone():
     await it.done(DoneCommand("c-1", "F-1", report(FELL, won=True), now=20.0))
     assert calls == [("check", "F-1"), ("after", "F-1")]
     assert bag.added[0][4] == "ring"
+
+
+# 고리 걸기(계획 12 Task 7): 같은 판 보고 길, 규칙은 HOOK_RULES — 출구로 빠지면 피규어 경품이 가방 구역 'ring'으로, 선반 위인데 당첨이면 거절
+async def test_hook_done_wins_into_zone_ring_and_refuses_a_shelf_win():
+    from toycrane.domain.hook import HOOK_RULES, start_box as hook_start
+    from toycrane.domain.shared_data import HOOK
+
+    reg, conns, bag = FakeRegistry(), FakeConnections(), FakeBag()
+    locks = FakeLocks({"c-1": "p1"})
+    reg.put("c-1", player("p1", guest="g-1"))
+    hooks = FakeFigureBoxes({"R-1": FigureState(hook_start(random.Random(1), "R-1"), 0)})
+    it = FigureDoneInteractor(reg, locks, hooks, bag, conns, rules=HOOK_RULES, rng=random.Random(5))
+    on_shelf = (0.0, HOOK["shelf"]["y"] + HOOK["box"]["h"] / 2, -0.1, 0.0, 0.0, 0.0, 1.0)
+    locks.lock("c-1", "R-1", 10.0)
+    await it.done(DoneCommand("c-1", "R-1", report(on_shelf, won=True), now=20.0))
+    assert bag.added == [] and conns.direct[-1][1]["t"] == "done_no"
+    locks.lock("c-1", "R-1", 30.0)
+    fell = (0.0, HOOK["shelf"]["y"] - HOOK["box"]["h"], 0.3, 0.0, 0.0, 0.0, 1.0)
+    await it.done(DoneCommand("c-1", "R-1", report(fell, won=True), now=40.0))
+    assert len(bag.added) == 1 and bag.added[0][4] == "ring"
