@@ -8,7 +8,7 @@ from toycrane.app.ports.output.machine_contents_port import MachineContentsPort
 from toycrane.app.ports.output.play_lock_port import PlayLockPort
 from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
 from toycrane.app.use_cases.machine_contents import ensure_contents
-from toycrane.domain.play_rules import expired
+from toycrane.app.use_cases.report_lock import take_report
 from toycrane.domain.report import check_report, won_dolls, won_views
 from toycrane.domain.stock import due
 
@@ -30,18 +30,7 @@ class DoneInteractor(DoneUseCase):
         self._rng = random.Random()  # 저장된 기계가 없을 때만(배포 직후) 새로 채우는 데 쓴다
 
     def _take(self, cmd: DoneCommand):
-        """보고를 받아 줄 수 있으면 (me, machine_id)를 돌려주고 잠금을 판 사이로 바꾼다 — 두 번째 보고는 무시되고, 이어서 할 자리는 남는다."""
-        lock = self._locks.lock_of(cmd.conn_id)
-        me = dict(self._registry.entries()).get(cmd.conn_id)
-        if lock is None or me is None or self._locks.is_between(cmd.conn_id) or lock[0] != cmd.machine_id:
-            return None
-        machine_id, started = lock
-        if expired(started, cmd.now):
-            self._locks.release(cmd.conn_id)
-            self._connections.broadcast_free(machine_id)
-            return None
-        self._locks.hold(cmd.conn_id, machine_id, cmd.now)
-        return me, machine_id
+        return take_report(cmd, self._registry, self._locks, self._connections)
 
     async def refuse(self, cmd: DoneCommand) -> None:
         if self._take(cmd) is not None:
