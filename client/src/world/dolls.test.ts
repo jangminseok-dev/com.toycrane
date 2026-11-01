@@ -21,6 +21,12 @@ test('every catalog doll builds a new plush model', () => {
 test('lite dolls use fewer triangles', () => {
   expect(tris(makeDoll('bear', PLAIN, true)!)).toBeLessThan(tris(makeDoll('bear')!) / 3);
 }, 60_000);
+// 기계 속 무더기(216마리)용 판은 휴대폰 삼각형 수를 지킨다 (인형 리뉴얼 Task 14: 평균 16,213이던 것을 큰 덩어리는 그대로 두고 팔·다리·작은 공만 낮춤)
+test('pile dolls stay light on triangles', () => {
+  const counts = Object.keys(DOLLS).map((id) => tris(makeDoll(id, PLAIN, true)!));
+  expect(counts.reduce((a, b) => a + b, 0) / counts.length).toBeLessThan(9000);
+  expect(Math.max(...counts)).toBeLessThan(13000);
+}, 60_000);
 test('unknown doll id gives null', () => expect(makeDoll('nope')).toBeNull());
 
 test('round dolls and head spheres come from the species', () => {

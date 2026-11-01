@@ -44,10 +44,21 @@ export class PlushBuilder {
   protected parts: Part[] = [];
   protected paints: Paint[] = [];
   protected stitches: Stitch[] = [];
-  protected seg: { sphere: [number, number]; tube: [number, number]; lathe: number; curve: number };
+  protected seg: { sphere: [number, number]; tube: [number, number]; cap: [number, number]; lathe: number; curve: number };
 
+  // lite(기계 속 무더기 216마리): 휴대폰 삼각형 수 때문에 팔·다리·꼬리(관)와 작은 공은 면을 낮춘다. 머리·몸 같은 큰 덩어리(돌림체, 큰 공)는
+  // 기계 앞에서 화면 반을 차지해 테두리가 각져 보이므로 그대로. 관 끝 막음 공은 절반이 관 속에 묻혀 더 낮게
   constructor(readonly o: { lite: boolean }) {
-    this.seg = o.lite ? { sphere: [16, 12], tube: [24, 10], lathe: 24, curve: 16 } : { sphere: [48, 36], tube: [48, 32], lathe: 64, curve: 48 };
+    this.seg = o.lite
+      ? { sphere: [16, 12], tube: [12, 9], cap: [9, 7], lathe: 24, curve: 16 }
+      : { sphere: [48, 36], tube: [48, 32], cap: [48, 36], lathe: 64, curve: 48 };
+  }
+
+  // 공의 면 나눔: lite에서 가장 긴 반지름이 0.14 미만(가시·코·볼록이)이면 [8, 6], 0.4 미만(귀·손·발·볼)이면 [12, 9], 그보다 크면(머리·몸) 그대로
+  private sphereSeg(r: number, scale: V3): [number, number] {
+    const big = r * Math.max(...scale);
+    if (!this.o.lite || big >= 0.4) return this.seg.sphere;
+    return big < 0.14 ? [8, 6] : [12, 9];
   }
 
   private add(geo: THREE.BufferGeometry, balls: Hit[], occ: Occ[], o: PartOpts = {}, defaultHit: 'solid' | 'ear' | 'none' = 'solid', head?: { c: number; r: number }): this {
@@ -58,7 +69,7 @@ export class PlushBuilder {
   // 공(타원체). 부딪힘 공: 긴 축이 둘째 축의 1.31배 이하면 하나(반지름 = 긴 두 축 평균 × 0.95),
   // 더 길쭉하면 긴 축을 따라 셋(옆으로 넓은 고양이 머리처럼 — 공 하나면 양끝이 밖으로 샌다)
   sphere(r: number, at: V3, scale: V3 = [1, 1, 1], rot: V3 = [0, 0, 0], o?: PartOpts): this {
-    const g = new THREE.SphereGeometry(r, ...this.seg.sphere);
+    const g = new THREE.SphereGeometry(r, ...this.sphereSeg(r, scale));
     g.scale(...scale);
     const turn = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...rot));
     g.applyMatrix4(turn);
@@ -78,7 +89,7 @@ export class PlushBuilder {
   nub(r: number, at: [number, number], scale: V3 = [1, 1, 1], o: PartOpts = {}): this {
     const meshes = this.parts.map((q) => new THREE.Mesh(q.geo));
     const { p, n } = surfaceAt(meshes, at[0], at[1]);
-    const g = new THREE.SphereGeometry(r, ...this.seg.sphere);
+    const g = new THREE.SphereGeometry(r, ...this.sphereSeg(r, scale));
     g.scale(...scale);
     g.applyMatrix4(new THREE.Matrix4().lookAt(new THREE.Vector3(), n.clone().negate(), UP));
     g.translate(p.x, p.y, p.z);
@@ -118,7 +129,7 @@ export class PlushBuilder {
     const m = Math.max(2, Math.ceil(len / 0.07));
     const occ = Array.from({ length: m + 1 }, (_, i) => ({ c: curve.getPointAt(i / m), r: r * taper(i / m) }));
     // 양끝을 같은 굵기의 공으로 막는다 — 열린 관 끝이 구멍처럼 보이지 않게 (외곽선 껍질도 함께 닫힌다)
-    const caps = [0, 1].map((t) => { const c = new THREE.SphereGeometry(r * taper(t), ...this.seg.sphere); const at = curve.getPointAt(t); c.translate(at.x, at.y, at.z); return c; });
+    const caps = [0, 1].map((t) => { const c = new THREE.SphereGeometry(r * taper(t), ...this.seg.cap); const at = curve.getPointAt(t); c.translate(at.x, at.y, at.z); return c; });
     const merged = merge([g, ...caps]);
     return this.add(merged, balls, occ, o);
   }

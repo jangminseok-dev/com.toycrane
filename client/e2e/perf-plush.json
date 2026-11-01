@@ -1,0 +1,14 @@
+{
+  "walk_pc": 532,
+  "machine_pc": 254,
+  "cycle_pc": 248,
+  "physics_pc_ms": 0.55,
+  "walk_pc_tri": 2256433,
+  "machine_pc_tri": 1611948,
+  "walk_phone": 314,
+  "machine_phone": 153,
+  "cycle_phone": 147,
+  "physics_phone_ms": 1.41,
+  "walk_phone_tri": 1599940,
+  "machine_phone_tri": 529404
+}
