@@ -1,5 +1,5 @@
 import type { Body, DollLook } from '../net/protocol';
-import { makePlush, plushShape } from './plush';
+import { makePlush, plushShape, type Detail } from './plush';
 import type { Hit } from './plush/kit';
 import { SPECIES } from './plush/species';
 import type * as THREE from 'three';
@@ -25,7 +25,7 @@ export function headOf(id: string): { c: number; r: number } {
 
 // lite = 기계 속 무더기·진열장용: 면 수를 낮추고 잔 자수(수염·발가락 줄)를 뺀다(얼굴·입은 남긴다).
 // 목록에 없는 id는 null (배포로 목록이 바뀐 뒤 저장된 배치에 남은 인형). 희귀 반짝이는 userData.spin으로 돌릴 것을 알려 준다
-export function makeDoll(id: string, look: DollLook = PLAIN, lite = false): THREE.Group | null {
+export function makeDoll(id: string, look: DollLook = PLAIN, lite: Detail = false): THREE.Group | null {
   return makePlush(id, look, lite)?.group ?? null;
 }
 

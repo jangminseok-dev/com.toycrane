@@ -408,6 +408,9 @@ test('four pusher machines draw within the phone budget', () => {
   const draws = (name: string) => { let n = 0; scene.getObjectByName(name)!.traverseVisible((o) => { if ((o as THREE.Mesh).isMesh || (o as THREE.LineSegments).isLineSegments) n++; }); return n; };
   expect(draws('big-p1')).toBeGreaterThan(0);
   expect(draws('big-p1')).toBeLessThanOrEqual(draws('big-d1'));
+  // 삼각형도: 미니 인형 112개(낮은 면)가 인형 기계 한 줄(72개)보다 가볍다 — 휴대폰 걷기 180만 관문
+  const tris = (name: string) => { let n = 0; scene.getObjectByName(name)!.traverseVisible((o) => { const m = o as THREE.Mesh; if (m.isMesh) n += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3 * ((m as THREE.InstancedMesh).isInstancedMesh ? (m as THREE.InstancedMesh).count : 1); }); return n; };
+  expect(tris('big-p1')).toBeLessThanOrEqual(tris('big-d1'));
 }, 120_000);
 
 // 미는 판은 판 사이에도 벽시계(모든 화면이 같은 박자)로 턱 깊이의 3분의 1을 오가고, 한 판 중엔 그 화면의 물리 판 자리를 따른다
@@ -428,4 +431,19 @@ test('pusher plates slide with the clock and follow the world while playing', ()
     zone.plateAt('P-2', null); zone.update(1.7);
     expect(front(1)).toBeCloseTo(plateFront(1.5), 3);
   } finally { vi.useRealTimers(); }
+});
+
+// 미니 인형 외곽선은 10m 안에서만(인형 기계는 18m) — 높이 빠진 걷기 카메라에선 1픽셀도 안 되는데 삼각형은 미는 뽑기 줄의 절반이다
+test('pusher blocks drop their mini doll outlines sooner', () => {
+  const scene = new THREE.Scene(), zone = buildBigZone(scene);
+  zone.setContents('P-1', nineDolls('bear', 0));
+  fill(zone);
+  const block = scene.getObjectByName('dolls-big-p1-0')!;
+  const outlines = () => (block.children as THREE.Mesh[]).filter((m) => (m.material as THREE.Material).side === THREE.BackSide);
+  const p = PUSHERS[0], q = PUSHERS[1], cx = (p.x + q.x) / 2;
+  zone.setFocus(cx, p.z + 8);
+  expect(outlines().length).toBeGreaterThan(0);
+  expect(outlines().every((m) => m.visible)).toBe(true);
+  zone.setFocus(cx, p.z + 13); // 인형 기계라면 아직 그리는 거리
+  expect(outlines().every((m) => !m.visible)).toBe(true);
 });

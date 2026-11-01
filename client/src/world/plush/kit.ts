@@ -52,17 +52,21 @@ export class PlushBuilder {
   protected seg: { sphere: [number, number]; tube: [number, number]; cap: [number, number]; lathe: number; curve: number };
 
   // lite(기계 속 무더기 216마리): 휴대폰 삼각형 수 때문에 팔·다리·꼬리(관)와 작은 공은 면을 낮춘다. 머리·몸 같은 큰 덩어리(돌림체, 큰 공)는
-  // 기계 앞에서 화면 반을 차지해 테두리가 각져 보이므로 그대로. 관 끝 막음 공은 절반이 관 속에 묻혀 더 낮게
-  constructor(readonly o: { lite: boolean }) {
-    this.seg = o.lite
-      ? { sphere: [16, 12], tube: [12, 9], cap: [9, 7], lathe: 24, curve: 16 }
-      : { sphere: [48, 36], tube: [48, 32], cap: [48, 36], lathe: 64, curve: 48 };
+  // 기계 앞에서 화면 반을 차지해 테두리가 각져 보이므로 그대로. 관 끝 막음 공은 절반이 관 속에 묻혀 더 낮게.
+  // mini(미는 뽑기 미니 인형, 크기 0.18 — 네 대에 112개): 큰 덩어리까지 더 낮춘다(lite의 절반 이하 삼각형, 휴대폰 걷기 180만 관문)
+  constructor(readonly o: { lite: boolean; mini?: boolean }) {
+    this.seg = o.mini
+      ? { sphere: [14, 10], tube: [7, 6], cap: [6, 5], lathe: 18, curve: 10 }
+      : o.lite
+        ? { sphere: [16, 12], tube: [12, 9], cap: [9, 7], lathe: 24, curve: 16 }
+        : { sphere: [48, 36], tube: [48, 32], cap: [48, 36], lathe: 64, curve: 48 };
   }
 
   // 공의 면 나눔: lite에서 가장 긴 반지름이 0.14 미만(가시·코·볼록이)이면 [8, 6], 0.4 미만(귀·손·발·볼)이면 [12, 9], 그보다 크면(머리·몸) 그대로
   private sphereSeg(r: number, scale: V3): [number, number] {
     const big = r * Math.max(...scale);
     if (!this.o.lite || big >= 0.4) return this.seg.sphere;
+    if (this.o.mini) return big < 0.14 ? [6, 4] : [8, 6];
     return big < 0.14 ? [8, 6] : [12, 9];
   }
 

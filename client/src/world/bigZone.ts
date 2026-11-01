@@ -58,17 +58,18 @@ const SPOTS: ZoneSpot[] = [
   ...PUSHERS.map((p, index) => ({ id: p.id, x: p.x, z: p.z, ry: p.ry, row: 'p1', pusher: true, index })),
 ];
 type Row = { group: THREE.Group; cloner: ReturnType<typeof materialCloner>; spots: ZoneSpot[] };
-type Block = { row: Row; group: THREE.Group; spots: ZoneSpot[]; dirty: boolean; far: boolean };
+type Block = { row: Row; group: THREE.Group; spots: ZoneSpot[]; dirty: boolean; far: boolean; farDist: number };
 // 내 자리에서 이만큼(m) 넘게 먼 묶음은 인형 외곽선 덩어리를 그리지 않는다 — 몇 픽셀이라 티가 안 나고 삼각형이 절반 가까이 준다 (큰 홀 설계 §6).
 // 경계에서 깜빡이지 않게 1m 여유
-const FAR_DIST = 18, FAR_SLACK = 1;
+// 미는 뽑기 미니 인형은 10m — 작아서 1픽셀도 안 되는데 외곽선이 그 줄 삼각형의 절반이다
+const FAR_DIST = 18, PUSHER_FAR_DIST = 10, FAR_SLACK = 1;
 // live 모드: 인형 하나하나를 따로 그리는 메시 (set으로 자세를 입히고, 없어진 번호는 지운다)
 export type LiveDolls = { set(uid: number, p: [number, number, number], q: [number, number, number, number]): void; remove(uid: number): void; dispose(): void };
 type Unit = {
   row: Row; block: Block; anchor: THREE.Group; claw: THREE.Group; idle: THREE.Mesh; rig: ClawRig | null;
   led: THREE.Mesh; contents: DollSpot[]; flashUntil: number; gold: boolean; bulbStart: number;
   live: Live | null; baked: number[]; rare: '' | 'rare' | 'gold';
-  scale: number; plateZ: number | null; // 인형 크기(미는 뽑기는 미니), 미는 판을 물리에 맞출 때의 앞면 z
+  scale: number; mini: boolean; plateZ: number | null; // 인형 크기(미는 뽑기는 미니, 낮은 면), 미는 판을 물리에 맞출 때의 앞면 z
 };
 // live 모드의 속: 인형마다 자세(빈 Object3D, userData.uid)와 재질별로 합쳐 둔 꼭짓점 범위. 매 프레임 바뀐 인형의 범위만 다시 옮겨 쓴다 —
 // 인형 9개를 따로 그리면 메시 70여 개(뒷판 모니터까지 두 번)라 휴대폰 그리기 예산을 넘긴다. 합치면 재질 수(2~4)만큼만 그린다
@@ -84,18 +85,19 @@ const rigPool: ClawRig[] = [];
 // 빛나지 않는 툰 칠 부품은 색을 꼭짓점 색으로 옮겨 공용 재질(무늬 없으면 DOLL_VC, 다람쥐 줄무늬처럼 무채색 무늬면 그 무늬마다 하나)로
 // 모은다 — 색이 여러 가지여도 그리기 호출이 늘지 않게. 빛나는 특수효과·황금만 따로 묶인다 (설계 2026-10-31 인형 채우기 §5)
 type Part = { geo: THREE.BufferGeometry; mat: THREE.Material };
-// 합쳐 둔 모양은 최근에 쓴 것만 이만큼 둔다 — 겉모습이 2천 가지 가까이라 다 두면 휴대폰 메모리가 넘친다(매장 무더기는 216개)
-export const LITE_CACHE_MAX = 300;
+// 합쳐 둔 모양은 최근에 쓴 것만 이만큼 둔다 — 겉모습이 2천 가지 가까이라 다 두면 휴대폰 메모리가 넘친다(매장 무더기는 인형 기계 216개 + 미는 뽑기 미니 112개 — 미니는 낮은 면이라 가볍다)
+export const LITE_CACHE_MAX = 400;
 const partsCache = new Map<string, Part[] | null>();
 export const liteCacheSize = () => partsCache.size;
-const lookKey = (spot: DollSpot) => { const look = lookOf(spot); return `${spot[0]}|${look.color}|${look.face}|${look.rare}`; };
+// mini: 미는 뽑기 미니 인형은 더 낮은 면(plush 'mini')으로 — 같은 겉모습이라도 따로 둔다
+const lookKey = (spot: DollSpot, mini = false) => { const look = lookOf(spot); return `${mini ? 'm' : 'l'}|${spot[0]}|${look.color}|${look.face}|${look.rare}`; };
 // 한 프레임에 새 겉모습을 짓는 시간(ms): 매장 입장 때 216마리를 한 번에 지으면 휴대폰이 3초 넘게 멈췄다(최종 리뷰 I1)
 const BUILD_MS = 10;
-function liteParts(spot: DollSpot): Part[] | null {
-  const look = lookOf(spot), key = lookKey(spot);
+function liteParts(spot: DollSpot, mini = false): Part[] | null {
+  const look = lookOf(spot), key = lookKey(spot, mini);
   const known = partsCache.get(key);
   if (known !== undefined) { partsCache.delete(key); partsCache.set(key, known); return known; } // 최근에 쓴 것으로
-  const doll = makeDoll(spot[0], look, true);
+  const doll = makeDoll(spot[0], look, mini ? 'mini' : true);
   let parts: Part[] | null = null;
   if (doll) parts = bakePlush(doll).map((m) => ({ geo: m.geometry, mat: m.material as THREE.Material }));
   partsCache.set(key, parts);
@@ -133,7 +135,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     return Array.from({ length: count }, (_, i) => {
       const group = new THREE.Group(); group.name = `dolls-${row.group.name}-${i}`;
       row.group.add(group);
-      return { row, group, spots: row.spots.slice(i * size, (i + 1) * size), dirty: false, far: false };
+      return { row, group, spots: row.spots.slice(i * size, (i + 1) * size), dirty: false, far: false, farDist: row.spots[0].pusher ? PUSHER_FAR_DIST : FAR_DIST };
     });
   });
 
@@ -157,7 +159,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     row.group.add(anchor);
     units.set(spot.id, {
       row, block, anchor, claw, idle, rig: null, led, contents: [], flashUntil: 0, gold: false, bulbStart: row.spots.indexOf(spot) * bulbSpots().length,
-      live: null, baked: [], rare: '', scale: spec.dollScale, plateZ: null,
+      live: null, baked: [], rare: '', scale: spec.dollScale, mini: spot.pusher, plateZ: null,
     });
   });
   const bulbRows = rows.map((row) => {
@@ -225,9 +227,9 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
       const u = units.get(spot.id)!;
       if (u.live) continue;
       for (const d of u.contents) {
-        if (partsCache.has(lookKey(d))) continue;
+        if (partsCache.has(lookKey(d, u.mini))) continue;
         if (performance.now() >= until) return false;
-        liteParts(d);
+        liteParts(d, u.mini);
       }
     }
     return true;
@@ -243,7 +245,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
       u.baked = [];
       if (u.live) continue; // 한 판 중인 기계는 따로 그린다 (같은 묶음의 다른 기계는 그대로 합친다 — 최종 리뷰 C1)
       u.contents.forEach((dollSpot) => {
-        const parts = liteParts(dollSpot);
+        const parts = liteParts(dollSpot, u.mini);
         if (!parts) return; // 목록에 없는 인형
         u.baked.push(uidOf(dollSpot));
         // 서버가 기록한 자리·돌림(안 앉은 인형은 임시 자세, world/dollPose.ts), 체형만큼 옆으로 넓거나 좁게
@@ -276,7 +278,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     const live: Live = { poses: new Map(), buckets: [], dirty: new Set(), scale: new Map() };
     const perMat = new Map<THREE.Material, { pos: Float32Array[]; nor: Float32Array[]; col: (Float32Array | null)[]; uv: (Float32Array | null)[]; uids: number[] }>();
     for (const d of u.contents) {
-      const parts = liteParts(d);
+      const parts = liteParts(d, u.mini);
       if (!parts) continue;
       const uid = uidOf(d), pose = dollPose(d, u.contents);
       const obj = new THREE.Object3D(); obj.userData.uid = uid; obj.position.copy(pose.position); obj.quaternion.copy(pose.quaternion);
@@ -398,7 +400,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
       const outlines = new Map(rows.map((r) => [r, r.cloner.remap(PLUSH_OUTLINE)]));
       for (const block of blocks) {
         const cx = block.spots.reduce((a, s) => a + s.x, 0) / block.spots.length, cz = block.spots.reduce((a, s) => a + s.z, 0) / block.spots.length;
-        const d = Math.hypot(cx - x, cz - z), far = block.far ? d > FAR_DIST - FAR_SLACK : d > FAR_DIST + FAR_SLACK;
+        const d = Math.hypot(cx - x, cz - z), far = block.far ? d > block.farDist - FAR_SLACK : d > block.farDist + FAR_SLACK;
         if (far === block.far) continue;
         block.far = far;
         for (const m of block.group.children as THREE.Mesh[]) if (m.material === outlines.get(block.row)) m.visible = !far;

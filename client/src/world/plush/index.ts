@@ -44,10 +44,12 @@ function crownY(b: PlushBuilder, k: number, scale: number, fallbackTop: number):
 }
 const CROWN = { band: new THREE.CylinderGeometry(0.15, 0.16, 0.08, 24, 1, true), tip: new THREE.ConeGeometry(0.035, 0.09, 10), gem: new THREE.SphereGeometry(1, 16, 12), spark: new THREE.OctahedronGeometry(0.035) };
 
-function built(id: string, look: DollLook, lite: boolean) {
+// lite: false(가까이 보는 인형), true(인형 기계 무더기), 'mini'(미는 뽑기 미니 인형 — 더 낮은 면)
+export type Detail = boolean | 'mini';
+function built(id: string, look: DollLook, lite: Detail) {
   const sp = SPECIES[id];
   if (!sp || !DOLLS[id]) return null;
-  const b = new PlushBuilder({ lite });
+  const b = new PlushBuilder({ lite: !!lite, mini: lite === 'mini' });
   sp.make(b, look.face);
   const gold = look.rare === GOLD.id, effect = look.rare !== '' && !gold;
   const body = bodyColor(id, look);
@@ -58,7 +60,7 @@ function built(id: string, look: DollLook, lite: boolean) {
   return { b, out, k: (sp.round ? TARGET_TOP.round : TARGET_TOP.standing) / top, gold, effect };
 }
 
-function make(id: string, look: DollLook, lite: boolean): Plush | null {
+function make(id: string, look: DollLook, lite: Detail): Plush | null {
   const made = built(id, look, lite);
   if (!made) return null;
   const { out, k, gold } = made;
@@ -102,9 +104,9 @@ function make(id: string, look: DollLook, lite: boolean): Plush | null {
 // 겉모습마다 따로 붙들어서, 여기서도 붙들면 같은 도형이 두 벌 남는다(최종 리뷰 I3)
 const cache = new Map<string, Plush | null>();
 const CACHE_MAX = 400;
-export function makePlush(id: string, look: DollLook, lite: boolean): Plush | null {
+export function makePlush(id: string, look: DollLook, lite: Detail): Plush | null {
   const key = `${id}|${look.color}|${look.face}|${look.rare}`;
-  let p = lite ? make(id, look, true) : cache.get(key);
+  let p = lite ? make(id, look, lite) : cache.get(key);
   if (p === undefined) {
     p = make(id, look, false);
     cache.set(key, p);

@@ -86,28 +86,34 @@ async function measure(mode) {
   const cycle = await sample();
   const physics = Number((await evaluate('window.__toycrane.physicsMs()')).toFixed(2));
   if (mode === 'phone') await send('Emulation.setCPUThrottlingRate', { rate: 1 });
-  // 고리·미는 뽑기 기계 앞 화면(계획 11): 결과를 기다려 일어난 뒤 R-3, P-2 앞에서 한 판씩 — 재고 나서 버튼을 눌러 판을 끝낸다
+  // 고리 걸기·미는 뽑기 기계 앞 화면(계획 12): 결과를 기다려 일어난 뒤 R-3, P-2 앞에서 한 판씩 — 재고 나서 버튼(고리 ①②, 미는 뽑기 '잡기')을 눌러 판을 끝낸다
   const press = async (b) => {
     const p = JSON.parse((await evaluate(`JSON.stringify(window.__toycrane.buttonAt(${b}))`)) ?? 'null');
     if (!p) return;
     await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: p.x, y: p.y, button: 'left', clickCount: 1 }); await sleep(150);
     await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: p.x, y: p.y, button: 'left', clickCount: 1 }); await sleep(300);
   };
+  const tapDrop = async () => {
+    const p = JSON.parse((await evaluate("JSON.stringify(window.__toycrane.controlAt('drop'))")) ?? 'null');
+    if (!p) return;
+    await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: p.x, y: p.y, button: 'left', clickCount: 1 }); await sleep(80);
+    await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: p.x, y: p.y, button: 'left', clickCount: 1 });
+  };
   const playAt = async (id, buttons) => {
-    for (let i = 0; i < 100 && !(await click('그만하기')); i++) await sleep(300);
+    for (let i = 0; i < 200 && !(await click('그만하기')); i++) await sleep(300); // 미는 뽑기는 놓은 뒤 판이 다 밀 때까지(최대 15초) 결과가 늦다
     await sleep(500);
     await goTo(frontOf(id));
     await sleep(500);
     if (!(await click('한 판 하기'))) throw new Error(`${id} 앞에서 시작하지 못함`);
     await sleep(2000);
     const s = await sample();
-    for (const b of buttons) await press(b);
+    for (const b of buttons) await (b === 'drop' ? tapDrop() : press(b));
     return s;
   };
   const ring = await playAt('R-3', [1, 2]);
-  const pusher = await playAt('P-2', [1]);
+  const pusher = await playAt('P-2', ['drop']);
   // 피규어 기계 앞 화면(9단계): 결과를 기다려 일어난 뒤 F-1 앞에서 한 판
-  for (let i = 0; i < 100 && !(await click('그만하기')); i++) await sleep(300);
+  for (let i = 0; i < 200 && !(await click('그만하기')); i++) await sleep(300);
   await sleep(500);
   await goTo(frontOf('F-1'));
   await sleep(500);

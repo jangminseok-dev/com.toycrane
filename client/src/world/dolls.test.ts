@@ -5,6 +5,7 @@ import { stubCanvas } from '../test/canvasStub';
 import { BODY_W, PLAIN, dollHits, headOf, isRoundDoll, makeDoll } from './dolls';
 import { SPECIES } from './plush/species';
 import { PLUSH_OUTLINE } from './plush/kit';
+import { bakePlush } from './plushBake';
 
 beforeAll(stubCanvas);
 const meshes = (g: THREE.Object3D) => { let n = 0; g.traverse((o) => { if ((o as THREE.Mesh).isMesh) n++; }); return n; };
@@ -62,4 +63,10 @@ test('chubby hit spheres are wider', () => {
 test('a crowned doll adds the crown to its hit spheres', () => {
   const top = (rare: string) => Math.max(...dollHits('bunny', 'n', rare).solid.map((h) => h.c.y + h.r));
   expect(top('gold')).toBeGreaterThan(top('') + 0.1);
+}, 60_000);
+
+// 미는 뽑기 미니 인형(설계 ring-hook §4): 한 기계에 28개, 네 대면 112개 — 휴대폰 걷기 삼각형(180만)을 지키려고 인형 기계 무더기용(lite)의 절반 이하
+test('mini dolls use at most half the triangles of machine dolls', () => {
+  const tri = (detail: boolean | 'mini') => Object.keys(DOLLS).reduce((n, k) => n + bakePlush(makeDoll(k, PLAIN, detail)!).reduce((t, m) => t + (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3, 0), 0);
+  expect(tri('mini')).toBeLessThanOrEqual(tri(true) * 0.5);
 }, 60_000);
