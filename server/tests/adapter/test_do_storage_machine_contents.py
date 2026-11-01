@@ -22,12 +22,21 @@ async def test_v3_contents_are_read_as_unsettled_v4():
     assert stocks["A-1"].next_at == 30.0 and stocks["A-1"].next_uid == 10
 
 
-async def test_save_writes_thirteen_fields_and_v4_wins_over_v3():
-    storage, owner = FakeStorage({"machines_v3": '{"A-1": {"d": [], "n": null, "u": 1}}'}), object()
+# 인형 리뉴얼 설계 §5.3: v4(옛 모양으로 앉힌 자리)는 자리만 남기고 모두 안 앉은 인형으로 읽는다
+async def test_v4_contents_are_read_as_unsettled_v5():
+    v4 = '{"A-1": {"d": [["bunny", 0.12, 0.9, -0.05, 0.1, 0.2, 0.3, 0.9, 2, "n", 1, "", 1]], "n": 30.0, "u": 10}}'
+    stocks = await DoStorageMachineContents(FakeStorage({"machines_v4": v4}), "s-v4", object()).load()
+    d = stocks["A-1"].dolls[0]
+    assert (d.uid, d.x, d.z, d.y, d.q, d.color, d.face) == (1, 0.12, -0.05, None, (0, 0, 0, 1), 2, 1)
+    assert stocks["A-1"].next_at == 30.0 and stocks["A-1"].next_uid == 10
+
+
+async def test_save_writes_thirteen_fields_and_v5_wins_over_v4():
+    storage, owner = FakeStorage({"machines_v4": '{"A-1": {"d": [], "n": null, "u": 1}}'}), object()
     stocks = stocks_with_empty("A-1", next_at=30.0)
     await DoStorageMachineContents(storage, "s-13", owner).save(stocks)
     import json
-    saved = json.loads(storage.data["machines_v4"])
+    saved = json.loads(storage.data["machines_v5"])
     assert all(len(d) == 13 for v in saved.values() for d in v["d"])
     assert await DoStorageMachineContents(storage, "s-13", owner).load() == stocks
 
