@@ -93,9 +93,9 @@ export function plateTex(id: string): THREE.CanvasTexture {
 }
 
 // 벽 간판 "toycrane 게임센터": 흰 바탕 + 무지개 띠 + 별
-// 광고 자리 14칸을 한 그림에 (가로 2칸 × 세로 7칸, 칸마다 512×256): 위에 작게 'toycrane', 가운데 크게 광고 문구(또는 그림).
-// i번째 자리(0부터, 광고 id − 1)의 UV 칸은 adSignCell(i) — 0~9 벽 간판, 10~13 광장 광고판 (교환소 개편 §4.6, 큰 홀 2026-11-01 §3)
-export const AD_COLS = 2, AD_ROWS = 7;
+// 광고 자리 4칸을 한 그림에 (가로 2칸 × 세로 2칸, 칸마다 512×256): 위에 작게 'toycrane', 가운데 크게 광고 문구(또는 그림).
+// i번째 자리(0부터, 광고 id − 1)의 UV 칸은 adSignCell(i) — 광장 광고판 4개 (큰 홀 2026-11-01 §3, 광고는 광장에만)
+export const AD_COLS = 2, AD_ROWS = 2;
 export function adSignCell(i: number): { u: number; v: number; w: number; h: number } {
   return { u: (i % AD_COLS) / AD_COLS, v: 1 - (Math.floor(i / AD_COLS) + 1) / AD_ROWS, w: 1 / AD_COLS, h: 1 / AD_ROWS };
 }

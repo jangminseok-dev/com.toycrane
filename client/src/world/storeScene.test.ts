@@ -30,14 +30,11 @@ test('the store stays a handful of draw calls', () => {
   expect(n).toBeLessThanOrEqual(40);
 });
 
-// 벽 광고 간판 10장 '광고문의1'~'광고문의10' — 한 그림에 모아 메시 하나로 (설계 2026-10-31 교환소 개편 §3.4·§4.6)
-test('ten ad signs hang on the walls as one mesh', () => {
+// 광고는 광장 광고판 4개에만 (사용자 2026-11-01) — 벽에는 광고 간판이 없다
+test('the walls carry no ad signs', () => {
   const scene = new THREE.Scene();
   buildStore(scene);
-  const signs = scene.getObjectByName('wall-signs') as THREE.Mesh;
-  expect(signs).toBeDefined();
-  const tris = (signs.geometry.index ? signs.geometry.index.count : signs.geometry.getAttribute('position').count) / 3;
-  expect(tris).toBe(20);
+  expect(scene.getObjectByName('wall-signs')).toBeUndefined();
 });
 
 // 큰 홀(설계 2026-11-01 §3): 광장 가운데 진열탑 — 큰 인형·피규어 상자가 층층이, 4면 전광판은 꼭대기에, 높이 4.5m 이하
@@ -71,8 +68,8 @@ test('the walls enclose the big hall', () => {
   expect(all.min.z).toBeCloseTo(-ROOM_HALF); expect(all.max.z).toBeCloseTo(ROOM_HALF);
 });
 
-// 광장 광고판 4개(양면) — 광고 자리 11~14, 사람들이 모이는 광장 둘레 (설계 2026-11-01 §3)
-test('four plaza ad boards show slots 11 to 14', () => {
+// 광장 광고판 4개(양면) — 광고 자리 1~4, 사람들이 모이는 광장 둘레 (설계 2026-11-01 §3, 광고는 여기에만)
+test('four plaza ad boards show slots 1 to 4', () => {
   drawnTexts.length = 0;
   const scene = new THREE.Scene(); buildStore(scene);
   const ads = scene.getObjectByName('plaza-ads') as THREE.Mesh;
@@ -80,24 +77,22 @@ test('four plaza ad boards show slots 11 to 14', () => {
   const uv = ads.geometry.getAttribute('uv') as THREE.BufferAttribute, faces = uv.count / 4;
   expect(faces).toBe(8); // 4개 × 앞뒤
   const used = new Set<number>();
-  for (let f = 0; f < faces; f++) for (let slot = 11; slot <= 14; slot++) {
+  for (let f = 0; f < faces; f++) for (let slot = 1; slot <= 4; slot++) {
     const c = adSignCell(slot - 1);
     if (Math.abs(uv.getX(f * 4) - c.u) < 1e-6 && Math.abs(Math.min(uv.getY(f * 4), uv.getY(f * 4 + 2)) - c.v) < 1e-6) used.add(slot);
   }
-  expect([...used].sort()).toEqual([11, 12, 13, 14]);
-  for (const slot of [11, 12, 13, 14]) expect(drawnTexts).toContain(`광고문의${slot}`);
+  expect([...used].sort()).toEqual([1, 2, 3, 4]);
+  for (const slot of [1, 2, 3, 4]) expect(drawnTexts).toContain(`광고문의${slot}`);
 });
 
-// 진열탑 전광판: 알림이 없을 때 8초마다 광고 문구를 번갈아 띄우고, 희귀 알림 중에는 그대로
-test('the tower board shows an ad when idle', () => {
-  const scene = new THREE.Scene(); const tower = buildStore(scene);
-  drawnTexts.length = 0; tower.update(8.1);
-  expect(drawnTexts).toContain('광고문의1');
-  drawnTexts.length = 0; tower.update(8.5);
-  expect(drawnTexts).toHaveLength(0); // 같은 칸이면 다시 그리지 않음
-  tower.showMessage('희귀 등장!', 'C-6에 고양이 등장!', false, 5);
-  drawnTexts.length = 0; tower.update(16.2);
-  expect(drawnTexts).toHaveLength(0);
+// 진열탑 전광판은 광고를 띄우지 않는다 — 시간이 지나도 인사('어서 오세요')뿐, 희귀가 나오면 잠깐 알림 (광고는 광장 광고판에만)
+test('the tower board never shows an ad', () => {
+  drawnTexts.length = 0;
+  const scene = new THREE.Scene(); const tower = buildStore(scene) as { update?: (t: number) => void };
+  expect(drawnTexts).toContain('어서 오세요');
+  drawnTexts.length = 0;
+  for (let t = 0; t < 200; t += 0.5) tower.update?.(t);
+  expect(drawnTexts.filter((s) => s.includes('광고'))).toEqual([]);
 });
 
 // 큰 홀 최종 리뷰 I3: 해 그림자가 홀 끝까지 — 서쪽 인형 줄(x −20.2)·북쪽 고리 줄·입구 진열장에도 그림자가 진다
@@ -113,13 +108,4 @@ test('the sun shadow covers the whole hall', () => {
     expect(p.x, `${x},${y},${z}`).toBeGreaterThanOrEqual(0); expect(p.x, `${x},${y},${z}`).toBeLessThanOrEqual(1);
     expect(p.y, `${x},${y},${z}`).toBeGreaterThanOrEqual(0); expect(p.y, `${x},${y},${z}`).toBeLessThanOrEqual(1);
   }
-});
-
-// 큰 홀 최종 리뷰 I4: 벽 간판과 광장 광고판은 광고 그림 한 장을 같이 쓴다(1024×1792 그림을 두 번 만들지 않게)
-test('wall signs and plaza boards share one ad picture', () => {
-  const scene = new THREE.Scene();
-  buildStore(scene);
-  const map = (name: string) => ((scene.getObjectByName(name) as THREE.Mesh).material as THREE.MeshBasicMaterial).map;
-  expect(map('wall-signs')).toBeTruthy();
-  expect(map('plaza-ads')).toBe(map('wall-signs'));
 });

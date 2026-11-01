@@ -37,6 +37,6 @@ test('copy reads naturally', () => {
   expect(UI.begWait(5)).toBe('5분 뒤에 다시 와요');
   expect(UI.gaveYou('토끼', 3)).toBe('토끼 님이 코인 3개를 줬어요');
   expect(POP_CARDS).toEqual(['새로 왔어요', '잘 잡혀요', '오늘의 추천', '인기 1위', '한정판', '행운 기계']);
-  expect(AD_SIGNS).toHaveLength(10);
+  expect(AD_SIGNS).toHaveLength(4);
   expect(AD_SIGNS[0]).toBe('광고문의1');
 });

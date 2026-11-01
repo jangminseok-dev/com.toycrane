@@ -1,19 +1,9 @@
 {
-  "_note": "광고 자리: 1~10 벽 간판, 11~14 광장 광고판, 진열탑 전광판은 한가할 때 차례로. image에 같은 출처의 그림 경로(예: /ads/1.png)를 적으면 글 대신 그림",
+  "_note": "광고 자리: 광장 광고판 4개(1~4)에만. image에 같은 출처의 그림 경로(예: /ads/1.png)를 적으면 글 대신 그림",
   "slots": [
     {"id": 1, "text": "광고문의1", "image": null},
     {"id": 2, "text": "광고문의2", "image": null},
     {"id": 3, "text": "광고문의3", "image": null},
-    {"id": 4, "text": "광고문의4", "image": null},
-    {"id": 5, "text": "광고문의5", "image": null},
-    {"id": 6, "text": "광고문의6", "image": null},
-    {"id": 7, "text": "광고문의7", "image": null},
-    {"id": 8, "text": "광고문의8", "image": null},
-    {"id": 9, "text": "광고문의9", "image": null},
-    {"id": 10, "text": "광고문의10", "image": null},
-    {"id": 11, "text": "광고문의11", "image": null},
-    {"id": 12, "text": "광고문의12", "image": null},
-    {"id": 13, "text": "광고문의13", "image": null},
-    {"id": 14, "text": "광고문의14", "image": null}
+    {"id": 4, "text": "광고문의4", "image": null}
   ]
 }

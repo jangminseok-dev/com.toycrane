@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { PLAZA_RADIUS, ROOM_HALF, ROOM_HEIGHT, SPAWN_RADIUS, TOWER_HALF } from './layout';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { adSignCell, adSignsTex } from './signs';
-import { AD_SLOTS } from './ads';
 import { AD_BOARDS } from '../data/storeLayout';
 import { canvasTex, outlineMat, part, toon, toonWith } from './toon';
 import { DOLLS } from '../data/catalog';
@@ -18,18 +17,16 @@ export type HubTower = {
   box: THREE.Box3;
   setOpacity(opacity: number): void;
   showMessage(line1: string, line2: string, gold: boolean, seconds: number): void; // 4면 전광판 문구를 잠깐 바꾼다(희귀 알림)
-  update(t: number): void; // 알림이 없을 때 8초마다 다음 광고(광고 자리 차례로)와 인사를 번갈아 띄운다 (큰 홀 설계 2026-11-01 §3)
 };
 
 export function buildStore(scene: THREE.Scene): HubTower {
   scene.background = new THREE.Color(0xf4f1f7);
   addLights(scene);
   addFloor(scene);
-  const adTex = adSignsTex(); // 벽 간판과 광장 광고판이 같은 그림(광고 14칸)을 쓴다
-  addWallsAndCeiling(scene, adTex);
+  addWallsAndCeiling(scene);
   addZones(scene);
   addEntrance(scene);
-  addPlazaAds(scene, adTex);
+  addPlazaAds(scene);
   return addDisplayTower(scene);
 }
 
@@ -86,7 +83,7 @@ function addFloor(scene: THREE.Scene) {
   scene.add(floor);
 }
 
-function addWallsAndCeiling(scene: THREE.Scene, adTex: THREE.Texture) {
+function addWallsAndCeiling(scene: THREE.Scene) {
   const size = ROOM_HALF * 2, h = ROOM_HEIGHT;
   // 흰 벽 + 위쪽 분홍·노랑·하늘 띠 + 별 (6.5m마다 되풀이)
   const wallTex = canvasTex(1024, 512, (g) => {
@@ -108,21 +105,6 @@ function addWallsAndCeiling(scene: THREE.Scene, adTex: THREE.Texture) {
     w.position.set(x, h / 2, z); w.rotation.y = ry; w.receiveShadow = true; w.name = 'hall-wall';
     scene.add(w);
   }
-  // 벽 광고 간판 10장('광고문의1'~'광고문의10', 교환소 개편 설계 §4.6): 북쪽 4·동쪽 2·서쪽 2·남쪽 2, 한 그림의 칸을 나눠 써 메시 하나로.
-  // 큰 홀(설계 2026-11-01): 벽마다 기계·장식이 없는 구간에 고르게
-  const spots: [number, number, number][] = [ // x, z, 돌림(벽 안쪽을 봄)
-    [-16, -ROOM_HALF + 0.02, 0], [-1.3, -ROOM_HALF + 0.02, 0], [1.3, -ROOM_HALF + 0.02, 0], [16, -ROOM_HALF + 0.02, 0],
-    [ROOM_HALF - 0.02, -15, -Math.PI / 2], [ROOM_HALF - 0.02, 12, -Math.PI / 2], [-ROOM_HALF + 0.02, -15, Math.PI / 2], [-ROOM_HALF + 0.02, 12, Math.PI / 2],
-    [-8, ROOM_HALF - 0.02, Math.PI], [8, ROOM_HALF - 0.02, Math.PI],
-  ];
-  const signs = mergeGeometries(spots.map(([x, z, ry], i) => {
-    const geo = new THREE.PlaneGeometry(1.4, 0.7), uv = geo.getAttribute('uv') as THREE.BufferAttribute, cell = adSignCell(i);
-    for (let k = 0; k < uv.count; k++) uv.setXY(k, cell.u + uv.getX(k) * cell.w, cell.v + uv.getY(k) * cell.h);
-    return geo.rotateY(ry).translate(x, h - 0.42, z);
-  }))!;
-  const sign = new THREE.Mesh(signs, new THREE.MeshBasicMaterial({ map: adTex }));
-  sign.name = 'wall-signs';
-  scene.add(sign);
 }
 
 function addZones(scene: THREE.Scene) {
@@ -178,7 +160,6 @@ function floorLabels(scene: THREE.Scene, labels: [string, number, number][]) {
 // 피규어 모델은 피규어 뽑기 단계에서 — 지금 상자 속은 우리 인형. 인형·상자는 재질별로 합쳐 그린다
 const TIERS: [number, number, number][] = [[TOWER_HALF * 2, 0, 0.9], [2.5, 0.9, 1.7], [1.8, 1.7, 2.5]]; // 폭, 아래, 위
 const BOARD = { w: 2.6, y0: 3.0, y1: 4.3 };
-const AD_SECONDS = 8; // 탑 전광판이 광고를 바꾸는 간격
 function addDisplayTower(scene: THREE.Scene): HubTower {
   const root = new THREE.Group(); root.name = 'display-tower';
   scene.add(root);
@@ -226,7 +207,7 @@ function addDisplayTower(scene: THREE.Scene): HubTower {
   };
   const idle = draw('toycrane', '어서 오세요', false);
   const screenTex = canvasTex(512, 384, idle);
-  let restoreTimer = 0, alerting = false, shown = 0; // shown: 지금 띄운 칸(0 = 인사, k = 광고 자리 k)
+  let restoreTimer = 0;
   const redraw = (paint: (g: CanvasRenderingContext2D) => void) => {
     paint((screenTex.image as HTMLCanvasElement).getContext('2d')!);
     screenTex.needsUpdate = true;
@@ -246,16 +227,8 @@ function addDisplayTower(scene: THREE.Scene): HubTower {
     box: new THREE.Box3(new THREE.Vector3(-TOWER_HALF, 0, -TOWER_HALF), new THREE.Vector3(TOWER_HALF, BOARD.y1, TOWER_HALF)),
     showMessage(line1, line2, gold, seconds) {
       redraw(draw(line1, line2, gold));
-      alerting = true;
       clearTimeout(restoreTimer);
-      restoreTimer = setTimeout(() => { alerting = false; shown = 0; redraw(idle); }, seconds * 1000) as unknown as number;
-    },
-    update(t) {
-      if (alerting) return;
-      const k = Math.floor(t / AD_SECONDS) % (AD_SLOTS.length + 1);
-      if (k === shown) return;
-      shown = k;
-      redraw(k === 0 ? idle : draw(AD_SLOTS[k - 1].text, 'toycrane 광고', false));
+      restoreTimer = setTimeout(() => redraw(idle), seconds * 1000) as unknown as number;
     },
     setOpacity(opacity) {
       for (const m of mats) {
@@ -269,15 +242,15 @@ function addDisplayTower(scene: THREE.Scene): HubTower {
 }
 
 // 광장 광고판(설계 2026-11-01 §3): 기둥 위 양면 판 4개, 면은 ±z(걷기 카메라가 늘 북쪽을 봐서 남쪽 면이 보인다).
-// 판마다 광고 자리 하나(shared/ads.json) — 벽 간판과 같은 그림의 칸을 쓴다. 판 앞뒤 한 덩어리 + 기둥 한 덩어리
-function addPlazaAds(scene: THREE.Scene, adTex: THREE.Texture) {
+// 판마다 광고 자리 하나(shared/ads.json, 광고는 여기 4개에만) — 한 그림의 칸을 나눠 쓴다. 판 앞뒤 한 덩어리 + 기둥 한 덩어리
+function addPlazaAds(scene: THREE.Scene) {
   const W = 2.4, H = 1.4, Y = 1.6;
   const faces = AD_BOARDS.flatMap(({ x, z, slot }) => [0, Math.PI].map((ry) => {
     const geo = new THREE.PlaneGeometry(W, H), uv = geo.getAttribute('uv') as THREE.BufferAttribute, cell = adSignCell(slot - 1);
     for (let k = 0; k < uv.count; k++) uv.setXY(k, cell.u + uv.getX(k) * cell.w, cell.v + uv.getY(k) * cell.h);
     return geo.translate(0, 0, 0.06).rotateY(ry).translate(x, Y, z);
   }));
-  const boards = new THREE.Mesh(mergeGeometries(faces)!, new THREE.MeshBasicMaterial({ map: adTex }));
+  const boards = new THREE.Mesh(mergeGeometries(faces)!, new THREE.MeshBasicMaterial({ map: adSignsTex() }));
   boards.name = 'plaza-ads';
   scene.add(boards);
   scene.add(outlinedBoxes(AD_BOARDS.flatMap(({ x, z }) => [

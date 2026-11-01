@@ -14,7 +14,7 @@ export const WALL_SIGN = ['toycrane', '게임센터'];
 export const PREP = '준비 중';
 export const COUNTER_SIGN = '코인 교환소';
 export const DROP_LABEL = '잡기'; // 하강 버튼 윗면 (화살표와 함께)
-export const AD_SIGNS = AD_SLOTS.slice(0, 10).map((s) => s.text); // 벽 광고 간판 10장 (광고 자리 1~10, shared/ads.json)
+export const AD_SIGNS = AD_SLOTS.map((s) => s.text); // 광장 광고판 4개 (광고 자리 1~4, shared/ads.json)
 export const BEGGING = '조르는 중'; // 조르는 사람 이름표 옆
 export const RARE_TAG = { rare: '★ 희귀', gold: '★★ 황금' }; // 희귀가 든 기계 위 이름표
 
