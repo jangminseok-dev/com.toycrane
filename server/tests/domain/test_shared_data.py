@@ -11,6 +11,17 @@ def test_generated_module_matches_shared_json():
     assert shared_data.CATALOG == json.loads((SHARED / "catalog.json").read_text(encoding="utf-8"))
     assert shared_data.LAYOUT == json.loads((SHARED / "store_layout.json").read_text(encoding="utf-8"))
     assert shared_data.CLAW == json.loads((SHARED / "claw.json").read_text(encoding="utf-8"))
+    assert shared_data.RING == json.loads((SHARED / "ring.json").read_text(encoding="utf-8"))
+    assert shared_data.PUSHER == json.loads((SHARED / "pusher.json").read_text(encoding="utf-8"))
+
+
+def test_ring_and_pusher_machines_are_machines():
+    """북쪽 구역(설계 2026-11-02): 고리 R-1~R-10·미는 뽑기 P-1~P-4도 판 잠금·자리 규칙이 같은 기계다."""
+    from toycrane.domain.layout import PUSHERS, RINGS, machine_spot
+
+    assert list(RINGS) == [f"R-{i}" for i in range(1, 11)] and list(PUSHERS) == [f"P-{i}" for i in range(1, 5)]
+    assert machine_spot("R-3") is RINGS["R-3"] and machine_spot("P-2") is PUSHERS["P-2"]
+    assert machine_spot("X-1") is None
 
 
 def test_one_kind_per_machine_and_24_machines():

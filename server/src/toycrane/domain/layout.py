@@ -30,6 +30,27 @@ class Figure:
 
 
 @dataclass(frozen=True)
+class Ring:
+    """고리 뽑기 기계(설계 2026-11-02 §3): 구멍판 걸이에 경품 카드 — 갈고리가 걸리는지는 서버가 정한다."""
+
+    id: str
+    x: float
+    z: float
+    ry: float
+    row: str  # "r1" | "r2"
+
+
+@dataclass(frozen=True)
+class Pusher:
+    """미는 뽑기 기계(설계 2026-11-02 §4): 선반 위 미니 인형을 미는 판으로 — 밀린 결과는 서버가 계산한다."""
+
+    id: str
+    x: float
+    z: float
+    ry: float
+
+
+@dataclass(frozen=True)
 class Counter:
     id: int
     x: float
@@ -60,14 +81,16 @@ COUNTERS: tuple[Counter, ...] = tuple(
     for c in LAYOUT["counters"]
 )
 FIGURES: dict[str, Figure] = {f["id"]: Figure(f["id"], f["x"], f["z"], f["ry"], f["row"], f["box"]) for f in LAYOUT["figures"]}
+RINGS: dict[str, Ring] = {r["id"]: Ring(r["id"], r["x"], r["z"], r["ry"], r["row"]) for r in LAYOUT["rings"]}
+PUSHERS: dict[str, Pusher] = {p["id"]: Pusher(p["id"], p["x"], p["z"], p["ry"]) for p in LAYOUT["pushers"]}
 OBSTACLES: tuple[tuple[float, float, float, float], ...] = tuple(tuple(o) for o in LAYOUT["obstacles"])
 
 
-def machine_spot(machine_id: str) -> Machine | Figure | None:
-    """인형 기계든 피규어 기계든 번호로 찾는다(판 잠금·중계는 둘이 같다)."""
-    return MACHINES.get(machine_id) or FIGURES.get(machine_id)
+def machine_spot(machine_id: str) -> Machine | Figure | Ring | Pusher | None:
+    """인형·피규어·고리·미는 뽑기 기계를 번호로 찾는다(판 잠금·자리 규칙은 모두 같다)."""
+    return MACHINES.get(machine_id) or FIGURES.get(machine_id) or RINGS.get(machine_id) or PUSHERS.get(machine_id)
 
 
-def front_spot(m: Machine | Figure) -> Position:
+def front_spot(m: Machine | Figure | Ring | Pusher) -> Position:
     """기계 앞에 서서 하는 자리."""
     return Position(m.x + math.sin(m.ry) * MACHINE_SPEC.front, m.z + math.cos(m.ry) * MACHINE_SPEC.front)

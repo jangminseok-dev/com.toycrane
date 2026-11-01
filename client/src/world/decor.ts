@@ -12,13 +12,13 @@ import { FACE_MAT } from './plush/faceAtlas';
 import { PLUSH_OUTLINE } from './plush/kit';
 import { outlineMat, part, toon } from './toon';
 
-// 빈 미니·피규어 구역의 "준비 중" 장식 (설계 2026-10-31 §3.8): 누를 수 없는 덮개 기계 줄과 경품 진열장.
+// 쉼터 벤치와 입구 경품 진열장 (설계 2026-10-31 §3.8 — 피규어·고리·미는 뽑기의 '준비 중' 덮개 기계는 진짜 기계가 됨).
 // 5단계에서 진짜 기계가 들어올 자리·크기와 비슷하게 — 미니는 2단 작은 기계, 피규어는 상자 기계, 가운데는 인형을 올린 진열장.
 // 휴대폰 그리기 호출을 아끼려고 왼쪽·오른쪽마다 [꼭짓점 색 툰 한 덩어리 · 외곽선 · 천 덮개 · 준비 중 판] 넷으로 합친다
-const ROOM = ROOM_HALF, PASTEL = [0xffc6dc, 0xd9c8ff, 0xbdeedd, 0xffe2a8];
-const MAX_DEPTH = 2.2; // 가장 깊은 장식(미는 뽑기) — 벽 너머까지 늘린 장애물 상자도 앞면에서 이만큼만 쓴다
-// 줄을 따라 칸 사이 간격(m) — 큰 홀(설계 2026-11-01 §3): 고리 줄마다 5대, 미는 뽑기 4대, 벤치 2개 (피규어는 9단계부터 진짜 기계)
-const SPACING: Record<Exclude<DecorSpot['kind'], 'shelf'>, number> = { ring: 1.84, pusher: 2.8, bench: 2.5 };
+const ROOM = ROOM_HALF;
+const MAX_DEPTH = 2.2; // 벽 너머까지 늘린 장애물 상자도 앞면에서 이만큼만 쓴다
+// 줄을 따라 칸 사이 간격(m) — 큰 홀(설계 2026-11-01 §3): 벤치 2개
+const SPACING: Record<Exclude<DecorSpot['kind'], 'shelf'>, number> = { bench: 2.5 };
 const SHELF_DOLLS = ['bear', 'bunny', 'chick', 'penguin', 'cat', 'pig'];
 // 진열장 인형은 종마다 한 번만 짓고 복사한다(도형·재질 공유) — 무더기용 판은 makePlush가 붙들지 않는다
 const shelfDolls = new Map<string, THREE.Group | null>();
@@ -27,27 +27,16 @@ type V3 = [number, number, number];
 
 const once = <T>(make: () => T) => { let v: T | undefined; return () => (v ??= make()); };
 const G = once(() => ({
-  miniBase: new RoundedBoxGeometry(0.9, 0.8, 0.9, 2, 0.03), miniCover: new RoundedBoxGeometry(0.94, 0.9, 0.94, 2, 0.08), miniTop: new RoundedBoxGeometry(0.94, 0.3, 0.94, 2, 0.03),
-  pushBase: new RoundedBoxGeometry(2.2, 0.9, 2.0, 2, 0.04), pushCover: new RoundedBoxGeometry(2.24, 0.8, 2.04, 2, 0.1), pushTop: new RoundedBoxGeometry(2.24, 0.3, 0.5, 2, 0.04),
   seat: new RoundedBoxGeometry(1.6, 0.12, 0.5, 2, 0.04), leg: new THREE.BoxGeometry(0.1, 0.4, 0.4),
   card: new THREE.PlaneGeometry(0.5, 0.25),
 }));
 
 // 한 칸(기계 하나) 또는 진열장 하나를 로컬 좌표(앞 = +z)로 만든다
-function unit(kind: DecorSpot['kind'], i: number, len: number): { solid: THREE.Group; covers: THREE.Mesh[]; cards: THREE.Mesh[] } {
+function unit(kind: DecorSpot['kind'], len: number): { solid: THREE.Group; covers: THREE.Mesh[]; cards: THREE.Mesh[] } {
   const g = G(), solid = new THREE.Group(), covers: THREE.Mesh[] = [], cards: THREE.Mesh[] = [];
   const add = (geo: THREE.BufferGeometry, color: number, pos: V3) => solid.add(part(geo, toon(color), pos, [1, 1, 1], [0, 0, 0], 1.03));
-  const cover = (geo: THREE.BufferGeometry, pos: V3) => { const m = new THREE.Mesh(geo); m.position.set(...pos); covers.push(m); };
   const card = (pos: V3, w: number) => { const m = new THREE.Mesh(g.card); m.position.set(...pos); m.scale.setScalar(w / 0.5); cards.push(m); };
-  const color = PASTEL[i % PASTEL.length];
-  if (kind === 'ring') {
-    add(g.miniBase, color, [0, 0.4, 0]); cover(g.miniCover, [0, 1.25, 0]); add(g.miniTop, color, [0, 1.85, 0]);
-    card([0, 1.25, 0.48], 0.5);
-  } else if (kind === 'pusher') {
-    // 한 사람용 경품 미는 기계(설계 2026-11-01 §3): 넓은 받침 + 유리 덮개 + 뒤쪽 간판
-    add(g.pushBase, color, [0, 0.45, 0]); cover(g.pushCover, [0, 1.3, 0]); add(g.pushTop, color, [0, 1.85, -0.75]);
-    card([0, 1.3, 1.03], 0.7);
-  } else if (kind === 'bench') {
+  if (kind === 'bench') {
     add(g.seat, 0xffd9a8, [0, 0.46, 0]);
     for (const x of [-0.6, 0.6]) add(g.leg, 0xb98b5e, [x, 0.2, 0]);
   } else {
@@ -114,7 +103,7 @@ export function buildDecor(scene: THREE.Scene): Occluder[] {
     const solidRoot = new THREE.Group(), coverRoot = new THREE.Group(), cardRoot = new THREE.Group(), group = new THREE.Group();
     group.name = `decor-${kind}`;
     const boxes: THREE.Box3[] = [];
-    DECOR.forEach((d, si) => {
+    DECOR.forEach((d) => {
       if (d.kind !== kind) return;
       // 벽 너머까지 늘린 장애물 상자를 매장 안쪽으로 잘라, 앞면(ry 쪽)에서 MAX_DEPTH 깊이 안에 놓는다 — 가운데에 두면 앞에 걸어갈 수 없는 빈틈이 생긴다
       const x0 = Math.max(d.rect[0], -ROOM), z0 = Math.max(d.rect[1], -ROOM), x1 = Math.min(d.rect[2], ROOM), z1 = Math.min(d.rect[3], ROOM);
@@ -131,7 +120,7 @@ export function buildDecor(scene: THREE.Scene): Occluder[] {
       };
       const step = d.kind === 'shelf' ? len : SPACING[d.kind], count = Math.max(1, Math.floor(len / step + 1e-6)), pad = (len - count * step) / 2;
       for (let k = 0; k < count; k++) {
-        const offset = d.kind === 'shelf' ? 0 : -len / 2 + pad + step / 2 + k * step, u = unit(d.kind, si * 7 + k, len);
+        const offset = d.kind === 'shelf' ? 0 : -len / 2 + pad + step / 2 + k * step, u = unit(d.kind, len);
         const parts = [holder(u.solid, offset), ...u.covers.map((c) => holder(c, offset)), ...u.cards.map((c) => holder(c, offset))];
         solidRoot.add(parts[0]); for (const c of parts.slice(1, 1 + u.covers.length)) coverRoot.add(c); for (const c of parts.slice(1 + u.covers.length)) cardRoot.add(c); // 빈 add()는 three.js 콘솔 오류
         for (const p of parts) box.expandByObject(p);
