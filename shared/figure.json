@@ -1,11 +1,11 @@
 {
-  "_note": "피규어 뽑기 기계 수치(9단계, 설계 2026-11-01-toycrane-figure-machine-design.md §8 개정). 기계 좌표: 앞 +z, 오른쪽 +x. 막대 두 개는 x를 따라, 상자는 처음에 긴 변(h)이 z를 따라 그림 면 위로 눕혀(두께 d가 위아래) 두 막대에 걸친다. 상자 종류(variants)마다 상자 치수·무게, 막대 틈(gap, 막대 겉면 사이), 집게 힘(power). guards는 막대 중심 z에서 바깥으로 앞판·받침 막대·뒤 벽까지 거리. 길이 m, 질량 kg, 힘 N·m",
+  "_note": "피규어 뽑기 기계 수치(9단계, 설계 2026-11-01-toycrane-figure-machine-design.md §8 개정). 기계 좌표: 앞 +z, 오른쪽 +x. 막대 두 개는 x를 따라, 상자는 처음에 긴 변(h)이 z를 따라 그림 면 위로 눕혀(두께 d가 위아래) 두 막대에 걸친다. 상자 종류(variants)마다 상자 치수·무게, 막대 틈(gap, 막대 겉면 사이), 집게 크기(claw_scale, 9단계 집게의 배율 — 정사각형은 상자가 넓어 더 크게)·힘(power). guards는 막대 중심 z에서 바깥으로 앞판·받침 막대·뒤 벽까지 거리. 길이 m, 질량 kg, 힘 N·m",
   "bars": {"y": 0.98, "radius": 0.014, "half_len": 0.43},
-  "claw": {"home": [-0.4, 0.3], "speed": 0.3, "rest_y": 1.9, "descend": 0.35, "scale": 1.5},
+  "claw": {"home": [-0.4, 0.3], "speed": 0.3, "rest_y": 1.9, "descend": 0.35},
   "guards": {"front": 0.06, "back_bar": 0.09, "back_wall": 0.17},
   "variants": {
-    "long": {"box": {"w": 0.17, "d": 0.12, "h": 0.34, "mass": 0.4, "com": -0.15}, "gap": 0.285, "power": {"grip": 1.02, "lift": 1.0, "carry": 0.4, "max_lift": 0.06, "max_clear": 0.012}},
-    "square": {"box": {"w": 0.26, "d": 0.13, "h": 0.26, "mass": 0.5, "com": 0}, "gap": 0.215, "power": {"grip": 1.36, "lift": 1.12, "carry": 0.54, "max_lift": 0.06, "max_clear": 0.012}}
+    "long": {"box": {"w": 0.17, "d": 0.12, "h": 0.34, "mass": 0.4, "com": -0.15}, "gap": 0.285, "claw_scale": 1.5, "power": {"grip": 1.02, "lift": 1.0, "carry": 0.4, "max_lift": 0.06, "max_clear": 0.012}},
+    "square": {"box": {"w": 0.26, "d": 0.13, "h": 0.26, "mass": 0.5, "com": 0}, "gap": 0.21, "claw_scale": 2.0, "power": {"grip": 1.2, "lift": 1.0, "carry": 0.5, "max_lift": 0.04, "max_clear": 0.008}}
   },
   "play_half": [0.4, 0.3],
   "odds": {"rare": 0.03, "gold": 0.005},

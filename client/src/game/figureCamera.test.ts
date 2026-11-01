@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { expect, test } from 'vitest';
 import { FIGURE, FIGURES } from '../data/figures';
-import { CLAW_SHAPE } from '../physics/figureClaw';
+import { clawShapeOf } from '../physics/figureClaw';
 import { FIGURE_CONTROLS } from '../world/figureControls';
 import { SideBlend, figureCameraPose } from './figureCamera';
 
@@ -57,8 +57,10 @@ test('the claw at rest height stays in view while the buttons move it', () => {
     for (const x of [-w, w]) {
       expect(onScreen(0, aspect, head(x, FIGURE.claw.home[1]), 0.8), `front ${aspect} x ${x}`).toBe(true);
       // 1.5배 집게(설계 §8)의 팔 끝도 — 머리에서 경첩·팔 길이만큼 아래
-      const tip = toWorld([x + Math.sign(x) * CLAW_SHAPE.hinge[0], FIGURE.claw.rest_y + CLAW_SHAPE.hinge[1] + CLAW_SHAPE.tip[1], FIGURE.claw.home[1]]);
-      expect(onScreen(0, aspect, tip), `front tip ${aspect} x ${x}`).toBe(true);
+      for (const kind of ['long', 'square'] as const) {
+        const S = clawShapeOf(kind), tip = toWorld([x + Math.sign(x) * S.hinge[0], FIGURE.claw.rest_y + S.hinge[1] + S.tip[1], FIGURE.claw.home[1]]);
+        expect(onScreen(0, aspect, tip), `front tip ${kind} ${aspect} x ${x}`).toBe(true);
+      }
       for (const z of [d, -d]) expect(onScreen(1, aspect, head(x, z), 0.8), `side ${aspect} ${x},${z}`).toBe(true);
     }
   }

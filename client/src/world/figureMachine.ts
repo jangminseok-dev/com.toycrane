@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { FIGURE, FIGURES, variantOf, type BoxKind, type FigureSpot } from '../data/figures';
-import { CLAW_SHAPE } from '../physics/figureClaw';
+import { clawShapeOf } from '../physics/figureClaw';
 import { barZ } from '../physics/figureWorld';
 import { FIGURE_BOX, FIGURE_SIGN } from './copy';
 import { machineAcryl, machinePopMat, machineSignMat, makeCabinetShell } from './machine';
@@ -144,8 +144,14 @@ export function makeFigureMachineParts(spot: FigureSpot, index: number, color: n
 }
 
 // 집게 그림 도형(물리 figureClaw와 같은 모양, 경첩 기준): 각진 흰 머리·검은·빨간 띠·앞 스티커, 반투명 판 팔(바깥 → 아래 → 끝이 안쪽 갈고리)
-export const clawGeos = once(() => {
-  const { head: H, elbow, tip, plateT, plateW, tipR } = CLAW_SHAPE;
+const clawGeoCache = new Map<BoxKind, ReturnType<typeof makeClawGeos>>();
+export const clawGeos = (kind: BoxKind = 'long') => {
+  let g = clawGeoCache.get(kind);
+  if (!g) clawGeoCache.set(kind, (g = makeClawGeos(kind)));
+  return g;
+};
+function makeClawGeos(kind: BoxKind) {
+  const { head: H, elbow, tip, plateT, plateW, tipR } = clawShapeOf(kind);
   const arm = (side: number) => {
     const seg = (a: [number, number], b: [number, number]) => {
       const ax = side * a[0], bx = side * b[0], len = Math.hypot(bx - ax, b[1] - a[1]);
@@ -162,7 +168,8 @@ export const clawGeos = once(() => {
     armR: arm(1), armL: arm(-1),
     cable: new THREE.CylinderGeometry(0.004, 0.004, 1, 6).translate(0, 0.5, 0),
   };
-});
+}
+
 const stickerTex = once(() => canvasTex(128, 56, (g) => {
   g.fillStyle = '#ffe14d'; g.fillRect(0, 0, 128, 56);
   g.fillStyle = '#2a2a32'; g.font = `30px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('피규어', 64, 30);

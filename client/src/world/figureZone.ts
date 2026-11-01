@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { FIGURE, FIGURES, variantOf, type FigureSpot } from '../data/figures';
 import type { Occluder } from '../game/occlusion';
 import type { BoxWire } from '../net/protocol';
-import { CLAW_SHAPE } from '../physics/figureClaw';
+import { clawShapeOf, type ClawShape } from '../physics/figureClaw';
 import { bakeByMaterial, fadeMaterials, materialCloner } from './bake';
 import { BUTTON_SCALE, FIGURE_CONTROLS, LABEL, LABEL_Y, labelMat } from './figureControls';
 import { blindBoxGeo, blindBoxMat, clawGeos, clawMats, makeFigureMachineParts } from './figureMachine';
@@ -30,8 +30,8 @@ export type FigureZone = {
 type Unit = { row: number; slot: number; matrix: THREE.Matrix4; anchor: THREE.Object3D; box: BoxWire; claw: [number, number, number, number]; hidden: boolean };
 
 export function buildFigureZone(scene: THREE.Scene): FigureZone {
-  const units = new Map<string, Unit>(), rows: { inst: Record<string, THREE.InstancedMesh>; cloner: ReturnType<typeof materialCloner>; spots: FigureSpot[] }[] = [];
-  const geos = clawGeos(), mats = clawMats(), tmp = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
+  const units = new Map<string, Unit>(), rows: { inst: Record<string, THREE.InstancedMesh>; cloner: ReturnType<typeof materialCloner>; spots: FigureSpot[]; shape: ClawShape }[] = [];
+  const mats = clawMats(), tmp = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
   const occluders: Occluder[] = [], flatUp = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)); // 버튼 글씨는 윗면에 눕힌다
   (['f1', 'f2'] as const).forEach((rowId, r) => {
     const spots = FIGURES.filter((f) => f.row === rowId), root = new THREE.Group(), cloner = materialCloner();
@@ -54,7 +54,7 @@ export function buildFigureZone(scene: THREE.Scene): FigureZone {
       root.add(im);
       return im;
     };
-    const kind = spots[0].box; // 줄마다 한 종류(설계 §8.3: F-1~F-7 긴 상자, F-8~F-14 정사각형)
+    const kind = spots[0].box, geos = clawGeos(kind); // 줄마다 한 종류(설계 §8.3: F-1~F-7 긴 상자, F-8~F-14 정사각형) — 집게도 그 종류 크기
     const inst = {
       box: make(blindBoxGeo(kind), blindBoxMat(kind)), head: make(geos.head, mats.head), black: make(geos.black, mats.black), red: make(geos.red, mats.red),
       sticker: make(geos.sticker, mats.sticker), armR: make(geos.armR, mats.arm), armL: make(geos.armL, mats.arm), cable: make(geos.cable, mats.cable),
@@ -64,7 +64,7 @@ export function buildFigureZone(scene: THREE.Scene): FigureZone {
     };
     inst.label1.name = 'figure-labels-1'; inst.label2.name = 'figure-labels-2';
     inst.box.name = 'figure-boxes';
-    rows.push({ inst, cloner, spots });
+    rows.push({ inst, cloner, spots, shape: clawShapeOf(kind) });
     const body = new THREE.Box3(), boxes: THREE.Box3[] = [];
     spots.forEach((f, slot) => {
       const anchor = new THREE.Object3D();
@@ -90,7 +90,7 @@ export function buildFigureZone(scene: THREE.Scene): FigureZone {
     set(rows[u.row].inst.box, u.slot, new THREE.Matrix4().compose(v.set(x, y, z), q.set(qx, qy, qz, qw), one), u.matrix);
   }
   function placeClaw(u: Unit) {
-    const { inst } = rows[u.row], [x, y, z, open] = u.claw, { hinge, head, open: OPEN, close: CLOSE } = CLAW_SHAPE;
+    const { inst, shape } = rows[u.row], [x, y, z, open] = u.claw, { hinge, head, open: OPEN, close: CLOSE } = shape;
     const at = new THREE.Matrix4().makeTranslation(x, y, z);
     for (const im of [inst.head, inst.black, inst.red, inst.sticker]) set(im, u.slot, at, u.matrix);
     const ang = -CLOSE + Math.min(1, Math.max(0, open)) * (OPEN + CLOSE); // 오른팔 경첩 각(벌림 +)
