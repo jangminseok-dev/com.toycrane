@@ -21,6 +21,7 @@ export interface BoxWorld {
   tick(): void;
   step(dt: number): void;
   boxPose(): BoxWire;
+  extraPose?(): BoxWire; // 상자에 딸린 움직이는 부분(고리 걸기의 접히는 날개) — 그림·중계
   fallen(): boolean;
   still(): boolean;
   dispose(): void;

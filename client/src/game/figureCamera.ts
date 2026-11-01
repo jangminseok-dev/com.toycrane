@@ -13,8 +13,9 @@ const BLEND_SECONDS = 0.6;
 const smooth = (t: number) => t * t * (3 - 2 * t);
 
 // side 0(정면)~1(옆 대각선) 사이의 카메라 자리(월드)
-export function figureCameraPose(spot: { x: number; z: number; ry: number }, side: number, aspect: number): { pos: THREE.Vector3; look: THREE.Vector3 } {
-  const p = aspect < 1 ? POSES.tall : POSES.wide, s = Math.min(1, Math.max(0, side));
+export type CameraPoses = { wide: { front: readonly (readonly number[])[]; side: readonly (readonly number[])[] }; tall: { front: readonly (readonly number[])[]; side: readonly (readonly number[])[] } };
+export function figureCameraPose(spot: { x: number; z: number; ry: number }, side: number, aspect: number, poses: CameraPoses = POSES): { pos: THREE.Vector3; look: THREE.Vector3 } {
+  const p = aspect < 1 ? poses.tall : poses.wide, s = Math.min(1, Math.max(0, side));
   const place = (a: readonly number[], b: readonly number[]) => new THREE.Vector3(a[0] + (b[0] - a[0]) * s, a[1] + (b[1] - a[1]) * s, a[2] + (b[2] - a[2]) * s)
     .applyAxisAngle(new THREE.Vector3(0, 1, 0), spot.ry).add(new THREE.Vector3(spot.x, 0, spot.z));
   return { pos: place(p.front[0], p.side[0]), look: place(p.front[1], p.side[1]) };

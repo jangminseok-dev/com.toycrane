@@ -21,6 +21,7 @@ export const FIGURE_SIGN = '피규어 뽑기'; // 피규어 기계 간판(9단�
 export const FIGURE_BOX = 'toycrane 피규어 컬렉션'; // 랜덤 상자 윗면 — 캐릭터는 안 보인다
 export const FIGURE_REVEAL = { rare: '희귀!', gold: '황금!' }; // 상자 까기 이름표(일반은 없음)
 export const FIGURE_WORD = '피규어';
+export const HOOK_SIGN = '고리 걸기'; // 고리 걸기 기계 간판(계획 12)
 export const FIGURE_BUTTONS = ['오른쪽', '안쪽'] as const; // 피규어 버튼 ①② 윗면(화살표와 함께)
 // 고리·미는 뽑기(설계 2026-11-02)
 export const PUSHER_SIGN = '미는 뽑기';
@@ -49,6 +50,7 @@ export const UI = {
   nextRun: (k: number) => `곧 ${ORDINAL[k] ?? `${k}번째`} 판이 시작돼요`,
   hint: '레버로 집게를 옮기고 잡기 버튼을 눌러요',
   figureHint: '① 누르는 동안 오른쪽, ② 누르는 동안 안쪽으로 가요', // 피규어 기계(9단계)
+  hookHint: '① 오른쪽, ② 안쪽으로 옮겨 팔 끝을 고리 구멍에 넣어요', // 고리 걸기(계획 12)
   figureNudged: '직원이 상자를 다시 올려놓아 줬어요', // 오래 꽉 낀 상자를 서버가 반듯이 다시 올려놓았다(설계 §8 개정)
   physicsLoading: '준비 중', // 물리 모듈(Rapier)을 아직 받는 중
   saveFailed: '결과를 저장하지 못했어요', // 서버가 판 보고를 거절(물리 뽑기 설계 §9.7)
@@ -71,4 +73,4 @@ export const UI = {
     full: '그 사람 코인이 가득 찼어요', self: '나에게는 줄 수 없어요', playing: '한 판이 끝나면 줄 수 있어요',
   } as Record<string, string>,
 };
-export const ALL_COPY = [...Object.values(MACHINE_SIGNS), ...POP_CARDS, STICKER, ...WALL_SIGN, PREP, COUNTER_SIGN, DROP_LABEL, ...AD_SIGNS, ...Object.values(RARE_TAG), FIGURE_SIGN, FIGURE_BOX, ...Object.values(FIGURE_REVEAL), FIGURE_WORD, ...FIGURE_BUTTONS, PUSHER_SIGN, PUSHER_WORD, '0123456789-ABCFPR?!GET'].join('');
+export const ALL_COPY = [...Object.values(MACHINE_SIGNS), ...POP_CARDS, STICKER, ...WALL_SIGN, PREP, COUNTER_SIGN, DROP_LABEL, ...AD_SIGNS, ...Object.values(RARE_TAG), FIGURE_SIGN, FIGURE_BOX, ...Object.values(FIGURE_REVEAL), FIGURE_WORD, ...FIGURE_BUTTONS, HOOK_SIGN, PUSHER_SIGN, PUSHER_WORD, '0123456789-ABCFPR?!GET'].join('');

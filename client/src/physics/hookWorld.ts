@@ -123,6 +123,11 @@ export class HookWorld implements BoxWorld {
     return [p.x, p.y, p.z, q.x, q.y, q.z, q.w];
   }
 
+  extraPose(): BoxWire {
+    const p = this.flap.translation(), q = this.flap.rotation();
+    return [p.x, p.y, p.z, q.x, q.y, q.z, q.w];
+  }
+
   // 출구로 빠졌나: 옆·뒤는 벽이라 선반 아래로 상자 키만큼 내려갔으면 출구로 떨어진 것
   fallen(): boolean {
     return this.box.translation().y < HOOK.shelf.y - this.dims.h * 0.6;

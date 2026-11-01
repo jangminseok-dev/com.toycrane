@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { FIGURE, FIGURES, variantOf, type BoxKind, type FigureSpot } from '../data/figures';
-import { clawShapeOf } from '../physics/figureClaw';
+import { clawShapeOf, type ClawShape } from '../physics/figureClaw';
 import { barZ } from '../physics/figureWorld';
 import { FIGURE_BOX, FIGURE_SIGN } from './copy';
 import { machineAcryl, machinePopMat, machineSignMat, makeCabinetShell } from './machine';
@@ -40,7 +40,7 @@ const boxTex = (kind: BoxKind) => canvasTex(512, 512, (g) => {
   g.font = `110px ${FONT}`; g.fillText('★', 384, 390);
 });
 const boxMats = new Map<BoxKind, THREE.Material>();
-export const blindBoxMat = (kind: BoxKind = 'long'): THREE.Material => {
+export const blindBoxMat = (kind: BoxKind = 'long'): THREE.Material => { // 고리 걸기 상자도 같은 그림
   let m = boxMats.get(kind);
   if (!m) boxMats.set(kind, (m = toonWith({ map: boxTex(kind) })));
   return m;
@@ -81,7 +81,7 @@ const plateTex = once(() => canvasTex(512, 448, (g) => {
   });
 }));
 export const plateAtlasMat = once(() => new THREE.MeshBasicMaterial({ map: plateTex() }));
-const getMat = once(() => new THREE.MeshBasicMaterial({ map: getTex() }));
+export const getMat = once(() => new THREE.MeshBasicMaterial({ map: getTex() }));
 function plateCell(geo: THREE.BufferGeometry, i: number): THREE.BufferGeometry {
   const g = geo.clone(), uv = g.getAttribute('uv') as THREE.BufferAttribute;
   const u0 = (i % 2) / 2, v0 = 1 - (Math.floor(i / 2) + 1) / 7;
@@ -149,14 +149,14 @@ export function makeFigureMachineParts(spot: FigureSpot, index: number, color: n
 }
 
 // 집게 그림 도형(물리 figureClaw와 같은 모양, 경첩 기준): 각진 흰 머리·검은·빨간 띠·앞 스티커, 반투명 판 팔(바깥 → 아래 → 끝이 안쪽 갈고리)
-const clawGeoCache = new Map<BoxKind, ReturnType<typeof makeClawGeos>>();
+const clawGeoCache = new Map<BoxKind, ReturnType<typeof clawGeosOf>>();
 export const clawGeos = (kind: BoxKind = 'long') => {
   let g = clawGeoCache.get(kind);
-  if (!g) clawGeoCache.set(kind, (g = makeClawGeos(kind)));
+  if (!g) clawGeoCache.set(kind, (g = clawGeosOf(clawShapeOf(kind))));
   return g;
 };
-function makeClawGeos(kind: BoxKind) {
-  const { head: H, elbow, tip, plateT, plateW, tipR } = clawShapeOf(kind);
+export function clawGeosOf(shape: ClawShape) {
+  const { head: H, elbow, tip, plateT, plateW, tipR } = shape;
   const arm = (side: number) => {
     const seg = (a: [number, number], b: [number, number]) => {
       const ax = side * a[0], bx = side * b[0], len = Math.hypot(bx - ax, b[1] - a[1]);

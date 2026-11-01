@@ -8,6 +8,9 @@ import { blocksView, machineCameraPose } from './game/machineCamera';
 import { figureCameraPose } from './game/figureCamera';
 import { FIGURE_SPOTS, FigurePlay } from './game/figurePlay';
 import { watchKind } from './game/watchRoute';
+import { HOOK_MACHINE } from './game/hookPlay';
+import { RINGS, nearestRing } from './data/rings';
+import { buildHookZone } from './world/hookZone';
 import type { ButtonPlay } from './game/buttonPlay';
 import { MachineBusy } from './game/machineBusy';
 import { PlaySession } from './game/playSession';
@@ -102,6 +105,8 @@ Object.assign(window, { __toycrane: {
   buttonAt: (b: 1 | 2) => activePlay()?.buttonAt(b, camera) ?? null,
   music: () => ({ muted: music.muted, playing: music.playing }),
   figureBox: (id: string) => figureZone.boxOf(id),
+  hookBox: (id: string) => hookZone.boxOf(id),
+  hookSide: () => hookPlay.side.value(clock()),
   figureSide: () => figurePlay.side.value(clock()),
 } });
 await loadFonts(ALL_COPY); // 간판 글꼴(2.5초 안에 못 오면 시스템 글꼴)
@@ -117,7 +122,8 @@ const bigZone = buildBigZone(scene);
 const figureZone = buildFigureZone(scene); // 동쪽 피규어 기계 14대(9단계)
 const minimap = buildMinimap(document.body, mapSize(innerWidth, innerHeight)); // 오른쪽 위 매장 지도(설계 2026-11-02 §6)
 // 탑·기계 행·교환소가 내 캐릭터를 가리면 그것만 흐리게(머리·몸통 중 하나라도 가리면)
-const fader = new OcclusionFader([tower, ...bigZone.occluders, ...figureZone.occluders, ...buildCoinCounters(scene), ...buildDecor(scene)]);
+const hookZone = buildHookZone(scene); // 북쪽 고리 걸기 10대(계획 12)
+const fader = new OcclusionFader([tower, ...bigZone.occluders, ...figureZone.occluders, ...hookZone.occluders, ...buildCoinCounters(scene), ...buildDecor(scene)]);
 
 let me: LocalPlayer | null = null;
 let wallet = { coins: 0, bag: 0 }; // 코인·가방 수 (서버가 알려 준 값)
@@ -135,7 +141,7 @@ let holdFrom = 0; // 서버가 내 자리를 잡아 둔 시각(내 결과를 받
 const busy = new MachineBusy(MACHINE_SPEC.play_seconds, MACHINE_SPEC.hold_seconds, CLAW.cycle_seconds + CLAW.settle_seconds);
 let dropped: PlaySession | null = null; // 내리고 결과를 기다리는 판 (8초 넘게 못 받으면 포기)
 const clock = () => performance.now() / 1000;
-const spotOf = new Map<string, { x: number; z: number; ry: number }>([...MACHINES, ...FIGURES].map((m) => [m.id, m])); // 인형·피규어 기계
+const spotOf = new Map<string, { x: number; z: number; ry: number }>([...MACHINES, ...FIGURES, ...RINGS].map((m) => [m.id, m])); // 인형·피규어·고리 걸기 기계
 // 피규어 한 판(9단계): 버튼·물리·중계·상자 까기는 FigurePlay가 맡고, 판 사이 흐름(awaiting·seated·이어 하기)은 인형 판과 함께 쓴다
 const figurePlay = new FigurePlay(scene, figureZone, {
   send: (msg) => socket?.send(msg),
@@ -144,7 +150,16 @@ const figurePlay = new FigurePlay(scene, figureZone, {
   onOverdue: () => { endPlay(); toast('결과를 받지 못했어요'); },
 });
 // 버튼으로 하는 기계들 — 판 흐름(시작·누르기·결과 기다리기·그만하기·시점)은 같은 길로
-const buttonPlays: ButtonPlay[] = [figurePlay];
+// 고리 걸기 한 판(계획 12): 피규어 판과 같은 흐름, 세계·그림만 다르다
+const hookPlay = new FigurePlay(scene, hookZone, {
+  send: (msg) => socket?.send(msg),
+  rapier: rapierNow,
+  onDrop: (id) => { awaiting = id; hidePlayControls(); },
+  onOverdue: () => { endPlay(); toast('결과를 받지 못했어요'); },
+}, HOOK_MACHINE);
+const boxPlays = [figurePlay, hookPlay]; // 상자 기계(상자 보고·구경·상자 까기)
+const boxPlayFor = (id: string) => boxPlays.find((p) => p.handles(id)) ?? null;
+const buttonPlays: ButtonPlay[] = boxPlays;
 const playFor = (id: string) => buttonPlays.find((p) => p.handles(id)) ?? null;
 const activePlay = () => buttonPlays.find((p) => p.session) ?? null;
 const camLook = new THREE.Vector3();
@@ -264,7 +279,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       for (const p of m.players) { remotes.add(p, now); if (p.beg != null) remotes.setBegging(p.id, p.beg, tw); }
       scheduleRapier(); // 물리 모듈은 입장 뒤 한가할 때 받는다 (물리 뽑기 설계 §4.1)
       for (const [id, spots] of Object.entries(m.machines)) bigZone.setContents(id, spots.map(grounded));
-      figurePlay.clearWatches(); figurePlay.setBoxes(m.figures);
+      for (const p of boxPlays) { p.clearWatches(); p.setBoxes(m.figures); }
       wallet = { coins: m.coins, bag: m.bag };
       setHud(wallet.coins, wallet.bag);
       soundButton(music.muted, UI.sound, (muted) => { music.setMuted(muted); setSfxMuted(muted); });
@@ -282,7 +297,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       if (m.id !== myId) { // 남의 판: 그 기계의 인형(피규어는 상자)을 따로 그리고 중계(pose)를 기다린다
         const kind = watchKind(m.m); // 기계 종류에 맞는 구경(인형 구경을 다른 기계에 걸면 예외로 멈췄다)
         if (kind === 'doll') startWatch(m.m);
-        else if (kind === 'box' && me && isFigure(m.m)) figurePlay.watch(m.m, me.pos);
+        else if (kind === 'box' && me) boxPlayFor(m.m)?.watch(m.m, me.pos);
       }
       else if (cycle?.machineId === m.m) cycle.gen = genOf(m.m); // 내 판의 물리는 play_ok에서 먼저 만들어졌다
       after(m.m, () => {
@@ -292,14 +307,14 @@ function onMessage(m: ServerMsg, guest: Guest) {
       break;
     case 'play_ok': { const bp = playFor(m.m); if (bp) startButtonPlay(bp, m.m, m.limit, m.coins); else startPlay(m.m, m.limit, m.coins); break; }
     case 'done_no': onDoneNo(m.m); break;
-    case 'pose': watches.get(m.m)?.receiver.push(m, now / 1000); figurePlay.onPose(m, now / 1000); break;
+    case 'pose': watches.get(m.m)?.receiver.push(m, now / 1000); for (const p of boxPlays) p.onPose(m, now / 1000); break;
     case 'play_no':
       if (m.why !== 'playing') toast({ busy: '다른 사람이 하는 중이에요', coins: UI.noCoinsToast, far: '기계 앞에 서 주세요' }[m.why]);
       if (seated === m.m) { run.stop(); nextRunAt = null; showSeat(); } // 이어 하던 판을 못 시작했으면 멈추고 다시 묻는다
       break;
     case 'free':
       busy.clear(m.m);
-      stopWatch(m.m); figurePlay.stopWatch(m.m);
+      stopWatch(m.m); for (const p of boxPlays) p.stopWatch(m.m);
       void playing.get(m.m)?.stop(); playing.delete(m.m);
       if (session?.machineId === m.m || activePlay()?.session?.machineId === m.m || awaiting === m.m) { endPlay(); toast('시간이 지나 기계가 풀렸어요'); }
       else if (seated === m.m) { endPlay(); toast('자리를 비운 사이 다른 사람이 시작했어요'); }
@@ -309,7 +324,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       if (m.id === myId) { holdFrom = now / 1000; playFor(m.m)?.resulted(m.m); } // 보고한 때 = 서버가 자리를 잡아 둔 때
       const t: Ticket = { done: false, gen: genOf(m.m) };
       tickets.set(m.m, t);
-      after(m.m, () => (isFigure(m.m) ? showFigureResult(m, t) : showResult(m, t)));
+      after(m.m, () => (boxPlayFor(m.m) ? showFigureResult(m, t) : showResult(m, t)));
       break;
     }
     case 'machine': {
@@ -319,8 +334,8 @@ function onMessage(m: ServerMsg, guest: Guest) {
       break;
     }
     case 'figure': { // 피규어 상자 자리(판 뒤·새 상자·직원이 옮김) — 판의 끝이니 그 기계 구경도 끝
-      figurePlay.stopWatch(m.m); figurePlay.setBox(m.m, m.box);
-      const f = FIGURE_SPOTS.get(m.m);
+      boxPlayFor(m.m)?.stopWatch(m.m); boxPlayFor(m.m)?.setBox(m.m, m.box);
+      const f = spotOf.get(m.m);
       if (m.nudged && f && me && Math.hypot(me.pos.x - frontSpot(f).x, me.pos.z - frontSpot(f).z) < 6) toast(UI.figureNudged);
       break;
     }
@@ -732,7 +747,7 @@ async function showFigureResult(m: Result, t: Ticket) {
   const mine = m.id === myId;
   if (mine) showingMe = true;
   await playing.get(m.m)?.stop(); playing.delete(m.m);
-  const spot = FIGURE_SPOTS.get(m.m)!, front = frontSpot(spot);
+  const spot = spotOf.get(m.m)!, front = frontSpot(spot), bp = boxPlayFor(m.m)!;
   const first = m.won[0], tier = first?.[2] === GOLD.id ? 'gold' : first?.[2] ? 'rare' : '';
   const name = first ? figureName(first[0], first[2]) : '';
   const near = mine || (!!me && Math.hypot(me.pos.x - front.x, me.pos.z - front.z) < 6);
@@ -745,7 +760,7 @@ async function showFigureResult(m: Result, t: Ticket) {
   };
   if (mine) {
     if (first) {
-      await new Promise<void>((done) => figurePlay.reveal(first[0], first[2], figureCameraPose(spot, 0, camera.aspect), done, spot.box));
+      await new Promise<void>((done) => bp.reveal(first[0], first[2], figureCameraPose(spot, 0, camera.aspect, bp.machine.camera), done, FIGURE_SPOTS.get(m.m)?.box ?? 'long'));
       announce();
       showWinCard(name, FIGURE_WORD, tier, wallet.bag);
     } else sfx.fail();
@@ -815,9 +830,9 @@ const poseSender = new PoseSender((msg) => socket?.send(msg));
 // 기계 앞자리 가까이면 그 기계: 비었으면 "🪙1 넣고 하기", 남이 하면 구경 중
 function showMachineUi(): boolean {
   if (!me) return false;
-  // 인형·피규어 기계 중 앞자리가 가장 가까운 쪽
+  // 인형·피규어·고리 걸기 기계 중 앞자리가 가장 가까운 쪽
   const pos = me.pos, gap = (m: { x: number; z: number; ry: number }) => { const f = frontSpot(m); return Math.hypot(pos.x - f.x, pos.z - f.z); };
-  const near = [nearestMachine(pos), nearestFigure(pos)].filter((m) => m !== null).sort((a, b) => gap(a) - gap(b))[0];
+  const near = [nearestMachine(pos), nearestFigure(pos), nearestRing(pos)].filter((m) => m !== null).sort((a, b) => gap(a) - gap(b))[0];
   if (!near) return false;
   const who = busy.who(near.id, clock());
   if (who && who !== myId) { setAction(null); setInfo(UI.watching); return true; }

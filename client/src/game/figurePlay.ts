@@ -12,7 +12,7 @@ import { UI } from '../world/copy';
 import { playReveal } from '../world/figureReveal';
 import type { FigureZone } from '../world/figureZone';
 import type { ButtonPlay } from './buttonPlay';
-import { SideBlend, figureCameraPose } from './figureCamera';
+import { SideBlend, figureCameraPose, type CameraPoses } from './figureCamera';
 import { FigureSession } from './figureSession';
 import type { Vec2 } from './movement';
 
@@ -26,6 +26,7 @@ export type BoxMachine = {
   makeWorld(R: Rapier, box: BoxWire, id: string): BoxWorld;
   hint: string;
   labels?: ButtonLabels;
+  camera?: CameraPoses; // 기본은 피규어 시점
 };
 export const FIGURE_MACHINE: BoxMachine = { spots: FIGURE_SPOTS, makeWorld: (R, box, id) => new FigureWorld(R, box, boxKindOf(id)), hint: UI.figureHint };
 const boxPose = (b: BoxWire): DollPose => ({ uid: 0, p: [b[0], b[1], b[2]], q: [b[3], b[4], b[5], b[6]] });
@@ -129,9 +130,9 @@ export class FigurePlay implements ButtonPlay {
       else { this.controls?.update(now); this.zone.setClaw(s.machineId, s.claw.x, FIGURE.claw.rest_y, s.claw.z, 1); }
     }
     if (this.runner && this.world && this.claw && this.playId) {
-      const done = this.runner.advance(dt), [x, y, z, open] = this.runner.clawPose(), box = this.world.boxPose();
-      this.zone.setClaw(this.playId, x, y, z, open); this.zone.setBox(this.playId, box);
-      this.poseSender.frame(this.playId, { x, y, z, open }, [boxPose(box)], now);
+      const done = this.runner.advance(dt), [x, y, z, open] = this.runner.clawPose(), box = this.world.boxPose(), extra = this.world.extraPose?.();
+      this.zone.setClaw(this.playId, x, y, z, open); this.zone.setBox(this.playId, box, extra);
+      this.poseSender.frame(this.playId, { x, y, z, open }, extra ? [boxPose(box), { ...boxPose(extra), uid: 1 }] : [boxPose(box)], now); // 날개는 uid 1
       if (done) {
         const r = this.runner.done();
         this.deps.send(encodeDone(this.playId, r.won ? [0] : [], [boxPose(r.box)]));
@@ -146,8 +147,8 @@ export class FigurePlay implements ButtonPlay {
       const { claw, dolls } = rec.sample(now);
       if (claw[1] <= 0) continue; // 아직 중계가 없다
       this.zone.setClaw(id, claw[0], claw[1], claw[2], claw[3]);
-      const b = dolls.get(0);
-      if (b) this.zone.setBox(id, [...b.p, ...b.q]);
+      const b = dolls.get(0), e = dolls.get(1);
+      if (b) this.zone.setBox(id, [...b.p, ...b.q], e ? [...e.p, ...e.q] : undefined);
     }
     this.reveals = this.reveals.filter((r) => r.update(dt));
   }
@@ -156,7 +157,7 @@ export class FigurePlay implements ButtonPlay {
 
 
 
-  cameraPose(id: string, now: number, aspect: number) { return figureCameraPose(this.machine.spots.get(id)!, this.side.value(now), aspect); }
+  cameraPose(id: string, now: number, aspect: number) { return figureCameraPose(this.machine.spots.get(id)!, this.side.value(now), aspect, this.machine.camera); }
 
   cycling(): boolean { return this.runner !== null; }
 
