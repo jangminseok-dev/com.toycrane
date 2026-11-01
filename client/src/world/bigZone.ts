@@ -31,6 +31,7 @@ export interface BigZone {
   live(machineId: string): LiveDolls; // 한 판 동안 그 기계의 인형을 무더기에서 빼 따로 그린다 (물리·중계 자세를 입히려고)
   update(t: number): void; // 깜빡임, 바뀐 행의 인형 다시 합치기(새 겉모습은 프레임마다 조금씩 지어 다 지은 묶음부터), 희귀 반짝임
   pending(): number; // 아직 다시 합치지 못한 묶음 수
+  hideRowsBehind(machineId: string | null): void; // 기계 앞 화면: 그 기계보다 뒤에 있는 줄을 숨긴다(null이면 모두 보임) — 휴대폰 그리기 호출 (큰 홀 설계 §6)
   occluders: Occluder[]; // 행 2개: 벽 줄, 섬
 }
 
@@ -360,6 +361,14 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     },
     pending() {
       return blocks.filter((b) => b.dirty).length;
+    },
+    hideRowsBehind(machineId) {
+      const m = machineId ? MACHINES.find((x) => x.id === machineId) : undefined;
+      for (const row of rows) {
+        // 줄 가운데가 그 기계가 보는 쪽의 반대편으로 1m 넘게 떨어져 있으면 뒤
+        const cx = row.spots.reduce((a, s) => a + s.x, 0) / row.spots.length, cz = row.spots.reduce((a, s) => a + s.z, 0) / row.spots.length;
+        row.group.visible = !m || (cx - m.x) * Math.sin(m.ry) + (cz - m.z) * Math.cos(m.ry) > -1;
+      }
     },
     hideControls(id, hidden) {
       const u = unit(id), spot = MACHINES.find((m) => m.id === id)!, j = u.row.spots.indexOf(spot);

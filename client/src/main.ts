@@ -798,6 +798,7 @@ function frame(now: number) {
     settleNearby(); // 가까운 기계의 안 앉은 인형 앉히기
     const atMachine = session?.machineId ?? awaiting ?? seated; // 기계 카메라를 쓰는 동안
     joystick.setEnabled(!atMachine); // 기계 앞에서는 기계 버튼으로 — 걷기 조이스틱은 숨긴다
+    bigZone.hideRowsBehind(atMachine ?? null); // 기계 앞 화면에선 내 기계 뒤 줄을 숨긴다 (휴대폰 그리기 호출, 큰 홀 설계 §6)
     const myMachine = atMachine ? spotOf.get(atMachine) : undefined;
     remotes.fade(myMachine ? (p) => blocksView(myMachine, p) : null, dt); // 한 판 중 내 카메라를 가리는 사람은 거의 투명하게
     if (session) {

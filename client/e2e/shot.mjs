@@ -7,40 +7,12 @@
 // 걷기: 지점마다 장애물(shared/store_layout.json)을 피하는 길을 격자로 찾아, 휴대폰은 조이스틱을 그 방향으로 끌고
 // PC는 WASD를 눌러 따라간다.
 const [port, base, out, mode = 'phone', walk = '', press = ''] = process.argv.slice(2);
+import { LAYOUT, frontOf, route } from './nav.mjs';
 const fs = await import('node:fs');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const SPEED = 3.2;
 const phone = mode === 'phone';
-const LAYOUT = JSON.parse(fs.readFileSync(new URL('../../shared/store_layout.json', import.meta.url), 'utf8'));
 
-// 0.25m 격자에서 장애물(0.35m 여유)을 피해 8방향으로 가는 가장 짧은 길 → 방향이 바뀌는 곳마다 꺾이는 점들
-const CELL = 0.25, HALF = 12.3, N = Math.round((HALF * 2) / CELL) + 1;
-const free = (x, z) => Math.abs(x) <= HALF && Math.abs(z) <= HALF
-  && !LAYOUT.obstacles.some(([x0, z0, x1, z1]) => x > x0 - 0.35 && x < x1 + 0.35 && z > z0 - 0.35 && z < z1 + 0.35);
-const cellOf = (v) => Math.max(0, Math.min(N - 1, Math.round((v + HALF) / CELL)));
-const at = (i) => -HALF + i * CELL;
-function route(from, to) {
-  const start = cellOf(from.x) * N + cellOf(from.z), goal = cellOf(to.x) * N + cellOf(to.z);
-  const prev = new Map([[start, -1]]), queue = [start];
-  while (queue.length && !prev.has(goal)) {
-    const c = queue.shift(), ci = Math.floor(c / N), cj = c % N;
-    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
-      const i = ci + di, j = cj + dj, n = i * N + j;
-      if (i < 0 || j < 0 || i >= N || j >= N || prev.has(n) || !free(at(i), at(j))) continue;
-      prev.set(n, c); queue.push(n);
-    }
-  }
-  if (!prev.has(goal)) return [to];
-  const cells = [];
-  for (let c = goal; c !== -1; c = prev.get(c)) cells.unshift(c);
-  const pts = [];
-  for (let k = 1; k < cells.length; k++) {
-    const d = (a, b) => [Math.floor(b / N) - Math.floor(a / N), (b % N) - (a % N)].join();
-    if (k === cells.length - 1 || d(cells[k - 1], cells[k]) !== d(cells[k], cells[k + 1])) pts.push({ x: at(Math.floor(cells[k] / N)), z: at(cells[k] % N) });
-  }
-  pts[pts.length - 1] = to;
-  return pts;
-}
 
 // 내 스폰 자리를 알려고 같은 매장에 관찰자로 들어간다
 const post = (p, b) => fetch(base + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }).then((r) => r.json());

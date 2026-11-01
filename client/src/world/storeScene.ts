@@ -276,21 +276,26 @@ function addPlazaAds(scene: THREE.Scene) {
   const boards = new THREE.Mesh(mergeGeometries(faces)!, new THREE.MeshBasicMaterial({ map: adSignsTex() }));
   boards.name = 'plaza-ads';
   scene.add(boards);
-  const frame = mergeGeometries(AD_BOARDS.flatMap(({ x, z }) => [
-    new THREE.BoxGeometry(W + 0.12, H + 0.12, 0.1).translate(x, Y, z),
-    new THREE.BoxGeometry(0.14, Y - H / 2, 0.14).translate(x, (Y - H / 2) / 2, z),
-  ]))!;
-  scene.add(part(frame, toon(0xfbf8ff)));
+  scene.add(outlinedBoxes(AD_BOARDS.flatMap(({ x, z }) => [
+    [W + 0.12, H + 0.12, 0.1, x, Y, z], [0.14, Y - H / 2, 0.14, x, (Y - H / 2) / 2, z],
+  ] as Box[]), toon(0xfbf8ff)));
+}
+
+// 상자 여러 개를 한 덩어리로 + 외곽선 한 덩어리 — 외곽선은 상자마다 제 가운데에서 키운다
+// (합친 도형을 part()로 감싸면 외곽선이 원점에서 커져 멀리 있는 상자 앞을 덮는다)
+type Box = [number, number, number, number, number, number]; // 폭, 높이, 깊이, x, y, z
+function outlinedBoxes(boxes: Box[], mat: THREE.Material): THREE.Group {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(mergeGeometries(boxes.map(([w, h, d, x, y, z]) => new THREE.BoxGeometry(w, h, d).translate(x, y, z)))!, mat);
+  body.castShadow = true;
+  g.add(body, new THREE.Mesh(mergeGeometries(boxes.map(([w, h, d, x, y, z]) => new THREE.BoxGeometry(w, h, d).scale(1.06, 1.06, 1.06).translate(x, y, z)))!, outlineMat));
+  return g;
 }
 
 // 입구(남쪽 벽 가운데): 기둥 둘과 가로대를 한 덩어리로 — 걷기 카메라가 북쪽을 보므로 남쪽으로 걸어갈 때만 보인다
 function addEntrance(scene: THREE.Scene) {
   const z = ROOM_HALF - 0.4;
-  const geo = mergeGeometries([
-    new THREE.BoxGeometry(0.4, 3, 0.4).translate(-2.2, 1.5, z), new THREE.BoxGeometry(0.4, 3, 0.4).translate(2.2, 1.5, z),
-    new THREE.BoxGeometry(4.8, 0.5, 0.4).translate(0, 2.9, z),
-  ])!;
-  const g = part(geo, toon(0xff7ab6));
+  const g = outlinedBoxes([[0.4, 3, 0.4, -2.2, 1.5, z], [0.4, 3, 0.4, 2.2, 1.5, z], [4.8, 0.5, 0.4, 0, 2.9, z]], toon(0xff7ab6));
   g.name = 'entrance';
   scene.add(g);
 }

@@ -338,3 +338,17 @@ test('rows come from the layout, three doll rows of at most six per block', () =
   expect(new Set(blocks.map((n) => n.split('-')[2]))).toEqual(new Set(['d1', 'd2', 'd3']));
   expect(blocks).toHaveLength(6);
 });
+
+// 큰 홀(설계 2026-11-01 §6): 기계 앞 화면(내 기계는 광장 쪽 +x를 봄)에서는 내 기계보다 뒤(서쪽)에 있는 줄을 숨긴다 —
+// 기계에 가려 거의 안 보이는데 그리기 호출을 100개 가까이 써서 휴대폰 기계 앞 기준(160)을 넘었다
+test('while playing a machine, rows behind it are hidden and come back after', () => {
+  const scene = new THREE.Scene();
+  const zone = buildBigZone(scene);
+  const visible = () => ['d1', 'd2', 'd3'].map((r) => scene.getObjectByName(`big-${r}`)!.visible);
+  zone.hideRowsBehind('C-6'); // C-6은 광장 쪽 줄(d3)
+  expect(visible()).toEqual([false, false, true]);
+  zone.hideRowsBehind('A-9'); // A-9는 가운데 줄(d2)
+  expect(visible()).toEqual([false, true, true]);
+  zone.hideRowsBehind(null);
+  expect(visible()).toEqual([true, true, true]);
+});

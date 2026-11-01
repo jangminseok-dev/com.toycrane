@@ -4,40 +4,12 @@
 //   node client/e2e/perf.mjs <base-url> <out.json> [port=9461]
 // 출력: { walk_pc, machine_pc, cycle_pc(집게 한 바퀴 중), physics_pc_ms(프레임당 물리), walk_phone, …, walk_pc_tri, … }
 const [base, out, port = '9461'] = process.argv.slice(2);
+import { LAYOUT, frontOf, route } from './nav.mjs';
 const fs = await import('node:fs');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const SPEED = 3.2, FRONT_C6 = { x: 0, z: -5.4 };
-const LAYOUT = JSON.parse(fs.readFileSync(new URL('../../shared/store_layout.json', import.meta.url), 'utf8'));
+const SPEED = 3.2, FRONT_C6 = frontOf('C-6');
 const WINDOW_0 = { x: LAYOUT.counters[0].window[0], z: LAYOUT.counters[0].window[1] };
 
-// 0.25m 격자에서 장애물(0.35m 여유)을 피하는 가장 짧은 길 (shot.mjs와 같은 방식)
-const CELL = 0.25, HALF = 12.3, N = Math.round((HALF * 2) / CELL) + 1;
-const free = (x, z) => Math.abs(x) <= HALF && Math.abs(z) <= HALF
-  && !LAYOUT.obstacles.some(([x0, z0, x1, z1]) => x > x0 - 0.35 && x < x1 + 0.35 && z > z0 - 0.35 && z < z1 + 0.35);
-const cellOf = (v) => Math.max(0, Math.min(N - 1, Math.round((v + HALF) / CELL)));
-const at = (i) => -HALF + i * CELL;
-function route(from, to) {
-  const start = cellOf(from.x) * N + cellOf(from.z), goal = cellOf(to.x) * N + cellOf(to.z);
-  const prev = new Map([[start, -1]]), queue = [start];
-  while (queue.length && !prev.has(goal)) {
-    const c = queue.shift(), ci = Math.floor(c / N), cj = c % N;
-    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
-      const i = ci + di, j = cj + dj, n = i * N + j;
-      if (i < 0 || j < 0 || i >= N || j >= N || prev.has(n) || !free(at(i), at(j))) continue;
-      prev.set(n, c); queue.push(n);
-    }
-  }
-  if (!prev.has(goal)) return [to];
-  const cells = [];
-  for (let c = goal; c !== -1; c = prev.get(c)) cells.unshift(c);
-  const pts = [];
-  for (let k = 1; k < cells.length; k++) {
-    const d = (a, b) => [Math.floor(b / N) - Math.floor(a / N), (b % N) - (a % N)].join();
-    if (k === cells.length - 1 || d(cells[k - 1], cells[k]) !== d(cells[k], cells[k + 1])) pts.push({ x: at(Math.floor(cells[k] / N)), z: at(cells[k] % N) });
-  }
-  pts[pts.length - 1] = to;
-  return pts;
-}
 
 async function measure(mode) {
   const post = (p, b) => fetch(base + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }).then((r) => r.json());
