@@ -45,6 +45,11 @@ def figure(machine_id: str, box, nudged: bool) -> dict:
     return {"t": "figure", "m": machine_id, "box": _box(box), "nudged": nudged}
 
 
+def ring(machine_id: str, board, x: float, y: float, peg: int | None, caught: bool) -> dict:
+    """고리 뽑기 한 판(설계 2026-11-02 §3): 걸이 카드(보이는 경품)와 갈고리가 멈춘 자리·걸린 걸이(-1이면 없음)·출구까지 왔나 — 모두가 같은 찌르기를 그린다."""
+    return {"t": "ring", "m": machine_id, "pegs": [[c.kind, c.color, c.rare] for c in board], "x": round(x, 3), "y": round(y, 3), "peg": -1 if peg is None else peg, "caught": caught}
+
+
 def join(p: PlayerView) -> dict:
     return {"t": "join", "p": _player(p)}
 

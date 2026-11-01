@@ -86,6 +86,10 @@ class ConnectionsPort(ABC):
         """피규어 기계 상자 자리를 모두에게."""
 
     @abstractmethod
+    def broadcast_ring(self, machine_id: str, board, x: float, y: float, peg: int | None, caught: bool) -> None:
+        """고리 기계 한 판(카드·찌른 자리·결과)을 모두에게."""
+
+    @abstractmethod
     def send_bag(self, conn_id: str, total: int) -> None: ...
 
     @abstractmethod

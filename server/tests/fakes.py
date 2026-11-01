@@ -143,6 +143,9 @@ class FakeConnections:
     def broadcast_machine(self, machine_id, spots) -> None:
         self.broadcasts.append((None, server_messages.machine(machine_id, spots)))
 
+    def broadcast_ring(self, machine_id, board, x, y, peg, caught) -> None:
+        self.broadcasts.append((None, server_messages.ring(machine_id, board, x, y, peg, caught)))
+
     def broadcast_figure(self, machine_id, box, nudged) -> None:
         self.broadcasts.append((None, server_messages.figure(machine_id, box, nudged)))
 
@@ -241,6 +244,21 @@ class FakeContents:
 
     async def due_at(self) -> float | None:
         return self.due
+
+
+class FakeRingBoards:
+    """고리 카드 저장소(DO 저장소) 가짜: 기계 id → 카드 튜플."""
+
+    def __init__(self, stored: dict | None = None) -> None:
+        self.stored = dict(stored or {})
+        self.saves = 0
+
+    async def load(self) -> dict:
+        return dict(self.stored)
+
+    async def save(self, boards: dict) -> None:
+        self.stored = dict(boards)
+        self.saves += 1
 
 
 class FakeFigureBoxes:
