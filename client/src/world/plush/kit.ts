@@ -36,7 +36,7 @@ const V = (p: V3 | THREE.Vector3) => (p instanceof THREE.Vector3 ? p.clone() : n
 const AO_STRENGTH = 0.25; // 시제품 v13 카툰 값 (셀 음영이 이미 입체를 낸다)
 
 type Occ = { c: THREE.Vector3; r: number };
-type Part = { geo: THREE.BufferGeometry; slot: Slot; outline: boolean; hit: 'solid' | 'ear' | 'none'; name?: string; balls: Hit[]; occ: Occ[] };
+type Part = { geo: THREE.BufferGeometry; slot: Slot; outline: boolean; hit: 'solid' | 'ear' | 'none'; name?: string; balls: Hit[]; occ: Occ[]; head?: { c: number; r: number } };
 type Paint = { cell: Cell; at: [number, number]; size: [number, number]; name: string; flip: boolean };
 type Stitch = { points: [number, number][]; r: number; name: string };
 
@@ -50,19 +50,47 @@ export class PlushBuilder {
     this.seg = o.lite ? { sphere: [16, 12], tube: [24, 10], lathe: 24, curve: 16 } : { sphere: [48, 36], tube: [48, 32], lathe: 64, curve: 48 };
   }
 
-  private add(geo: THREE.BufferGeometry, balls: Hit[], occ: Occ[], o: PartOpts = {}, defaultHit: 'solid' | 'ear' | 'none' = 'solid'): this {
-    this.parts.push({ geo, slot: o.slot ?? 'body', outline: o.outline ?? true, hit: o.hit ?? defaultHit, name: o.name, balls, occ });
+  private add(geo: THREE.BufferGeometry, balls: Hit[], occ: Occ[], o: PartOpts = {}, defaultHit: 'solid' | 'ear' | 'none' = 'solid', head?: { c: number; r: number }): this {
+    this.parts.push({ geo, slot: o.slot ?? 'body', outline: o.outline ?? true, hit: o.hit ?? defaultHit, name: o.name, balls, occ, head });
     return this;
   }
 
-  // 공(타원체): 부딪힘 공 하나 — 세 축 배율 평균 × r × 0.95
+  // 공(타원체). 부딪힘 공: 긴 축이 둘째 축의 1.31배 이하면 하나(반지름 = 긴 두 축 평균 × 0.95),
+  // 더 길쭉하면 긴 축을 따라 셋(옆으로 넓은 고양이 머리처럼 — 공 하나면 양끝이 밖으로 샌다)
   sphere(r: number, at: V3, scale: V3 = [1, 1, 1], rot: V3 = [0, 0, 0], o?: PartOpts): this {
     const g = new THREE.SphereGeometry(r, ...this.seg.sphere);
     g.scale(...scale);
-    g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...rot)));
+    const turn = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...rot));
+    g.applyMatrix4(turn);
     g.translate(...at);
-    const mean = (r * (scale[0] + scale[1] + scale[2])) / 3;
-    return this.add(g, [{ c: V(at), r: mean * 0.95 }], [{ c: V(at), r: mean }], o);
+    const axes = scale.map((k, i) => ({ len: r * k, dir: new THREE.Vector3(i === 0 ? 1 : 0, i === 1 ? 1 : 0, i === 2 ? 1 : 0).applyMatrix4(turn) })).sort((a, b) => b.len - a.len);
+    const c = V(at), mean = (r * (scale[0] + scale[1] + scale[2])) / 3;
+    let balls: Hit[];
+    if (axes[0].len <= axes[1].len * 1.31) balls = [{ c, r: ((axes[0].len + axes[1].len) / 2) * 0.95 }];
+    else {
+      const rr = ((axes[1].len + axes[2].len) / 2) * 0.95, off = axes[0].len - rr;
+      balls = [-1, 0, 1].map((s) => ({ c: c.clone().addScaledVector(axes[0].dir, s * off), r: rr })); // 양끝 + 가운데(앞뒤 가운데가 비지 않게)
+    }
+    return this.add(g, balls, [{ c, r: mean }], o, 'solid', o?.name === 'head' ? { c: at[1], r: mean } : undefined);
+  }
+
+  // 겉면에 반쯤 박힌 작은 공(코·젤리 볼록이): 앞에서 본 (x, y) 자리의 지금까지 만든 겉면에 붙인다. 기본은 부딪힘 아님·외곽선 없음
+  nub(r: number, at: [number, number], scale: V3 = [1, 1, 1], o: PartOpts = {}): this {
+    const meshes = this.parts.map((q) => new THREE.Mesh(q.geo));
+    const { p, n } = surfaceAt(meshes, at[0], at[1]);
+    const g = new THREE.SphereGeometry(r, ...this.seg.sphere);
+    g.scale(...scale);
+    g.applyMatrix4(new THREE.Matrix4().lookAt(new THREE.Vector3(), n.clone().negate(), UP));
+    g.translate(p.x, p.y, p.z);
+    return this.add(g, [{ c: p, r: r * 0.9 }], [{ c: p, r }], { outline: false, hit: 'none', ...o });
+  }
+
+  // 단단한 부위(hit 'solid')의 꼭짓점 — 부딪힘 공이 겉모습을 감싸는지 재는 시험용
+  solidPositions(): THREE.Vector3[] {
+    return this.parts.filter((q) => q.hit === 'solid').flatMap((q) => {
+      const pos = q.geo.getAttribute('position');
+      return Array.from({ length: pos.count }, (_, i) => new THREE.Vector3().fromBufferAttribute(pos, i));
+    });
   }
 
   // 곡선을 따라 가는 관, 굵기는 t(0~1)에 따라 taper배. 부딪힘 공은 길이에 맞춰 2~3개
@@ -75,7 +103,7 @@ export class PlushBuilder {
       for (let j = 0; j <= rad; j++) { const idx = i * (rad + 1) + j; p.fromBufferAttribute(pos, idx).sub(c).multiplyScalar(k).add(c); pos.setXYZ(idx, p.x, p.y, p.z); }
     }
     g.computeVertexNormals();
-    const len = curve.getLength(), n = Math.min(3, Math.max(2, Math.ceil(len / (2 * r))));
+    const len = curve.getLength(), n = Math.min(5, Math.max(2, Math.ceil(len / (2.5 * r)))); // 공 사이가 굵기의 2.5배를 넘지 않게 (긴 꼬리는 5개까지)
     const balls = Array.from({ length: n }, (_, i) => { const t = i / (n - 1); return { c: curve.getPointAt(t), r: r * taper(t) * 0.95 }; });
     const m = Math.max(2, Math.ceil(len / 0.07));
     const occ = Array.from({ length: m + 1 }, (_, i) => ({ c: curve.getPointAt(i / m), r: r * taper(i / m) }));
@@ -89,8 +117,10 @@ export class PlushBuilder {
     pts[0].x = 0.0001; pts[pts.length - 1].x = 0.0001;
     const g = new THREE.LatheGeometry(pts, this.seg.lathe);
     g.scale(1, 1, flatZ); g.translate(0, 0, zOff);
-    const thick = profile.filter(([, r]) => r > 0.1);
-    const pick = thick.length <= 3 ? thick : [thick[0], thick[Math.floor(thick.length / 2)], thick[thick.length - 1]];
+    // 아래 1/3·위 2/3 높이의 두 공 (몸통이 작아 둘이면 감싼다)
+    const ys = profile.map(([y]) => y), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const radiusAt = (y: number) => { let best = profile[0]; for (const q of profile) if (Math.abs(q[0] - y) < Math.abs(best[0] - y)) best = q; return best[1]; };
+    const pick: [number, number][] = [y0 + (y1 - y0) * 0.32, y0 + (y1 - y0) * 0.66].map((y) => [y, radiusAt(y)]);
     const k = (1 + flatZ) / 2;
     const balls = pick.map(([y, r]) => ({ c: new THREE.Vector3(0, y, zOff), r: r * k * 0.95 }));
     const occ = profile.filter(([, r]) => r > 0.05).map(([y, r]) => ({ c: new THREE.Vector3(0, y, zOff), r: r * 0.9 }));
@@ -153,12 +183,12 @@ export class PlushBuilder {
     group.updateMatrixWorld(true);
     addPaints(group, surface, this.paints);
     addStitches(group, surface, this.stitches, colors('thread'), this.o.lite);
-    const head = this.parts.find((p) => p.name === 'head')?.balls[0];
+    const head = this.parts.find((p) => p.head)?.head;
     return {
       group, surface,
-      solid: this.parts.filter((p) => p.hit === 'solid').flatMap((p) => p.balls.map((b) => ({ c: b.c.clone(), r: b.r }))),
+      solid: prune(this.parts.filter((p) => p.hit === 'solid').flatMap((p) => p.balls.map((b) => ({ c: b.c.clone(), r: b.r })))),
       ears: this.parts.filter((p) => p.hit === 'ear').flatMap((p) => p.balls.map((b) => ({ c: b.c.clone(), r: b.r }))),
-      head: head ? { c: head.c.y, r: head.r / 0.95 } : { c: 0, r: 0 },
+      head: head ?? { c: 0, r: 0 },
     };
   }
 }
@@ -209,6 +239,11 @@ function addStitches(group: THREE.Group, surface: THREE.Mesh[], stitches: Stitch
   const m = new THREE.Mesh(mergeGeometries(geos, false)!, mat);
   m.name = 'stitch'; m.castShadow = false;
   group.add(m);
+}
+
+// 다른 공 안에 거의 다 들어간 공은 뺀다 (앞발 관 끝 공은 발 공 안 등) — 물리 계산을 줄이려고
+function prune(balls: Hit[]): Hit[] {
+  return balls.filter((a, i) => !balls.some((b, j) => j !== i && b.r >= a.r && a.c.distanceTo(b.c) + a.r <= b.r + 0.02 && (b.r > a.r || j < i)));
 }
 
 // 뒷면 외곽선 껍질: 법선 쪽으로 w만큼 부풀린 위치만 가진 도형
