@@ -4,6 +4,7 @@ const [port, base] = process.argv.slice(2);
 const fs = await import('node:fs');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const LAYOUT = JSON.parse(fs.readFileSync(new URL('../../shared/store_layout.json', import.meta.url), 'utf8'));
+import { frontOf } from './nav.mjs';
 const post = (p, b) => fetch(base + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }).then((r) => r.json());
 const g = await post('/api/guest', { nickname: '관찰자' });
 const a = await post('/api/admission', { guestId: g.guestId });
@@ -31,7 +32,7 @@ async function page(nick) {
   let me; for (let i = 0; i < 80 && !me; i++) { me = seen.find((m) => m.t === 'join' && m.p.nick === nick)?.p; await sleep(100); }
   const posOfMe = () => { const mv = [...seen].reverse().find((m) => m.t === 'move' && m.id === me.id); return mv ? { x: mv.x, z: mv.z } : { x: me.x, z: me.z }; };
   const key = async (code, secs) => { if (secs <= 0.02) return; await send('Input.dispatchKeyEvent', { type: 'keyDown', code }); await sleep(secs * 1000); await send('Input.dispatchKeyEvent', { type: 'keyUp', code }); await sleep(120); };
-  const HALF = 12.6, CELL = 0.25, N = Math.round((HALF * 2) / CELL) + 1;
+  const HALF = LAYOUT.hall.map_half, CELL = 0.25, N = Math.round((HALF * 2) / CELL) + 1;
   const free = (x, z) => !LAYOUT.obstacles.some(([x0, z0, x1, z1]) => x > x0 - 0.35 && x < x1 + 0.35 && z > z0 - 0.35 && z < z1 + 0.35);
   const cellOf = (v) => Math.max(0, Math.min(N - 1, Math.round((v + HALF) / CELL))), at = (i) => -HALF + i * CELL;
   const route = (from, to) => {
@@ -62,7 +63,8 @@ console.log('A at', JSON.stringify(A.posOfMe()), 'window', JSON.stringify(w0), '
 for (let i = 0; i < 30 && !(await A.click('코인 받기')); i++) await sleep(200); // 창구 버튼이 뜰 때까지
 for (let i = 0; i < 30 && !(await A.ev("/🪙 [1-9]/.test(document.body.innerText)")); i++) await sleep(200); // 코인이 들어올 때까지
 console.log('coins', await A.ev("(document.body.innerText.match(/🪙 \\d+/) || [])[0]"));
-await A.goTo({ x: 0, z: -5.4 }); await B.goTo({ x: 1.2, z: -5.0 }); await sleep(500);
+const C6 = frontOf('C-6'); // 큰 홀: 기계는 광장(+x)을 봄 — B는 A 바로 뒤 옆에서 구경
+await A.goTo(C6); await B.goTo({ x: C6.x + 1.0, z: C6.z + 0.4 }); await sleep(500);
 for (let i = 0; i < 100 && (await A.ev("document.body.innerText.includes('준비 중')")); i++) await sleep(300);
 const n0 = seen.length;
 console.log('A at', JSON.stringify(A.posOfMe()), 'buttons', JSON.stringify(await A.ev("[...document.querySelectorAll('button')].filter((x) => x.getClientRects().length > 0 && x.style.display !== 'none').map((x) => x.textContent)")), 'text', await A.ev("document.body.innerText.replace(/\\n/g, ' | ').slice(0, 120)"));

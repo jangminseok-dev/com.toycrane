@@ -50,3 +50,38 @@ export function frontOf(id) {
   const m = LAYOUT.machines.find((x) => x.id === id);
   return { x: m.x + Math.sin(m.ry) * LAYOUT.machine.front, z: m.z + Math.cos(m.ry) * LAYOUT.machine.front };
 }
+
+// 4방향 길(1m마다 점) — 키보드로 한 축씩 걸을 때 점 사이가 짧아 장애물을 스치지 않는다
+export function route4(from, to) {
+  const start = snap(from), goal = snap(to);
+  const prev = new Map([[start, -1]]), queue = [start];
+  for (let q = 0; q < queue.length && !prev.has(goal); q++) {
+    const c = queue[q], ci = Math.floor(c / N), cj = c % N;
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const i = ci + di, j = cj + dj, n = i * N + j;
+      if (i < 0 || j < 0 || i >= N || j >= N || prev.has(n) || !free(at(i), at(j))) continue;
+      prev.set(n, c); queue.push(n);
+    }
+  }
+  if (!prev.has(goal)) return [to];
+  const cells = [];
+  for (let c = goal; c !== -1; c = prev.get(c)) cells.unshift(c);
+  return [...cells.filter((_, k) => k % 4 === 0).map((c) => ({ x: at(Math.floor(c / N)), z: at(c % N) })), to];
+}
+
+// 서버가 알려 주는 내 위치(posOf)를 보며 키보드(key(code, 초))로 goal까지 걷는다 (걷기 3.2m/s)
+export async function walk(key, posOf, goal) {
+  let pos = posOf();
+  for (const p of route4(pos, goal)) {
+    await key(p.x > pos.x ? 'KeyD' : 'KeyA', Math.abs(p.x - pos.x) / 3.2);
+    await key(p.z > pos.z ? 'KeyS' : 'KeyW', Math.abs(p.z - pos.z) / 3.2);
+    pos = p;
+  }
+  for (let k = 0; k < 8; k++) {
+    await new Promise((r) => setTimeout(r, 400));
+    const q = posOf(), dx = goal.x - q.x, dz = goal.z - q.z;
+    if (Math.hypot(dx, dz) < 0.25) break;
+    if (Math.abs(dx) > 0.1) await key(dx > 0 ? 'KeyD' : 'KeyA', Math.min(1.5, Math.abs(dx) / 3.2));
+    if (Math.abs(dz) > 0.1) await key(dz > 0 ? 'KeyS' : 'KeyW', Math.min(1.5, Math.abs(dz) / 3.2));
+  }
+}

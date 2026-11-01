@@ -5,6 +5,7 @@ const [port, base, out] = process.argv.slice(2);
 const fs = await import('node:fs');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const LAYOUT = JSON.parse(fs.readFileSync(new URL('../../shared/store_layout.json', import.meta.url), 'utf8'));
+import { frontOf } from './nav.mjs';
 const post = (p, b) => fetch(base + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }).then((r) => r.json());
 // --- 관찰자 (메시지만) ---
 const g = await post('/api/guest', { nickname: '관찰자' });
@@ -29,7 +30,7 @@ if (!me) { console.log('FAIL play: no join'); process.exit(1); }
 const posOfMe = () => { const mv = [...seen].reverse().find((m) => m.t === 'move' && m.id === me.id); return mv ? { x: mv.x, z: mv.z } : { x: me.x, z: me.z }; };
 const key = async (code, secs) => { if (secs <= 0.02) return; await send('Input.dispatchKeyEvent', { type: 'keyDown', code }); await sleep(secs * 1000); await send('Input.dispatchKeyEvent', { type: 'keyUp', code }); await sleep(120); };
 // 길찾기 (perf.mjs와 같은 격자)
-const HALF = 12.6, CELL = 0.25, N = Math.round((HALF * 2) / CELL) + 1;
+const HALF = LAYOUT.hall.map_half, CELL = 0.25, N = Math.round((HALF * 2) / CELL) + 1;
 const free = (x, z) => !LAYOUT.obstacles.some(([x0, z0, x1, z1]) => x > x0 - 0.35 && x < x1 + 0.35 && z > z0 - 0.35 && z < z1 + 0.35);
 const cellOf = (v) => Math.max(0, Math.min(N - 1, Math.round((v + HALF) / CELL))), at = (i) => -HALF + i * CELL;
 function route(from, to) {
@@ -64,7 +65,7 @@ const w0 = { x: LAYOUT.counters[0].window[0], z: LAYOUT.counters[0].window[1] };
 await goTo(w0); await sleep(500);
 await click('코인 받기'); await sleep(900);
 // 2) C-6 앞으로 — 물리 준비('준비 중'이 사라질 때까지)
-await goTo({ x: 0, z: -5.4 }); await sleep(500);
+await goTo(frontOf('C-6')); // 큰 홀: 서쪽 광장 쪽 줄, 광장(+x)을 봄 await sleep(500);
 let ready = false;
 for (let i = 0; i < 100 && !ready; i++) { const b = await buttons(); ready = b.some((x) => x.includes('한 판 하기')) && !(await ev("document.body.innerText.includes('준비 중')")); if (!ready) await sleep(300); }
 console.log('buttons', JSON.stringify(await buttons()), 'ready', ready);

@@ -2,6 +2,12 @@
 // 사용: `node client/e2e/determinism.mjs <port> <url>` — 창을 따로 열어 둘 다 그리게 한다
 const [port, base] = process.argv.slice(2);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+import { walk } from './nav.mjs';
+// 관찰자(메시지만): 두 화면의 실제 위치(서버가 받아 준 move)를 본다
+const post = (p, b) => fetch(base + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }).then((r) => r.json());
+const og = await post('/api/guest', { nickname: '관찰자' }), oa = await post('/api/admission', { guestId: og.guestId });
+const watcher = new WebSocket(`${base.replace(/^http/, 'ws')}/ws/store/${oa.store}?guest=${og.guestId}`);
+const seen = []; watcher.onmessage = (e) => seen.push(JSON.parse(e.data));
 const browser = new WebSocket((await (await fetch(`http://127.0.0.1:${port}/json/version`)).json()).webSocketDebuggerUrl);
 await new Promise((r) => (browser.onopen = r));
 let bid = 0; const bpending = new Map();
@@ -18,11 +24,14 @@ async function page(nick) {
   await send('Page.navigate', { url: base + '/' }); await sleep(2500);
   await ev(`(() => { const i = document.querySelector('input'); i.value = ${JSON.stringify(nick)}; i.form.requestSubmit(); })()`);
   await sleep(1500);
-  // 스폰 자리는 기계 줄에서 8m 넘게 떨어질 수 있다 — 앞(−z)의 기계 줄 쪽으로 조금 걸어 둘 다 같은 기계들을 앉히게 한다
-  await send('Input.dispatchKeyEvent', { type: 'keyDown', code: 'KeyW' }); await sleep(1500); await send('Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyW' });
-  return { ev, close: () => bsend('Target.closeTarget', { targetId: result.targetId }) };
+  let me; for (let i = 0; i < 80 && !me; i++) { me = seen.find((m) => m.t === 'join' && m.p.nick === nick)?.p; await sleep(100); }
+  const posOf = () => { const mv = [...seen].reverse().find((m) => m.t === 'move' && m.id === me.id); return mv ? { x: mv.x, z: mv.z } : { x: me.x, z: me.z }; };
+  const key = async (code, secs) => { if (secs <= 0.02) return; await send('Input.dispatchKeyEvent', { type: 'keyDown', code }); await sleep(secs * 1000); await send('Input.dispatchKeyEvent', { type: 'keyUp', code }); await sleep(120); };
+  return { ev, walkTo: (goal) => walk(key, posOf, goal), close: () => bsend('Target.closeTarget', { targetId: result.targetId }) };
 }
 const A = await page('같은이'), B = await page('같은둘');
+// 큰 홀: 스폰(광장 가운데 탑 둘레)은 인형 기계에서 8m 넘게 떨어져 있다 — 둘 다 서쪽 광장 쪽 줄(d3) 가운데 앞으로 걸어가 같은 기계들을 앉히게 한다
+await Promise.all([A.walkTo({ x: -10.4, z: -1.5 }), B.walkTo({ x: -10.4, z: 1.5 })]);
 await sleep(3000);
 // 물리가 준비되고 8m 안의 기계가 앉혀질 때까지 (스폰 근처 기계들)
 const settledIds = async (P) => P.ev("JSON.stringify(window.__toycrane.settledIds ? window.__toycrane.settledIds() : [])").then(JSON.parse);
@@ -41,4 +50,4 @@ console.log('A settled', JSON.stringify(await settledIds(A)), 'B settled', JSON.
 console.log('settled by this screen', ids.length, 'compared', compared, 'mismatched', mismatched.length, mismatched.slice(0, 5).join(' '));
 const ok = compared >= 2 && mismatched.length === 0;
 console.log(ok ? 'PASS determinism' : 'FAIL determinism');
-await A.close(); await B.close(); browser.close(); process.exit(ok ? 0 : 1);
+await A.close(); await B.close(); browser.close(); watcher.close(); process.exit(ok ? 0 : 1);

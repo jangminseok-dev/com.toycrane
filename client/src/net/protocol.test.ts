@@ -30,7 +30,7 @@ test('counter, begging and giving messages match client fixtures', () => {
 test('the old queue and drop-result messages are gone', () => {
   expect(decode('{"t":"queue","c":0,"ids":[]}')).toBeNull();
   expect(decode('{"t":"result","m":"A-3","id":"p1","x":0.1,"z":0,"o":"win","part":"head","k":"bunny"}')).toBeNull();
-  expect(PROTOCOL).toBe(6); // 앉히기·약한 쥠 물리가 바뀜(2026-11-01 배포 뒤 고침) — 옛 화면은 새로 고친다
+  expect(PROTOCOL).toBe(7); // 큰 홀(2026-11-01): 매장 배치가 바뀜 — 옛 화면은 새로 고친다
 });
 
 test('play messages match client fixtures', () => {
