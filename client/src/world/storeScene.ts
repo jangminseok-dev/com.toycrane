@@ -119,7 +119,7 @@ function addZones(scene: THREE.Scene) {
     geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(Array.from({ length: n }, () => [c.r, c.g, c.b]).flat()), 3));
     tints.push(geo.index ? geo.toNonIndexed() : geo);
   };
-  tint(0xff7ab6, new THREE.PlaneGeometry(11, 19), -16.5, 0);
+  tint(0xff7ab6, new THREE.PlaneGeometry(11, 24.6), -16.5, 0);
   tint(0xb48cff, new THREE.PlaneGeometry(10.5, 20), 16.75, 0);
   tint(0x4fd8ff, new THREE.PlaneGeometry(44, 8), 0, -18);
   tint(0x7bd88f, new THREE.PlaneGeometry(9, 9), -17.5, 17.5);
@@ -129,7 +129,7 @@ function addZones(scene: THREE.Scene) {
   zones.name = 'zone-tints';
   scene.add(zones);
   floorLabels(scene, [
-    ['인형뽑기', -16.5, 9.2], ['피규어뽑기', 16.75, 10.2], ['고리뽑기', -8, -13.6], ['미는뽑기', 0, -13.6], ['고리뽑기', 8, -13.6],
+    ['인형뽑기', -16.5, 11.6], ['피규어뽑기', 16.75, 10.2], ['고리뽑기', -8, -13.6], ['미는뽑기', 0, -13.6], ['고리뽑기', 8, -13.6],
     ['쉼터', -17.5, 13.6], ['쉼터', 17.5, 13.6], ['입구', 0, ROOM_HALF - 2.2],
   ]);
   const ring = new THREE.Mesh(
@@ -223,7 +223,6 @@ function addDisplayTower(scene: THREE.Scene): HubTower {
     root.add(side);
   }
   const mats: THREE.Material[] = [bodyMat, trimMat, edgeMat, screenMat];
-  const shells = [edgeMat, ...cloner.materials.filter((m) => m.side === THREE.BackSide)]; // 탑·인형 외곽선 껍질
   root.traverse((o) => { const m = (o as THREE.Mesh).material as THREE.Material | undefined; if (m && !mats.includes(m) && !cloner.materials.includes(m)) mats.push(m); });
   return {
     box: new THREE.Box3(new THREE.Vector3(-TOWER_HALF, 0, -TOWER_HALF), new THREE.Vector3(TOWER_HALF, BOARD.y1 * GROW, TOWER_HALF)),
@@ -239,14 +238,13 @@ function addDisplayTower(scene: THREE.Scene): HubTower {
     },
     // 흐릴 때 외곽선 껍질(뒷면)은 감추고 몸은 깊이를 계속 쓴다 — 반투명 껍질이 몸 위에 겹겹이 그려져 탑 전체가 짙은 보라 유리 상자처럼 보였다
     setOpacity(opacity) {
-      for (const m of shells) m.visible = opacity >= 1;
+      edgeMat.visible = opacity >= 1;
       for (const m of mats) {
         if (m === edgeMat) continue;
         if (m.transparent !== opacity < 1) { m.transparent = opacity < 1; m.needsUpdate = true; }
         m.opacity = opacity;
       }
-      fadeMaterials(cloner.materials, opacity);
-      for (const m of cloner.materials) if (!m.userData.baseTransparent) m.depthWrite = true; // 인형도 안쪽 면이 비쳐 겹치지 않게(유리창만 빼고)
+      fadeMaterials(cloner.materials, opacity); // 진열 인형도 외곽선은 감추고 깊이는 쓴다
     },
   };
 }

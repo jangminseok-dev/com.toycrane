@@ -8,7 +8,7 @@ from toycrane.app.dtos.player_view import PlayerView
 from toycrane.app.dtos.store_snapshot import StoreSnapshot
 from toycrane.domain.crane import DollSpot
 
-PROTOCOL = 8  # 메시지 형식 버전 — 화면(net/protocol.ts PROTOCOL)과 다르면 화면이 새로고침한다
+PROTOCOL = 9  # 메시지 형식 버전 — 화면(net/protocol.ts PROTOCOL)과 다르면 화면이 새로고침한다
 
 
 def _player(p: PlayerView) -> dict:

@@ -3,7 +3,7 @@ import type { Vec2 } from '../game/movement';
 
 export type PlayerView = { id: string; nick: string; color: number; x: number; z: number; dx: number; dz: number; beg?: number | null }; // beg: 조르는 중이면 더 받을 수 있는 코인 수
 // 메시지 형식 버전 — 서버 welcome의 v와 다르면(배포로 형식이 바뀜) 화면을 새로고침한다
-export const PROTOCOL = 8;
+export const PROTOCOL = 9;
 export type Body = 'n' | 'c' | 's'; // 보통 · 뚱뚱 · 마른
 // 기계 속 인형 한 칸 [캐릭터, x, y, z, qx, qy, qz, qw, 색, 체형, 표정, 희귀, 번호] (기계 안 좌표·돌림 쿼터니언 — 물리 뽑기 설계 §4.5).
 // y가 null이면 서버가 (x, z) 위 천장에서 떨어뜨린 아직 안 앉은 인형(돌림은 0,0,0,1) — 화면들이 같은 물리로 앉힌다.

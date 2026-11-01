@@ -71,3 +71,19 @@ test('from the nearest counter every doll machine is a short walk', () => {
 test('coin counters face the camera', () => {
   for (const c of COUNTERS) { expect(c.ry).toBe(0); expect(c.window[1]).toBeGreaterThan(c.z); }
 });
+
+// 사용자 2026-11-01 "뽑기 기계 사이사이 칸을 더 넓혀서 지나갈 수 있게": 줄 사이 통로에서 옆 통로로 기계 사이를 질러간다 —
+// 줄 끝을 돌아가지 않으니 5m 안. 기계마다 장애물이 따로라 기계와 기계 사이(가운데)는 걸을 수 있는 바닥
+test('players can walk between neighbouring doll machines', () => {
+  const rows = [...new Set(MACHINES.map((m) => m.row))].map((r) => MACHINES.filter((m) => m.row === r).sort((a, b) => a.z - b.z));
+  const inner = rows.filter((r) => r[0].x > -19); // 벽 쪽 줄(d1) 뒤는 벽이라 지나갈 곳이 없다
+  expect(inner.length).toBe(2);
+  for (const row of inner) {
+    const x = row[0].x;
+    expect(routeLength({ x: x - 1.9, z: 0 }, { x: x + 1.9, z: 0 }), `row at x ${x}`).toBeLessThan(5);
+    for (let i = 0; i + 1 < row.length; i++) {
+      const mid = { x, z: (row[i].z + row[i + 1].z) / 2 };
+      expect(free(mid.x, mid.z), `${row[i].id}|${row[i + 1].id}`).toBe(true);
+    }
+  }
+});

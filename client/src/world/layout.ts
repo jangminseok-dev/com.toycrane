@@ -14,7 +14,7 @@ export type Zone = 'doll' | 'figure' | 'north' | 'plaza' | 'rest' | 'path';
 // 가운데 둥근 광장, 서쪽 인형, 동쪽 피규어, 북쪽 고리·미는 뽑기, 남쪽 두 모서리 쉼터, 나머지는 길 (설계 2026-11-01 §3)
 export function zoneAt(x: number, z: number): Zone {
   if (Math.hypot(x, z) <= PLAZA_RADIUS) return 'plaza';
-  if (x <= -11 && Math.abs(z) <= 9.5) return 'doll';
+  if (x <= -11 && Math.abs(z) <= 12.3) return 'doll';
   if (x >= 11.5 && Math.abs(z) <= 10) return 'figure';
   if (z <= -14) return 'north';
   if (Math.abs(x) >= 13 && z >= 13) return 'rest';

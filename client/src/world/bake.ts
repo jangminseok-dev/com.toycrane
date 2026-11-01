@@ -48,12 +48,14 @@ export function materialCloner(): { remap: (m: THREE.Material) => THREE.Material
 }
 
 // 복제된 재질들을 함께 흐리게(1이면 원래대로)
+// 흐릴 때 외곽선 껍질(뒷면)은 감추고, 원래 불투명한 몸은 깊이를 계속 쓴다 — 반투명 껍질이 몸 위에 겹겹이 그려져 짙은 보라 유리처럼 보였다
 export function fadeMaterials(materials: THREE.Material[], opacity: number): void {
   for (const m of materials) {
+    if (m.side === THREE.BackSide) { m.visible = opacity >= 1; continue; }
     const baseOpacity = m.userData.baseOpacity ?? 1, baseTransparent = m.userData.baseTransparent ?? false;
     const transparent = baseTransparent || opacity < 1;
     if (m.transparent !== transparent) { m.transparent = transparent; m.needsUpdate = true; }
     m.opacity = baseOpacity * opacity;
-    m.depthWrite = !transparent;
+    m.depthWrite = !baseTransparent;
   }
 }
