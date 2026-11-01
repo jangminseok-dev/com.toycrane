@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { FIGURE, FIGURES } from '../data/figures';
+import { FIGURE, FIGURES, variantOf } from '../data/figures';
 import { figureCameraPose } from '../game/figureCamera';
 import { buildFigureZone } from '../world/figureZone';
 import { playReveal } from '../world/figureReveal';
@@ -15,7 +15,7 @@ const sun = new THREE.DirectionalLight(0xffffff, 1.7); sun.position.set(3, 14, 5
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshToonMaterial({ color: 0xeeeaf2 }));
 floor.rotation.x = -Math.PI / 2; scene.add(floor);
 const zone = buildFigureZone(scene), id = 'F-4', f = FIGURES[3];
-const y = FIGURE.bars.y + FIGURE.bars.radius + FIGURE.box.d / 2;
+const y = FIGURE.bars.y + FIGURE.bars.radius + variantOf('long').box.d / 2;
 zone.setBox(id, [0.01, y, -0.01, 0, Math.sin(0.1), 0, Math.cos(0.1)]);
 zone.setClaw(id, 0.0, 1.25, 0.06, 0.6);
 const a = zone.worldOf(id);

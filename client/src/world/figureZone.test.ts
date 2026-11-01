@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { beforeAll, expect, test } from 'vitest';
 import { DOLLS } from '../data/catalog';
-import { FIGURE, FIGURES } from '../data/figures';
+import { FIGURE, FIGURES, variantOf } from '../data/figures';
 import { CAMERA_OFFSETS } from '../game/followCamera';
 import { OcclusionFader, type Occluder } from '../game/occlusion';
 import type { BoxWire } from '../net/protocol';
@@ -9,7 +9,7 @@ import { drawnTexts, stubCanvas } from '../test/canvasStub';
 import { buildFigureZone } from './figureZone';
 
 beforeAll(stubCanvas);
-const LYING: BoxWire = [0, FIGURE.bars.y + FIGURE.bars.radius + FIGURE.box.d / 2, 0, 0, 0, 0, 1];
+const LYING: BoxWire = [0, FIGURE.bars.y + FIGURE.bars.radius + variantOf('long').box.d / 2, 0, 0, 0, 0, 1];
 
 // 9단계 피규어 기계 그림(그래픽 설계 §3.5): 14대를 줄마다 합쳐 그리고, 상자·집게·버튼은 인스턴스로 — 메시 60개 이하
 test('fourteen figure machines draw in a few meshes', () => {

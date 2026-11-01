@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { FIGURE, FIGURES, type FigureSpot } from '../data/figures';
+import { FIGURE, FIGURES, variantOf, type FigureSpot } from '../data/figures';
 import { CLAW_SHAPE } from '../physics/figureClaw';
 import { barZ } from '../physics/figureWorld';
 import { FIGURE_BOX, FIGURE_SIGN } from './copy';
@@ -43,7 +43,7 @@ export const blindBoxMat = once(() => toonWith({ map: boxTex() }));
 // 상자 도형(물리와 같은 치수, 그림 면이 위): BoxGeometry 면 순서 +x, −x, +y, −y, +z, −z — 윗면 앞면 그림, 옆면·밑면 로고, 끝면 별.
 // 칸(u0, u1, v0, v1)은 그림 아래가 v 0
 export const blindBoxGeo = once(() => {
-  const { w, d, h } = FIGURE.box, geo = new THREE.BoxGeometry(w, d, h), uv = geo.getAttribute('uv') as THREE.BufferAttribute;
+  const { w, d, h } = variantOf('long').box, geo = new THREE.BoxGeometry(w, d, h), uv = geo.getAttribute('uv') as THREE.BufferAttribute;
   const FRONT = [0, 0.5, 0, 1], SIDE = [0.5, 1, 0.5, 1], END = [0.5, 1, 0, 0.5];
   const region = [SIDE, SIDE, FRONT, SIDE, END, END];
   for (let f = 0; f < 6; f++) for (let k = 0; k < 4; k++) {
@@ -118,7 +118,7 @@ export function makeFigureMachineParts(spot: FigureSpot, index: number, color: n
   add(part(g.tier, floorMat, [0, FLOOR_Y + 0.16, -0.43], [1, 0.32, 0.6], [0, 0, 0], 1.03));
   const stand = (x: number, yb: number, z: number, turn: number) => {
     const b = new THREE.Mesh(blindBoxGeo(), blindBoxMat());
-    b.position.set(x, yb + FIGURE.box.h / 2, z); b.rotation.set(Math.PI / 2, 0, turn); // 긴 변을 세우고 그림 면(+y)이 앞(+z)으로
+    b.position.set(x, yb + variantOf('long').box.h / 2, z); b.rotation.set(Math.PI / 2, 0, turn); // 긴 변을 세우고 그림 면(+y)이 앞(+z)으로
     m.add(b);
   };
   [-0.33, -0.11, 0.11, 0.33].forEach((x, k) => stand(x, FLOOR_Y + 0.16, -0.34, ((k * 37) % 7 - 3) * 0.02));

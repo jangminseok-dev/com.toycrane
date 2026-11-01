@@ -1,4 +1,4 @@
-import { FIGURE } from '../src/data/figures';
+import { FIGURE, variantOf } from '../src/data/figures';
 import type { BoxWire } from '../src/net/protocol';
 import { FigureClaw } from '../src/physics/figureClaw';
 import { runFigureCycle } from '../src/physics/figureCycle';
@@ -18,7 +18,7 @@ type Look = { cx: number; cz: number; yaw: number; ends: { x: number; z: number;
 
 // 상자 자세에서 사람이 보는 것: 가운데, 요 돌림, 두 끝(긴 변 양 끝)의 자리·높이
 function look(b: BoxWire): Look {
-  const [x, y, z, qx, qy, qz, qw] = b, h = FIGURE.box.h / 2;
+  const [x, y, z, qx, qy, qz, qw] = b, h = variantOf('long').box.h / 2;
   // 긴 변(로컬 z) 방향 = 쿼터니언으로 돌린 (0,0,1)
   const ax = 2 * (qx * qz + qw * qy), ay = 2 * (qy * qz - qw * qx), az = 1 - 2 * (qx * qx + qy * qy);
   const ends = [1, -1].map((s) => ({ x: x + s * ax * h, y: y + s * ay * h, z: z + s * az * h, sign: s }));
@@ -36,11 +36,11 @@ export function botPlay(b: BoxWire, rng: Rng, strategy: Strategy, memo: BotMemo 
   if (strategy === 'masher') t = { x: (rng() * 2 - 1) * HALF_X, z: (rng() * 2 - 1) * HALF_Z };
   else {
     const l = look(b), [a, c] = l.ends, high = a.y >= c.y ? a : c, low = high === a ? c : a;
-    const light = FIGURE.box.com < 0 ? l.ends[0] : l.ends[1]; // 무게중심 반대쪽 끝(로컬 +z가 ends[0])
+    const light = variantOf('long').box.com < 0 ? l.ends[0] : l.ends[1]; // 무게중심 반대쪽 끝(로컬 +z가 ends[0])
     if (high.y - low.y > TILT && strategy !== 'rotate') t = toward(l, high, 0.02); // 기운 상자: 높은 끝을 눌러 세운다
     else if (strategy === 'rotate' || (strategy === 'smart' && memo.corners)) {
       // 모서리 누르기: 긴 변 끝에서 폭 방향으로 반 폭만큼 옆 — 상자를 계속 같은 쪽으로 돌린다
-      const e = toward(l, light, 0.03), side = FIGURE.box.w / 2;
+      const e = toward(l, light, 0.03), side = variantOf('long').box.w / 2;
       t = { x: e.x + Math.cos(l.yaw) * side, z: e.z - Math.sin(l.yaw) * side };
     } else t = toward(l, light, 0.02); // 가벼운 끝을 들썩여 걷게
   }

@@ -13,7 +13,7 @@ from toycrane.domain.shared_data import FIGURE
 
 BoxPose = tuple[float, float, float, float, float, float, float]
 
-_BARS, _BOX, _HALF = FIGURE["bars"], FIGURE["box"], FIGURE["play_half"]
+_BARS, _BOX, _HALF = FIGURE["bars"], FIGURE["variants"]["long"]["box"], FIGURE["play_half"]  # Task 2에서 종류별
 _LYING_Y = _BARS["y"] + _BARS["radius"] + _BOX["d"] / 2
 _KINDS = tuple(DOLLS)
 

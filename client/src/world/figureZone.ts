@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { FIGURE, FIGURES, type FigureSpot } from '../data/figures';
+import { FIGURE, FIGURES, variantOf, type FigureSpot } from '../data/figures';
 import type { Occluder } from '../game/occlusion';
 import type { BoxWire } from '../net/protocol';
 import { CLAW_SHAPE } from '../physics/figureClaw';
@@ -16,7 +16,7 @@ const ROW_COLORS: Record<FigureSpot['row'], number> = { f1: 0x8b5cf6, f2: 0x2f7c
 const BUTTON_COLORS = [new THREE.Color(0xff3b5c), new THREE.Color(0x3b8bff)];
 const DOME = new THREE.SphereGeometry(0.055, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2);
 const BODY_BOX = new THREE.Box3(new THREE.Vector3(-0.63, 0, -0.56), new THREE.Vector3(0.63, 2.6, 0.56)); // 기계 하나(간판까지)
-const LYING_Y = FIGURE.bars.y + FIGURE.bars.radius + FIGURE.box.d / 2;
+const LYING_Y = FIGURE.bars.y + FIGURE.bars.radius + variantOf('long').box.d / 2; // Task 5에서 종류별
 
 export type FigureZone = {
   setBox(id: string, box: BoxWire): void;

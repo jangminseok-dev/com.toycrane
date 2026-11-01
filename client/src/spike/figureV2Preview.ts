@@ -82,7 +82,7 @@ const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 1, 6).tran
 cable.position.set(0.04, clawY + CLAW_SHAPE.head.hy * CLAW_SCALE, 0); cable.scale.y = Math.max(0.01, 1.96 - cable.position.y); m.add(cable);
 
 const camera = new THREE.PerspectiveCamera(innerWidth < innerHeight ? 60 : 45, innerWidth / innerHeight, 0.05, 100);
-const pose = figureCameraPose({ id: 'v2', x: 0, z: 0, ry: 0, row: 'f1' }, view === 'side' ? 1 : 0, camera.aspect);
+const pose = figureCameraPose({ id: 'v2', x: 0, z: 0, ry: 0, row: 'f1', box: 'long' }, view === 'side' ? 1 : 0, camera.aspect);
 camera.position.copy(pose.pos); camera.lookAt(pose.look);
 renderer.setAnimationLoop(() => renderer.render(scene, camera));
 Object.assign(window, { __ready: true });

@@ -1,6 +1,6 @@
 import type RAPIER from '@dimforge/rapier3d-deterministic-compat';
 import * as THREE from 'three';
-import { FIGURE } from '../data/figures';
+import { FIGURE, variantOf } from '../data/figures';
 import type { FigureWorld } from './figureWorld';
 import type { Rapier } from './rapier';
 
@@ -115,7 +115,7 @@ export class FigureClaw {
   // 상자 모서리가 max_lift 넘게 오르거나 상자 전체가 max_clear 넘게 뜨면 미끄러져 놓는다 (조사한 실제 기계의 들림 한계)
   checkSlip(): void {
     if (this.slipped || !this.base.length) return;
-    const now = this.corners(), { max_lift, max_clear } = FIGURE.claw;
+    const now = this.corners(), { max_lift, max_clear } = variantOf('long').power;
     if (now.some((y, i) => y - this.base[i] > max_lift) || Math.min(...now) - this.baseLow > max_clear) {
       this.slipped = true;
       this.drive(true, OPEN_FORCE); // 확실히 벌린다 — 약하게 풀면 상자 밑에 걸린 갈고리째 상자가 따라 올라가 뒤집혔다
@@ -132,7 +132,7 @@ export class FigureClaw {
   }
 
   private corners(): number[] {
-    const p = this.fw.box.translation(), r = this.fw.box.rotation(), { w, d, h } = FIGURE.box;
+    const p = this.fw.box.translation(), r = this.fw.box.rotation(), { w, d, h } = variantOf('long').box;
     const q = new THREE.Quaternion(r.x, r.y, r.z, r.w), v = new THREE.Vector3(), out: number[] = [];
     for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) out.push(v.set((sx * w) / 2, (sy * d) / 2, (sz * h) / 2).applyQuaternion(q).y + p.y);
     return out;

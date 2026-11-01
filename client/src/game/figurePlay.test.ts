@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { beforeAll, expect, test } from 'vitest';
-import { FIGURE, FIGURES } from '../data/figures';
+import { FIGURE, FIGURES, variantOf } from '../data/figures';
 import type { BoxWire, Pose } from '../net/protocol';
 import { stubCanvas } from '../test/canvasStub';
 import { buildFigureZone } from '../world/figureZone';
 import { FigurePlay } from './figurePlay';
 
 beforeAll(stubCanvas);
-const LYING = FIGURE.bars.y + FIGURE.bars.radius + FIGURE.box.d / 2;
+const LYING = FIGURE.bars.y + FIGURE.bars.radius + variantOf('long').box.d / 2;
 const SAVED: BoxWire = [0.01, LYING, -0.02, 0, 0, 0, 1]; // 서버가 저장한 상자
 const F1 = FIGURES[0];
 const make = () => {

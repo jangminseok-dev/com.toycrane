@@ -4,11 +4,24 @@ import layout from '../../../shared/store_layout.json';
 import type { Vec2 } from '../game/movement';
 import { MACHINE_SPEC, frontSpot } from './storeLayout';
 
-export type FigureSpot = { id: string; x: number; z: number; ry: number; row: 'f1' | 'f2' };
+export type BoxKind = 'long' | 'square'; // 큰 상자 두 종류(설계 §8): 긴 상자·넓은 정사각형 상자
+export type FigureSpot = { id: string; x: number; z: number; ry: number; row: 'f1' | 'f2'; box: BoxKind };
 export type FigureSpec = Omit<typeof figure, '_note'>;
+export type Variant = FigureSpec['variants']['long'];
 export const FIGURES = layout.figures as FigureSpot[];
 export const FIGURE: FigureSpec = figure;
 const IDS = new Set(FIGURES.map((f) => f.id));
+const KINDS = new Map(FIGURES.map((f) => [f.id, f.box]));
+
+export function variantOf(kind: BoxKind): Variant {
+  return FIGURE.variants[kind];
+}
+
+export function boxKindOf(id: string): BoxKind {
+  const k = KINDS.get(id);
+  if (!k) throw new Error(`no figure machine ${id}`);
+  return k;
+}
 
 export function isFigure(id: string): boolean {
   return IDS.has(id);

@@ -1,5 +1,5 @@
 import type RAPIER from '@dimforge/rapier3d-deterministic-compat';
-import { FIGURE } from '../data/figures';
+import { FIGURE, variantOf } from '../data/figures';
 import type { BoxWire } from '../net/protocol';
 import type { Rapier } from './rapier';
 
@@ -14,7 +14,7 @@ const STOP_OUT = 0.13; // 막대 중심에서 멈춤판까지(z)
 const STOP_TOP = 0.06, STOP_HALF_H = 0.15;
 const CATCH_DROP = 0.5; // 막대 아래 받는 바닥 깊이
 
-export const barZ = (): number => FIGURE.bars.gap / 2 + FIGURE.bars.radius; // 막대 중심 z(±)
+export const barZ = (): number => variantOf('long').gap / 2 + FIGURE.bars.radius; // 막대 중심 z(±) — Task 3에서 종류별
 
 export class FigureWorld {
   readonly world: RAPIER.World;
@@ -25,7 +25,7 @@ export class FigureWorld {
   private carry = 0;
 
   constructor(readonly R: Rapier, start: BoxWire) {
-    const { bars, box } = FIGURE;
+    const { bars } = FIGURE, { box } = variantOf('long');
     this.world = new R.World({ x: 0, y: -9.81, z: 0 });
     this.world.timestep = FIG_STEP;
     const fixed = (desc: RAPIER.ColliderDesc) => { const c = this.world.createCollider(desc); this.solids.push(c); return c; };
@@ -68,7 +68,7 @@ export class FigureWorld {
 
   // 상자가 막대 사이로 빠졌나 — 상자 가운데가 막대보다 상자 길이만큼 아래
   fallen(): boolean {
-    return this.box.translation().y < FIGURE.bars.y - FIGURE.box.h;
+    return this.box.translation().y < FIGURE.bars.y - variantOf('long').box.h;
   }
 
   still(): boolean {

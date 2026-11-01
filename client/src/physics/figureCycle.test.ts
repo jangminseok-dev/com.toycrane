@@ -1,5 +1,5 @@
 import { beforeAll, expect, test } from 'vitest';
-import { FIGURE } from '../data/figures';
+import { FIGURE, variantOf } from '../data/figures';
 import type { BoxWire } from '../net/protocol';
 import { FigureClaw } from './figureClaw';
 import { runFigureCycle } from './figureCycle';
@@ -10,7 +10,7 @@ import { loadRapier, type Rapier } from './rapier';
 let R: Rapier;
 beforeAll(async () => { R = await loadRapier(); });
 
-const { bars, box: B } = FIGURE;
+const { bars } = FIGURE, { box: B } = variantOf('long');
 const LYING: BoxWire = [0, bars.y + bars.radius + B.d / 2, 0, 0, 0, 0, 1];
 const settle = (w: FigureWorld, s: number) => { for (let t = 0; t < s; t += 1 / 60) w.step(1 / 60); };
 const angle = (a: BoxWire, b: BoxWire) => 2 * Math.acos(Math.min(1, Math.abs(a[3] * b[3] + a[4] * b[4] + a[5] * b[5] + a[6] * b[6])));
@@ -34,7 +34,7 @@ test('grabbing the middle cannot lift the box off the bars', () => {
     const r = runFigureCycle(w, claw, before[0], before[2], { onTick: () => { top = Math.max(top, w.boxPose()[1]); } });
     claw.dispose();
     expect(r.won, `cycle ${i}`).toBe(false);
-    expect(top - before[1], `cycle ${i}`).toBeLessThan(FIGURE.claw.max_lift + 0.005);
+    expect(top - before[1], `cycle ${i}`).toBeLessThan(variantOf('long').power.max_lift + 0.005);
   }
   w.dispose();
 });
