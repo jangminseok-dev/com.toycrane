@@ -1,57 +1,67 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { FIGURE, FIGURES, variantOf, type FigureSpot } from '../data/figures';
+import { FIGURE, FIGURES, variantOf, type BoxKind, type FigureSpot } from '../data/figures';
 import { CLAW_SHAPE } from '../physics/figureClaw';
 import { barZ } from '../physics/figureWorld';
 import { FIGURE_BOX, FIGURE_SIGN } from './copy';
 import { machineAcryl, machinePopMat, machineSignMat, makeCabinetShell } from './machine';
 import { canvasTex, part, toon, toonWith } from './toon';
 
-// 피규어 기계 그림(9단계, 그래픽 설계 §3.5 모양 — 물리와 같은 치수): 인형 기계와 같은 몸통에 속만 다르다.
-// 기계 폭을 가로지르는 쇠막대 두 개를 양옆 흰 기둥 죔쇠가 잡고, 막대 아래는 상자가 떨어지는 구멍('GET!' 바닥), 앞뒤로 낮은 투명 멈춤판,
-// 뒤쪽 계단 진열대에 같은 랜덤 상자를 세워 쌓는다. 상자 그림은 모두 같다(겉으로 캐릭터를 알 수 없게, 설계 §4)
+// 피규어 기계 그림(9단계, 그래픽 설계 §3.5 모양 — 물리와 같은 치수, 설계 §8 큰 상자 두 종류): 인형 기계와 같은 몸통에 속만 다르다.
+// 기계 폭을 가로지르는 쇠막대 두 개를 양옆 흰 기둥 죔쇠가 잡고, 막대 아래는 상자가 떨어지는 구멍('GET!' 바닥), 앞은 낮은 투명판(테두리 없음),
+// 뒤는 받침 막대와 테두리 있는 투명 벽, 그 뒤 진열대에 같은 랜덤 상자를 세워 둔다. 상자 그림은 모두 같다(겉으로 캐릭터를 알 수 없게, 설계 §4)
 const FONT = '"Jua", "Apple SD Gothic Neo", -apple-system, sans-serif';
-const FLOOR_Y = 0.86, STOP_OUT = 0.13, STOP_TOP = 0.06, STOP_DEPTH = 0.15;
+const FLOOR_Y = 0.86, FRONT_TOP = 0.07, WALL_TOP = 0.3; // 앞판·뒤 벽 윗변(막대 위, 물리 figureWorld와 같음)
 const once = <T>(make: () => T) => { let v: T | undefined; return () => (v ??= make()); };
 type V3 = [number, number, number];
 const flat = (geo: THREE.BufferGeometry, mat: THREE.Material, pos: V3, rot: V3 = [0, 0, 0]) => {
   const m = new THREE.Mesh(geo, mat); m.position.set(...pos); m.rotation.set(...rot); return m;
 };
 
-// 랜덤 상자 그림 한 장(512×512): 왼쪽 반(256×512)은 앞면 그림(물음표·'toycrane 피규어 컬렉션', 세로로 긴 상자 앞면 — 세우면 바로 서고
-// 눕히면 그림 위쪽이 상자 끝을 향한다), 오른쪽 위는 긴 옆면(남색·로고), 오른쪽 아래는 끝면(별)
-const boxTex = once(() => canvasTex(512, 512, (g) => {
-  const front = g.createLinearGradient(0, 0, 256, 512);
+// 랜덤 상자 그림 한 장(512×512): 왼쪽은 앞면 그림(물음표·'toycrane 피규어 컬렉션') — 긴 상자는 세로로 긴 칸(256×512, 세우면 바로 서고
+// 눕히면 그림 위쪽이 상자 끝을 향한다), 정사각형 상자는 정사각 칸(256×256, 위). 오른쪽 위는 옆면(남색·로고), 오른쪽 아래는 끝면(별)
+const boxTex = (kind: BoxKind) => canvasTex(512, 512, (g) => {
+  const fh = kind === 'square' ? 256 : 512, front = g.createLinearGradient(0, 0, 256, fh);
   front.addColorStop(0, '#c9b6ff'); front.addColorStop(1, '#ffb8d9');
   g.fillStyle = front; g.fillRect(0, 0, 256, 512);
   g.fillStyle = 'rgba(255,255,255,.35)';
-  for (let k = 0; k < 8; k++) { g.beginPath(); g.arc(28 + (k % 2) * 200, 40 + k * 60, 14, 0, Math.PI * 2); g.fill(); }
-  g.fillStyle = '#ffffff'; g.beginPath(); g.arc(128, 210, 86, 0, Math.PI * 2); g.fill();
+  for (let k = 0; k < fh / 64; k++) { g.beginPath(); g.arc(28 + (k % 2) * 200, 40 + k * 60, 14, 0, Math.PI * 2); g.fill(); }
+  const cy = kind === 'square' ? 104 : 210, r = kind === 'square' ? 64 : 86;
+  g.fillStyle = '#ffffff'; g.beginPath(); g.arc(128, cy, r, 0, Math.PI * 2); g.fill();
   g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.font = `130px ${FONT}`; g.fillStyle = '#7c4ff0'; g.fillText('?', 128, 218);
-  g.fillStyle = '#2c2470'; let size = 30;
+  g.font = `${kind === 'square' ? 96 : 130}px ${FONT}`; g.fillStyle = '#7c4ff0'; g.fillText('?', 128, cy + 8);
+  g.fillStyle = '#2c2470'; let size = kind === 'square' ? 24 : 30;
   do { g.font = `${size}px ${FONT}`; size -= 2; } while (g.measureText(FIGURE_BOX).width > 236 && size > 10);
-  g.fillText(FIGURE_BOX, 128, 410);
+  g.fillText(FIGURE_BOX, 128, kind === 'square' ? 218 : 410);
   g.fillStyle = '#2c2470'; g.fillRect(256, 0, 256, 256);
   g.font = `44px ${FONT}`; g.fillStyle = '#ffe14d'; g.fillText('toycrane', 384, 128);
   g.fillStyle = '#3a2f8a'; g.fillRect(256, 256, 256, 256);
   g.font = `110px ${FONT}`; g.fillText('★', 384, 390);
-}));
-export const blindBoxMat = once(() => toonWith({ map: boxTex() }));
+});
+const boxMats = new Map<BoxKind, THREE.Material>();
+export const blindBoxMat = (kind: BoxKind = 'long'): THREE.Material => {
+  let m = boxMats.get(kind);
+  if (!m) boxMats.set(kind, (m = toonWith({ map: boxTex(kind) })));
+  return m;
+};
 
 // 상자 도형(물리와 같은 치수, 그림 면이 위): BoxGeometry 면 순서 +x, −x, +y, −y, +z, −z — 윗면 앞면 그림, 옆면·밑면 로고, 끝면 별.
-// 칸(u0, u1, v0, v1)은 그림 아래가 v 0
-export const blindBoxGeo = once(() => {
-  const { w, d, h } = variantOf('long').box, geo = new THREE.BoxGeometry(w, d, h), uv = geo.getAttribute('uv') as THREE.BufferAttribute;
-  const FRONT = [0, 0.5, 0, 1], SIDE = [0.5, 1, 0.5, 1], END = [0.5, 1, 0, 0.5];
+// 칸(u0, u1, v0, v1)은 그림 아래가 v 0. 종류마다 하나
+const boxGeos = new Map<BoxKind, THREE.BufferGeometry>();
+export const blindBoxGeo = (kind: BoxKind = 'long'): THREE.BufferGeometry => {
+  const cached = boxGeos.get(kind);
+  if (cached) return cached;
+  const { w, d, h } = variantOf(kind).box, geo = new THREE.BoxGeometry(w, d, h), uv = geo.getAttribute('uv') as THREE.BufferAttribute;
+  const FRONT = kind === 'square' ? [0, 0.5, 0.5, 1] : [0, 0.5, 0, 1], SIDE = [0.5, 1, 0.5, 1], END = [0.5, 1, 0, 0.5];
   const region = [SIDE, SIDE, FRONT, SIDE, END, END];
   for (let f = 0; f < 6; f++) for (let k = 0; k < 4; k++) {
     const i = f * 4 + k, [u0, u1, v0, v1] = region[f];
     uv.setXY(i, u0 + uv.getX(i) * (u1 - u0), v0 + uv.getY(i) * (v1 - v0));
   }
+  boxGeos.set(kind, geo);
   return geo;
-});
+};
 
 const getTex = once(() => canvasTex(512, 256, (g) => {
   g.fillStyle = '#ffe3f0'; g.fillRect(0, 0, 512, 256);
@@ -85,7 +95,8 @@ const G = once(() => ({
   clamp: new RoundedBoxGeometry(0.05, 0.052, 0.055, 1, 0.012),
   floor: new THREE.BoxGeometry(1.12, 0.02, 1),
   get: new THREE.PlaneGeometry(FIGURE.bars.half_len * 2, 1),
-  stopper: new THREE.BoxGeometry(FIGURE.bars.half_len * 2, STOP_DEPTH, 0.008),
+  pane: new THREE.BoxGeometry(FIGURE.bars.half_len * 2, 1, 0.008), // 앞판·뒤 벽(높이는 scale)
+  edge: new THREE.BoxGeometry(1, 1, 0.012), // 뒤 벽 테두리
   tier: new RoundedBoxGeometry(1.0, 1, 0.14, 1, 0.012),
 }));
 
@@ -97,32 +108,37 @@ export function makeFigureMachineParts(spot: FigureSpot, index: number, color: n
   const plate = m.getObjectByName('plate') as THREE.Mesh;
   plate.geometry = plateCell(plate.geometry, index);
   const add = (o: THREE.Object3D) => { m.add(o); return o; };
-  const { y, half_len } = FIGURE.bars, bz = barZ('long'), white = toon(0xfafafc), floorMat = toon(0xffeef6);
-  // 쇠막대 두 개 + 양옆 흰 기둥(바닥에서 막대까지) + 죔쇠
-  for (const side of [-1, 1]) {
-    const z = side * bz;
-    add(part(g.bar, toon(0xe9c3d6), [0, y, z], [1, 1, 1], [0, 0, 0], 1.25));
+  const kind = spot.box, { box } = variantOf(kind), { y, half_len } = FIGURE.bars, { front, back_bar, back_wall } = FIGURE.guards;
+  const bz = barZ(kind), white = toon(0xfafafc), floorMat = toon(0xffeef6);
+  // 쇠막대: 앞·뒤 막대(사이가 GET 구멍)와 뒤 받침 막대(옅은 회색) — 양옆 흰 기둥(바닥에서 막대까지)과 죔쇠
+  for (const [z, color] of [[bz, 0xe9c3d6], [-bz, 0xe9c3d6], [-(bz + back_bar), 0xd9dbe3]] as const) {
+    add(part(g.bar, toon(color), [0, y, z], [1, 1, 1], [0, 0, 0], 1.25));
     for (const sx of [-1, 1]) {
       add(part(g.post, white, [sx * (half_len + 0.006), (FLOOR_Y + y) / 2, z], [1, y - FLOOR_Y, 1], [0, 0, 0], 1.08));
       add(part(g.clamp, white, [sx * (half_len - 0.02), y, z], [1, 1, 1], [0, 0, 0], 1.06));
     }
-    // 막대 밖 바닥판(막대 사이는 상자가 떨어지는 구멍) + 낮은 투명 멈춤판
+  }
+  // 막대 밖 바닥판(막대 사이는 상자가 떨어지는 구멍)
+  for (const side of [-1, 1]) {
     const edge = bz + 0.01, len = 0.49 - edge;
     add(part(g.floor, floorMat, [0, FLOOR_Y, side * (edge + len / 2)], [1, 1, len], [0, 0, 0], 0));
-    add(flat(g.stopper, machineAcryl(), [0, y + STOP_TOP - STOP_DEPTH / 2, side * (bz + STOP_OUT)]));
+  }
+  // 앞판: 앞 막대 바로 앞 낮은 투명판(테두리 없음 — 막대처럼 보이지 않게). 뒤 벽: 받침 막대 뒤 투명판 + 흰 테두리(앞뒤가 막힌 줄 보이게)
+  add(flat(g.pane, machineAcryl(), [0, y + FRONT_TOP / 2 - 0.015, bz + front])).scale.y = FRONT_TOP + 0.03;
+  const wz = -(bz + back_wall), wy = y + WALL_TOP / 2 - 0.015, wh = WALL_TOP + 0.03, ww = half_len * 2;
+  add(flat(g.pane, machineAcryl(), [0, wy, wz])).scale.y = wh;
+  for (const [dx, dy, sx, sy] of [[0, wh / 2, ww, 0.012], [0, -wh / 2, ww, 0.012], [ww / 2, 0, 0.012, wh], [-ww / 2, 0, 0.012, wh]]) {
+    add(part(g.edge, white, [dx, wy + dy, wz], [sx, sy, 1], [0, 0, 0], 1.08));
   }
   // 구멍 아래 'GET!' 바닥(상자가 빠지면 여기로)
   add(flat(g.get, getMat(), [0, FLOOR_Y - 0.005, 0], [-Math.PI / 2, 0, 0])).scale.set(1, 2 * bz, 1); // 몸통 윗면 바로 위(상자는 몸통 속으로 빠진다)
-  // 뒤쪽 계단 진열대: 같은 랜덤 상자를 세워 쌓았다(실제 기계의 재고 진열)
-  add(part(g.tier, floorMat, [0, FLOOR_Y + 0.08, -0.36], [1, 0.16, 1], [0, 0, 0], 1.03));
-  add(part(g.tier, floorMat, [0, FLOOR_Y + 0.16, -0.43], [1, 0.32, 0.6], [0, 0, 0], 1.03));
-  const stand = (x: number, yb: number, z: number, turn: number) => {
-    const b = new THREE.Mesh(blindBoxGeo(), blindBoxMat());
-    b.position.set(x, yb + variantOf('long').box.h / 2, z); b.rotation.set(Math.PI / 2, 0, turn); // 긴 변을 세우고 그림 면(+y)이 앞(+z)으로
+  // 뒤 벽 뒤 진열대: 같은 랜덤 상자를 세워 둔다(실제 기계의 재고 진열)
+  add(part(g.tier, floorMat, [0, FLOOR_Y + 0.08, -0.43], [1, 0.16, 1], [0, 0, 0], 1.03));
+  [-0.3, 0, 0.3].forEach((x, k) => {
+    const b = new THREE.Mesh(blindBoxGeo(kind), blindBoxMat(kind));
+    b.position.set(x, FLOOR_Y + 0.16 + box.h / 2, -0.44); b.rotation.set(Math.PI / 2, 0, (k - 1) * 0.04); // 상자를 세우고 그림 면(+y)이 앞(+z)으로
     m.add(b);
-  };
-  [-0.33, -0.11, 0.11, 0.33].forEach((x, k) => stand(x, FLOOR_Y + 0.16, -0.34, ((k * 37) % 7 - 3) * 0.02));
-  [-0.22, 0, 0.22].forEach((x, k) => stand(x, FLOOR_Y + 0.32, -0.43, ((k * 53) % 7 - 3) * 0.02));
+  });
   m.traverse((o) => { o.castShadow = false; });
   return { statics: m, ledGeo };
 }

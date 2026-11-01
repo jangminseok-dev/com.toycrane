@@ -11,12 +11,12 @@ import { buildFigureZone } from './figureZone';
 beforeAll(stubCanvas);
 const LYING: BoxWire = [0, FIGURE.bars.y + FIGURE.bars.radius + variantOf('long').box.d / 2, 0, 0, 0, 0, 1];
 
-// 9단계 피규어 기계 그림(그래픽 설계 §3.5): 14대를 줄마다 합쳐 그리고, 상자·집게·버튼은 인스턴스로 — 메시 60개 이하
+// 9단계 피규어 기계 그림(그래픽 설계 §3.5): 14대를 줄마다 합쳐 그리고, 상자·집게·버튼은 인스턴스로 — 메시 64개 이하(받침 막대·뒤 벽 재질 포함, 설계 §8)
 test('fourteen figure machines draw in a few meshes', () => {
   const scene = new THREE.Scene(), zone = buildFigureZone(scene);
   let n = 0;
   scene.traverse((o) => { if ((o as THREE.Mesh).isMesh) n++; });
-  expect(n).toBeLessThanOrEqual(60);
+  expect(n).toBeLessThanOrEqual(64);
   for (const f of FIGURES) {
     const a = zone.worldOf(f.id);
     expect([a.position.x, a.position.z, a.rotation.y]).toEqual([f.x, f.z, f.ry]);
@@ -53,4 +53,22 @@ test('rows fade only when a machine really hides me', () => {
   expect(fadeAt(f1, { x: 15.8, z: 0 })).toBe(1);
   expect(fadeAt(f2, { x: 15.8, z: 0 })).toBe(1);
   expect(fadeAt(f1, { x: 13.2, z: -9.2 })).toBeLessThan(0.5);
+});
+
+// 큰 상자 두 종류(설계 §8): 첫째 줄은 긴 상자(17×12×34cm), 둘째 줄은 넓은 정사각형(26×13×26cm, 두께가 위아래)
+test('each row draws its own box size', () => {
+  const scene = new THREE.Scene();
+  buildFigureZone(scene);
+  for (const [row, kind] of [['f1', 'long'], ['f2', 'square']] as const) {
+    const boxes = scene.getObjectByName(`figure-row-${row}`)!.getObjectByName('figure-boxes') as THREE.InstancedMesh;
+    boxes.geometry.computeBoundingBox();
+    const size = boxes.geometry.boundingBox!.getSize(new THREE.Vector3()), b = variantOf(kind).box;
+    expect([size.x, size.y, size.z].map((v) => +v.toFixed(6)), row).toEqual([b.w, b.d, b.h]);
+  }
+});
+
+// 두 상자 그림 모두 같은 물음표 그림과 '피규어 컬렉션' 문구 — 종류마다 그림이 따로 있다(정사각형은 정사각 칸)
+test('both box kinds carry the blind box art', () => {
+  buildFigureZone(new THREE.Scene());
+  expect(drawnTexts.filter((t) => t === 'toycrane 피규어 컬렉션').length).toBeGreaterThanOrEqual(2);
 });

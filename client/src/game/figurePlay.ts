@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { FIGURE, FIGURES, boxKindOf } from '../data/figures';
+import { FIGURE, FIGURES, boxKindOf, type BoxKind } from '../data/figures';
 import { encodeDone, type BoxWire, type DollPose, type Pose } from '../net/protocol';
 import { FigureClaw } from '../physics/figureClaw';
 import { FigureCycleRunner } from '../physics/figureCycle';
@@ -179,10 +179,10 @@ export class FigurePlay {
   }
 
   // 상자 까기: 판이 끝나 돌아가는 정면 시점(eye → look)에서 0.9m 앞, 조금 아래 (미리보기에서 확인한 자리)
-  reveal(kind: string, rare: string, view: { pos: THREE.Vector3; look: THREE.Vector3 }, done: () => void): void {
+  reveal(kind: string, rare: string, view: { pos: THREE.Vector3; look: THREE.Vector3 }, done: () => void, box: BoxKind = 'long'): void {
     const dir = view.look.clone().sub(view.pos).normalize();
     const at = view.pos.clone().addScaledVector(dir, 0.9).add(new THREE.Vector3(0, -0.15, 0));
-    this.reveals.push(playReveal(this.scene, at, view.pos.clone(), kind, rare, done));
+    this.reveals.push(playReveal(this.scene, at, view.pos.clone(), kind, rare, done, box));
   }
 
   // 판을 그만두거나 끝냄(정리): 살아 있는 버튼·물리를 치우고 집게는 제자리, 시점은 바로 정면

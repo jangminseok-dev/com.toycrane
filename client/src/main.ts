@@ -717,7 +717,7 @@ async function showFigureResult(m: Result, t: Ticket) {
   };
   if (mine) {
     if (first) {
-      await new Promise<void>((done) => figurePlay.reveal(first[0], first[2], figureCameraPose(spot, 0, camera.aspect), done));
+      await new Promise<void>((done) => figurePlay.reveal(first[0], first[2], figureCameraPose(spot, 0, camera.aspect), done, spot.box));
       announce();
       showWinCard(name, FIGURE_WORD, tier, wallet.bag);
     } else sfx.fail();

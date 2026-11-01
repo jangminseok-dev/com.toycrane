@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { beforeAll, expect, test } from 'vitest';
 import { drawnTexts, stubCanvas } from '../test/canvasStub';
+import { variantOf } from '../data/figures';
 import { playReveal } from './figureReveal';
 
 beforeAll(stubCanvas);
@@ -29,4 +30,16 @@ test('rare and gold reveals sparkle in place with a label', () => {
     expect(drawnTexts, rare).toContain(label);
     while (r.update(0.1));
   }
+});
+
+// 상자 까기에 나오는 상자는 그 기계의 상자 모양(설계 §8.4) — 정사각형 기계면 정사각형 상자를 깐다
+test('the reveal box matches the machine box', () => {
+  const scene = new THREE.Scene();
+  const r = playReveal(scene, new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 1.4, 1.5), 'cat', '', () => {}, 'square');
+  r.update(0.1);
+  const box = scene.getObjectByName('reveal-box') as THREE.Mesh;
+  box.geometry.computeBoundingBox();
+  const size = box.geometry.boundingBox!.getSize(new THREE.Vector3()), b = variantOf('square').box;
+  expect([size.x, size.y, size.z].map((v) => +v.toFixed(6))).toEqual([b.w, b.d, b.h]);
+  while (r.update(0.1));
 });

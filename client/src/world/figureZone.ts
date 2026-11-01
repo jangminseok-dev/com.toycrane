@@ -16,7 +16,7 @@ const ROW_COLORS: Record<FigureSpot['row'], number> = { f1: 0x8b5cf6, f2: 0x2f7c
 const BUTTON_COLORS = [new THREE.Color(0xff3b5c), new THREE.Color(0x3b8bff)];
 const DOME = new THREE.SphereGeometry(0.055, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2);
 const BODY_BOX = new THREE.Box3(new THREE.Vector3(-0.63, 0, -0.56), new THREE.Vector3(0.63, 2.6, 0.56)); // 기계 하나(간판까지)
-const LYING_Y = FIGURE.bars.y + FIGURE.bars.radius + variantOf('long').box.d / 2; // Task 5에서 종류별
+const lyingY = (f: FigureSpot) => FIGURE.bars.y + FIGURE.bars.radius + variantOf(f.box).box.d / 2; // 그 기계 상자 종류의 누운 높이
 
 export type FigureZone = {
   setBox(id: string, box: BoxWire): void;
@@ -54,11 +54,13 @@ export function buildFigureZone(scene: THREE.Scene): FigureZone {
       root.add(im);
       return im;
     };
+    const kind = spots[0].box; // 줄마다 한 종류(설계 §8.3: F-1~F-7 긴 상자, F-8~F-14 정사각형)
     const inst = {
-      box: make(blindBoxGeo(), blindBoxMat()), head: make(geos.head, mats.head), black: make(geos.black, mats.black), red: make(geos.red, mats.red),
+      box: make(blindBoxGeo(kind), blindBoxMat(kind)), head: make(geos.head, mats.head), black: make(geos.black, mats.black), red: make(geos.red, mats.red),
       sticker: make(geos.sticker, mats.sticker), armR: make(geos.armR, mats.arm), armL: make(geos.armL, mats.arm), cable: make(geos.cable, mats.cable),
       button: make(DOME, toonWith({ color: 0xffffff, emissive: 0x220011, emissiveIntensity: 0.3 }), n * 2),
     };
+    inst.box.name = 'figure-boxes';
     rows.push({ inst, cloner, spots });
     const body = new THREE.Box3(), boxes: THREE.Box3[] = [];
     spots.forEach((f, slot) => {
@@ -66,7 +68,7 @@ export function buildFigureZone(scene: THREE.Scene): FigureZone {
       anchor.position.set(f.x, 0, f.z); anchor.rotation.y = f.ry; anchor.name = `figure-${f.id}`;
       root.add(anchor);
       anchor.updateMatrix();
-      const u: Unit = { row: r, slot, matrix: anchor.matrix.clone(), anchor, box: [0, LYING_Y, 0, 0, 0, 0, 1], claw: [FIGURE.claw.home[0], FIGURE.claw.rest_y, FIGURE.claw.home[1], 1], hidden: false };
+      const u: Unit = { row: r, slot, matrix: anchor.matrix.clone(), anchor, box: [0, lyingY(f), 0, 0, 0, 0, 1], claw: [FIGURE.claw.home[0], FIGURE.claw.rest_y, FIGURE.claw.home[1], 1], hidden: false };
       units.set(f.id, u);
       const b = BODY_BOX.clone().applyMatrix4(u.matrix);
       boxes.push(b); body.union(b);
