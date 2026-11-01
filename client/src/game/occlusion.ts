@@ -14,6 +14,7 @@ export function blocksView(eye: THREE.Vector3, target: THREE.Vector3, box: THREE
 // 내 캐릭터를 가릴 수 있는 것(탑·기계 행·교환소): 상자와 투명도 조절
 export interface Occluder {
   box: THREE.Box3;
+  boxes?: THREE.Box3[]; // 여러 줄을 한 덩어리로 합친 것: 줄마다 상자(있으면 box 대신 이것으로 가림을 본다)
   setOpacity(opacity: number): void;
 }
 
@@ -31,7 +32,8 @@ export class OcclusionFader {
 
   update(dt: number, eye: THREE.Vector3, at: { x: number; z: number }): void {
     this.head.set(at.x, 1.2, at.z); this.body.set(at.x, 0.4, at.z);
-    this.occluders.forEach((o, i) => this.ease(i, blocksView(eye, this.head, o.box) || blocksView(eye, this.body, o.box) ? FADED : 1, dt));
+    const hides = (box: THREE.Box3) => blocksView(eye, this.head, box) || blocksView(eye, this.body, box);
+    this.occluders.forEach((o, i) => this.ease(i, (o.boxes ? o.boxes.some(hides) : hides(o.box)) ? FADED : 1, dt));
   }
 
   // 기계 앞 화면(한 판 중)에서는 모두 원래대로 — 걸어오다 흐려진 내 기계 줄이 반투명하게 남지 않게

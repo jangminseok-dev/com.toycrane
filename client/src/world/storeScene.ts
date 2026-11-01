@@ -25,10 +25,11 @@ export function buildStore(scene: THREE.Scene): HubTower {
   scene.background = new THREE.Color(0xf4f1f7);
   addLights(scene);
   addFloor(scene);
-  addWallsAndCeiling(scene);
+  const adTex = adSignsTex(); // 벽 간판과 광장 광고판이 같은 그림(광고 14칸)을 쓴다
+  addWallsAndCeiling(scene, adTex);
   addZones(scene);
   addEntrance(scene);
-  addPlazaAds(scene);
+  addPlazaAds(scene, adTex);
   return addDisplayTower(scene);
 }
 
@@ -40,7 +41,10 @@ function addLights(scene: THREE.Scene) {
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.radius = 6;
   sun.shadow.bias = -0.0005;
-  Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14 });
+  // 큰 홀 끝까지(벽 ±22 + 기울어진 해에 높이 2.4m가 밀리는 몫) — 그림자 카메라 위쪽을 북쪽(−z)에 맞춰 홀 네모가 그림자 그림에 반듯이 들어간다
+  const S = ROOM_HALF + 1.5;
+  sun.shadow.camera.up.set(0, 0, -1);
+  Object.assign(sun.shadow.camera, { left: -S, right: S, top: S, bottom: -S });
   scene.add(sun);
 }
 
@@ -82,7 +86,7 @@ function addFloor(scene: THREE.Scene) {
   scene.add(floor);
 }
 
-function addWallsAndCeiling(scene: THREE.Scene) {
+function addWallsAndCeiling(scene: THREE.Scene, adTex: THREE.Texture) {
   const size = ROOM_HALF * 2, h = ROOM_HEIGHT;
   // 흰 벽 + 위쪽 분홍·노랑·하늘 띠 + 별 (6.5m마다 되풀이)
   const wallTex = canvasTex(1024, 512, (g) => {
@@ -116,7 +120,7 @@ function addWallsAndCeiling(scene: THREE.Scene) {
     for (let k = 0; k < uv.count; k++) uv.setXY(k, cell.u + uv.getX(k) * cell.w, cell.v + uv.getY(k) * cell.h);
     return geo.rotateY(ry).translate(x, h - 0.42, z);
   }))!;
-  const sign = new THREE.Mesh(signs, new THREE.MeshBasicMaterial({ map: adSignsTex() }));
+  const sign = new THREE.Mesh(signs, new THREE.MeshBasicMaterial({ map: adTex }));
   sign.name = 'wall-signs';
   scene.add(sign);
 }
@@ -266,14 +270,14 @@ function addDisplayTower(scene: THREE.Scene): HubTower {
 
 // 광장 광고판(설계 2026-11-01 §3): 기둥 위 양면 판 4개, 면은 ±z(걷기 카메라가 늘 북쪽을 봐서 남쪽 면이 보인다).
 // 판마다 광고 자리 하나(shared/ads.json) — 벽 간판과 같은 그림의 칸을 쓴다. 판 앞뒤 한 덩어리 + 기둥 한 덩어리
-function addPlazaAds(scene: THREE.Scene) {
+function addPlazaAds(scene: THREE.Scene, adTex: THREE.Texture) {
   const W = 2.4, H = 1.4, Y = 1.6;
   const faces = AD_BOARDS.flatMap(({ x, z, slot }) => [0, Math.PI].map((ry) => {
     const geo = new THREE.PlaneGeometry(W, H), uv = geo.getAttribute('uv') as THREE.BufferAttribute, cell = adSignCell(slot - 1);
     for (let k = 0; k < uv.count; k++) uv.setXY(k, cell.u + uv.getX(k) * cell.w, cell.v + uv.getY(k) * cell.h);
     return geo.translate(0, 0, 0.06).rotateY(ry).translate(x, Y, z);
   }));
-  const boards = new THREE.Mesh(mergeGeometries(faces)!, new THREE.MeshBasicMaterial({ map: adSignsTex() }));
+  const boards = new THREE.Mesh(mergeGeometries(faces)!, new THREE.MeshBasicMaterial({ map: adTex }));
   boards.name = 'plaza-ads';
   scene.add(boards);
   scene.add(outlinedBoxes(AD_BOARDS.flatMap(({ x, z }) => [

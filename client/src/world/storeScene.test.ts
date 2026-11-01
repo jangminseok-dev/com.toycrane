@@ -99,3 +99,27 @@ test('the tower board shows an ad when idle', () => {
   drawnTexts.length = 0; tower.update(16.2);
   expect(drawnTexts).toHaveLength(0);
 });
+
+// 큰 홀 최종 리뷰 I3: 해 그림자가 홀 끝까지 — 서쪽 인형 줄(x −20.2)·북쪽 고리 줄·입구 진열장에도 그림자가 진다
+test('the sun shadow covers the whole hall', () => {
+  const scene = new THREE.Scene();
+  buildStore(scene);
+  const sun = scene.children.find((o) => (o as THREE.DirectionalLight).isDirectionalLight) as THREE.DirectionalLight;
+  scene.updateMatrixWorld(true);
+  sun.shadow.camera.updateProjectionMatrix();
+  sun.shadow.updateMatrices(sun);
+  for (const x of [-ROOM_HALF, ROOM_HALF]) for (const z of [-ROOM_HALF, ROOM_HALF]) for (const y of [0, 2.4]) {
+    const p = new THREE.Vector3(x, y, z).applyMatrix4(sun.shadow.matrix);
+    expect(p.x, `${x},${y},${z}`).toBeGreaterThanOrEqual(0); expect(p.x, `${x},${y},${z}`).toBeLessThanOrEqual(1);
+    expect(p.y, `${x},${y},${z}`).toBeGreaterThanOrEqual(0); expect(p.y, `${x},${y},${z}`).toBeLessThanOrEqual(1);
+  }
+});
+
+// 큰 홀 최종 리뷰 I4: 벽 간판과 광장 광고판은 광고 그림 한 장을 같이 쓴다(1024×1792 그림을 두 번 만들지 않게)
+test('wall signs and plaza boards share one ad picture', () => {
+  const scene = new THREE.Scene();
+  buildStore(scene);
+  const map = (name: string) => ((scene.getObjectByName(name) as THREE.Mesh).material as THREE.MeshBasicMaterial).map;
+  expect(map('wall-signs')).toBeTruthy();
+  expect(map('plaza-ads')).toBe(map('wall-signs'));
+});

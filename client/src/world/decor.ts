@@ -16,6 +16,7 @@ import { outlineMat, part, toon } from './toon';
 // 5단계에서 진짜 기계가 들어올 자리·크기와 비슷하게 — 미니는 2단 작은 기계, 피규어는 상자 기계, 가운데는 인형을 올린 진열장.
 // 휴대폰 그리기 호출을 아끼려고 왼쪽·오른쪽마다 [꼭짓점 색 툰 한 덩어리 · 외곽선 · 천 덮개 · 준비 중 판] 넷으로 합친다
 const ROOM = ROOM_HALF, PASTEL = [0xffc6dc, 0xd9c8ff, 0xbdeedd, 0xffe2a8];
+const MAX_DEPTH = 2.2; // 가장 깊은 장식(미는 뽑기) — 벽 너머까지 늘린 장애물 상자도 앞면에서 이만큼만 쓴다
 // 줄을 따라 칸 사이 간격(m) — 큰 홀(설계 2026-11-01 §3): 피규어 줄마다 7대, 고리 줄마다 5대, 미는 뽑기 4대, 벤치 2개
 const SPACING: Record<Exclude<DecorSpot['kind'], 'shelf'>, number> = { figure: 2.6, ring: 1.84, pusher: 2.8, bench: 2.5 };
 const SHELF_DOLLS = ['bear', 'bunny', 'chick', 'penguin', 'cat', 'pig'];
@@ -116,13 +117,17 @@ export function buildDecor(scene: THREE.Scene): Occluder[] {
   return kinds.map((kind) => {
     const solidRoot = new THREE.Group(), coverRoot = new THREE.Group(), cardRoot = new THREE.Group(), group = new THREE.Group();
     group.name = `decor-${kind}`;
+    const boxes: THREE.Box3[] = [];
     DECOR.forEach((d, si) => {
       if (d.kind !== kind) return;
-      // 벽 너머까지 늘린 장애물 상자를 매장 안쪽으로 잘라 그 안에 놓는다
+      // 벽 너머까지 늘린 장애물 상자를 매장 안쪽으로 잘라, 앞면(ry 쪽)에서 MAX_DEPTH 깊이 안에 놓는다 — 가운데에 두면 앞에 걸어갈 수 없는 빈틈이 생긴다
       const x0 = Math.max(d.rect[0], -ROOM), z0 = Math.max(d.rect[1], -ROOM), x1 = Math.min(d.rect[2], ROOM), z1 = Math.min(d.rect[3], ROOM);
-      const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
       const alongX = Math.abs(Math.cos(d.ry)) > 0.5; // 앞이 ±z면 줄은 x를 따라 놓인다
-      const len = alongX ? x1 - x0 : z1 - z0;
+      const half = Math.min(alongX ? z1 - z0 : x1 - x0, MAX_DEPTH) / 2;
+      const cx = alongX ? (x0 + x1) / 2 : Math.sin(d.ry) > 0 ? x1 - half : x0 + half;
+      const cz = alongX ? (Math.cos(d.ry) > 0 ? z1 - half : z0 + half) : (z0 + z1) / 2;
+      const len = alongX ? x1 - x0 : z1 - z0, box = new THREE.Box3();
+      boxes.push(box);
       const holder = (child: THREE.Object3D, offset: number) => {
         const h = new THREE.Group();
         h.position.set(cx + (alongX ? offset : 0), 0, cz + (alongX ? 0 : offset)); h.rotation.y = d.ry;
@@ -131,9 +136,9 @@ export function buildDecor(scene: THREE.Scene): Occluder[] {
       const step = d.kind === 'shelf' ? len : SPACING[d.kind], count = Math.max(1, Math.floor(len / step + 1e-6)), pad = (len - count * step) / 2;
       for (let k = 0; k < count; k++) {
         const offset = d.kind === 'shelf' ? 0 : -len / 2 + pad + step / 2 + k * step, u = unit(d.kind, si * 7 + k, len);
-        solidRoot.add(holder(u.solid, offset));
-        for (const c of u.covers) coverRoot.add(holder(c, offset));
-        for (const c of u.cards) cardRoot.add(holder(c, offset));
+        const parts = [holder(u.solid, offset), ...u.covers.map((c) => holder(c, offset)), ...u.cards.map((c) => holder(c, offset))];
+        solidRoot.add(parts[0]); coverRoot.add(...parts.slice(1, 1 + u.covers.length)); cardRoot.add(...parts.slice(1 + u.covers.length));
+        for (const p of parts) box.expandByObject(p);
         const mark = holder(new THREE.Object3D(), offset); mark.name = `decor-unit-${d.kind}`; group.add(mark); // 칸 표지(그리지 않음)
       }
     });
@@ -150,6 +155,6 @@ export function buildDecor(scene: THREE.Scene): Occluder[] {
       const m = new THREE.Mesh(geo, mats[k]); m.castShadow = k === 0; m.receiveShadow = k === 0; group.add(m);
     });
     scene.add(group);
-    return { box: new THREE.Box3().setFromObject(group), setOpacity: (o: number) => fadeMaterials(mats, o) };
+    return { box: new THREE.Box3().setFromObject(group), boxes, setOpacity: (o: number) => fadeMaterials(mats, o) };
   });
 }

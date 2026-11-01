@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { beforeAll, expect, test, vi } from 'vitest';
 import { DECOR, OBSTACLES } from '../data/storeLayout';
+import { CAMERA_OFFSETS } from '../game/followCamera';
+import { OcclusionFader, type Occluder } from '../game/occlusion';
 import { stubCanvas } from '../test/canvasStub';
 import { buildDecor } from './decor';
 import { makeDoll } from './dolls';
@@ -46,4 +48,37 @@ test('every planned zone has covered machines: 14 figure, 10 ring, 4 pusher', ()
   scene.traverse((o) => { if (o.name.startsWith('decor-unit-')) { const k = o.name.slice('decor-unit-'.length); count[k] = (count[k] ?? 0) + 1; } });
   expect(count).toMatchObject({ figure: 14, ring: 10, pusher: 4 });
   expect(count.bench).toBeGreaterThanOrEqual(2);
+});
+
+// 큰 홀 최종 리뷰 I2: 벽 너머까지 늘린 장애물 상자의 가운데가 아니라 앞면 바로 뒤에 선다 — 앞에 걸어갈 수 없는 빈틈(투명 벽)이 없게.
+// 칸 가운데는 장애물 앞면에서 1.1m(가장 깊은 미는 뽑기의 반) 안
+test('decor units stand right behind the front edge of their obstacle', () => {
+  const scene = new THREE.Scene();
+  buildDecor(scene);
+  const marks: THREE.Object3D[] = [];
+  scene.traverse((o) => { if (o.name.startsWith('decor-unit-')) marks.push(o); });
+  expect(marks.length).toBeGreaterThan(30);
+  for (const m of marks) {
+    const d = DECOR.find((s) => m.position.x >= s.rect[0] && m.position.x <= s.rect[2] && m.position.z >= s.rect[1] && m.position.z <= s.rect[3])!;
+    expect(d, m.name).toBeDefined();
+    const fx = Math.round(Math.sin(d.ry)), fz = Math.round(Math.cos(d.ry)); // 앞쪽(±x 또는 ±z)
+    const front = fx > 0 ? d.rect[2] - m.position.x : fx < 0 ? m.position.x - d.rect[0] : fz > 0 ? d.rect[3] - m.position.z : m.position.z - d.rect[1];
+    expect(front, `${d.kind} ${m.position.x.toFixed(2)},${m.position.z.toFixed(2)}`).toBeLessThanOrEqual(1.1 + 1e-6);
+  }
+});
+
+// 큰 홀 최종 리뷰 I1: 종류마다 한 무리로 합쳐도, 흐려지는 건 실제로 나를 가린 줄뿐 — 피규어 두 줄 사이 통로나 입구 길에 서면 아무것도 안 흐려진다
+test('decor fades only when a row really hides me', () => {
+  const occluders = buildDecor(new THREE.Scene()), kinds = [...new Set(DECOR.map((d) => d.kind))];
+  const fadeAt = (o: Occluder, at: { x: number; z: number }) => {
+    let v = 1;
+    const fader = new OcclusionFader([{ ...o, setOpacity: (x: number) => { v = x; } }]);
+    const eye = new THREE.Vector3(at.x, 0, at.z).add(CAMERA_OFFSETS.WIDE);
+    for (let i = 0; i < 30; i++) fader.update(0.1, eye, at);
+    return v;
+  };
+  const figure = occluders[kinds.indexOf('figure')], shelf = occluders[kinds.indexOf('shelf')];
+  expect(fadeAt(figure, { x: 15.7, z: 0 })).toBe(1); // 피규어 두 줄 사이 통로
+  expect(fadeAt(shelf, { x: 0, z: 19 })).toBe(1); // 입구 길(두 진열장 사이)
+  expect(fadeAt(figure, { x: 13.2, z: -9.7 })).toBeLessThan(0.5); // 첫 줄 북쪽 끝 바로 뒤 — 가려지면 흐려진다
 });
