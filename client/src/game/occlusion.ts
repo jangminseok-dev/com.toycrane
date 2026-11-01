@@ -2,12 +2,16 @@ import * as THREE from 'three';
 
 const ray = new THREE.Ray();
 const hit = new THREE.Vector3();
+const inner = new THREE.Box3();
 
-// 카메라(eye)에서 내 캐릭터(target)까지 시선이 상자에 막히는지 — 나보다 먼 곳의 상자는 세지 않는다
+// 카메라(eye)에서 내 캐릭터(target)까지 시선이 상자에 막히는지 — 나보다 먼 곳의 상자는 세지 않는다.
+// 상자에 몸을 붙여 서면(걷기 판정이 내 중심을 면에 딱 붙임) 시선 끝이 면 위에 놓이거나 시선이 옆면을 따라 미끄러져, 소수점 오차로
+// 가림이 프레임마다 뒤집혔다(탑 번쩍임) — 상자를 사방으로 INSET만큼 줄여서 본다
+const INSET = 0.05;
 export function blocksView(eye: THREE.Vector3, target: THREE.Vector3, box: THREE.Box3): boolean {
   ray.origin.copy(eye);
   ray.direction.subVectors(target, eye).normalize();
-  const p = ray.intersectBox(box, hit);
+  const p = ray.intersectBox(inner.copy(box).expandByScalar(-INSET), hit);
   return p !== null && eye.distanceTo(p) < eye.distanceTo(target);
 }
 

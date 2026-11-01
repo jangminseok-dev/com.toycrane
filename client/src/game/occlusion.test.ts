@@ -18,6 +18,17 @@ test('tower does not block when I stand beside it', () => {
   expect(blocksView(v(3, 11, 4), v(3, 1, -2), tower)).toBe(false);
 });
 
+// 탑에 몸을 붙여 서면(걷기 판정이 내 중심을 탑 면에 딱 붙임) 시선 끝이 상자 면 위에 놓인다 — 소수점 오차로 가림이 프레임마다
+// 켜졌다 꺼졌다 해서 탑이 번쩍거렸다(사용자 2026-11-01). 면에 붙은 나(앞면이든 옆면이든)는 가려지지 않은 것으로 본다
+test('standing pressed against the tower does not flicker the fade', () => {
+  for (const at of [v(0, 1.2, 1.3), v(0.4, 0.4, 1.3), v(1.3, 1.2, 0.2), v(-1.3, 0.4, -0.5)]) {
+    for (let k = 0; k < 20; k++) {
+      const eye = v(at.x + Math.sin(k) * 1e-4, 15, at.z + 14 + Math.cos(k) * 1e-4);
+      expect(blocksView(eye, at, tower), `${at.x},${at.z}`).toBe(false);
+    }
+  }
+});
+
 // 시선은 나까지만: 내 뒤쪽에 있는 탑은 가리지 않는다
 test('tower beyond me does not count', () => {
   expect(blocksView(v(0, 3, 9), v(0, 1, 2), tower)).toBe(false);
