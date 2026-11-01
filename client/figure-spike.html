@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>피규어 시안</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #f6ebee; overflow: hidden; font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; }
+      canvas { display: block; }
+      #labels div { position: fixed; transform: translate(-50%, 0); font-size: 13px; font-weight: 700; color: #4a3550; background: rgba(255,255,255,.8); padding: 2px 8px; border-radius: 999px; white-space: nowrap; pointer-events: none; }
+      #labels div.row { transform: translate(0, -50%); font-size: 15px; background: #ffc9dd; color: #5a2a4a; }
+    </style>
+  </head>
+  <body>
+    <div id="labels"></div>
+    <script type="module" src="/src/spike/figure.ts"></script>
+  </body>
+</html>
