@@ -6,7 +6,7 @@ from toycrane.app.dtos.done_dto import DoneCommand
 from toycrane.app.dtos.play_dto import PlayStartCommand
 from toycrane.app.use_cases.done_interactor import DoneInteractor
 from toycrane.app.use_cases.play_start_interactor import PlayStartInteractor
-from toycrane.domain.layout import MACHINE_IDS, MACHINES
+from toycrane.domain.layout import MACHINE_IDS, MACHINES, front_spot
 from toycrane.domain.report import DollPose, Report
 from toycrane.domain.stock import generate_stock
 from toycrane.domain.value_objects.position import Position
@@ -94,7 +94,7 @@ async def test_a_second_done_in_the_same_play_is_ignored():
 async def test_no_report_leaves_the_machine_as_it_was():
     reg, locks, conns, bag, contents, it = setup()
     before = contents.stored["A-1"]
-    reg.put("c-2", player("p2", guest="g-2", at=Position(-11.1, -11.2)))  # A-1 앞자리
+    reg.put("c-2", player("p2", guest="g-2", at=front_spot(MACHINES["A-1"])))  # A-1 앞자리
     start = PlayStartInteractor(reg, locks, FakeWallet({"g-2": 3}), conns)
     await start.start(PlayStartCommand("c-2", "A-1", now=10.0 + 20 + 15 + 3 + 1))
     assert locks.holder("A-1")[0] == "c-2" and contents.stored["A-1"] == before and (None, free("A-1")) in conns.broadcasts

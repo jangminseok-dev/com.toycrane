@@ -1,19 +1,22 @@
-// 매장 치수와 구역. 서버 server/src/toycrane/domain/store_rules.py와 같은 값.
-export const ROOM_HALF = 13;      // 26m 정사각형 매장
-export const MAP_HALF = 12.6;     // 걸을 수 있는 반폭
-export const HUB_HALF = 5;        // 가운데 허브 10m
-export const TOWER_HALF = 1.3;    // 4면 전광판 탑
-export const SPAWN_RADIUS = 2.4;  // 스폰 링
+// 매장 치수와 구역 — 값은 공용 배치 파일(shared/store_layout.json의 hall, 서버 domain/store_rules.py와 같은 값)
+import { HALL } from '../data/storeLayout';
+
+export const ROOM_HALF = HALL.room_half;       // 벽까지 반폭 (44m 큰 홀)
+export const MAP_HALF = HALL.map_half;         // 걸을 수 있는 반폭
+export const TOWER_HALF = HALL.tower_half;     // 광장 진열탑 반폭
+export const SPAWN_RADIUS = HALL.spawn_radius; // 탑 둘레 스폰 링
+export const PLAZA_RADIUS = HALL.plaza_radius; // 가운데 둥근 광장
 export const WALK_SPEED = 3.2;    // m/s
 export const ROOM_HEIGHT = 3.4;
 
-export type Zone = 'big' | 'mini' | 'figure' | 'hub' | 'path';
+export type Zone = 'doll' | 'figure' | 'north' | 'plaza' | 'rest' | 'path';
 
-// 위(-z) 큰인형 띠, 왼쪽 ㄴ자 미니, 오른쪽 ㄴ자 피규어, 가운데 허브, 나머지는 길
+// 가운데 둥근 광장, 서쪽 인형, 동쪽 피규어, 북쪽 고리·미는 뽑기, 남쪽 두 모서리 쉼터, 나머지는 길 (설계 2026-11-01 §3)
 export function zoneAt(x: number, z: number): Zone {
-  if (Math.abs(x) <= HUB_HALF && Math.abs(z) <= HUB_HALF) return 'hub';
-  if (z < -5.5) return 'big';
-  if (x < -5.5 || (z > 5.5 && x < -0.5)) return 'mini';
-  if (x > 5.5 || (z > 5.5 && x > 0.5)) return 'figure';
+  if (Math.hypot(x, z) <= PLAZA_RADIUS) return 'plaza';
+  if (x <= -11 && Math.abs(z) <= 9.5) return 'doll';
+  if (x >= 11.5 && Math.abs(z) <= 10) return 'figure';
+  if (z <= -14) return 'north';
+  if (Math.abs(x) >= 13 && z >= 13) return 'rest';
   return 'path';
 }

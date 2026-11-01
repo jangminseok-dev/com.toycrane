@@ -35,7 +35,7 @@ function unit(kind: DecorSpot['kind'], i: number, len: number): { solid: THREE.G
   const cover = (geo: THREE.BufferGeometry, pos: V3) => { const m = new THREE.Mesh(geo); m.position.set(...pos); covers.push(m); };
   const card = (pos: V3, w: number) => { const m = new THREE.Mesh(g.card); m.position.set(...pos); m.scale.setScalar(w / 0.5); cards.push(m); };
   const color = PASTEL[i % PASTEL.length];
-  if (kind === 'mini') {
+  if (kind === 'ring') {
     add(g.miniBase, color, [0, 0.4, 0]); cover(g.miniCover, [0, 1.25, 0]); add(g.miniTop, color, [0, 1.85, 0]);
     card([0, 1.25, 0.48], 0.5);
   } else if (kind === 'figure') {

@@ -34,7 +34,7 @@ async def test_enter_spawns_and_returns_others():
     result = await enter_interactor(reg, conns, occ, new_id=lambda: "p-2").enter(
         EnterCommand("c-2", "g-2", "토끼", 3, 1, now=10.0, seed=7)
     )
-    assert result.you.id == "p-2" and math.isclose(math.hypot(result.you.x, result.you.z), 2.4)
+    assert result.you.id == "p-2" and math.isclose(math.hypot(result.you.x, result.you.z), SPAWN_RADIUS)
     assert [o.id for o in result.others] == ["p-1"]
     assert conns.broadcasts == [("c-2", join(result.you))]  # 본인 제외 전체에게 join
     (to, msg), = conns.direct  # 본인에게 welcome
@@ -101,6 +101,7 @@ async def test_welcome_shows_who_is_in_line_and_playing():
 
 # ---- 최종 리뷰 C1·I1 ----
 from toycrane.adapter.inbound.ws.schemas.server_messages import free  # noqa: E402
+from toycrane.domain.store_rules import SPAWN_RADIUS
 
 
 async def test_kicked_tab_mid_play_is_freed_without_refund():

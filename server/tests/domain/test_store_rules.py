@@ -25,14 +25,31 @@ def test_full_when_every_store_full():
 
 
 def test_spawn_on_ring():
+    from toycrane.domain.store_rules import SPAWN_RADIUS
+
     p = spawn_position(7)
-    assert math.isclose(math.hypot(p.x, p.z), 2.4)
+    assert math.isclose(math.hypot(p.x, p.z), SPAWN_RADIUS)
     assert spawn_position(7) != spawn_position(8)
 
 
 def test_clamp_to_floor_bounds_and_tower():
-    assert clamp_to_floor(Position(13.0, -20.0)) == Position(12.6, -12.6)
-    assert clamp_to_floor(Position(0.5, 1.0)) == Position(0.5, 1.3)
+    assert clamp_to_floor(Position(25.0, -30.0)) == Position(21.6, -21.6)
+    assert clamp_to_floor(Position(0.5, 1.0)) == Position(0.5, 1.6)
+
+
+# 큰 홀(설계 2026-11-01): 걸을 수 있는 범위·탑·스폰은 화면과 같은 공용 배치 파일에서 읽는다
+def test_hall_values_come_from_shared_layout():
+    from toycrane.domain.shared_data import LAYOUT
+    from toycrane.domain.store_rules import MAP_HALF, SPAWN_RADIUS, TOWER_HALF
+
+    hall = LAYOUT["hall"]
+    assert (MAP_HALF, TOWER_HALF, SPAWN_RADIUS) == (hall["map_half"], hall["tower_half"], hall["spawn_radius"])
+
+
+def test_spawn_ring_clears_the_tower():
+    for seed in range(40):
+        p = spawn_position(seed)
+        assert clamp_to_floor(p) == p
 
 
 SHARED = Path(__file__).resolve().parents[3] / "shared"

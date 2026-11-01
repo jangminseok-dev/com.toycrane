@@ -3,9 +3,10 @@ from toycrane.adapter.inbound.ws.schemas.server_messages import coins as coins_m
 from toycrane.adapter.inbound.ws.schemas.server_messages import take_no
 from toycrane.app.dtos.counter_take_dto import CounterTakeCommand
 from toycrane.app.use_cases.counter_take_interactor import CounterTakeInteractor
+from toycrane.domain.layout import COUNTERS
 from toycrane.domain.value_objects.position import Position
 
-WINDOW = Position(-5.5, -2.15)  # 교환소 0 창구
+WINDOW = COUNTERS[0].window  # 교환소 0 창구 (배치 파일에서)
 
 
 def setup(at: Position = WINDOW, coins: int = 3):
@@ -34,6 +35,6 @@ async def test_take_with_enough_coins_says_so():
 
 
 async def test_take_from_afar_is_refused():
-    conns, wallet, it = setup(at=Position(-5.5, -0.15))  # 창구에서 2m
+    conns, wallet, it = setup(at=Position(WINDOW.x, WINDOW.z + 2.0))  # 창구에서 2m
     await it.take(CounterTakeCommand("c-1", 0, now=1.0))
     assert conns.direct == [("c-1", take_no(0, "far"))] and wallet.coins["g-1"] == 3

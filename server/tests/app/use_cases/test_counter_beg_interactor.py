@@ -5,9 +5,10 @@ from toycrane.adapter.inbound.ws.schemas.server_messages import cbeg, cbeg_no
 from toycrane.adapter.inbound.ws.schemas.server_messages import coins as coins_msg
 from toycrane.app.dtos.counter_beg_dto import CounterBegCommand
 from toycrane.app.use_cases.counter_beg_interactor import CounterBegInteractor
+from toycrane.domain.layout import COUNTERS
 from toycrane.domain.value_objects.position import Position
 
-WINDOW = Position(-5.5, -2.15)
+WINDOW = COUNTERS[0].window  # 교환소 0 창구 (배치 파일에서)
 
 
 class Pick(random.Random):
@@ -51,7 +52,7 @@ async def test_counter_beg_with_full_wallet_keeps_the_cooldown():
 
 
 async def test_counter_beg_from_afar_is_refused():
-    conns, wallet, it = setup(at=Position(-5.5, -0.15))
+    conns, wallet, it = setup(at=Position(WINDOW.x, WINDOW.z + 2.0))
     await it.beg(CounterBegCommand("c-1", 0, now=1000.0))
     assert conns.direct == [("c-1", cbeg_no(0, "far", 0.0))] and wallet.coins["g-1"] == 3
 

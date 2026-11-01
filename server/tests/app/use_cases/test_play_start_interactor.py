@@ -6,9 +6,10 @@ from toycrane.app.dtos.leave_dto import LeaveCommand
 from toycrane.app.dtos.play_dto import PlayStartCommand
 from toycrane.app.use_cases.leave_interactor import LeaveInteractor
 from toycrane.app.use_cases.play_start_interactor import PlayStartInteractor
+from toycrane.domain.layout import MACHINES, front_spot
 from toycrane.domain.value_objects.position import Position
 
-FRONT = Position(-11.1, -11.2)  # A-1 앞자리
+FRONT = front_spot(MACHINES["A-1"])  # A-1 앞자리 (배치 파일에서)
 
 
 class SlowWallet(FakeWallet):
@@ -40,7 +41,7 @@ async def test_busy_far_and_no_coins():
     locks.lock("c-2", "A-1", 4.0)
     await it.start(PlayStartCommand("c-1", "A-1", now=5.0))
     assert conns.direct[-1] == ("c-1", play_no("A-1", "busy"))
-    reg2, locks2, conns2, wallet2, it2 = setup(at=Position(-11.1, -9.2))
+    reg2, locks2, conns2, wallet2, it2 = setup(at=Position(FRONT.x, FRONT.z - 2.0))
     await it2.start(PlayStartCommand("c-1", "A-1", now=5.0))
     assert conns2.direct[-1] == ("c-1", play_no("A-1", "far"))
     reg3, locks3, conns3, wallet3, it3 = setup(wallet=FakeWallet({"g-1": 0}))

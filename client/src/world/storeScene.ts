@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { HUB_HALF, ROOM_HALF, ROOM_HEIGHT, SPAWN_RADIUS, TOWER_HALF } from './layout';
+import { PLAZA_RADIUS, ROOM_HALF, ROOM_HEIGHT, SPAWN_RADIUS, TOWER_HALF } from './layout';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { adSignCell, adSignsTex } from './signs';
 import { canvasTex, outlineMat, part, toon, toonWith } from './toon';
@@ -123,7 +123,7 @@ function addZones(scene: THREE.Scene) {
   tint(0xb48cff, 0.1, 5, 7.5, -3, 9.25);
   tint(0x4fd8ff, 0.1, 7.5, 18.5, 9.25, 3.75);
   tint(0x4fd8ff, 0.1, 5, 7.5, 3, 9.25);
-  tint(0xffe08a, 0.06, HUB_HALF * 2, HUB_HALF * 2, 0, 0, 0.006);
+  tint(0xffe08a, 0.06, PLAZA_RADIUS * 2, PLAZA_RADIUS * 2, 0, 0, 0.006);
   floorText(scene, '큰인형', 0, -9.25);
   floorText(scene, '미니', -9.25, 1);
   floorText(scene, '피규어', 9.25, 1);
