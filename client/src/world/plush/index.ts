@@ -53,7 +53,7 @@ function make(id: string, look: DollLook, lite: boolean): Plush | null {
   for (const o of out.group.children) {
     const m = o as THREE.Mesh;
     if (m.isMesh) m.geometry.scale(k, k, k);
-    else { o.position.multiplyScalar(k); o.scale.multiplyScalar(k); if (o.userData.ear) { o.userData.ear.c.multiplyScalar(k); o.userData.ear.r *= k; } }
+    else { o.position.multiplyScalar(k); if (!o.userData.ear) o.scale.multiplyScalar(k); else { o.userData.ear.c.multiplyScalar(k); o.userData.ear.r *= k; } }
   }
   const scaled = (h: Hit): Hit => ({ ...h, c: h.c.clone().multiplyScalar(k), r: h.r * k });
   const solid = out.solid.map(scaled);
@@ -104,6 +104,27 @@ export function makePlush(id: string, look: DollLook, lite: boolean): Plush | nu
   group.userData.spin = aura ? [{ obj: aura, speed: look.rare === GOLD.id ? 2.2 : 1.6 }] : [];
   const copy = (h: Hit): Hit => ({ ...h, c: h.c.clone() });
   return { group, solid: p.solid.map(copy), ears: p.ears.map(copy), head: { ...p.head } };
+}
+
+// 부딪힘 공·머리만 (인형 모양 좌표, 키 맞춘 뒤, 왕관 공 포함) — 그리지 않으니 가볍고 캔버스가 필요 없다 (겨냥·물리·집게 계획)
+const shapes = new Map<string, Omit<Plush, 'group'> | null>();
+export function plushShape(id: string, rare = ''): Omit<Plush, 'group'> | null {
+  const key = `${id}|${rare}`;
+  if (shapes.has(key)) return shapes.get(key)!;
+  const sp = SPECIES[id];
+  let out: Omit<Plush, 'group'> | null = null;
+  if (sp && DOLLS[id]) {
+    const b = new PlushBuilder({ lite: false });
+    sp.make(b, 0);
+    const raw = b.shape(), top = Math.max(...raw.solid.map((h) => h.c.y + h.r));
+    const k = (sp.round ? TARGET_TOP.round : TARGET_TOP.standing) / top;
+    const scaled = (h: Hit): Hit => ({ ...h, c: h.c.clone().multiplyScalar(k), r: h.r * k });
+    const solid = raw.solid.map(scaled);
+    if (rare) { const s = rare === GOLD.id ? CROWN_GOLD : 1, t = Math.max(...solid.map((h) => h.c.y + h.r)); solid.push({ c: new THREE.Vector3(0, t + 0.06 * s, 0.04), r: 0.15 * s, part: 'crown' }); }
+    out = { solid, ears: raw.ears.map(scaled), head: { c: raw.head.c * k, r: raw.head.r * k } };
+  }
+  shapes.set(key, out);
+  return out;
 }
 
 // 단단한 부위의 꼭짓점(키 맞춘 뒤) — 부딪힘 공이 겉모습을 감싸는지 재는 시험용

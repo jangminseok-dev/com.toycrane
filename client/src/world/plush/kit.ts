@@ -85,6 +85,16 @@ export class PlushBuilder {
     return this.add(g, [{ c: p, r: r * 0.9 }], [{ c: p, r }], { outline: false, hit: 'none', ...o });
   }
 
+  // 겉모습 없이 부딪힘 공·머리만 (그리기·얼굴 그림 없이) — 겨냥·물리가 쓴다
+  shape(): { solid: Hit[]; ears: Hit[]; head: { c: number; r: number } } {
+    const head = this.parts.find((p) => p.head)?.head;
+    return {
+      solid: prune(this.parts.filter((p) => p.hit === 'solid').flatMap((p) => p.balls.map((b) => ({ c: b.c.clone(), r: b.r })))),
+      ears: this.parts.filter((p) => p.hit === 'ear').flatMap((p) => p.balls.map((b) => ({ c: b.c.clone(), r: b.r }))),
+      head: head ?? { c: 0, r: 0 },
+    };
+  }
+
   // 단단한 부위(hit 'solid')의 꼭짓점 — 부딪힘 공이 겉모습을 감싸는지 재는 시험용
   solidPositions(): THREE.Vector3[] {
     return this.parts.filter((q) => q.hit === 'solid').flatMap((q) => {
@@ -183,6 +193,7 @@ export class PlushBuilder {
     for (const p of this.parts.filter((x) => x.hit === 'ear')) {
       const marker = new THREE.Object3D(); marker.name = 'ear';
       const b = p.balls[0];
+      marker.position.copy(b.c); // 귀 자리 표지 (귀 모양은 몸 메시에 합쳐져 있다 — 휘기는 게임에서 쓰지 않는다, 설계 §4)
       marker.userData.ear = { c: b.c.clone(), r: b.r, out: new THREE.Vector3(Math.sign(b.c.x) || 1, 0.5, 0).normalize() };
       group.add(marker);
     }
@@ -208,6 +219,26 @@ function surfaceAt(surface: THREE.Mesh[], x: number, y: number): { p: THREE.Vect
   return { p: hit.point.clone(), n: hit.face.normal.clone().transformDirection(hit.object.matrixWorld) };
 }
 
+// 그림 붙일 자리 둘레(반지름 reach)의 삼각형만 떼어 낸 임시 메시들 — 투사(DecalGeometry)는 메시의 모든 삼각형을 자르므로 미리 줄인다
+function near(surface: THREE.Mesh[], p: THREE.Vector3, reach: number): THREE.Mesh[] {
+  const out: THREE.Mesh[] = [], a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), r2 = (reach * 0.75 + 0.05) ** 2;
+  for (const m of surface) {
+    const g = m.geometry, pos = g.getAttribute('position'), idx = g.index, tri = (idx ? idx.count : pos.count) / 3;
+    const keep: number[] = [];
+    for (let t = 0; t < tri; t++) {
+      const i0 = idx ? idx.getX(t * 3) : t * 3, i1 = idx ? idx.getX(t * 3 + 1) : t * 3 + 1, i2 = idx ? idx.getX(t * 3 + 2) : t * 3 + 2;
+      a.fromBufferAttribute(pos, i0); b.fromBufferAttribute(pos, i1); c.fromBufferAttribute(pos, i2);
+      if (a.distanceToSquared(p) < r2 || b.distanceToSquared(p) < r2 || c.distanceToSquared(p) < r2) keep.push(i0, i1, i2);
+    }
+    if (!keep.length) continue;
+    const sub = new THREE.BufferGeometry();
+    sub.setAttribute('position', pos); sub.setAttribute('normal', g.getAttribute('normal'));
+    sub.setIndex(keep);
+    out.push(new THREE.Mesh(sub));
+  }
+  return out;
+}
+
 // 얼굴 조각을 겉면에 투사해 한 메시(FACE_MAT)로, 조각마다 이름 단 표지(자리·크기)를 남긴다 — 표정 시험이 읽는다
 function addPaints(group: THREE.Group, surface: THREE.Mesh[], paints: Paint[]): void {
   if (!paints.length) return;
@@ -217,7 +248,7 @@ function addPaints(group: THREE.Group, surface: THREE.Mesh[], paints: Paint[]): 
     const { p, n } = surfaceAt(surface, pt.at[0], pt.at[1]);
     const rot = new THREE.Euler().setFromRotationMatrix(new THREE.Matrix4().lookAt(p.clone().add(n), p, UP));
     const [u0, v0, u1, v1] = cellUV(pt.cell);
-    for (const m of surface) {
+    for (const m of near(surface, p, Math.max(pt.size[0], pt.size[1]))) {
       const d = new DecalGeometry(m, p, rot, new THREE.Vector3(pt.size[0], pt.size[1], 0.25));
       const uv = d.getAttribute('uv');
       if (!uv || uv.count === 0) continue;
@@ -265,6 +296,7 @@ function hull(part: THREE.BufferGeometry, w: number): THREE.BufferGeometry {
   const p = (part.getAttribute('position') as THREE.BufferAttribute).clone(), n = part.getAttribute('normal');
   for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) + n.getX(i) * w, p.getY(i) + n.getY(i) * w, p.getZ(i) + n.getZ(i) * w);
   g.setAttribute('position', p);
+  g.setAttribute('normal', (n as THREE.BufferAttribute).clone()); // 무더기 live 모드가 법선을 읽는다
   return g;
 }
 

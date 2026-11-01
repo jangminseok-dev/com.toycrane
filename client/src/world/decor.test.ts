@@ -16,3 +16,13 @@ test('decor stays a few merged meshes and every piece is an obstacle', () => {
   expect(n).toBeLessThanOrEqual(24);
   for (const d of DECOR) expect(OBSTACLES).toContainEqual(d.rect);
 });
+
+// 인형 리뉴얼: 진열장 인형도 그린 얼굴을 지킨다(얼굴 한 장 그림 재질), 새 외곽선은 앞을 덮는 껍질이 아니라 외곽선 덩어리로
+test('shelf dolls keep their painted faces', () => {
+  const scene = new THREE.Scene();
+  buildDecor(scene);
+  const shelf = scene.children.find((o) => o.name.startsWith('decor-shelf'))!;
+  const mats = (shelf.children as THREE.Mesh[]).map((m) => m.material as THREE.MeshBasicMaterial);
+  expect(mats.some((m) => m.map && m.transparent)).toBe(true);
+  expect(mats.filter((m) => m.side === THREE.BackSide)).toHaveLength(1);
+});

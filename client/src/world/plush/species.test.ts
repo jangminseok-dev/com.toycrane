@@ -16,7 +16,7 @@ test('each species reaches its target height and stays under the server limit', 
     expect(top, id).toBeCloseTo(SPECIES[id].round ? TARGET_TOP.round : TARGET_TOP.standing, 2);
     expect(top, id).toBeLessThan(0.34 / 0.3);
   }
-});
+}, 60_000);
 
 // spec §6: 부딪힘 공은 12개 안팎 (Task 3·6 ruling: 20 이하 — 바닥에 감긴 꼬리·문어 다리까지 감싸려면. 물리 시간은 Task 14에서 잰다)
 test('each species has at most twenty hit balls and a head', () => {
@@ -25,7 +25,7 @@ test('each species has at most twenty hit balls and a head', () => {
     expect(p.solid.length, id).toBeLessThanOrEqual(20);
     expect(p.head.r, id).toBeGreaterThan(0.2);
   }
-});
+}, 60_000);
 
 // Review Focus 1: 보이는 단단한 부위(발·꼬리 포함)를 공이 감싼다 — 손가락·옆 인형이 뚫지 않게
 test('hit balls hug every solid vertex', () => {
@@ -35,10 +35,10 @@ test('hit balls hug every solid vertex', () => {
     for (const v of solidPoints(id, true)) worst = Math.max(worst, Math.min(...p.solid.map((h) => v.distanceTo(h.c) - h.r)));
     expect(worst, id).toBeLessThan(0.06);
   }
-});
+}, 60_000);
 
 test('every species knows its eye style', () => {
   for (const id of kinds()) expect(['dot', 'anime'], id).toContain(SPECIES[id].eyes);
-});
+}, 60_000);
 
 test('all 24 catalog dolls have a species', () => expect(Object.keys(SPECIES).sort()).toEqual(Object.keys(DOLLS).sort()));

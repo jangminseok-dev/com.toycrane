@@ -7,6 +7,8 @@ import { fadeMaterials } from './bake';
 import { PLAIN, makeDoll } from './dolls';
 import { DOLL_SCALE } from './machine';
 import { prepTex } from './signs';
+import { FACE_MAT } from './plush/faceAtlas';
+import { PLUSH_OUTLINE } from './plush/kit';
 import { outlineMat, part, toon } from './toon';
 
 // 빈 미니·피규어 구역의 "준비 중" 장식 (설계 2026-10-31 §3.8): 누를 수 없는 덮개 기계 줄과 경품 진열장.
@@ -58,23 +60,26 @@ function unit(kind: DecorSpot['kind'], i: number, len: number): { solid: THREE.G
 }
 
 // 메시마다 재질 색을 꼭짓점 색으로 옮겨 한 덩어리로(외곽선은 따로 한 덩어리)
-function bakeColored(root: THREE.Object3D): { body: THREE.BufferGeometry | null; lines: THREE.BufferGeometry | null } {
+// 새 인형(plush)의 외곽선은 외곽선 덩어리로, 그린 얼굴은 얼굴 덩어리로(uv를 지켜) 따로 모은다
+function bakeColored(root: THREE.Object3D): { body: THREE.BufferGeometry | null; lines: THREE.BufferGeometry | null; faces: THREE.BufferGeometry | null } {
   root.updateMatrixWorld(true);
-  const body: THREE.BufferGeometry[] = [], lines: THREE.BufferGeometry[] = [];
+  const body: THREE.BufferGeometry[] = [], lines: THREE.BufferGeometry[] = [], faces: THREE.BufferGeometry[] = [];
   root.traverse((o) => {
     const m = o as THREE.Mesh;
     if (!m.isMesh) return;
     const geo = m.geometry.clone().applyMatrix4(m.matrixWorld);
+    if (m.material === FACE_MAT) { for (const key of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv'].includes(key)) geo.deleteAttribute(key); faces.push(geo.index ? geo.toNonIndexed() : geo); return; }
     for (const key of Object.keys(geo.attributes)) if (key !== 'position' && key !== 'normal') geo.deleteAttribute(key);
+    if (!geo.getAttribute('normal')) geo.computeVertexNormals();
     const flat = geo.index ? geo.toNonIndexed() : geo;
-    if (m.material === outlineMat) { lines.push(flat); return; }
+    if (m.material === outlineMat || m.material === PLUSH_OUTLINE) { lines.push(flat); return; }
     const c = ((m.material as THREE.MeshBasicMaterial).color ?? new THREE.Color(0xffffff)).clone();
     const cols = new Float32Array(flat.attributes.position.count * 3);
     for (let k = 0; k < cols.length; k += 3) cols.set([c.r, c.g, c.b], k);
     flat.setAttribute('color', new THREE.BufferAttribute(cols, 3));
     body.push(flat);
   });
-  return { body: body.length ? mergeGeometries(body) : null, lines: lines.length ? mergeGeometries(lines) : null };
+  return { body: body.length ? mergeGeometries(body) : null, lines: lines.length ? mergeGeometries(lines) : null, faces: faces.length ? mergeGeometries(faces) : null };
 }
 // 덮개·안내판처럼 모양이 같은 것들을 놓인 자리 그대로 한 덩어리로
 function mergeAt(root: THREE.Object3D): THREE.BufferGeometry | null {
@@ -112,15 +117,16 @@ export function buildDecor(scene: THREE.Scene): Occluder[] {
       for (const c of u.covers) coverRoot.add(holder(c, offset));
       for (const c of u.cards) cardRoot.add(holder(c, offset));
     }
-    const { body, lines } = bakeColored(solidRoot);
+    const { body, lines, faces } = bakeColored(solidRoot);
     const mats = [
       new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toon(0xffffff).gradientMap }),
       outlineMat.clone(),
       new THREE.MeshBasicMaterial({ color: 0xfff7fb, transparent: true, opacity: 0.88, depthWrite: false }),
       new THREE.MeshBasicMaterial({ map: cardTex }),
+      FACE_MAT.clone(),
     ];
     const group = new THREE.Group(); group.name = `decor-${d.kind}-${si}`;
-    [body, lines, mergeAt(coverRoot), mergeAt(cardRoot)].forEach((geo, k) => {
+    [body, lines, mergeAt(coverRoot), mergeAt(cardRoot), faces].forEach((geo, k) => {
       if (!geo) return;
       const m = new THREE.Mesh(geo, mats[k]); m.castShadow = k === 0; m.receiveShadow = k === 0; group.add(m);
     });

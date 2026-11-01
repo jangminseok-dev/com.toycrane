@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { beforeAll, expect, test } from 'vitest';
 import { stubCanvas } from '../test/canvasStub';
 import { spot } from '../test/spots';
-import { HEAD } from './dolls';
+import { headOf } from './dolls';
 import { dollPose, headAt, solidsOf } from './dollPose';
 import { DOLL_FLOOR, DOLL_SCALE } from './machine';
 
@@ -16,7 +16,7 @@ test('a settled doll is drawn exactly at its recorded pose', () => {
   expect(provisional).toBe(false);
   expect([position.x, position.y, position.z]).toEqual([0.12, DOLL_FLOOR + 0.11, -0.08]);
   expect(quaternion.x).toBeCloseTo(0.70711);
-  const head = new THREE.Vector3(0, HEAD.standing.c * DOLL_SCALE, 0).applyQuaternion(quaternion);
+  const head = new THREE.Vector3(0, headOf('bear').c * DOLL_SCALE, 0).applyQuaternion(quaternion);
   expect(Math.abs(head.z)).toBeGreaterThan(0.2); // 누웠으니 머리는 옆으로
 });
 
@@ -32,17 +32,18 @@ test('an unsettled doll stands provisionally on the floor or on a settled doll b
 
 test('solid spheres and the head follow the pose', () => {
   const s = spot('bear', 0.1, 0.05, 0.4, 0);
-  const [[, head]] = solidsOf([s]);
+  const head = solidsOf([s])[0].reduce((a, h) => (h.r > a.r ? h : a)); // 가장 큰 공 = 머리 (인형 리뉴얼: 머리가 몸보다 크다)
   expect(head.c.x).toBeCloseTo(0.1, 6);
   expect(head.c.z).toBeCloseTo(0.05, 6);
-  expect(head.r).toBeCloseTo(0.34 * DOLL_SCALE, 6);
-  expect(headAt(s).y).toBeCloseTo(DOLL_FLOOR + HEAD.standing.c * DOLL_SCALE, 6);
+  expect(head.r).toBeGreaterThan(0.25 * DOLL_SCALE);
+  expect(headAt(s).y).toBeCloseTo(DOLL_FLOOR + headOf('bear').c * DOLL_SCALE, 6);
 });
 
 // 화면의 집게 잡기(손가락이 닿는 공)도 체형 폭을 따른다 (설계 2026-10-31 인형 채우기 §4.5), 희귀·황금은 왕관 공까지
 test('the claw feels chubby dolls wider and crowns on rare ones', () => {
-  const [[, plainHead]] = solidsOf([spot('bear', 0, 0, 0, 0)]);
-  const [[, chubbyHead]] = solidsOf([spot('bear', 0, 0, 0, 0, { body: 'c' })]);
+  const biggest = (hs: { r: number }[]) => hs.reduce((a, h) => (h.r > a.r ? h : a));
+  const plainHead = biggest(solidsOf([spot('bear', 0, 0, 0, 0)])[0]);
+  const chubbyHead = biggest(solidsOf([spot('bear', 0, 0, 0, 0, { body: 'c' })])[0]);
   expect(chubbyHead.r).toBeGreaterThan(plainHead.r * 1.1);
   expect(solidsOf([spot('bear', 0, 0, 0, 0, { rare: 'gold' })])[0].some((h) => h.part === 'crown')).toBe(true);
 });

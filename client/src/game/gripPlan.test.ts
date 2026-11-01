@@ -15,6 +15,7 @@ const START = CLAW_REST.y;
 const plan = (spots: DollSpot[], target: number | null, x = 0, z = 0) => ({ solids: solidsOf(spots), ...planGrip(x, z, START, solidsOf(spots), target) });
 const depth = (pts: THREE.Vector3[], hits: Hit[]) => Math.max(0, ...pts.flatMap((p) => hits.map((h) => h.r - p.distanceTo(h.c))));
 const gap = (pts: THREE.Vector3[], hits: Hit[]) => Math.min(...pts.flatMap((p) => hits.map((h) => p.distanceTo(h.c) - h.r)));
+const headOfHits = (hits: Hit[]) => hits.reduce((a, h) => (h.r > a.r ? h : a)); // 가장 큰 공 = 머리 (인형 리뉴얼: 머리가 몸보다 크다)
 
 // 미리 잰 표본점 자리는 실제 집게의 표본점과 같다 (흔들림 없음, 같은 벌림)
 test('cached probe offsets match a real claw rig', () => {
@@ -28,7 +29,7 @@ test('the claw stops on the head without sinking in', () => {
   const p = plan([spot('bear', 0, 0, 0, 0)], 0);
   const at = probesAt(0, p.y, 0, p.descendOpen);
   expect(depth(at.all, p.solids[0])).toBeLessThan(0.001);
-  const headTop = p.solids[0][1].c.y + p.solids[0][1].r;
+  const headTop = headOfHits(p.solids[0]).c.y + headOfHits(p.solids[0]).r;
   expect(at.hub.y - headTop).toBeLessThan(0.015);
 });
 
@@ -37,7 +38,7 @@ test('fingers close until they wrap the head, tips under its middle', () => {
   const p = plan([spot('bear', 0, 0, 0, 0)], 0);
   const at = probesAt(0, p.y, 0, p.open);
   expect(p.open).toBeLessThan(0.75);
-  expect(Math.max(...at.tips.map((t) => t.y))).toBeLessThan(p.solids[0][1].c.y);
+  expect(Math.max(...at.tips.map((t) => t.y))).toBeLessThan(headOfHits(p.solids[0]).c.y);
   expect(depth(at.fingers, p.solids[0])).toBeLessThan(0.001);
   expect(depth(probesAt(0, p.y, 0, p.open - 0.03).fingers, p.solids[0])).toBeGreaterThan(0);
 });

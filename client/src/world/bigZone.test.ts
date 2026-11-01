@@ -1,9 +1,11 @@
 import * as THREE from 'three';
 import { beforeAll, expect, test } from 'vitest';
+import { DOLLS } from '../data/catalog';
 import { MACHINES } from '../data/storeLayout';
 import { stubCanvas } from '../test/canvasStub';
 import { LITE_CACHE_MAX, buildBigZone, liteCacheSize } from './bigZone';
 import { CONTROLS } from './machine';
+import { PLAIN, makeDoll } from './dolls';
 import { spot } from '../test/spots';
 
 beforeAll(stubCanvas);
@@ -277,4 +279,20 @@ test('live meshes are frustum culled and unchanged poses are not re-uploaded', (
   zone.update(0.3);
   expect(version()).not.toEqual(before);
   live.dispose();
+});
+
+// Review Focus 3: 24종·5표정·희귀가 섞여도 한 묶음 재질 ≤ 6 (인형 리뉴얼 설계 §7)
+test('a block mixing every kind, face and rarity keeps few materials', () => {
+  const scene = new THREE.Scene(), zone = buildBigZone(scene);
+  const kinds = Object.keys(DOLLS);
+  for (const [k, m] of MACHINES.slice(0, 6).entries())
+    zone.setContents(m.id, Array.from({ length: 9 }, (_, i) => spot(kinds[(k * 9 + i) % kinds.length], -0.3 + (i % 3) * 0.25, -0.25 + Math.floor(i / 3) * 0.22, i, 0, { color: i % 6, face: i % 5, rare: i === 4 ? 'star' : '' })));
+  zone.update(0);
+  expect(materialsIn(scene, 'dolls-big-wall-0')).toBeLessThanOrEqual(6);
+});
+// Review Focus 5: 처음 들어올 때 기계 하나(9마리, 서로 다른 겉모습) lite 만들기 200ms 이하
+test('building one machine of fresh lite dolls is quick', () => {
+  const t0 = performance.now();
+  Object.keys(DOLLS).slice(0, 9).forEach((id, i) => makeDoll(id, { ...PLAIN, color: (i + 2) % 6, face: (i + 3) % 5 }, true));
+  expect(performance.now() - t0).toBeLessThan(200);
 });
