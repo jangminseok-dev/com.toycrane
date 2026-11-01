@@ -86,3 +86,15 @@ test('static buttons keep their labels between plays', () => {
   expect(scaleOf(labels[0], 0)).toBe(0);
   expect(scaleOf(labels[1], 1)).toBeGreaterThan(0); // 다른 기계는 그대로
 });
+
+// 피규어 기계 뒤 진열(사용자 2026-11-02): 3개짜리 한 단 → 2단 총 6개
+test('the figure machine shows six display boxes in two tiers', async () => {
+  const { makeFigureMachineParts } = await import('./figureMachine');
+  const { FIGURES } = await import('../data/figures');
+  for (const spot of [FIGURES[0], FIGURES[7]]) {
+    const { statics } = makeFigureMachineParts(spot, 0, 0x3b6cff), shown: THREE.Object3D[] = [];
+    statics.traverse((o) => { if (o.name === 'figure-display') shown.push(o); });
+    expect(shown).toHaveLength(6);
+    expect(new Set(shown.map((o) => o.position.y.toFixed(3))).size).toBe(2);
+  }
+});

@@ -132,13 +132,18 @@ export function makeFigureMachineParts(spot: FigureSpot, index: number, color: n
   }
   // 구멍 아래 'GET!' 바닥(상자가 빠지면 여기로)
   add(flat(g.get, getMat(), [0, FLOOR_Y - 0.005, 0], [-Math.PI / 2, 0, 0])).scale.set(1, 2 * bz, 1); // 몸통 윗면 바로 위(상자는 몸통 속으로 빠진다)
-  // 뒤 벽 뒤 진열대: 같은 랜덤 상자를 세워 둔다(실제 기계의 재고 진열)
+  // 뒤 벽 뒤 진열대: 같은 랜덤 상자를 세워 둔다(실제 기계의 재고 진열). 2단, 단마다 3개(사용자 2026-11-02) — 위 단은 아래 상자 위 얇은 선반
   add(part(g.tier, floorMat, [0, FLOOR_Y + 0.08, -0.43], [1, 0.16, 1], [0, 0, 0], 1.03));
-  [-0.3, 0, 0.3].forEach((x, k) => {
-    const b = new THREE.Mesh(blindBoxGeo(kind), blindBoxMat(kind));
-    b.position.set(x, FLOOR_Y + 0.16 + box.h / 2, -0.44); b.rotation.set(Math.PI / 2, 0, (k - 1) * 0.04); // 상자를 세우고 그림 면(+y)이 앞(+z)으로
-    m.add(b);
-  });
+  const shelfY = FLOOR_Y + 0.16 + box.h + 0.01;
+  add(part(g.tier, floorMat, [0, shelfY, -0.43], [1, 0.02, 1], [0, 0, 0], 1.03));
+  for (const [y0, twist] of [[FLOOR_Y + 0.16, 0.04], [shelfY + 0.01, -0.03]] as const) {
+    [-0.3, 0, 0.3].forEach((x, k) => {
+      const b = new THREE.Mesh(blindBoxGeo(kind), blindBoxMat(kind));
+      b.name = 'figure-display';
+      b.position.set(x, y0 + box.h / 2, -0.44); b.rotation.set(Math.PI / 2, 0, (k - 1) * twist); // 상자를 세우고 그림 면(+y)이 앞(+z)으로
+      m.add(b);
+    });
+  }
   m.traverse((o) => { o.castShadow = false; });
   return { statics: m, ledGeo };
 }
