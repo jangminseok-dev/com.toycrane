@@ -3,7 +3,7 @@
   "doll_scale": 0.18,
   "count": 26,
   "cap": 32,
-  "on_ledge": 1,
+  "on_ledge": 0,
   "max_wins": 8,
   "grip": 1.07,
   "ledge": {"x0": -0.56, "x1": -0.12, "z0": -0.16, "z1": 0.28, "h": 0.1, "lip": 0.025},

@@ -11,7 +11,7 @@ import { ALL, GROUP_TARGET, GROUP_TIP, STEP, groups, type MachineWorld, type Rap
 // 인형을 밀 수 있고, 오므릴 때 손가락 끝 둘 이상이 같은 인형에 닿으면 그 인형을 쥔 것으로 보고 허브↔인형 사이에 끊어지는 스프링 관절을 둔다.
 // 관절의 최대 힘 F = base_force × clawStrength(x, z) × 쥠의 질(셋 1.0 / 둘 0.6) × 희귀 배율 × 종류 배율(CLAW.kind). 걸린 힘(= 스프링 늘어난 길이 × 세기)이 F를 넘으면 끊어진다
 export type GripQuality = 'three' | 'two';
-const HUB_R = 0.055, TIP_R = 0.018, TOUCH = 0.012; // 허브 공·손가락 끝 공 반지름, 닿음으로 치는 여유(m)
+const HUB_R = 0.055, TIP_R = 0.018, TOUCH = 0.012, PLAN_REACH = 0.22; // 허브 공·손가락 끝 공 반지름, 닿음으로 치는 여유(m)
 const LOAD_AVG_SECONDS = 0.1;
 // 쥔 뒤 처음 이만큼(초)은 끊지 않고, 그동안 끊길 힘이 걸렸던 쥠은 이 시간이 끝날 때 놓는다 — 결과(놓침)는 예전과 같고 모습만 다르다.
 // 그대로면 약한 쥠·옆 인형에 걸린 인형이 1cm도 안 들린 채 빈손으로 올라가 '잡는 시늉만' 보였다(사용자 2026-11-01)
@@ -96,7 +96,8 @@ export class ClawBody {
 
   // 지금 집게 자리에서 내려갈 높이·벌림을 미리 잰다 (game/gripPlan): 손이 닿는 범위의 가장 높은 인형을 노린다
   plan(x: number, z: number, floor = DOLL_FLOOR): { y: number; open: number; descendOpen: number; target: number | null } {
-    const uids = this.world.uids();
+    // 손이 닿을 수 있는 인형만 본다(활짝 벌린 손가락 끝이 16cm) — 미는 뽑기 27개를 다 보면 휴대폰에서 '잡기' 순간 100ms 멈칫했다
+    const uids = this.world.uids().filter((uid) => this.world.balls(uid).some((h) => Math.sqrt((h.c.x - x) ** 2 + (h.c.z - z) ** 2) - h.r < PLAN_REACH));
     // 손가락 끝 공(TIP_R)이 내려가며 노린 인형을 치지 않게, 재는 동안은 인형 공을 그만큼 부풀린다
     const solids: Hit[][] = uids.map((uid) => this.world.balls(uid).map((h) => ({ ...h, r: h.r + TIP_R + 0.004 })));
     let target: number | null = null, best = -Infinity;

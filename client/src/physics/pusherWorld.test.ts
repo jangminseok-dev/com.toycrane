@@ -163,3 +163,40 @@ test('the claw stops on the ledge top where no doll is under it', async () => {
     w.dispose();
   }
 }, 120_000);
+
+// 라이브 휴대폰 점검(CPU 4배 느리게): 겨누는 동안 미는 뽑기만 프레임이 40fps로 떨어졌다 — 저장된 자리에서 시작한 칸 무더기가 잠들지 않고 기며
+// 물리·꼭짓점 다시 쓰기를 매 프레임 했다. 앉은 인형은 잠든 채 시작하고, 판(턱 위)·집게가 건드린 인형만 깬다
+test('a saved pile sleeps while aiming but the plate still pushes the ledge', () => {
+  const settled = new PusherWorld(R, serverFresh(4));
+  settled.settle(3);
+  const saved = settled.poses().map((p) => { const s = settled.spotOf(p.uid)!; return [s[0], p.p[0], p.p[1], p.p[2], ...p.q, s[8], s[9], s[10], s[11], s[12]] as DollSpot; });
+  settled.dispose();
+  const front = spot(99, -0.34, TOP, ledge.z0 + plate.stroke * 0.6); // 판이 닿는 자리의 턱 위 인형
+  const w = new PusherWorld(R, [...saved, front]);
+  w.setHoleOpen(true);
+  const before = w.poses();
+  run(w, plate.period + 0.5);
+  const after = w.poses(), moved = (uid: number) => { const a = before.find((p) => p.uid === uid)!.p, b = after.find((p) => p.uid === uid)!.p; return Math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2); };
+  const pile = saved.filter((s) => s[1] > ledge.x1 + 0.04).map((s) => s[12]);
+  expect(Math.max(...pile.map(moved))).toBeLessThan(0.005); // 재우기 전 첫 걸음에 2mm쯤 내려앉는 것만
+  expect(moved(99)).toBeGreaterThan(0.01);
+  w.dispose();
+}, 120_000);
+
+// 라이브 휴대폰 점검: 미는 뽑기에서 '잡기'를 누르는 순간 한 번 100ms 멈칫 — 집게가 내려갈 높이를 잴 때 손이 닿지 않는 인형 27개까지 다 봤다.
+// 손 닿는 인형만 보면 인형 기계(9개)와 비슷한 시간, 잰 결과는 같다
+test('the claw plans only against dolls within reach', async () => {
+  const { ClawBody } = await import('./clawBody');
+  const { MachineWorld } = await import('./machineWorld');
+  const { fillMachine, seededRandom, settleSpots } = await import('../../sim/world');
+  const pw = new PusherWorld(R, serverFresh(5)); pw.settle(3);
+  const dw = new MachineWorld(R, settleSpots(R, fillMachine('bear', seededRandom(1))));
+  const time = (w: InstanceType<typeof MachineWorld>) => { const c = new ClawBody(R, w); c.plan(0.1, 0); const t0 = performance.now(); for (let i = 0; i < 10; i++) c.plan(0.05 + i * 0.03, (i % 3) * 0.1 - 0.1); const ms = performance.now() - t0; c.dispose(); return ms; };
+  time(dw);
+  expect(time(pw) / 10).toBeLessThan(6); // 한 번 재기 6ms 안(모든 인형을 볼 때 7.5ms — 휴대폰 4배면 30ms에 다른 일이 겹쳐 100ms 멈칫)
+  // 손 닿는 인형만 봐도 잰 결과(높이·벌림·노린 인형)는 같다
+  const near = pw.poses().filter((p) => Math.hypot(p.p[0] - 0.2, p.p[2]) < 0.3).map((p) => { const s = pw.spotOf(p.uid)!; return [s[0], p.p[0], p.p[1], p.p[2], ...p.q, s[8], s[9], s[10], s[11], s[12]] as DollSpot; });
+  const nw = new PusherWorld(R, near);
+  expect(new ClawBody(R, nw).plan(0.2, 0)).toEqual(new ClawBody(R, pw).plan(0.2, 0));
+  pw.dispose(); dw.dispose(); nw.dispose();
+}, 120_000);

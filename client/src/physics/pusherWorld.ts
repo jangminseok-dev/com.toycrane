@@ -20,6 +20,16 @@ export class PusherWorld extends MachineWorld {
     super(R, spots, { dollScale: PUSHER.doll_scale });
     const p = this.plate.translation();
     this.plate.setTranslation({ x: p.x, y: p.y, z: plateFront(phase) - PUSHER.plate.depth / 2 }, true); // 첫 걸음에 순간이동하지 않게
+    this.saved = spots.filter((s) => s[2] !== null && s[1] > PUSHER.ledge.x1 + PILE_GAP / 2).map((s) => s[12]); // 칸 무더기만 — 턱 위 인형은 판이 밀어야 한다
+  }
+
+  // 앉은(저장된) 인형은 첫 걸음 뒤 재운다 — 칸 무더기 27개가 깨어 있으면 서로 조금씩 기며 휴대폰에서 겨누는 동안 40fps로 떨어졌다(라이브 점검).
+  // 첫 걸음 전에 재우면 엔진이 처음 찾은 맞닿음으로 다시 깨운다. 움직이는 판(턱 위)·내려오는 집게가 닿은 인형은 엔진이 깨운다
+  private saved: number[] | null = null;
+  private sleepSaved(): void {
+    if (!this.saved || this.time <= 0) return;
+    for (const uid of this.saved) this.bodyOf(uid)?.sleep();
+    this.saved = null;
   }
 
   protected buildBox(): void {
@@ -73,6 +83,7 @@ export class PusherWorld extends MachineWorld {
   }
 
   protected beforeStep(): void {
+    this.sleepSaved();
     const p = this.plate.translation();
     this.plate.setNextKinematicTranslation({ x: p.x, y: p.y, z: plateFront(this.time + this.phase) - PUSHER.plate.depth / 2 });
   }

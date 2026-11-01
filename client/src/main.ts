@@ -481,7 +481,9 @@ function dropCycle() {
 function runAimFrame(dt: number, claw: { x: number; z: number }) {
   if (!cycle || cycle.runner || cycle.reported || !(cycle.world instanceof PusherWorld)) return;
   const { world, live, machineId } = cycle;
+  const t0 = performance.now();
   world.step(dt);
+  physicsMs.push(performance.now() - t0); if (physicsMs.length > 120) physicsMs.shift();
   for (const p of world.poses()) live.set(p.uid, p.p, p.q);
   bigZone.plateAt(machineId, world.plateZ());
   poseSender.frame(machineId, { x: claw.x, y: CLAW_REST.y, z: claw.z, open: 0.35 }, world.movingPoses(), clock());
