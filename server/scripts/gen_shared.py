@@ -18,10 +18,11 @@ def main() -> None:
     claw = json.loads((ROOT / "shared" / "claw.json").read_text(encoding="utf-8"))
     figure = json.loads((ROOT / "shared" / "figure.json").read_text(encoding="utf-8"))
     hook = json.loads((ROOT / "shared" / "hook.json").read_text(encoding="utf-8"))
+    pusher = json.loads((ROOT / "shared" / "pusher.json").read_text(encoding="utf-8"))
     fmt = lambda v: pprint.pformat(v, width=120, sort_dicts=False)  # noqa: E731
     OUT.write_text(
-        '"""생성 파일 — shared/catalog.json·shared/store_layout.json·shared/claw.json·shared/figure.json·shared/hook.json을 고치고 scripts/gen_shared.py로 다시 생성한다."""\n\n'
-        f"CATALOG = {fmt(catalog)}\n\nLAYOUT = {fmt(layout)}\n\nCLAW = {fmt(claw)}\n\nFIGURE = {fmt(figure)}\n\nHOOK = {fmt(hook)}\n",
+        '"""생성 파일 — shared/catalog.json·shared/store_layout.json·shared/claw.json·shared/figure.json·shared/hook.json·shared/pusher.json을 고치고 scripts/gen_shared.py로 다시 생성한다."""\n\n'
+        f"CATALOG = {fmt(catalog)}\n\nLAYOUT = {fmt(layout)}\n\nCLAW = {fmt(claw)}\n\nFIGURE = {fmt(figure)}\n\nHOOK = {fmt(hook)}\n\nPUSHER = {fmt(pusher)}\n",
         encoding="utf-8",
     )
 

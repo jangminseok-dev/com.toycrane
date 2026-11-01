@@ -6,8 +6,9 @@ from toycrane.app.ports.output.connections_port import ConnectionsPort
 from toycrane.app.ports.output.machine_contents_port import MachineContentsPort
 from toycrane.app.ports.output.play_lock_port import PlayLockPort
 from toycrane.domain.catalog import GOLD
-from toycrane.domain.layout import MACHINES
+from toycrane.domain.layout import MACHINES, PUSHERS
 from toycrane.domain.play_rules import expired, hold_over
+from toycrane.domain.pusher_crane import refill_mixed
 from toycrane.domain.stock import due, refill
 
 
@@ -41,7 +42,11 @@ class StockInteractor(StockUseCase):
         gold = sum(d.rare == GOLD for s in stocks.values() for d in s.dolls)
         spawns, changed = [], []
         for machine_id, stock in stocks.items():
-            after, added = refill(stock, MACHINES[machine_id].kind, cmd.now, lock_active(self._locks, machine_id, cmd.now), gold, self._rng)
+            held = lock_active(self._locks, machine_id, cmd.now)
+            if machine_id in PUSHERS:
+                after, added = refill_mixed(stock, cmd.now, held, gold, self._rng)
+            else:
+                after, added = refill(stock, MACHINES[machine_id].kind, cmd.now, held, gold, self._rng)
             if after == stock:
                 continue
             stocks[machine_id] = after

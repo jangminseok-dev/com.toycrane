@@ -37,3 +37,12 @@ def test_up_to_nine_wins_are_parsed():
     data = {"t": "done", "m": "A-1", "won": [1, 2, 3, 4], "dolls": []}
     assert parse(data) == ("A-1", Report((1, 2, 3, 4), ()))
     assert parse({"t": "done", "m": "A-1", "won": list(range(10)), "dolls": []}) is None
+
+
+# 미는 뽑기는 인형이 28개까지 — 기계 종류별 상한(cap)까지 읽는다
+def test_a_pusher_report_carries_every_mini_doll():
+    rows = [[u, 0.1, 0.9, 0, 0, 0, 0, 1] for u in range(1, 29)]
+    parsed = parse({"t": "done", "m": "P-1", "won": list(range(1, 10)), "dolls": rows})
+    assert parsed is not None and len(parsed[1].dolls) == 28 and len(parsed[1].won) == 9
+    assert parse({"t": "done", "m": "P-1", "won": [], "dolls": rows * 2}) is None
+    assert parse({"t": "done", "m": "A-1", "won": [], "dolls": rows[:10]}) is None

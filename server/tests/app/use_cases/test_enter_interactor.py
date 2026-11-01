@@ -80,7 +80,7 @@ async def test_welcome_carries_coins_bag_and_machines():
     await it.enter(cmd("c-1", "g-1"))
     snap = conns.direct[0][1]
     assert snap["coins"] == 7 and snap["bag"] == 2
-    assert len(snap["machines"]) == 24 and all(len(v) == 9 for v in snap["machines"].values())
+    assert len(snap["machines"]) == 28 and all(len(v) == 9 for m, v in snap["machines"].items() if not m.startswith("P-"))
     assert "queues" not in snap and snap["plays"] == {}
     assert contents.saves == 1
 
@@ -166,3 +166,14 @@ async def test_welcome_carries_hook_boxes():
     await enter_interactor(conns=conns).enter(cmd("c-1", "g-1"))
     (_, msg), = conns.direct
     assert {f"R-{i}" for i in range(1, 11)} <= set(msg["figures"]) and "F-1" in msg["figures"]
+
+
+# 설계 ring-hook §4: 미는 뽑기 기계도 처음 들어올 때 채워져 welcome machines에 실린다(섞인 미니 인형)
+async def test_welcome_carries_pusher_machines():
+    from toycrane.domain.pusher_crane import FULL
+
+    conns, contents = FakeConnections(), FakeContents()
+    await enter_interactor(conns=conns, contents=contents).enter(cmd("c-1", "g-1"))
+    machines = conns.direct[0][1]["machines"]
+    assert all(len(machines[p]) == FULL for p in ("P-1", "P-2", "P-3", "P-4"))
+    assert len({d.kind for d in contents.stored["P-1"].dolls}) > 1 and contents.saves == 1

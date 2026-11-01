@@ -32,3 +32,10 @@ def test_pose_rounds_to_two_decimals():
 ])
 def test_pose_rejects_bad_messages(bad):
     assert parse(bad) is None
+
+
+# 미는 뽑기: 판이 미는 동안 여러 미니 인형이 함께 움직인다 — 기계 종류별 상한(cap)까지 중계
+def test_pose_relays_many_moving_mini_dolls():
+    moving = [[u, 0.1, 0.95, 0, 0, 0, 0, 1] for u in range(1, 21)]
+    assert len(parse({"t": "pose", "m": "P-2", "c": [0, 1.6, 0, 0.4], "d": moving})[2]) == 20
+    assert parse({"t": "pose", "m": "A-1", "c": [0, 1.6, 0, 0.4], "d": moving}) is None

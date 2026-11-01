@@ -1,4 +1,4 @@
-"""생성 파일 — shared/catalog.json·shared/store_layout.json·shared/claw.json·shared/figure.json·shared/hook.json을 고치고 scripts/gen_shared.py로 다시 생성한다."""
+"""생성 파일 — shared/catalog.json·shared/store_layout.json·shared/claw.json·shared/figure.json·shared/hook.json·shared/pusher.json을 고치고 scripts/gen_shared.py로 다시 생성한다."""
 
 CATALOG = {'sets': [{'id': 'soft', 'name': '말랑 동물', 'color': '#ff7ab6'},
           {'id': 'forest', 'name': '숲속 친구들', 'color': '#2fbf8f'},
@@ -443,4 +443,21 @@ HOOK = {'_note': '고리 걸기 기계 수치(설계 2026-11-02 ring-hook §3). 
  'hold': {'base': 0.055, 'span': 0.265},
  'start': {'z': -0.1, 'shift': 0.02, 'twist_deg': 4},
  'stuck': {'plays': 5, 'progress': 0.02, 'lying_plays': 2},
+ 'odds': {'rare': 0.03, 'gold': 0.005}}
+
+PUSHER = {'_note': '미는 뽑기 기계 수치(설계 2026-11-02 ring-hook §4). 인형 기계와 같은 몸통·집게·조작(레버+잡기), 좌표는 인형 기계와 같은 기계 좌표(앞 +z, 바닥 = '
+          'DOLL_FLOOR). 왼쪽 앞에 한 단 높은 턱(ledge, x0~x1·z0~z1, 높이 h), 턱 뒤(z0보다 뒤)는 미는 판이 숨는 집, 턱 앞(z1보다 앞)은 출구. 미는 판은 턱 '
+          '깊이의 3분의 1(stroke)만 period초마다 앞뒤로 오간다. 잡은 인형은 늘 drop 자리(턱 위)로 옮겨 놓는다. 미니 인형 크기 doll_scale(인형 기계 0.3), 잡기 힘 '
+          '배율 grip, 한 판 최대 당첨 max_wins, 기계당 인형 count(처음)~cap, 처음 턱 위 on_ledge개',
+ 'doll_scale': 0.18,
+ 'count': 26,
+ 'cap': 32,
+ 'on_ledge': 2,
+ 'max_wins': 8,
+ 'grip': 1.1,
+ 'ledge': {'x0': -0.56, 'x1': -0.12, 'z0': -0.16, 'z1': 0.22, 'h': 0.1, 'lip': 0.025},
+ 'plate': {'h': 0.07, 'depth': 0.03, 'stroke': 0.127, 'period': 3.0},
+ 'chute': {'h': 0.25},
+ 'drop': [-0.34, -0.08],
+ 'settle': {'still': 3.2, 'max': 15},
  'odds': {'rare': 0.03, 'gold': 0.005}}

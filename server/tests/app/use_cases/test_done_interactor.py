@@ -6,7 +6,8 @@ from toycrane.app.dtos.done_dto import DoneCommand
 from toycrane.app.dtos.play_dto import PlayStartCommand
 from toycrane.app.use_cases.done_interactor import DoneInteractor
 from toycrane.app.use_cases.play_start_interactor import PlayStartInteractor
-from toycrane.domain.layout import MACHINE_IDS, MACHINES, front_spot
+from toycrane.domain.layout import MACHINE_IDS, MACHINES, PUSHERS, front_spot
+from toycrane.domain.pusher_crane import generate_mixed_stock
 from toycrane.domain.report import DollPose, Report
 from toycrane.domain.stock import generate_stock
 from toycrane.domain.value_objects.position import Position
@@ -21,6 +22,7 @@ def setup():
     reg.put("c-1", player("p1", guest="g-1"))
     reg.put("c-2", player("p2", guest="g-2"))
     stored = {m: generate_stock(MACHINES[m].kind, random.Random(9)) for m in MACHINE_IDS}
+    stored.update({p: generate_mixed_stock(random.Random(9)) for p in PUSHERS})  # 미는 뽑기도 같은 저장(ensure_contents가 더 채우지 않게)
     contents = FakeContents(stored)
     locks.lock("c-1", "A-1", 10.0)
     return reg, locks, conns, bag, contents, DoneInteractor(reg, locks, contents, bag, conns)
@@ -115,3 +117,17 @@ async def test_unreadable_report_is_refused_with_done_no():
     assert conns.direct == [("c-1", done_no("A-1", "bad"))] and contents.saves == 0 and locks.is_between("c-1")
     await it.refuse(DoneCommand("c-2", "A-1", Report((), ()), now=20.0))  # 잠근 사람이 아니면 아무것도
     assert len(conns.direct) == 1
+
+
+# 설계 ring-hook §4: 미는 뽑기 당첨은 섞인 인형 그대로(종류는 인형마다) 가방 구역 'pusher'로 — 한 판 여러 개도
+async def test_pusher_win_goes_to_the_bag_in_zone_pusher():
+    reg, locks, conns, bag, contents, _ = setup()
+    contents.stored["P-1"] = generate_mixed_stock(random.Random(3))
+    locks.lock("c-2", "P-1", 10.0)
+    it = DoneInteractor(reg, locks, contents, bag, conns)
+    stock = contents.stored["P-1"]
+    won = [d for d in stock.dolls if d.uid in (27, 28)]
+    await it.done(DoneCommand("c-2", "P-1", report(stock, won=(27, 28)), now=20.0))
+    assert bag.added == [("g-2", d.kind, d.color, d.rare, "pusher") for d in won]
+    assert len(contents.stored["P-1"].dolls) == 26 and contents.stored["P-1"].next_at == 50.0
+    assert (None, result("P-1", "p2", [(d.kind, d.color, d.rare, d.uid) for d in won])) in conns.broadcasts

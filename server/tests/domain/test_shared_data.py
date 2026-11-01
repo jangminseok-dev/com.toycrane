@@ -76,6 +76,7 @@ def test_every_window_is_reachable_from_the_hub():
 def test_figures_come_from_shared_layout():
     assert shared_data.FIGURE == json.loads((SHARED / "figure.json").read_text(encoding="utf-8"))
     assert shared_data.HOOK == json.loads((SHARED / "hook.json").read_text(encoding="utf-8"))
+    assert shared_data.PUSHER == json.loads((SHARED / "pusher.json").read_text(encoding="utf-8"))
     from toycrane.domain.layout import FIGURES, front_spot, machine_spot
 
     assert len(FIGURES) == 14

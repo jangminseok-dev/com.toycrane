@@ -3,13 +3,14 @@ import random
 from fakes import FakeStorage, stocks_with_empty
 from toycrane.adapter.outbound.do_storage_machine_contents import DoStorageMachineContents
 from toycrane.app.use_cases.machine_contents import ensure_contents
+from toycrane.domain.pusher_crane import FULL
 
 
 # 옛 저장(machines_v2)은 읽지 않고 새로 채운다
 async def test_old_storage_is_replaced_by_fresh_stock():
     storage = FakeStorage({"machines_v2": '{"A-1": [["bunny",0,0,0,0]]}'})
     stocks = await ensure_contents(DoStorageMachineContents(storage, "s-old", object()), random.Random(1))
-    assert len(stocks) == 24 and all(len(s.dolls) == 9 for s in stocks.values())
+    assert len(stocks) == 28 and all(len(s.dolls) == (FULL if m.startswith("P-") else 9) for m, s in stocks.items())
 
 
 # 물리 뽑기 설계 §6: v3(x, z, 돌림, 높이)는 자리만 남기고 모두 안 앉은 인형으로 읽는다 — 첫 화면이 물리로 앉힌다

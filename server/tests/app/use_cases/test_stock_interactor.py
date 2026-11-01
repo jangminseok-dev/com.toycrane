@@ -70,3 +70,20 @@ async def test_a_newcomer_hears_when_the_next_refill_is():
     conns = FakeConnections()
     await StockInteractor(contents, FakeLocks(), conns, Rolls(0.5)).refill(StockCommand(now=20.0, newcomer="c-9"))
     assert conns.direct == [("c-9", {"t": "stock", "in": 30.0})] and contents.loads == 0
+
+
+# 설계 ring-hook §4: 미는 뽑기 기계도 같은 채우기 시계로 — 빈 자리엔 24종 중 아무 미니 인형이 칸 위에서
+async def test_a_due_pusher_refills_with_mixed_dolls():
+    import random
+
+    from toycrane.domain.pusher_crane import FULL, generate_mixed_stock
+    from toycrane.domain.stock import MachineStock
+
+    stocks = stocks_with_empty("A-1", next_at=30.0)
+    full = generate_mixed_stock(random.Random(4))
+    stocks["P-3"] = MachineStock(full.dolls[2:], 30.0, full.next_uid)
+    contents = FakeContents(stocks, due=30.0)
+    conns, job = run(contents, 61.0)
+    await job
+    assert len(contents.stored["P-3"].dolls) == FULL and len(contents.stored["A-1"].dolls) == 9 and contents.saves == 1
+    assert [m.get("m") for _, m in conns.broadcasts if m["t"] == "machine"] == ["A-1", "P-3"]

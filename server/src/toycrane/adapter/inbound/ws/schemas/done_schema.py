@@ -1,10 +1,10 @@
-"""화면→서버 done 메시지 검증: 배치에 있는 기계, 뽑힌 번호 최대 9개(정수), 멈춘 인형 최대 9개 × [번호, x, y, z, qx, qy, qz, qw](유한 숫자, 소수 3자리)."""
+"""화면→서버 done 메시지 검증: 배치에 있는 기계, 뽑힌 번호·멈춘 인형 각각 기계 종류별 상한(인형 기계 9개, 미는 뽑기 cap)까지,
+멈춘 인형은 [번호, x, y, z, qx, qy, qz, qw](유한 숫자, 소수 3자리)."""
 
 import math
 
 from toycrane.domain.layout import machine_spot
-from toycrane.domain.report import DollPose, Report
-from toycrane.domain.stock import DOLLS_PER_MACHINE
+from toycrane.domain.report import DollPose, Report, limits_of
 
 
 def _number(value) -> float | None:
@@ -32,7 +32,8 @@ def parse(data: dict) -> tuple[str, Report] | None:
     m, won, dolls = data.get("m"), data.get("won"), data.get("dolls")
     if not (isinstance(m, str) and machine_spot(m) is not None and isinstance(won, list) and isinstance(dolls, list)):
         return None
-    if len(won) > DOLLS_PER_MACHINE or len(dolls) > DOLLS_PER_MACHINE:  # 당첨이 많은 건 도메인이 "wins"로 거절해 done_no가 가게 (최종 리뷰 I2)
+    cap = limits_of(m).cap
+    if len(won) > cap or len(dolls) > cap:  # 당첨이 많은 건 도메인이 "wins"로 거절해 done_no가 가게 (최종 리뷰 I2)
         return None
     uids = [_uid(u) for u in won]
     poses = [parse_pose(row, 3) for row in dolls]

@@ -1,13 +1,13 @@
-"""화면→서버 pose 메시지 검증: 배치에 있는 기계, 집게 [x, y, z, 벌림] 4칸, 움직이는 인형 최대 9개 × 8칸 — 유한 숫자, 소수 2자리."""
+"""화면→서버 pose 메시지 검증: 배치에 있는 기계, 집게 [x, y, z, 벌림] 4칸, 움직이는 인형 기계 종류별 상한(인형 기계 9개, 미는 뽑기 cap)까지 × 8칸 — 유한 숫자, 소수 2자리."""
 
 from toycrane.adapter.inbound.ws.schemas.done_schema import _number, parse_pose
 from toycrane.domain.layout import machine_spot
-from toycrane.domain.stock import DOLLS_PER_MACHINE
+from toycrane.domain.report import limits_of
 
 
 def parse(data: dict) -> tuple[str, tuple[float, float, float, float], tuple[tuple[float, ...], ...]] | None:
     m, c, d = data.get("m"), data.get("c"), data.get("d")
-    if not (isinstance(m, str) and machine_spot(m) is not None and isinstance(c, list) and len(c) == 4 and isinstance(d, list) and len(d) <= DOLLS_PER_MACHINE):
+    if not (isinstance(m, str) and machine_spot(m) is not None and isinstance(c, list) and len(c) == 4 and isinstance(d, list) and len(d) <= limits_of(m).cap):
         return None
     claw = [_number(v) for v in c]
     poses = [parse_pose(row, 2) for row in d]

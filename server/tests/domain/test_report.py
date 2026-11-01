@@ -77,3 +77,17 @@ def test_the_clamp_box_is_as_wide_as_the_physics_box():
     after = check_report(s, Report((), tuple(poses)), now=10.0)
     moved = next(x for x in after.dolls if x.uid == poses[0].uid)
     assert (moved.x, moved.y, moved.z) == (0.7, 1.4, -0.65)
+
+
+# Review Focus 3: 미는 뽑기 보고 — 한 판 당첨은 max_wins(8)까지, 기계에 없는 번호는 거절
+def test_pusher_report_with_an_unknown_uid_or_too_many_wins_is_refused():
+    from toycrane.domain.pusher_crane import generate_mixed_stock
+    from toycrane.domain.report import PUSHER_LIMITS
+
+    s = generate_mixed_stock(random.Random(1))
+    rest = lambda won: tuple(p for p in settled(s) if p.uid not in won)  # noqa: E731
+    eight, nine = tuple(range(1, 9)), tuple(range(1, 10))
+    assert not isinstance(check_report(s, Report(eight, rest(eight)), 10.0, PUSHER_LIMITS), str)
+    assert check_report(s, Report(nine, rest(nine)), 10.0, PUSHER_LIMITS) == "wins"
+    assert check_report(s, Report((99,), rest(())), 10.0, PUSHER_LIMITS) == "unknown"
+    assert check_report(s, Report((1, 2, 3, 4), rest((1, 2, 3, 4))), 10.0) == "wins"  # 인형 기계 한도는 그대로

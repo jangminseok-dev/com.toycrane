@@ -9,10 +9,11 @@ from toycrane.app.ports.output.play_lock_port import PlayLockPort
 from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
 from toycrane.app.use_cases.machine_contents import ensure_contents
 from toycrane.app.use_cases.report_lock import take_report
-from toycrane.domain.report import check_report, won_dolls, won_views
+from toycrane.domain.layout import PUSHERS
+from toycrane.domain.report import check_report, limits_of, won_dolls, won_views
 from toycrane.domain.stock import due
 
-ZONE = "big"
+ZONE, PUSHER_ZONE = "big", "pusher"  # 가방 구역: 큰 인형 기계 · 미는 뽑기(설계 ring-hook §4, 섞인 미니 인형)
 
 
 class DoneInteractor(DoneUseCase):
@@ -43,7 +44,7 @@ class DoneInteractor(DoneUseCase):
         me, machine_id = taken
         stocks = await ensure_contents(self._contents, self._rng)
         before = stocks[machine_id]
-        after = check_report(before, cmd.report, cmd.now)
+        after = check_report(before, cmd.report, cmd.now, limits_of(machine_id))
         if isinstance(after, str):
             self._connections.send_done_no(cmd.conn_id, machine_id, after)
             return
@@ -53,7 +54,7 @@ class DoneInteractor(DoneUseCase):
         self._connections.broadcast_stock(None if when is None else max(0.0, when - cmd.now))
         total = None
         for doll in won_dolls(before, cmd.report.won):
-            total = await self._bag.add(me.guest_id, doll.kind, doll.color, doll.rare, ZONE, cmd.now)
+            total = await self._bag.add(me.guest_id, doll.kind, doll.color, doll.rare, PUSHER_ZONE if machine_id in PUSHERS else ZONE, cmd.now)
         if total is not None:
             self._connections.send_bag(cmd.conn_id, total)
         self._connections.broadcast_result(machine_id, me.player_id, won_views(before, cmd.report.won))

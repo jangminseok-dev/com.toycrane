@@ -6,6 +6,7 @@
 
 import math
 import random
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from toycrane.domain.catalog import EFFECTS, GOLD
@@ -56,20 +57,28 @@ def on_taken(stock: MachineStock, uids: list[int], now: float) -> MachineStock:
 def refill(stock: MachineStock, kind: str, now: float, held: bool, gold_in_store: int, rng: random.Random) -> tuple[MachineStock, list[DollSpot]]:
     """때가 지난 만큼 빈 자리를 하나씩(30초에 하나) 위에서 채운다. 누가 그 기계를 잡고 있으면(held) 채우지 않고 시계를 미룬다
     — 오래 붙잡았다 놓아도 한꺼번에 쏟아지지 않게. 희귀는 기계마다 1개, 황금도 기계마다 1개이고 매장 전체 3개까지."""
+    return fill_up(stock, now, held, gold_in_store, rng, DOLLS_PER_MACHINE, lambda dolls: (kind, *spawn_spot(dolls, rng)))
+
+
+def fill_up(
+    stock: MachineStock, now: float, held: bool, gold_in_store: int, rng: random.Random, full: int,
+    place: Callable[[list[DollSpot]], tuple[str, float, float]],
+) -> tuple[MachineStock, list[DollSpot]]:
+    """refill의 몸통 — 기계마다 가득 찬 개수(full)와 새 인형의 (캐릭터, x, z)를 고르는 법(place)만 다르다."""
     if stock.next_at is None or stock.next_at > now:
         return stock, []
     if held:
         return MachineStock(stock.dolls, now + REFILL_SECONDS, stock.next_uid), []
     dolls, next_at, uid, added = list(stock.dolls), stock.next_at, stock.next_uid, []
-    while next_at is not None and next_at <= now and len(dolls) < DOLLS_PER_MACHINE:
-        x, z = spawn_spot(dolls, rng)
+    while next_at is not None and next_at <= now and len(dolls) < full:
+        kind, x, z = place(dolls)
         gold_ok = not any(d.rare == GOLD for d in dolls) and gold_in_store + sum(d.rare == GOLD for d in added) < GOLD_PER_STORE
         rare_ok = not any(d.rare and d.rare != GOLD for d in dolls)
         doll = new_doll(kind, rng, x, z, uid, rare_ok=rare_ok, gold_ok=gold_ok)
         dolls.append(doll)
         added.append(doll)
         uid += 1
-        next_at = next_at + REFILL_SECONDS if len(dolls) < DOLLS_PER_MACHINE else None
+        next_at = next_at + REFILL_SECONDS if len(dolls) < full else None
     return MachineStock(dolls, next_at, uid), added
 
 
