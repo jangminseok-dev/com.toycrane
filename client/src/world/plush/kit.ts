@@ -11,7 +11,7 @@ export { CEL };
 // 생김새는 시제품 단위(곰 머리 꼭대기 ≈ 1.76)로 짓고, 키 맞추기는 makePlush(index.ts)가 한다
 export type V3 = [number, number, number];
 export type Slot = 'body' | 'accent' | 'pad' | 'inner' | 'nose' | 'thread' | number; // number = 고정 색
-export type PartOpts = { slot?: Slot; outline?: boolean; hit?: 'solid' | 'ear' | 'none'; name?: string };
+export type PartOpts = { slot?: Slot; outline?: boolean; hit?: 'solid' | 'ear' | 'none'; name?: string; balls?: number }; // balls: 관의 부딪힘 공 수를 정해 줄 때
 export type Hit = { c: THREE.Vector3; r: number; part?: 'crown' };
 export type BuiltPlush = { group: THREE.Group; surface: THREE.Mesh[]; solid: Hit[]; ears: Hit[]; head: { c: number; r: number } };
 
@@ -103,7 +103,7 @@ export class PlushBuilder {
       for (let j = 0; j <= rad; j++) { const idx = i * (rad + 1) + j; p.fromBufferAttribute(pos, idx).sub(c).multiplyScalar(k).add(c); pos.setXYZ(idx, p.x, p.y, p.z); }
     }
     g.computeVertexNormals();
-    const len = curve.getLength(), n = Math.min(5, Math.max(2, Math.ceil(len / (2.8 * r)) + 1));
+    const len = curve.getLength(), n = o?.balls ?? Math.min(5, Math.max(len > 3 * r ? 3 : 2, Math.ceil(len / (2.8 * r)) + 1)); // 굵기 3배보다 긴 관은 적어도 셋(가운데가 비지 않게)
     const balls = Array.from({ length: n }, (_, i) => { const t = i / (n - 1); return { c: curve.getPointAt(t), r: r * taper(t) * 1.1 }; });
     const m = Math.max(2, Math.ceil(len / 0.07));
     const occ = Array.from({ length: m + 1 }, (_, i) => ({ c: curve.getPointAt(i / m), r: r * taper(i / m) }));
@@ -129,7 +129,8 @@ export class PlushBuilder {
       return { c: new THREE.Vector3(0, yb, zOff), r: r * 0.97 };
     });
     const occ = profile.filter(([, r]) => r > 0.05).map(([y, r]) => ({ c: new THREE.Vector3(0, y, zOff), r: r * 0.9 }));
-    return this.add(g, balls, occ, o);
+    // name 'head'면 위쪽 공을 머리로 (동글이형: 몸 하나가 머리이자 몸통)
+    return this.add(g, balls, occ, o, 'solid', o?.name === 'head' ? { c: balls[1].c.y, r: balls[1].r } : undefined);
   }
 
   // 뾰족한 귀(고양이·여우): 아래는 넓고 위는 둥글게 뾰족한 납작한 물방울. 기본은 말랑한 귀(부딪힘 아님)

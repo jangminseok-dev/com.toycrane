@@ -17,11 +17,11 @@ test('each species reaches its target height and stays under the server limit', 
   }
 });
 
-// spec §6: 부딪힘 공은 12개 안팎 (Task 3 ruling: 18 이하 — 바닥에 감긴 꼬리·발까지 감싸려면. 물리 시간은 Task 14에서 잰다)
-test('each species has at most eighteen hit balls and a head', () => {
+// spec §6: 부딪힘 공은 12개 안팎 (Task 3·6 ruling: 20 이하 — 바닥에 감긴 꼬리·문어 다리까지 감싸려면. 물리 시간은 Task 14에서 잰다)
+test('each species has at most twenty hit balls and a head', () => {
   for (const id of kinds()) {
     const p = makePlush(id, PLAIN, false)!;
-    expect(p.solid.length, id).toBeLessThanOrEqual(18);
+    expect(p.solid.length, id).toBeLessThanOrEqual(20);
     expect(p.head.r, id).toBeGreaterThan(0.2);
   }
 });
