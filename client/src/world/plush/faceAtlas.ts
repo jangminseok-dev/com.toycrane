@@ -65,11 +65,18 @@ const mask: Draw = (g, S) => {
   g.fillRect(S * 0.3, S * 0.44, S * 0.4, S * 0.12);
 };
 
+// 젖소 얼룩: 가장자리가 울퉁불퉁한 둥근 얼룩
+const cowspot: Draw = (g, S) => {
+  g.fillStyle = '#3b2a3a'; g.beginPath();
+  for (let i = 0; i <= 24; i++) { const a = (i / 24) * Math.PI * 2, r = S * (0.36 + 0.06 * Math.sin(a * 3) + 0.03 * Math.cos(a * 5)); const x = S / 2 + Math.cos(a) * r, y = S / 2 + Math.sin(a) * r * 0.85; if (i) g.lineTo(x, y); else g.moveTo(x, y); }
+  g.fill();
+};
+
 // 칸 차례 (6×6 격자, 위 왼쪽부터). 새 무늬는 끝에 더한다 — 앞 칸 자리가 바뀌지 않게
 const CELLS: [Cell, Draw][] = [
   ['dotEye', dotEye], ['closed', closed(0.1)], ['animeClosed', closed(0.12)], ['sleepy', sleepy], ['blush', blush(0.85, 1)], ['blushBig', blush(1, 1.15)],
   ...(Object.keys(IRIS) as Iris[]).map((i): [Cell, Draw] => [`anime-${i}`, animeEye(i)]),
-  ['mark-tabby', tabby], ['mark-patch', patch], ['mark-mask', mask],
+  ['mark-tabby', tabby], ['mark-patch', patch], ['mark-mask', mask], ['mark-cowspot', cowspot],
 ];
 const GRID = 6, SIZE = 1024, PAD = 2 / SIZE;
 const index = new Map(CELLS.map(([c], i) => [c, i]));

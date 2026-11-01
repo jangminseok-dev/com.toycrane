@@ -1,5 +1,6 @@
 import type { EyeStyle, Iris } from './faceAtlas';
 import type { PlushBuilder, Slot } from './kit';
+import { DREAM } from './dream';
 import { FOREST } from './forest';
 import { SOFT } from './soft';
 import { WATER } from './water';
@@ -15,4 +16,4 @@ export type Species = {
   make(b: PlushBuilder, face: number): void;
 };
 
-export const SPECIES: Record<string, Species> = Object.fromEntries([...SOFT, ...FOREST, ...WATER].map((s) => [s.id, s]));
+export const SPECIES: Record<string, Species> = Object.fromEntries([...SOFT, ...FOREST, ...WATER, ...DREAM].map((s) => [s.id, s]));

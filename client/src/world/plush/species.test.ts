@@ -1,4 +1,5 @@
 import { beforeAll, expect, test } from 'vitest';
+import { DOLLS } from '../../data/catalog';
 import { stubCanvas } from '../../test/canvasStub';
 import { PLAIN } from '../dolls';
 import { TARGET_TOP, makePlush, solidPoints } from './index';
@@ -39,3 +40,5 @@ test('hit balls hug every solid vertex', () => {
 test('every species knows its eye style', () => {
   for (const id of kinds()) expect(['dot', 'anime'], id).toContain(SPECIES[id].eyes);
 });
+
+test('all 24 catalog dolls have a species', () => expect(Object.keys(SPECIES).sort()).toEqual(Object.keys(DOLLS).sort()));
