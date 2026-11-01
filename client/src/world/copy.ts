@@ -44,6 +44,8 @@ export const UI = {
   continueIn: (s: number) => `${s}초 안에 이어서 할 수 있어요`,
   nextRun: (k: number) => `곧 ${ORDINAL[k] ?? `${k}번째`} 판이 시작돼요`,
   hint: '레버로 집게를 옮기고 잡기 버튼을 눌러요',
+  figureHint: '① 누르는 동안 오른쪽, ② 누르는 동안 안쪽으로 가요', // 피규어 기계(9단계)
+  figureNudged: '직원이 상자를 살짝 옮겨 줬어요', // 오래 꽉 낀 상자를 서버가 조금 옮겼다
   physicsLoading: '준비 중', // 물리 모듈(Rapier)을 아직 받는 중
   saveFailed: '결과를 저장하지 못했어요', // 서버가 판 보고를 거절(물리 뽑기 설계 §9.7)
   wonMore: (n: number) => `인형 ${n}개가 더 들어왔어요`,

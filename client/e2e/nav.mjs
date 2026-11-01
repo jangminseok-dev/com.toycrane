@@ -47,7 +47,7 @@ export function route(from, to) {
 
 // 기계 앞에 서서 하는 자리 (ry를 쓴다 — 큰 홀의 인형 기계는 광장 쪽 +x를 본다)
 export function frontOf(id) {
-  const m = LAYOUT.machines.find((x) => x.id === id);
+  const m = LAYOUT.machines.find((x) => x.id === id) ?? LAYOUT.figures.find((x) => x.id === id); // 인형 기계·피규어 기계(9단계)
   return { x: m.x + Math.sin(m.ry) * LAYOUT.machine.front, z: m.z + Math.cos(m.ry) * LAYOUT.machine.front };
 }
 

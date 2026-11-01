@@ -46,10 +46,11 @@ export function hidePlayControls(): void {
   if (hintEl) hintEl.style.display = 'none';
 }
 
-// 판이 시작할 때 조작 안내를 3초만
-export function showHint(): void {
+// 판이 시작할 때 조작 안내를 3초만 (피규어 기계는 버튼 안내)
+export function showHint(text: string = UI.hint): void {
   if (!hintEl) build();
   clearTimeout(hintTimer);
+  hintEl!.textContent = text;
   hintEl!.style.display = 'block'; hintEl!.style.opacity = '1';
   hintTimer = window.setTimeout(() => { hintEl!.style.opacity = '0'; hintTimer = window.setTimeout(() => { hintEl!.style.display = 'none'; }, 400); }, 3000);
 }

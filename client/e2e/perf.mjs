@@ -1,8 +1,8 @@
-// 성능 측정: PC(1280×800)와 휴대폰(390×844) 화면에서 걷기 시점(스폰)과 기계 앞 화면(C-6 한 판)의 그리기 호출·삼각형 수를 잰다.
+// 성능 측정: PC(1280×800)와 휴대폰(390×844) 화면에서 걷기 시점(스폰)과 기계 앞 화면(C-6 한 판, 피규어 F-1 한 판)의 그리기 호출·삼각형 수를 잰다.
 // 각 지점에서 30프레임 평균. 그래픽 개편 전후를 같은 방법으로 비교한다(설계 2026-10-31 §7: 1.5배 이하).
 // 사용: 헤드리스 크롬을 --remote-debugging-port=9461로 띄운 뒤
 //   node client/e2e/perf.mjs <base-url> <out.json> [port=9461]
-// 출력: { walk_pc, machine_pc, cycle_pc(집게 한 바퀴 중), physics_pc_ms(프레임당 물리), walk_phone, …, walk_pc_tri, … }
+// 출력: { walk_pc, machine_pc, cycle_pc(집게 한 바퀴 중), physics_pc_ms(프레임당 물리), figure_pc(피규어 기계 앞), walk_phone, …, walk_pc_tri, … }
 const [base, out, port = '9461'] = process.argv.slice(2);
 import { LAYOUT, frontOf, route } from './nav.mjs';
 const fs = await import('node:fs');
@@ -86,9 +86,17 @@ async function measure(mode) {
   const cycle = await sample();
   const physics = Number((await evaluate('window.__toycrane.physicsMs()')).toFixed(2));
   if (mode === 'phone') await send('Emulation.setCPUThrottlingRate', { rate: 1 });
+  // 피규어 기계 앞 화면(9단계): 결과를 기다려 일어난 뒤 F-1 앞에서 한 판
+  for (let i = 0; i < 100 && !(await click('그만하기')); i++) await sleep(300);
+  await sleep(500);
+  await goTo(frontOf('F-1'));
+  await sleep(500);
+  if (!(await click('한 판 하기'))) throw new Error('피규어 기계 앞에서 시작하지 못함');
+  await sleep(2000);
+  const figure = await sample();
   await fetch(`http://127.0.0.1:${port}/json/close/${tab.id}`);
   watcher.close();
-  return { [`walk_${mode}`]: walk.calls, [`machine_${mode}`]: machine.calls, [`cycle_${mode}`]: cycle.calls, [`physics_${mode}_ms`]: physics, [`walk_${mode}_tri`]: walk.tri, [`machine_${mode}_tri`]: machine.tri };
+  return { [`walk_${mode}`]: walk.calls, [`machine_${mode}`]: machine.calls, [`cycle_${mode}`]: cycle.calls, [`physics_${mode}_ms`]: physics, [`figure_${mode}`]: figure.calls, [`walk_${mode}_tri`]: walk.tri, [`machine_${mode}_tri`]: machine.tri, [`figure_${mode}_tri`]: figure.tri };
 }
 
 const result = { ...(await measure('pc')), ...(await measure('phone')) };

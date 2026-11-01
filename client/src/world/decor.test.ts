@@ -85,3 +85,12 @@ test('decor fades only when a row really hides me', () => {
   expect(fadeAt(shelf, { x: 0, z: 19 })).toBe(1); // 입구 길(두 진열장 사이)
   expect(fadeAt(pusher, { x: 0, z: -18.3 })).toBeLessThan(0.5); // 미는 뽑기 줄 바로 뒤 — 가려지면 흐려진다
 });
+
+// 덮개·안내 카드가 없는 장식(벤치·진열장)에 빈 add()를 부르면 three.js가 콘솔 오류를 낸다 — 매장 화면 콘솔은 깨끗해야 한다(e2e)
+test('building decor logs no three.js errors', () => {
+  const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  buildDecor(new THREE.Scene());
+  const calls = spy.mock.calls.map((c) => String(c[0]));
+  spy.mockRestore();
+  expect(calls).toEqual([]);
+});

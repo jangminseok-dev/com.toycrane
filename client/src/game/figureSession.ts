@@ -1,7 +1,7 @@
 import { FIGURE } from '../data/figures';
 import type { Vec2 } from './movement';
 
-const RESULT_WAIT = 8; // 내린 뒤 결과를 이만큼 못 받으면 포기(기계 화면에 갇히지 않게) — 인형 판과 같음
+const RESULT_WAIT = 8; // 보고(done)를 보낸 뒤 결과를 이만큼 못 받으면 포기(기계 화면에 갇히지 않게) — 인형 판과 같음
 
 export type FigurePhase = 'one' | 'moving-one' | 'two' | 'moving-two' | 'cycle';
 
@@ -13,6 +13,7 @@ export class FigureSession {
   claw: Vec2 = { x: FIGURE.claw.home[0], z: FIGURE.claw.home[1] }; // 기계 안 좌표 — 앞에서 보면 +x 오른쪽, −z 안쪽
   phase: FigurePhase = 'one';
   private droppedAt: number | null = null;
+  private doneAt: number | null = null;
 
   constructor(readonly machineId: string, private limit: number, private startedAt: number) {}
 
@@ -49,7 +50,11 @@ export class FigureSession {
     return 'drop';
   }
 
+  markDone(now: number): void {
+    this.doneAt = now;
+  }
+
   resultOverdue(now: number): boolean {
-    return this.droppedAt !== null && now - this.droppedAt > RESULT_WAIT;
+    return this.doneAt !== null && now - this.doneAt > RESULT_WAIT;
   }
 }

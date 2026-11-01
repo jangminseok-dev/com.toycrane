@@ -133,7 +133,7 @@ export function buildDecor(scene: THREE.Scene): Occluder[] {
       for (let k = 0; k < count; k++) {
         const offset = d.kind === 'shelf' ? 0 : -len / 2 + pad + step / 2 + k * step, u = unit(d.kind, si * 7 + k, len);
         const parts = [holder(u.solid, offset), ...u.covers.map((c) => holder(c, offset)), ...u.cards.map((c) => holder(c, offset))];
-        solidRoot.add(parts[0]); coverRoot.add(...parts.slice(1, 1 + u.covers.length)); cardRoot.add(...parts.slice(1 + u.covers.length));
+        solidRoot.add(parts[0]); for (const c of parts.slice(1, 1 + u.covers.length)) coverRoot.add(c); for (const c of parts.slice(1 + u.covers.length)) cardRoot.add(c); // 빈 add()는 three.js 콘솔 오류
         for (const p of parts) box.expandByObject(p);
         const mark = holder(new THREE.Object3D(), offset); mark.name = `decor-unit-${d.kind}`; group.add(mark); // 칸 표지(그리지 않음)
       }

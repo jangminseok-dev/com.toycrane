@@ -60,3 +60,13 @@ test('claw stops at the play edge', () => {
   for (let t = 0.1; t < 10; t += 0.1) s.update(0.1, 1 + t / 10);
   expect(s.claw.z).toBeGreaterThanOrEqual(-FIGURE.play_half[1]);
 });
+
+// 결과 기다리기는 보고(done)를 보낸 때부터 센다 — 집게 한 바퀴는 8초를 넘기도 하니 그동안은 포기하지 않는다(인형 PlaySession과 같음)
+test('waiting for the result counts from the report, not the drop', () => {
+  const s = new FigureSession('F-1', 20, 0);
+  s.requestDrop(1);
+  expect(s.resultOverdue(12)).toBe(false);
+  s.markDone(12);
+  expect(s.resultOverdue(19)).toBe(false);
+  expect(s.resultOverdue(20.5)).toBe(true);
+});
