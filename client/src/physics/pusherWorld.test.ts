@@ -72,3 +72,35 @@ test('the same play gives the same ledge', () => {
   a.setHoleOpen(true); b.setHoleOpen(true); run(a, 10); run(b, 10);
   expect(a.poses()).toEqual(b.poses());
 }, 60_000);
+
+// 판을 하는 화면은 판 시작 때의 벽시계 시각(phase)에서 판을 이어 움직인다 — 그림(판 사이 시계)과 끊기지 않게, 첫 걸음에 순간이동하지 않게
+test('a plate phase starts the plate where the clock says', () => {
+  const w = new PusherWorld(R, [], 1.2);
+  expect(w.plateZ()).toBeCloseTo(plateFront(1.2), 4);
+  run(w, 0.5);
+  expect(w.plateZ()).toBeCloseTo(plateFront(1.7), 2);
+  w.dispose();
+});
+
+// 화면은 기계 번호로 물리 세계를 고른다 — 미는 뽑기면 판이 있는 세계(시작 시각 phase), 아니면 인형 기계
+test('the crane world of a pusher machine has the plate', async () => {
+  const { craneWorld } = await import('./craneWorld');
+  const p = craneWorld(R, 'P-2', [], 0.4), d = craneWorld(R, 'A-1', []);
+  expect(p).toBeInstanceOf(PusherWorld);
+  expect((p as PusherWorld).phase).toBe(0.4);
+  expect(d).not.toBeInstanceOf(PusherWorld);
+  p.dispose(); d.dispose();
+});
+
+// 설계 ring-hook §4 '미는 판은 위에 인형이 얹히지 않는 모양': 판이 나와 있을 때 판 위에 떨어지거나 판 집 위에 떨어진 인형도
+// 판이 들어갈 때 집 앞벽에 걸려 턱 위(판 앞)로 떨어진다 — 판 집 위나 판 뒤에 남아 영영 안 밀리는 인형이 없다
+test('a doll dropped on the plate or its housing ends in front of the plate', () => {
+  const cases: [number, number][] = [[ledge.z0 - 0.1, 0], [ledge.z0 + 0.06, plate.period / 2], [ledge.z0 - 0.04, plate.period / 2]];
+  for (const [z, phase] of cases) {
+    const w = new PusherWorld(R, [spot(1, drop[0], null, z)], phase);
+    w.setHoleOpen(true); run(w, 20);
+    const p = w.poses()[0];
+    expect(w.fallen().length === 1 || p.p[2] > ledge.z0).toBe(true);
+    w.dispose();
+  }
+});

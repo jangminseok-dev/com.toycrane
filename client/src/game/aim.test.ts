@@ -40,3 +40,12 @@ test('the aim ring hides while the claw is over the prize hole', () => {
   expect(aimVisible({ x: -0.2, z: 0.3 })).toBe(false);
   expect(aimVisible({ x: 0, z: 0 })).toBe(true);
 });
+
+// 미는 뽑기(설계 ring-hook §4): 미니 인형(작은 크기)은 머리가 낮고, 턱 위에서는 턱 윗면에 놓인다
+test('mini dolls are lower and the ring rests on the pusher ledge', () => {
+  const doll = [spot('bear', 0.1, 0.05, 0)];
+  const mini = aimHeight(doll, 0.1, 0.05, 0.18), big = aimHeight(doll, 0.1, 0.05);
+  expect(mini).toBeLessThan(big - 0.08);
+  expect(mini).toBeGreaterThan(FLOOR + 0.1);
+  expect(aimHeight([], -0.34, 0, 0.18, FLOOR + 0.1)).toBeCloseTo(FLOOR + 0.1 + 0.012);
+});

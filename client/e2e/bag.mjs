@@ -1,11 +1,13 @@
 // 가방 보기 e2e (설계 2026-11-02 §5): 새 게스트가 가방 칸을 누르면 '아직 뽑은 게 없어요' → 코인 15개를 받아 미는 뽑기 P-1에서
-// 앞 끝에 가장 가까운 인형을 노려(미는 판이 그 x에 올 때 '밀기') 뽑힐 때까지(15판까지) → 가방 칸을 누르면 '미는 뽑기' 구역에 뽑은 인형 이름이 보인다.
+// 레버로 칸의 위가 열린 미니 인형 위에 가 잡기(턱 위에 쌓여 밀려 떨어질 때까지, 15판까지) → 가방 칸을 누르면 '미는 뽑기' 구역에 뽑은 인형 이름이 보인다.
 // 가방 API(GET /api/bag/{guestId})도 같은 것을 준다. 콘솔 오류 0
 // 사용: `node client/e2e/bag.mjs <port> <url> [P-1 …]`
 import { readFileSync } from 'node:fs';
 const [port, base, ID = 'P-1'] = process.argv.slice(2);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 import { LAYOUT, frontOf, walk } from './nav.mjs';
+import { leverTo, pileTarget, tapDrop } from './lever.mjs';
+const PUSHER = JSON.parse(readFileSync(new URL('../../shared/pusher.json', import.meta.url)));
 const catalog = JSON.parse(readFileSync(new URL('../../shared/catalog.json', import.meta.url)));
 const dollName = (kind, color, rare) => {
   const d = catalog.dolls.find((x) => x.id === kind);
@@ -47,22 +49,21 @@ for (let k = 0; k < 3; k++) { await click('코인 받기'); await sleep(2600); }
 await walk(key, posOf, frontOf(ID)); await sleep(500);
 let ready = false;
 for (let i = 0; i < 100 && !ready; i++) { const b = await buttons(); ready = b.some((x) => x.includes('한 판 하기')) && !(await ev("document.body.innerText.includes('준비 중')")); if (!ready) await sleep(300); }
-// 3) 뽑힐 때까지: 앞 끝에 가장 가까운 인형의 x에 미는 판이 오면 '밀기'
+// 3) 뽑힐 때까지: 칸의 위가 열린 미니 인형 위로 레버 → 잡기 (집게가 턱 위에 놓고, 판이 밀어 앞 끝으로 떨어지면 당첨)
+const io = { send, ev, sleep };
 let won = null, plays = 0;
 for (; plays < 15 && !won; plays++) {
   const n0 = seen.length;
-  if (!(await click('한 판 더')) && !(await click('한 판 하기'))) { console.log('no play button', JSON.stringify(await buttons())); break; }
+  let pressed = false;
+  for (let i = 0; i < 40 && !pressed; i++) { pressed = (await click('한 판 더')) || (await click('한 판 하기')); if (!pressed) await sleep(250); }
+  if (!pressed) { console.log('no play button', JSON.stringify(await buttons())); break; }
   await sleep(1200);
-  const shelf = JSON.parse(await ev(`JSON.stringify(window.__toycrane.pusherShelf('${ID}'))`));
-  const target = shelf.reduce((b, i) => (i[5] > b[5] ? i : b), shelf[0]);
-  const at = Math.max(-0.31, Math.min(0.31, target[4]));
-  for (let i = 0; i < 600; i++) { const p = JSON.parse(await ev(`JSON.stringify(window.__toycrane.pusherPlate('${ID}'))`)); if (Math.abs(p.x - at) < 0.012) break; await sleep(5); }
-  const b = JSON.parse(await ev('JSON.stringify(window.__toycrane.buttonAt(1))') ?? 'null');
-  if (b) { await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: b.x, y: b.y, button: 'left', clickCount: 1 }); await sleep(80); await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: b.x, y: b.y, button: 'left', clickCount: 1 }); }
-  let result; for (let i = 0; i < 200 && !result; i++) { result = seen.slice(n0).find((m) => m.t === 'result' && m.m === ID && m.id === me.id); await sleep(50); }
+  const goal = pileTarget(JSON.parse(await ev(`JSON.stringify(window.__toycrane.contents('${ID}'))`)), PUSHER.ledge.x1);
+  await leverTo(io, goal); await tapDrop(io);
+  let result; for (let i = 0; i < 800 && !result; i++) { result = seen.slice(n0).find((m) => m.t === 'result' && m.m === ID && m.id === me.id); await sleep(50); }
   if (result?.won.length) won = result.won[0];
-  await sleep(3500); // 밀기·당첨 카드가 끝나고 '한 판 더'가 뜰 때까지
-  await ev("document.querySelectorAll('button')"); // (자리 그대로)
+  await sleep(3500); // 당첨 카드·판 사이 버튼이 뜰 때까지
+  await ev("document.querySelector('.win-card')?.click?.()");
 }
 console.log('plays', plays, 'won', JSON.stringify(won));
 // 4) 가방 보기

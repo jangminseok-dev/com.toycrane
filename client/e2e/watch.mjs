@@ -1,6 +1,6 @@
 // 구경꾼 중계 e2e (Task 12): 화면 A가 C-6에서 한 판을 하고 화면 B가 옆에서 구경한다 — B가 중계(pose)를 받아 그 기계를 따로 그리는지,
-// 판이 끝난 뒤 B의 배치가 서버 machine과 같은지 본다. 사용: `node client/e2e/watch.mjs <port> <url>`
-const [port, base] = process.argv.slice(2);
+// 판이 끝난 뒤 B의 배치가 서버 machine과 같은지 본다. 미는 뽑기도 같은 길(계획 12). 사용: `node client/e2e/watch.mjs <port> <url> [C-6|P-1 …]`
+const [port, base, ID = 'C-6'] = process.argv.slice(2);
 const fs = await import('node:fs');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const LAYOUT = JSON.parse(fs.readFileSync(new URL('../../shared/store_layout.json', import.meta.url), 'utf8'));
@@ -63,31 +63,31 @@ console.log('A at', JSON.stringify(A.posOfMe()), 'window', JSON.stringify(w0), '
 for (let i = 0; i < 30 && !(await A.click('코인 받기')); i++) await sleep(200); // 창구 버튼이 뜰 때까지
 for (let i = 0; i < 30 && !(await A.ev("/🪙 [1-9]/.test(document.body.innerText)")); i++) await sleep(200); // 코인이 들어올 때까지
 console.log('coins', await A.ev("(document.body.innerText.match(/🪙 \\d+/) || [])[0]"));
-const C6 = frontOf('C-6'); // 큰 홀: 기계는 광장(+x)을 봄 — B는 A 바로 뒤 옆에서 구경
-await A.goTo(C6); await B.goTo({ x: C6.x + 1.0, z: C6.z + 0.4 }); await sleep(500);
+const C6 = frontOf(ID), RY = [...LAYOUT.machines, ...LAYOUT.pushers].find((m) => m.id === ID).ry; // B는 A 바로 뒤(기계가 보는 쪽) 옆에서 구경
+await A.goTo(C6); await B.goTo({ x: C6.x + Math.sin(RY) * 1.0 + Math.cos(RY) * 0.4, z: C6.z + Math.cos(RY) * 1.0 - Math.sin(RY) * 0.4 }); await sleep(500);
 for (let i = 0; i < 100 && (await A.ev("document.body.innerText.includes('준비 중')")); i++) await sleep(300);
 const n0 = seen.length;
 console.log('A at', JSON.stringify(A.posOfMe()), 'buttons', JSON.stringify(await A.ev("[...document.querySelectorAll('button')].filter((x) => x.getClientRects().length > 0 && x.style.display !== 'none').map((x) => x.textContent)")), 'text', await A.ev("document.body.innerText.replace(/\\n/g, ' | ').slice(0, 120)"));
 const vitals = (P) => P.ev("(async () => { const t0 = performance.now(); const raf = await Promise.race([new Promise((r) => requestAnimationFrame(() => r('raf ' + Math.round(performance.now() - t0) + 'ms'))), new Promise((r) => setTimeout(() => r('raf none in 1500ms'), 1500))]); return document.visibilityState + ' focus=' + document.hasFocus() + ' ' + raf; })()");
 console.log('A vitals', await vitals(A), '| B vitals', await vitals(B));
 console.log('press', await A.click('한 판 하기')); await sleep(1500);
-console.log('B watching', await B.ev("window.__toycrane.watching('C-6')"));
+console.log('B watching', await B.ev(`window.__toycrane.watching('${ID}')`));
 await A.drag(80, 0, 1.0); await A.drag(0, -60, 0.6); await A.tap('drop');
-let machine; for (let i = 0; i < 400 && !machine; i++) { machine = seen.slice(n0).find((m) => m.t === 'machine' && m.m === 'C-6'); await sleep(50); }
-const poses = seen.slice(n0).filter((m) => m.t === 'pose' && m.m === 'C-6').length;
-const matches = async () => { const b = await B.ev("JSON.stringify(window.__toycrane.contents('C-6'))").then(JSON.parse); return !!machine && b.length === machine.dolls.length && b.every((d) => { const s = machine.dolls.find((x) => x[12] === d[12]); return s && Math.hypot(d[1] - s[1], (d[2] ?? 0) - (s[2] ?? 0), d[3] - s[3]) < 0.01; }); };
-console.log('poses relayed', poses, 'machine', !!machine, 'B still watching', await B.ev("window.__toycrane.watching('C-6')"));
+let machine; for (let i = 0; i < 800 && !machine; i++) { machine = seen.slice(n0).find((m) => m.t === 'machine' && m.m === ID); await sleep(50); }
+const poses = seen.slice(n0).filter((m) => m.t === 'pose' && m.m === ID).length;
+const matches = async () => { const b = await B.ev(`JSON.stringify(window.__toycrane.contents('${ID}'))`).then(JSON.parse); return !!machine && b.length === machine.dolls.length && b.every((d) => { const s = machine.dolls.find((x) => x[12] === d[12]); return s && Math.hypot(d[1] - s[1], (d[2] ?? 0) - (s[2] ?? 0), d[3] - s[3]) < 0.01; }); };
+console.log('poses relayed', poses, 'machine', !!machine, 'B still watching', await B.ev(`window.__toycrane.watching('${ID}')`));
 // 최종 리뷰 I5: A는 결과를 보자마자 "한 판 더" — B 화면에서는 앞 판의 결과 모션(몇 초)이 아직 도는 중이라 machine이 기다리고 있다.
 // 그 machine이 들어올 때 두 번째 판의 구경을 끊으면 안 된다
 const n1 = seen.length;
 let again = false; for (let i = 0; i < 50 && !(again = await A.click('한 판 더')); i++) await sleep(200);
 console.log('again', again); await sleep(1500);
-const watching2 = await B.ev("window.__toycrane.watching('C-6')");
+const watching2 = await B.ev(`window.__toycrane.watching('${ID}')`);
 await A.drag(-80, 0, 1.0); await A.drag(0, -60, 0.6); await A.tap('drop');
-machine = null; for (let i = 0; i < 400 && !machine; i++) { machine = seen.slice(n1).find((m) => m.t === 'machine' && m.m === 'C-6'); await sleep(50); }
-const watching3 = await B.ev("window.__toycrane.watching('C-6')");
-for (let i = 0; i < 120 && (await B.ev("window.__toycrane.watching('C-6')")); i++) await sleep(100); // 결과 모션이 끝나야 machine이 들어가고 구경이 끝난다
-const poses2 = seen.slice(n1).filter((m) => m.t === 'pose' && m.m === 'C-6').length, close2 = await matches();
+machine = null; for (let i = 0; i < 800 && !machine; i++) { machine = seen.slice(n1).find((m) => m.t === 'machine' && m.m === ID); await sleep(50); }
+const watching3 = await B.ev(`window.__toycrane.watching('${ID}')`);
+for (let i = 0; i < 120 && (await B.ev(`window.__toycrane.watching('${ID}')`)); i++) await sleep(100); // 결과 모션이 끝나야 machine이 들어가고 구경이 끝난다
+const poses2 = seen.slice(n1).filter((m) => m.t === 'pose' && m.m === ID).length, close2 = await matches();
 console.log('second play: B watching at start', watching2, 'at end', watching3, 'poses relayed', poses2, 'machine', !!machine, 'B matches server', close2);
 const ok = poses >= 20 && again && watching2 && watching3 && poses2 >= 20 && close2;
 console.log(ok ? 'PASS watch' : 'FAIL watch');

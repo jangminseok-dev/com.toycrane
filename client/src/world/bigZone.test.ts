@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { beforeAll, expect, test, vi } from 'vitest';
 import { DOLLS } from '../data/catalog';
 import { MACHINES } from '../data/storeLayout';
+import { PUSHER, PUSHERS, plateFront } from '../data/pushers';
+import { uidOf } from '../net/protocol';
 import { stubCanvas } from '../test/canvasStub';
 import { LITE_CACHE_MAX, buildBigZone, liteCacheSize } from './bigZone';
 import { CONTROLS } from './machine';
@@ -14,7 +16,7 @@ const fill = (zone: ReturnType<typeof buildBigZone>, t = 0) => { for (let i = 0;
 
 test('big zone builds 24 machines in two fade rows', () => {
   const zone = buildBigZone(new THREE.Scene());
-  expect(zone.occluders).toHaveLength(3); // 큰 홀: 서쪽 세 줄(d1·d2·d3)
+  expect(zone.occluders).toHaveLength(4); // 큰 홀: 서쪽 세 줄(d1·d2·d3) + 미는 뽑기 한 줄(p1)
   expect(MACHINES.every((m) => zone.worldOf(m.id))).toBe(true);
 });
 
@@ -50,7 +52,7 @@ test('a contents change rebuilds only its block of machines', () => {
   const after = blocks();
   const changed = before.filter((meshes, i) => meshes.some((m, k) => m !== after[i][k]));
   expect(changed).toHaveLength(1);
-  expect(groups.length).toBe(6); // 큰 홀: 세 줄 × 8대 → 줄마다 2묶음 (6대 이하씩)
+  expect(groups.length).toBe(8); // 큰 홀: 세 줄 × 8대 → 줄마다 2묶음 (6대 이하씩) + 미는 뽑기 4대 → 2묶음(2대씩)
 });
 
 // 서버가 정한 얹힌 높이(y)대로 그린다 — 위층 인형이 바닥 인형보다 높이 있다
@@ -329,14 +331,15 @@ test('crowned dolls bake into the pile without dropping a material', () => {
   } finally { err.mockRestore(); }
 }, 60_000);
 
-// 큰 홀(설계 2026-11-01): 기계 줄은 배치 데이터의 row에서 — 서쪽 세 줄(d1·d2·d3), 묶음마다 6대 이하
+// 큰 홀(설계 2026-11-01): 기계 줄은 배치 데이터의 row에서 — 서쪽 세 줄(d1·d2·d3), 묶음마다 6대 이하. 미는 뽑기는 한 줄(p1), 두 대씩
 test('rows come from the layout, three doll rows of at most six per block', () => {
   const scene = new THREE.Scene();
   buildBigZone(scene);
   const blocks: string[] = [];
   scene.traverse((o) => { if (o.name.startsWith('dolls-big-')) blocks.push(o.name); });
-  expect(new Set(blocks.map((n) => n.split('-')[2]))).toEqual(new Set(['d1', 'd2', 'd3']));
-  expect(blocks).toHaveLength(6);
+  expect(new Set(blocks.map((n) => n.split('-')[2]))).toEqual(new Set(['d1', 'd2', 'd3', 'p1']));
+  expect(blocks.filter((n) => !n.includes('-p1-'))).toHaveLength(6);
+  expect(blocks.filter((n) => n.includes('-p1-'))).toHaveLength(2);
 });
 
 // 큰 홀(설계 2026-11-01 §6): 기계 앞 화면(내 기계는 광장 쪽 +x를 봄)에서는 내 기계보다 뒤(서쪽)에 있는 줄을 숨긴다 —
@@ -370,4 +373,59 @@ test('blocks far from the focus drop their doll outlines and bring them back whe
   zone.setContents('A-1', nineDolls('cat', 1)); fill(zone); // 다시 합쳐도 먼 상태를 지킨다
   expect(outlines().length).toBeGreaterThan(0);
   expect(outlines().every((m) => !m.visible)).toBe(true);
+});
+
+
+// 미는 뽑기(설계 ring-hook §4): 기계 속 미니 인형은 24종이 섞여 작게(doll_scale) 그려진다
+test('pusher dolls are small and mixed', () => {
+  const scene = new THREE.Scene(), zone = buildBigZone(scene);
+  const kinds = Object.keys(DOLLS);
+  const mixed = kinds.slice(0, 12).map((k, i) => spot(k, -0.05 + (i % 4) * 0.12, -0.3 + Math.floor(i / 4) * 0.2, i, 0));
+  zone.setContents('P-1', mixed);
+  fill(zone);
+  expect(zone.pileOf('P-1')).toEqual(mixed.map(uidOf));
+  // 같은 곰 하나를 인형 기계와 미는 뽑기에 — 높이 비가 크기 비(0.18 / 0.3)
+  const heights = () => {
+    const out: number[] = [];
+    scene.traverse((o) => { if (o.name.startsWith('dolls-') && o.children.length) out.push(new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3()).y); });
+    return out;
+  };
+  zone.setContents('P-1', []);
+  zone.setContents('P-3', [spot('bear', 0.2, 0, 0, 0)]);
+  zone.setContents('A-1', [spot('bear', 0, 0, 0, 0)]);
+  fill(zone);
+  const [a, b] = heights();
+  expect(Math.min(a, b) / Math.max(a, b)).toBeCloseTo(PUSHER.doll_scale / 0.3, 1);
+}, 60_000);
+
+// 휴대폰 관문: 미는 뽑기 네 대(섞인 미니 인형 28개씩)를 다 채워도 인형 기계 한 줄(8대)보다 그리기 호출이 많지 않다
+test('four pusher machines draw within the phone budget', () => {
+  const scene = new THREE.Scene(), zone = buildBigZone(scene);
+  const kinds = Object.keys(DOLLS);
+  PUSHERS.forEach((p, k) => zone.setContents(p.id, Array.from({ length: 28 }, (_, i) => spot(kinds[(k * 7 + i) % kinds.length], -0.05 + (i % 7) * 0.07, -0.3 + Math.floor(i / 7) * 0.15, i, 0, { color: i % 6, face: i % 5, rare: k === 0 && i === 3 ? 'star' : '' }))));
+  MACHINES.filter((m) => m.row === 'd1').forEach((m, k) => zone.setContents(m.id, nineDolls(m.kind, k % 6)));
+  fill(zone);
+  const draws = (name: string) => { let n = 0; scene.getObjectByName(name)!.traverseVisible((o) => { if ((o as THREE.Mesh).isMesh || (o as THREE.LineSegments).isLineSegments) n++; }); return n; };
+  expect(draws('big-p1')).toBeGreaterThan(0);
+  expect(draws('big-p1')).toBeLessThanOrEqual(draws('big-d1'));
+}, 120_000);
+
+// 미는 판은 판 사이에도 벽시계(모든 화면이 같은 박자)로 턱 깊이의 3분의 1을 오가고, 한 판 중엔 그 화면의 물리 판 자리를 따른다
+test('pusher plates slide with the clock and follow the world while playing', () => {
+  vi.useFakeTimers();
+  try {
+    const scene = new THREE.Scene(), zone = buildBigZone(scene);
+    const plates = scene.getObjectByName('pusher-plates-big-p1') as THREE.InstancedMesh;
+    const m = new THREE.Matrix4(), at = new THREE.Vector3();
+    const front = (i: number) => { plates.getMatrixAt(i, m); at.setFromMatrixPosition(m); return at.z - PUSHERS[i].z; }; // 판 도형은 앞면이 원점(미는 뽑기는 ry 0)
+    vi.setSystemTime(0); zone.update(0);
+    expect(front(0)).toBeCloseTo(plateFront(0), 3);
+    vi.setSystemTime(1500); zone.update(1.5);
+    expect(front(0)).toBeCloseTo(plateFront(1.5), 3);
+    zone.plateAt('P-2', -0.1); zone.update(1.6);
+    expect(front(1)).toBeCloseTo(-0.1, 3);
+    expect(front(0)).toBeCloseTo(plateFront(1.5), 3);
+    zone.plateAt('P-2', null); zone.update(1.7);
+    expect(front(1)).toBeCloseTo(plateFront(1.5), 3);
+  } finally { vi.useRealTimers(); }
 });

@@ -26,9 +26,9 @@ export function grounded(spot: DollSpot): DollSpot {
 }
 
 // 인형 머리 중심(기계 안 좌표) — 겨냥·시뮬레이션이 노리는 점
-export function headAt(spot: DollSpot, others: DollSpot[] = []): THREE.Vector3 {
+export function headAt(spot: DollSpot, others: DollSpot[] = [], scale = DOLL_SCALE): THREE.Vector3 {
   const { position, quaternion } = dollPose(spot, others);
-  return new THREE.Vector3(0, headOf(spot[0]).c * DOLL_SCALE, 0).applyQuaternion(quaternion).add(position);
+  return new THREE.Vector3(0, headOf(spot[0]).c * scale, 0).applyQuaternion(quaternion).add(position);
 }
 
 // 인형마다 집게가 닿는 공(기계 안 좌표, 미터) — 자세와 DOLL_SCALE을 입힌 dollHits (체형 폭·희귀 왕관 포함)

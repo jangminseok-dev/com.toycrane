@@ -13,7 +13,7 @@ def take_report(cmd: DoneCommand, registry: PlayerRegistryPort, locks: PlayLockP
     if lock is None or me is None or locks.is_between(cmd.conn_id) or lock[0] != cmd.machine_id:
         return None
     machine_id, started = lock
-    if expired(started, cmd.now):
+    if expired(started, cmd.now, machine_id):
         locks.release(cmd.conn_id)
         connections.broadcast_free(machine_id)
         return None

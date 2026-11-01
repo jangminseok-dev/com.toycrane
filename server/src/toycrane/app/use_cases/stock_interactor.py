@@ -19,7 +19,7 @@ def lock_active(locks: PlayLockPort, machine_id: str, now: float) -> bool:
     if holder is None:
         return False
     conn_id, since = holder
-    return not (hold_over(since, now) if locks.is_between(conn_id) else expired(since, now))
+    return not (hold_over(since, now) if locks.is_between(conn_id) else expired(since, now, machine_id))
 
 
 class StockInteractor(StockUseCase):

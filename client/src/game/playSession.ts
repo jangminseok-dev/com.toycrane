@@ -10,14 +10,16 @@ const RESULT_WAIT = 8; // 보고(done)를 보낸 뒤 결과를 이만큼 못 받
 export const CLAW_EDGE = 0.07; // 활짝 벌린 손가락 끝이 16cm까지 뻗으니 유리(놀이 영역 +12cm)를 뚫지 않게 벽에서 띄운다
 
 export class PlaySession {
-  claw: Vec2 = { x: MACHINE_SPEC.hole[0], z: MACHINE_SPEC.hole[1] }; // 기계 안 좌표 — 기계 앞에서 보면 +x 오른쪽, -z 안쪽
+  claw: Vec2; // 기계 안 좌표 — 기계 앞에서 보면 +x 오른쪽, -z 안쪽
   remaining: number;
   phase: 'lever' | 'cycle' = 'lever';
   private droppedAt: number | null = null;
   private doneAt: number | null = null;
 
-  constructor(readonly machineId: string, private limit: number, private startedAt: number) {
+  // start: 집게가 서 있는 자리 — 인형 기계는 상품 구멍 위, 미는 뽑기는 턱 위 놓는 자리(설계 ring-hook §4)
+  constructor(readonly machineId: string, private limit: number, private startedAt: number, start: Vec2 = { x: MACHINE_SPEC.hole[0], z: MACHINE_SPEC.hole[1] }) {
     this.remaining = limit;
+    this.claw = { ...start };
   }
 
   update(dt: number, input: Vec2, now: number): 'drop' | null {

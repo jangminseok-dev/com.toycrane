@@ -61,3 +61,9 @@ test('the result wait starts when the report is sent, not at the drop', () => {
   expect(s.resultOverdue(23)).toBe(false);
   expect(s.resultOverdue(24.5)).toBe(true);
 });
+
+// 미는 뽑기(설계 ring-hook §4): 집게는 늘 턱 위 놓는 자리(drop)에서 시작한다 — 잡은 인형을 놓고 돌아오는 곳
+test('a pusher play starts above the drop spot', () => {
+  const s = new PlaySession('P-1', 20, 0, { x: -0.34, z: -0.08 });
+  expect(s.claw).toEqual({ x: -0.34, z: -0.08 });
+});

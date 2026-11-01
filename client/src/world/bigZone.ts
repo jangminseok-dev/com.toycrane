@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { MACHINES, type MachineSpot } from '../data/storeLayout';
+import { MACHINES } from '../data/storeLayout';
+import { PUSHERS, plateFront } from '../data/pushers';
+import { craneSpec } from '../game/craneSpec';
 import type { Occluder } from '../game/occlusion';
 import { bakeByMaterial, fadeMaterials, materialCloner, mergeBuckets } from './bake';
 import { BODY_W, makeDoll } from './dolls';
@@ -9,7 +11,8 @@ import { PLUSH_OUTLINE } from './plush/kit';
 import { rareTagTex, twinkleTex } from './signs';
 import { TOP_LAYER } from './topView';
 import { CHROME, idleClawGeometry, makeClawRig, type ClawRig } from './claw';
-import { CLAW_REST, DOLL_FLOOR, DOLL_SCALE, bulbSpots, ledBaseMat, ledFlashMat, makeControlParts, makeMachineParts } from './machine';
+import { CLAW_REST, DOLL_FLOOR, bulbSpots, ledBaseMat, ledFlashMat, makeControlParts, makeMachineParts } from './machine';
+import { makePusherMachineParts, pusherPlateGeo, pusherPlateMat } from './pusherMachine';
 
 // 기계 속 인형 한 칸: [캐릭터, x, z, 몸 돌림, 얹힌 높이, 색, 체형, 표정, 희귀, 번호] — 서버 welcome·machine 메시지와 같은 모양
 import { lookOf, uidOf, type DollPose, type DollSpot } from '../net/protocol';
@@ -34,6 +37,7 @@ export interface BigZone {
   pending(): number; // 아직 다시 합치지 못한 묶음 수
   setFocus(x: number, z: number): void; // 내 자리 — 먼 묶음은 인형 외곽선을 끈다
   hideRowsBehind(machineId: string | null): void; // 기계 앞 화면: 그 기계보다 뒤에 있는 줄을 숨긴다(null이면 모두 보임) — 휴대폰 그리기 호출 (큰 홀 설계 §6)
+  plateAt(machineId: string, z: number | null): void; // 미는 뽑기 판 앞면 z(기계 안 좌표)를 그 화면의 물리에 맞춘다 — null이면 벽시계로 오간다(판 사이)
   occluders: Occluder[]; // 행 2개: 벽 줄, 섬
 }
 
@@ -44,8 +48,17 @@ export const AIM_ORDER = 10;
 const aimMat = new THREE.MeshBasicMaterial({ color: 0xff3b8f, depthWrite: false, depthTest: false });
 // 기계 속 인형은 행 안에서 기계 4~6대씩 묶어 합친다 — 한 기계가 바뀌면 그 묶음만 다시 합친다(행 전체는 휴대폰에서 멈칫함)
 const BLOCK_MAX = 6;
-type Row = { group: THREE.Group; cloner: ReturnType<typeof materialCloner>; spots: MachineSpot[] };
-type Block = { row: Row; group: THREE.Group; spots: MachineSpot[]; dirty: boolean; far: boolean };
+// 미는 뽑기는 기계마다 미니 인형 28개라 두 대씩 묶는다(한 묶음 다시 합치기가 인형 기계 묶음과 비슷하게)
+const PUSHER_BLOCK_MAX = 2;
+// 기계 한 대 자리: 인형 기계(MACHINES) 또는 미는 뽑기(PUSHERS, 줄 'p1') — 같은 몸통·조작대, 속과 인형 크기만 다르다(설계 ring-hook §4).
+// index는 그 목록 안 순서(몸통 색·안내 카드를 돌려 쓰는 기준)
+type ZoneSpot = { id: string; x: number; z: number; ry: number; row: string; pusher: boolean; index: number };
+const SPOTS: ZoneSpot[] = [
+  ...MACHINES.map((m, index) => ({ id: m.id, x: m.x, z: m.z, ry: m.ry, row: m.row, pusher: false, index })),
+  ...PUSHERS.map((p, index) => ({ id: p.id, x: p.x, z: p.z, ry: p.ry, row: 'p1', pusher: true, index })),
+];
+type Row = { group: THREE.Group; cloner: ReturnType<typeof materialCloner>; spots: ZoneSpot[] };
+type Block = { row: Row; group: THREE.Group; spots: ZoneSpot[]; dirty: boolean; far: boolean };
 // 내 자리에서 이만큼(m) 넘게 먼 묶음은 인형 외곽선 덩어리를 그리지 않는다 — 몇 픽셀이라 티가 안 나고 삼각형이 절반 가까이 준다 (큰 홀 설계 §6).
 // 경계에서 깜빡이지 않게 1m 여유
 const FAR_DIST = 18, FAR_SLACK = 1;
@@ -55,6 +68,7 @@ type Unit = {
   row: Row; block: Block; anchor: THREE.Group; claw: THREE.Group; idle: THREE.Mesh; rig: ClawRig | null;
   led: THREE.Mesh; contents: DollSpot[]; flashUntil: number; gold: boolean; bulbStart: number;
   live: Live | null; baked: number[]; rare: '' | 'rare' | 'gold';
+  scale: number; plateZ: number | null; // 인형 크기(미는 뽑기는 미니), 미는 판을 물리에 맞출 때의 앞면 z
 };
 // live 모드의 속: 인형마다 자세(빈 Object3D, userData.uid)와 재질별로 합쳐 둔 꼭짓점 범위. 매 프레임 바뀐 인형의 범위만 다시 옮겨 쓴다 —
 // 인형 9개를 따로 그리면 메시 70여 개(뒷판 모니터까지 두 번)라 휴대폰 그리기 예산을 넘긴다. 합치면 재질 수(2~4)만큼만 그린다
@@ -102,19 +116,20 @@ const tagGeo = (half: 0 | 1) => {
 const TWINKLE = { rare: new THREE.Color(0xffa8e0), gold: new THREE.Color(0xffd75a) };
 const TWINKLE_SPOTS: [number, number, number][] = [[-0.42, 2.7, 0.32], [0.42, 2.64, 0.32], [0.05, 2.86, 0.3]];
 
-// 위쪽 큰인형 구역: 벽 줄 13대 + 등 맞댄 섬 22대 (shared/store_layout.json).
+// 큰인형 구역: 서쪽 세 줄 + 미는 뽑기 한 줄 (shared/store_layout.json).
 // 그리기 호출을 줄이려고 행마다 고정 부분·기계 속 인형을 재질별로 합치고, LED·집게는 기계마다 한 덩어리로 둔다.
 // 재질은 행마다 복제해서, 내 캐릭터를 가리는 행만 흐리게 할 수 있다.
 export function buildBigZone(scene: THREE.Scene): BigZone {
   const units = new Map<string, Unit>();
   // 기계 줄은 배치 데이터의 row 값에서, 처음 나온 순서대로 (큰 홀: 서쪽 세 줄 d1·d2·d3)
-  const rows: Row[] = [...new Set(MACHINES.map((m) => m.row))].map((name) => {
+  const rows: Row[] = [...new Set(SPOTS.map((m) => m.row))].map((name) => {
     const group = new THREE.Group(); group.name = `big-${name}`;
     scene.add(group);
-    return { group, cloner: materialCloner(), spots: MACHINES.filter((m) => m.row === name) };
+    return { group, cloner: materialCloner(), spots: SPOTS.filter((m) => m.row === name) };
   });
   const blocks: Block[] = rows.flatMap((row) => {
-    const count = Math.ceil(row.spots.length / BLOCK_MAX), size = Math.ceil(row.spots.length / count);
+    const max = row.spots[0].pusher ? PUSHER_BLOCK_MAX : BLOCK_MAX;
+    const count = Math.ceil(row.spots.length / max), size = Math.ceil(row.spots.length / count);
     return Array.from({ length: count }, (_, i) => {
       const group = new THREE.Group(); group.name = `dolls-${row.group.name}-${i}`;
       row.group.add(group);
@@ -122,15 +137,16 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     });
   });
 
-  MACHINES.forEach((spot, index) => {
+  SPOTS.forEach((spot) => {
     const row = rows.find((r) => r.spots.includes(spot))!;
     const block = blocks.find((b) => b.spots.includes(spot))!;
-    const { statics, ledGeo } = makeMachineParts(spot, index);
+    const { statics, ledGeo } = spot.pusher ? makePusherMachineParts(PUSHERS[spot.index], spot.index) : makeMachineParts(MACHINES[spot.index], spot.index);
     const tmp = new THREE.Group(); tmp.add(statics);
     for (const m of bakeByMaterial(tmp, row.cloner.remap)) row.group.add(m);
     const anchor = new THREE.Group(); anchor.position.set(spot.x, 0, spot.z); anchor.rotation.y = spot.ry;
     const led = new THREE.Mesh(ledGeo, row.cloner.remap(ledBaseMat()));
-    const claw = new THREE.Group(); claw.position.copy(CLAW_REST);
+    const spec = craneSpec(spot.id);
+    const claw = new THREE.Group(); claw.position.copy(spec.rest);
     const idle = new THREE.Mesh(idleClawGeometry(), row.cloner.remap(CHROME())); idle.name = 'idle-claw';
     claw.add(idle);
     // 겨냥 고리: 집게를 따라 펠트 바닥에 비친다(실제 크레인 게임의 집게 그림자처럼)
@@ -141,7 +157,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     row.group.add(anchor);
     units.set(spot.id, {
       row, block, anchor, claw, idle, rig: null, led, contents: [], flashUntil: 0, gold: false, bulbStart: row.spots.indexOf(spot) * bulbSpots().length,
-      live: null, baked: [], rare: '',
+      live: null, baked: [], rare: '', scale: spec.dollScale, plateZ: null,
     });
   });
   const bulbRows = rows.map((row) => {
@@ -158,7 +174,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
   });
   // 레버 막대·공과 하강 버튼: 행마다 재질별 InstancedMesh (기계 그림에 합치면 하는 기계 것만 숨길 수 없다)
   const controlParts = bakeByMaterial(makeControlParts());
-  const machineAt = (spot: MachineSpot) => new THREE.Matrix4().makeRotationY(spot.ry).setPosition(spot.x, 0, spot.z);
+  const machineAt = (spot: { x: number; z: number; ry: number }) => new THREE.Matrix4().makeRotationY(spot.ry).setPosition(spot.x, 0, spot.z);
   const controlRows = rows.map((row) => {
     const meshes = controlParts.map((p) => {
       const mesh = new THREE.InstancedMesh(p.geometry, row.cloner.remap(p.material as THREE.Material), row.spots.length);
@@ -170,6 +186,16 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     return { row, meshes };
   });
   const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
+  // 미는 판: 미는 뽑기 줄마다 InstancedMesh 하나 — 판 사이에도 벽시계로 오간다(모든 화면이 같은 박자). 판이 닿는 곳엔 멈춘 인형이 없어 그림만이다
+  const plateRows = rows.filter((row) => row.spots[0].pusher).map((row) => {
+    const mesh = new THREE.InstancedMesh(pusherPlateGeo(), row.cloner.remap(pusherPlateMat()), row.spots.length);
+    mesh.name = `pusher-plates-${row.group.name}`; mesh.castShadow = false;
+    row.spots.forEach((spot, j) => mesh.setMatrixAt(j, machineAt(spot)));
+    mesh.computeBoundingSphere(); // 판은 13cm만 오가니 한 번 잰 경계 구로 충분 — 화면 밖이면 걸러진다
+    row.group.add(mesh);
+    return { row, mesh };
+  });
+  const plateM = new THREE.Matrix4(), plateShift = new THREE.Matrix4();
   // 행마다 희귀 이름표·황금 이름표·별 반짝이 InstancedMesh (없으면 그리지 않는다)
   const tagMat = new THREE.MeshBasicMaterial({ map: rareTagTex(), transparent: true, depthWrite: false });
   const twinkleMat = new THREE.MeshBasicMaterial({ map: twinkleTex(), transparent: true, depthWrite: false });
@@ -222,7 +248,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
         u.baked.push(uidOf(dollSpot));
         // 서버가 기록한 자리·돌림(안 앉은 인형은 임시 자세, world/dollPose.ts), 체형만큼 옆으로 넓거나 좁게
         const pose = dollPose(dollSpot, u.contents), w = BODY_W[dollSpot[9]];
-        local.compose(pose.position, pose.quaternion, size.set(DOLL_SCALE * w, DOLL_SCALE, DOLL_SCALE * w));
+        local.compose(pose.position, pose.quaternion, size.set(u.scale * w, u.scale, u.scale * w));
         world.multiplyMatrices(holder, local);
         for (const { geo, mat } of parts) {
           if (!buckets.has(mat)) buckets.set(mat, { line: false, geos: [] });
@@ -291,7 +317,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
       for (const r of ranges) {
         if (!live.dirty.has(r.uid)) continue;
         const obj = live.poses.get(r.uid)!, w = live.scale.get(r.uid) ?? 1;
-        liveM.compose(obj.position, obj.quaternion, liveS.set(DOLL_SCALE * w, DOLL_SCALE, DOLL_SCALE * w).multiplyScalar(obj.visible ? 1 : 0));
+        liveM.compose(obj.position, obj.quaternion, liveS.set(u.scale * w, u.scale, u.scale * w).multiplyScalar(obj.visible ? 1 : 0));
         liveN.getNormalMatrix(liveM);
         for (let i = 0; i < r.count; i++) {
           liveV.set(r.pos[i * 3], r.pos[i * 3 + 1], r.pos[i * 3 + 2]).applyMatrix4(liveM); pos.setXYZ(r.start + i, liveV.x, liveV.y, liveV.z);
@@ -379,15 +405,19 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
       }
     },
     hideRowsBehind(machineId) {
-      const m = machineId ? MACHINES.find((x) => x.id === machineId) : undefined;
+      const m = machineId ? SPOTS.find((x) => x.id === machineId) : undefined;
       for (const row of rows) {
         // 줄 가운데가 그 기계가 보는 쪽의 반대편으로 1m 넘게 떨어져 있으면 뒤
         const cx = row.spots.reduce((a, s) => a + s.x, 0) / row.spots.length, cz = row.spots.reduce((a, s) => a + s.z, 0) / row.spots.length;
         row.group.visible = !m || (cx - m.x) * Math.sin(m.ry) + (cz - m.z) * Math.cos(m.ry) > -1;
       }
     },
+    plateAt(id, z) {
+      const u = units.get(id);
+      if (u) u.plateZ = z;
+    },
     hideControls(id, hidden) {
-      const u = unit(id), spot = MACHINES.find((m) => m.id === id)!, j = u.row.spots.indexOf(spot);
+      const u = unit(id), spot = SPOTS.find((m) => m.id === id)!, j = u.row.spots.indexOf(spot);
       for (const mesh of controlRows.find((c) => c.row === u.row)!.meshes) {
         mesh.setMatrixAt(j, hidden ? HIDDEN : machineAt(spot));
         mesh.instanceMatrix.needsUpdate = true;
@@ -397,6 +427,14 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
       const until = performance.now() + BUILD_MS;
       for (const block of blocks) if (block.dirty && performance.now() < until && warm(block, until)) rebuild(block); // 합치기도 시간이 남을 때만 — 한 프레임에 묶음 하나쯤
       for (const u of units.values()) refreshLive(u);
+      const wall = Date.now() / 1000;
+      for (const { row, mesh } of plateRows) {
+        row.spots.forEach((spot, j) => {
+          const z = units.get(spot.id)!.plateZ ?? plateFront(wall);
+          mesh.setMatrixAt(j, plateM.multiplyMatrices(machineAt(spot), plateShift.makeTranslation(0, 0, z)));
+        });
+        mesh.instanceMatrix.needsUpdate = true;
+      }
       for (const m of markRows) {
         const n = { rare: 0, gold: 0, twinkle: 0 };
         m.row.spots.forEach((spot, j) => {

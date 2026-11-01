@@ -10,6 +10,11 @@ import { FIGURE_SPOTS, FigurePlay } from './game/figurePlay';
 import { watchKind } from './game/watchRoute';
 import { HOOK_MACHINE } from './game/hookPlay';
 import { RINGS, nearestRing } from './data/rings';
+import { PUSHER, PUSHERS, nearestPusher } from './data/pushers';
+import { craneSpec } from './game/craneSpec';
+import { craneWorld } from './physics/craneWorld';
+import { PusherWorld } from './physics/pusherWorld';
+import { pusherFelt } from './world/pusherMachine';
 import { buildHookZone } from './world/hookZone';
 import type { ButtonPlay } from './game/buttonPlay';
 import { MachineBusy } from './game/machineBusy';
@@ -94,6 +99,7 @@ Object.assign(window, { __toycrane: {
   contents: (id: string) => bigZone.contentsOf(id), // e2e: 이 화면이 아는 기계 속 배치
   physicsMs: () => (physicsMs.length ? physicsMs.reduce((a, b) => a + b, 0) / physicsMs.length : 0),
   settledIds: () => [...settledHere],
+  claw: () => session?.claw ?? null, // 지금 판의 집게 자리(기계 안 좌표) — e2e가 레버로 겨눌 때 맞춰 본다
   watching: (id: string) => watches.has(id),
   controlAt: (part: 'lever' | 'drop') => {
     if (!session) return null;
@@ -138,10 +144,10 @@ let session: PlaySession | null = null;
 let awaiting: string | null = null;
 let seated: string | null = null;
 let holdFrom = 0; // 서버가 내 자리를 잡아 둔 시각(내 결과를 받은 때 = 내린 때) — 판 사이 남은 시간은 여기서 센다
-const busy = new MachineBusy(MACHINE_SPEC.play_seconds, MACHINE_SPEC.hold_seconds, CLAW.cycle_seconds + CLAW.settle_seconds);
+const busy = new MachineBusy(MACHINE_SPEC.play_seconds, MACHINE_SPEC.hold_seconds, CLAW.cycle_seconds + Math.max(CLAW.settle_seconds, PUSHER.settle.max)); // 미는 뽑기는 판이 다 밀 때까지 더 기다린다(서버 play_rules와 같은 여유)
 let dropped: PlaySession | null = null; // 내리고 결과를 기다리는 판 (8초 넘게 못 받으면 포기)
 const clock = () => performance.now() / 1000;
-const spotOf = new Map<string, { x: number; z: number; ry: number }>([...MACHINES, ...FIGURES, ...RINGS].map((m) => [m.id, m])); // 인형·피규어·고리 걸기 기계
+const spotOf = new Map<string, { x: number; z: number; ry: number }>([...MACHINES, ...PUSHERS, ...FIGURES, ...RINGS].map((m) => [m.id, m])); // 인형·미는 뽑기·피규어·고리 걸기 기계
 // 피규어 한 판(9단계): 버튼·물리·중계·상자 까기는 FigurePlay가 맡고, 판 사이 흐름(awaiting·seated·이어 하기)은 인형 판과 함께 쓴다
 const figurePlay = new FigurePlay(scene, figureZone, {
   send: (msg) => socket?.send(msg),
@@ -296,7 +302,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       playGen.set(m.m, genOf(m.m) + 1);
       if (m.id !== myId) { // 남의 판: 그 기계의 인형(피규어는 상자)을 따로 그리고 중계(pose)를 기다린다
         const kind = watchKind(m.m); // 기계 종류에 맞는 구경(인형 구경을 다른 기계에 걸면 예외로 멈췄다)
-        if (kind === 'doll') startWatch(m.m);
+        if (kind === 'doll' || kind === 'pusher') startWatch(m.m); // 미는 뽑기도 인형 구경과 같은 길(무더기 + 중계)
         else if (kind === 'box' && me) boxPlayFor(m.m)?.watch(m.m, me.pos);
       }
       else if (cycle?.machineId === m.m) cycle.gen = genOf(m.m); // 내 판의 물리는 play_ok에서 먼저 만들어졌다
@@ -411,7 +417,8 @@ function startPlay(machineId: string, limit: number, coins: number) {
   wallet.coins = coins;
   setHud(wallet.coins, wallet.bag);
   busy.set(machineId, myId, clock());
-  session = new PlaySession(machineId, limit, clock());
+  const spec = craneSpec(machineId);
+  session = new PlaySession(machineId, limit, clock(), spec.start);
   run.began();
   seated = null; nextRunAt = null; hideSeatControls();
   if (run.current() >= 2) showRunPause(quitRun); // 이어 하는 둘째 판부터는 그만하기가 내내 보인다 — 누르면 바로 일어난다 (사용자 2026-11-01)
@@ -421,7 +428,8 @@ function startPlay(machineId: string, limit: number, coins: number) {
   controls = buildMachineControls(bigZone.worldOf(machineId)); controlsAt = machineId;
   bigZone.hideControls(machineId, true); // 기계 그림의 고정 레버·버튼은 숨긴다 — 남으면 기울일 때 잔상처럼 하나 더 보인다
   topView?.dispose(); // 뒷판 모니터: 위에서 본 기계 안 (설계 §3.9)
-  topView = buildTopView(renderer, scene, bigZone.worldOf(machineId), FELT_COLORS[MACHINES.findIndex((m) => m.id === machineId) % FELT_COLORS.length]);
+  const felt = spec.pusher ? pusherFelt(PUSHERS.findIndex((p) => p.id === machineId)) : FELT_COLORS[MACHINES.findIndex((m) => m.id === machineId) % FELT_COLORS.length];
+  topView = buildTopView(renderer, scene, bigZone.worldOf(machineId), felt);
   if (myAvatar) {
     myAvatar.root.visible = false; // 정면 카메라를 가리지 않게 (다른 사람 화면에는 보임)
     playing.set(machineId, startPlaying(myAvatar.rig, tw, spotOf.get(machineId)!.ry + Math.PI, sfx.coin));
@@ -433,7 +441,9 @@ function startPlay(machineId: string, limit: number, coins: number) {
   if (R) {
     settleMachine(machineId);
     dropCycle(); stopWatch(machineId);
-    const world = new MachineWorld(R, bigZone.contentsOf(machineId));
+    // 미는 뽑기는 판 시작부터 세계가 돌며 판이 민다(겨누는 동안에도, 설계 ring-hook §4) — 판 시각은 벽시계(그림과 끊기지 않게), 출구는 열린 채
+    const world = craneWorld(R, machineId, bigZone.contentsOf(machineId), spec.pusher ? (Date.now() / 1000) % PUSHER.plate.period : 0);
+    if (spec.pusher) world.setHoleOpen(true);
     cycle = { machineId, gen: genOf(machineId), world, runner: null, claw: null, live: bigZone.live(machineId), before: bigZone.contentsOf(machineId), reported: false, look: new HoldLook(), wasHolding: false };
   }
   if (me && socket) { me.dir = { x: 0, z: 0 }; socket.send(encodeMove(me.pos, me.dir)); }
@@ -464,7 +474,17 @@ const TOP_Y = CLAW_REST.y + CABLE_TOP;
 function dropCycle() {
   if (!cycle) return;
   cycle.claw?.dispose(); cycle.world.dispose(); cycle.live.dispose();
+  bigZone.plateAt(cycle.machineId, null); // 미는 판은 다시 벽시계로
   cycle = null;
+}
+// 미는 뽑기: 겨누는 동안에도 판이 오가며 턱 위 인형을 민다 — 세계를 돌리고, 인형·판을 그리고, 구경꾼에게 중계한다(집게는 쉬는 높이)
+function runAimFrame(dt: number, claw: { x: number; z: number }) {
+  if (!cycle || cycle.runner || cycle.reported || !(cycle.world instanceof PusherWorld)) return;
+  const { world, live, machineId } = cycle;
+  world.step(dt);
+  for (const p of world.poses()) live.set(p.uid, p.p, p.q);
+  bigZone.plateAt(machineId, world.plateZ());
+  poseSender.frame(machineId, { x: claw.x, y: CLAW_REST.y, z: claw.z, open: 0.35 }, world.movingPoses(), clock());
 }
 const physicsMs: number[] = []; // 최근 프레임의 물리 계산 시간(ms) — e2e perf가 읽는다
 function runCycleFrame(dt: number) {
@@ -484,6 +504,7 @@ function runCycleFrame(dt: number) {
   group.position.set(claw.x, claw.y, claw.z);
   rig?.setCable(TOP_Y - claw.y); rig?.setOpen(shown);
   for (const p of world.poses()) { const d = shifted(p); live.set(d.uid, d.p, d.q); }
+  if (world instanceof PusherWorld) bigZone.plateAt(machineId, world.plateZ());
   topView?.update({ x: claw.x, z: claw.z });
   poseSender.frame(machineId, { x: claw.x, y: claw.y, z: claw.z, open: shown }, world.movingPoses().map(shifted), clock());
   if (!done) return;
@@ -518,7 +539,7 @@ const settledHere = new Set<string>(); // 이 화면이 앉힌 기계 (e2e 결�
 type Settling = { id: string; contents: DollSpot[]; world: MachineWorld; run: Generator<void, number, void> };
 let settling: Settling | null = null;
 function startSettling(R: NonNullable<ReturnType<typeof rapierNow>>, id: string): Settling {
-  const contents = bigZone.contentsOf(id), world = new MachineWorld(R, contents);
+  const contents = bigZone.contentsOf(id), world = craneWorld(R, id, contents); // 미는 뽑기도 판 시각 0에서 — 모든 화면이 같은 자리에 앉힌다
   return { id, contents, world, run: world.settling(CLAW.settle_seconds) };
 }
 function finishSettling(s: Settling): void {
@@ -541,8 +562,8 @@ function settleNearby(): void {
   if (settling && bigZone.contentsOf(settling.id) !== settling.contents) { settling.world.dispose(); settling = null; } // 그새 배치가 바뀜 — 다시
   if (!settling) {
     // 가까운 기계부터 — 다가가는 기계가 먼저 앉아 있어야 한 판을 누를 때 남은 앉히기가 몰리지 않는다
-    let m: (typeof MACHINES)[number] | null = null, best = SETTLE_REACH;
-    for (const c of MACHINES) { const d = Math.hypot(c.x - me.pos.x, c.z - me.pos.z); if (d <= best && bigZone.unsettled(c.id).length > 0) { m = c; best = d; } }
+    let m: { id: string } | null = null, best = SETTLE_REACH;
+    for (const c of [...MACHINES, ...PUSHERS]) { const d = Math.hypot(c.x - me.pos.x, c.z - me.pos.z); if (d <= best && bigZone.unsettled(c.id).length > 0) { m = c; best = d; } }
     if (!m) return;
     settling = startSettling(R, m.id);
   }
@@ -567,7 +588,7 @@ function sendDrop() {
   const R = rapierNow();
   if (cycle && R && cycle.machineId === session.machineId) {
     cycle.claw = new ClawBody(R, cycle.world);
-    cycle.runner = new CycleRunner(cycle.world, cycle.claw, session.claw.x, session.claw.z);
+    cycle.runner = new CycleRunner(cycle.world, cycle.claw, session.claw.x, session.claw.z, craneSpec(session.machineId).cycle); // 미는 뽑기: 턱 위로 옮겨 놓고 판이 다 밀 때까지
   } else { // 물리가 없으면(있을 수 없지만) 빈손으로 보고한다
     socket?.send(encodeDone(session.machineId, [], []));
     dropped.markDone(clock());
@@ -580,7 +601,7 @@ function endPlay() {
   const id = session?.machineId ?? awaiting ?? seated;
   for (const p of buttonPlays) p.end();
   if (id && !playFor(id)) {
-    bigZone.clawOf(id).position.copy(CLAW_REST); bigZone.showAim(id, false);
+    bigZone.clawOf(id).position.copy(craneSpec(id).rest); bigZone.showAim(id, false);
     if (!showing.has(id)) bigZone.releaseClaw(id);
   }
   session = null; awaiting = null; dropped = null; seated = null;
@@ -810,7 +831,7 @@ function stopWatch(id: string) {
   const w = watches.get(id);
   if (!w) return;
   w.live.dispose(); watches.delete(id);
-  bigZone.clawOf(id).position.copy(CLAW_REST);
+  bigZone.clawOf(id).position.copy(craneSpec(id).rest);
   const rig = bigZone.rigOf(id);
   if (rig) { rig.setCable(CABLE_TOP); rig.setOpen(0.35); }
   if (!showing.has(id)) bigZone.releaseClaw(id);
@@ -832,7 +853,7 @@ function showMachineUi(): boolean {
   if (!me) return false;
   // 인형·피규어·고리 걸기 기계 중 앞자리가 가장 가까운 쪽
   const pos = me.pos, gap = (m: { x: number; z: number; ry: number }) => { const f = frontSpot(m); return Math.hypot(pos.x - f.x, pos.z - f.z); };
-  const near = [nearestMachine(pos), nearestFigure(pos), nearestRing(pos)].filter((m) => m !== null).sort((a, b) => gap(a) - gap(b))[0];
+  const near = [nearestMachine(pos), nearestPusher(pos), nearestFigure(pos), nearestRing(pos)].filter((m) => m !== null).sort((a, b) => gap(a) - gap(b))[0];
   if (!near) return false;
   const who = busy.who(near.id, clock());
   if (who && who !== myId) { setAction(null); setInfo(UI.watching); return true; }
@@ -977,10 +998,11 @@ function frame(now: number) {
         swingOf(session.machineId);
         claw.position.set(session.claw.x, CLAW_REST.y, session.claw.z);
         topView?.update(session.claw);
-        // 겨냥 고리는 집게 아래 인형 머리 위(없으면 바닥)에 놓는다
-        const aim = claw.getObjectByName('aim')!;
-        aim.position.y = aimHeight(bigZone.contentsOf(session.machineId), session.claw.x, session.claw.z) - CLAW_REST.y;
-        aim.visible = aimVisible(session.claw); // 상품 구멍 위(시작 자리)에서는 숨긴다
+        // 겨냥 고리는 집게 아래 인형 머리 위(없으면 바닥, 미는 뽑기 턱 위면 턱)에 놓는다
+        const spec = craneSpec(session.machineId), aim = claw.getObjectByName('aim')!;
+        runAimFrame(dt, session.claw);
+        aim.position.y = aimHeight(bigZone.contentsOf(session.machineId), session.claw.x, session.claw.z, spec.dollScale, spec.floorAt(session.claw.x, session.claw.z)) - CLAW_REST.y;
+        aim.visible = spec.pusher || aimVisible(session.claw); // 인형 기계는 상품 구멍 위(시작 자리)에서 숨긴다
       }
       me.autoTarget = frontSpot(spotOf.get(playId)!); // 기계 앞자리 가운데로 (카메라 구도가 늘 같게)
       me.drive({ x: 0, z: 0 }, dt);

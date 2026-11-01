@@ -138,6 +138,16 @@ export function makeCabinetShell(m: THREE.Group, color: number, look: { sign: TH
   return mergeGeometries(leds.map((l) => (l.index ? l.toNonIndexed() : l)))!;
 }
 
+// 레버 크롬 받침 + 하강 버튼 크롬 고리 (움직이는 레버 막대·공과 버튼은 makeControlParts — 하는 기계에서 숨길 수 있게 따로 그린다).
+// 인형 기계와 미는 뽑기가 같은 조작대
+export function addControlBases(m: THREE.Group): void {
+  const g = G(), chrome = toon(CHROME);
+  const [lx, ly, lz] = CONTROLS.lever;
+  m.add(part(g.leverBase, chrome, [lx, ly, lz], [1, 1, 1], [0, 0, 0], 0));
+  const [dx, dy, dz] = CONTROLS.drop;
+  m.add(part(g.ring, chrome, [dx, dy - 0.01, dz], [1.45, 1, 1.45], [0, 0, 0], 0));
+}
+
 export function makeMachineParts(spot: MachineSpot, index: number): MachineParts {
   const g = G(), mat = M(), m = new THREE.Group();
   m.position.set(spot.x, 0, spot.z); m.rotation.y = spot.ry;
@@ -149,11 +159,7 @@ export function makeMachineParts(spot: MachineSpot, index: number): MachineParts
     plate: new THREE.MeshBasicMaterial({ map: plateTex(spot.id) }),
     pop: popMat(String(index % POP_CARDS.length)),
   });
-  // 인형 기계 속: 레버 크롬 받침 + 하강 버튼 크롬 고리 (움직이는 레버 막대·공과 버튼은 makeControlParts — 하는 기계에서 숨길 수 있게 따로 그린다)
-  const [lx, ly, lz] = CONTROLS.lever;
-  add(part(g.leverBase, chrome, [lx, ly, lz], [1, 1, 1], [0, 0, 0], 0));
-  const [dx, dy, dz] = CONTROLS.drop;
-  add(part(g.ring, chrome, [dx, dy - 0.01, dz], [1.45, 1, 1.45], [0, 0, 0], 0));
+  addControlBases(m);
   // 펠트 · 뒷판 그림
   add(part(g.felt, toon(FELT_COLORS[felt]), [0, 0.86, 0], [1, 1, 1], [0, 0, 0], 0));
   add(flat(g.back, backMat(String(felt)), [0, 1.4, -0.48]));
@@ -172,6 +178,8 @@ export function makeMachineParts(spot: MachineSpot, index: number): MachineParts
 export const machineSignMat = (text: string, color: number): THREE.Material => signMat(`${text}|${color}`);
 export const machinePopMat = (i: number): THREE.Material => popMat(String(i % POP_CARDS.length));
 export const machineAcryl = (): THREE.Material => M().acryl;
+export const machineBackMat = (i: number): THREE.Material => backMat(String(i % BACK_ART.length));
+export const machineHoleMat = (): THREE.Material => M().hole;
 
 export const ledBaseMat = once(() => new THREE.MeshBasicMaterial({ vertexColors: true }));
 export const ledFlashMat = once(() => ({ hot: new THREE.MeshBasicMaterial({ color: 0xff5fa2 }), gold: new THREE.MeshBasicMaterial({ color: 0xffd36b }) }));

@@ -27,7 +27,7 @@ class PlayStartInteractor(PlayStartUseCase):
             return
         mine = self._locks.lock_of(cmd.conn_id)
         if mine is not None:
-            if not self._locks.is_between(cmd.conn_id) and expired(mine[1], cmd.now):  # 보고를 못 보낸 내 판은 시간이 지나면 풀고 새로 (최종 리뷰 I2)
+            if not self._locks.is_between(cmd.conn_id) and expired(mine[1], cmd.now, mine[0]):  # 보고를 못 보낸 내 판은 시간이 지나면 풀고 새로 (최종 리뷰 I2)
                 self._locks.release(cmd.conn_id)
                 self._connections.broadcast_free(mine[0])
             elif not self._locks.is_between(cmd.conn_id):
@@ -39,7 +39,7 @@ class PlayStartInteractor(PlayStartUseCase):
         holder = self._locks.holder(machine.id)
         if holder is not None and holder[0] != cmd.conn_id:
             between = self._locks.is_between(holder[0])
-            if not (hold_over(holder[1], cmd.now) if between else expired(holder[1], cmd.now)):
+            if not (hold_over(holder[1], cmd.now) if between else expired(holder[1], cmd.now, machine.id)):
                 self._connections.send_play_no(cmd.conn_id, machine.id, "busy")
                 return
             self._locks.release(holder[0])
