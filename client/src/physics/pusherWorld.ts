@@ -10,6 +10,9 @@ import type { Rapier } from './rapier';
 // 오른쪽 넓은 칸 = 미니 인형이 수북한 바닥, 왼쪽 앞 = 한 단 높은 턱(오른쪽 끝은 낮은 턱이라 쌓인 인형이 칸으로 굴러떨어질 수 있다),
 // 턱 뒤 = 미는 판이 숨는 집, 턱 앞 = 출구(바닥 없음 — 칸과는 투명 벽으로 막힘). 미는 판은 시각에 따라 턱 깊이의 3분의 1만 오간다.
 // 출구로 떨어진 인형만 당첨(fallen). 시각은 세계 시각(time) — 같은 입력이면 같은 결과
+// 판 오른쪽 끝은 낮은 턱 안쪽까지만 — 턱 너머 칸 무더기에 기댄 인형을 건드려 무더기를 깨우지 않게
+export const PLATE_INSET = 0.02;
+export const plateDepth = (): number => PUSHER.plate.depth + PUSHER.plate.stroke + 0.01;
 const T = 0.05, PILE_GAP = 0.06; // 칸 자리는 턱 오른쪽 끝에서 이만큼(서버 pusher_crane PILE_GAP과 같다)
 
 export class PusherWorld extends MachineWorld {
@@ -19,8 +22,8 @@ export class PusherWorld extends MachineWorld {
   constructor(R: Rapier, spots: DollSpot[], readonly phase = 0) {
     super(R, spots, { dollScale: PUSHER.doll_scale });
     const p = this.plate.translation();
-    this.plate.setTranslation({ x: p.x, y: p.y, z: plateFront(phase) - PUSHER.plate.depth / 2 }, true); // 첫 걸음에 순간이동하지 않게
-    this.saved = spots.filter((s) => s[2] !== null && s[1] > PUSHER.ledge.x1 + PILE_GAP / 2).map((s) => s[12]); // 칸 무더기만 — 턱 위 인형은 판이 밀어야 한다
+    this.plate.setTranslation({ x: p.x, y: p.y, z: plateFront(phase) - plateDepth() / 2 }, true); // 첫 걸음에 순간이동하지 않게
+    this.saved = spots.filter((s) => s[2] !== null && s[1] > PUSHER.ledge.x1 - 0.01).map((s) => s[12]); // 칸 무더기(낮은 턱에 기댄 인형 포함)만 — 턱 위 인형은 판이 밀어야 한다
   }
 
   // 앉은(저장된) 인형은 첫 걸음 뒤 재운다 — 칸 무더기 27개가 깨어 있으면 서로 조금씩 기며 휴대폰에서 겨누는 동안 40fps로 떨어졌다(라이브 점검).
@@ -54,8 +57,10 @@ export class PusherWorld extends MachineWorld {
     this.buildWalls();
     // 미는 판: 위치 기반 kinematic, 앞면이 plateFront(t)
     const R = this.R;
-    this.plate = this.world.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(lx, top + plate.h / 2, ledge.z0 - plate.depth / 2));
-    this.world.createCollider(R.ColliderDesc.cuboid(lw / 2 - 0.005, plate.h / 2, plate.depth / 2).setFriction(0.3).setRestitution(0), this.plate);
+    // 판은 집에서 나오는 덩어리: 깊이 = 앞판 두께 + 오가는 거리 — 가장 나와도 뒤끝이 집 안에 있어 판 뒤에 틈이 없다(인형이 끼어 판에 올라탔다)
+    const deep = plateDepth();
+    this.plate = this.world.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(lx - PLATE_INSET / 2, top + plate.h / 2, ledge.z0 - deep / 2));
+    this.world.createCollider(R.ColliderDesc.cuboid(lw / 2 - 0.005 - PLATE_INSET / 2, plate.h / 2, deep / 2).setFriction(0.3).setRestitution(0), this.plate);
   }
 
   // 앉히기(채우기·처음 기계): 판이 한 주기(settle.still) 동안 아무것도 3mm 넘게 못 밀 때까지, 마지막 떨어뜨림 뒤 길어도 settle.max초 —
@@ -85,11 +90,15 @@ export class PusherWorld extends MachineWorld {
   protected beforeStep(): void {
     this.sleepSaved();
     const p = this.plate.translation();
-    this.plate.setNextKinematicTranslation({ x: p.x, y: p.y, z: plateFront(this.time + this.phase) - PUSHER.plate.depth / 2 });
+    this.plate.setNextKinematicTranslation({ x: p.x, y: p.y, z: plateFront(this.time + this.phase) - plateDepth() / 2 });
   }
 
   // 미는 판 앞면 z — 그림
   plateZ(): number {
-    return this.plate.translation().z + PUSHER.plate.depth / 2;
+    return this.plate.translation().z + plateDepth() / 2;
+  }
+
+  plateDepth(): number {
+    return plateDepth();
   }
 }
