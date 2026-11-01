@@ -1,7 +1,7 @@
 {
   "client_move": { "t": "move", "x": 1.5, "z": -2.0, "dx": 0.707, "dz": -0.707 },
   "server_welcome": {
-    "t": "welcome", "v": 10,
+    "t": "welcome", "v": 11,
     "store": 1,
     "you": { "id": "p1", "nick": "말랑 토끼", "color": 3, "x": 2.4, "z": 0.0, "dx": 0, "dz": 0, "beg": null },
     "players": [{ "id": "p2", "nick": "곰돌이", "color": 5, "x": -1.2, "z": 2.08, "dx": 1, "dz": 0, "beg": 94 }],
@@ -9,7 +9,7 @@
     "bag": 2,
     "machines": {"A-1": [["bunny", 0.12, 0.87, -0.05, 0, 0, 0, 1, 2, "n", 1, "", 1], ["bunny", -0.2, null, 0.1, 0, 0, 0, 1, 0, "c", 3, "star", 2]]},
     "plays": {"A-3": "p2"},
-    "figures": {"F-1": [0.004, 1.032, -0.003, 0, 0.012, 0, 1]}
+    "figures": {"F-1": [0.004, 1.054, -0.003, 0, 0.012, 0, 1]}
   },
   "server_join": { "t": "join", "p": { "id": "p2", "nick": "곰돌이", "color": 5, "x": -1.2, "z": 2.08, "dx": 0, "dz": 0, "beg": null } },
   "server_move": { "t": "move", "id": "p2", "x": 1.6, "z": 3.0, "dx": 1, "dz": 0 },

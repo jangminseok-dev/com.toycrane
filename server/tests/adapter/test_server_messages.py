@@ -102,3 +102,10 @@ def test_give_schema_takes_an_id_and_one_to_ninety_nine():
 
 def test_figure_matches_fixture():
     assert figure("F-1", (0.0041, 1.0324, -0.0031, 0.0, 0.0123, 0.0, 1.0), False) == FX["server_figure"]
+
+
+def test_protocol_is_eleven():
+    """피규어 큰 상자 두 종류(설계 §8.4): 물리·상자가 바뀌어 옛 화면은 새로 고친다 — 화면(net/protocol.ts)과 같은 수."""
+    from toycrane.adapter.inbound.ws.schemas.server_messages import PROTOCOL
+
+    assert PROTOCOL == 11

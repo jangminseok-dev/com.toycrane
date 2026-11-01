@@ -10,7 +10,7 @@ async def ensure_figures(port: FigureBoxesPort, rng: random.Random) -> dict[str,
     states = await port.load()
     missing = [m for m in FIGURES if m not in states]
     for m in missing:
-        states[m] = FigureState(start_box(rng), 0)
+        states[m] = FigureState(start_box(rng, FIGURES[m].box), 0)
     if missing:
         await port.save(states)
     return states

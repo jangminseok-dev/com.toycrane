@@ -26,6 +26,7 @@ class Figure:
     z: float
     ry: float
     row: str  # "f1" | "f2"
+    box: str  # 상자 종류 "long" | "square" (설계 §8)
 
 
 @dataclass(frozen=True)
@@ -58,7 +59,7 @@ COUNTERS: tuple[Counter, ...] = tuple(
     Counter(c["id"], c["x"], c["z"], c["ry"], Position(*c["window"]))
     for c in LAYOUT["counters"]
 )
-FIGURES: dict[str, Figure] = {f["id"]: Figure(f["id"], f["x"], f["z"], f["ry"], f["row"]) for f in LAYOUT["figures"]}
+FIGURES: dict[str, Figure] = {f["id"]: Figure(f["id"], f["x"], f["z"], f["ry"], f["row"], f["box"]) for f in LAYOUT["figures"]}
 OBSTACLES: tuple[tuple[float, float, float, float], ...] = tuple(tuple(o) for o in LAYOUT["obstacles"])
 
 

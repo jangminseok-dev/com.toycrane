@@ -2,6 +2,7 @@
 무엇이 들었는지는 상자가 막대 사이로 빠진 순간에 정한다. 수치는 shared/figure.json.
 
 상자 자리(BoxPose)는 기계 좌표(앞 +z, 오른쪽 +x)의 (x, y, z, qx, qy, qz, qw) — 돌림 없음이면 긴 변이 z를 따라 그림 면 위로 눕힌 모습.
+상자 종류(kind: "long" | "square", 설계 §8)마다 상자 치수·막대 틈이 다르다 — 기계의 종류는 store_layout figures의 box.
 """
 
 import math
@@ -13,8 +14,20 @@ from toycrane.domain.shared_data import FIGURE
 
 BoxPose = tuple[float, float, float, float, float, float, float]
 
-_BARS, _BOX, _HALF = FIGURE["bars"], FIGURE["variants"]["long"]["box"], FIGURE["play_half"]  # Task 2에서 종류별
-_LYING_Y = _BARS["y"] + _BARS["radius"] + _BOX["d"] / 2
+_BARS, _VARIANTS, _GUARDS = FIGURE["bars"], FIGURE["variants"], FIGURE["guards"]
+
+
+def _box(kind: str) -> dict:
+    return _VARIANTS[kind]["box"]
+
+
+def _lying_y(kind: str) -> float:
+    return _BARS["y"] + _BARS["radius"] + _box(kind)["d"] / 2
+
+
+def _bar_z(kind: str) -> float:
+    return _VARIANTS[kind]["gap"] / 2 + _BARS["radius"]
+
 _KINDS = tuple(DOLLS)
 
 
@@ -41,11 +54,11 @@ def _turn(a: BoxPose, b: BoxPose) -> float:
     return 2 * math.acos(min(1.0, dot))
 
 
-def start_box(rng: random.Random) -> BoxPose:
+def start_box(rng: random.Random, kind: str) -> BoxPose:
     """두 막대에 반듯이 걸친 새 상자 — 매번 같은 공략이 안 되게 자리·돌림을 아주 조금 흔든다."""
     jit = FIGURE["start_jitter"]
     q = _yaw(rng.uniform(-jit["twist_deg"], jit["twist_deg"]))
-    return (rng.uniform(-jit["shift"], jit["shift"]), _LYING_Y, rng.uniform(-jit["shift"], jit["shift"]), *q)
+    return (rng.uniform(-jit["shift"], jit["shift"]), _lying_y(kind), rng.uniform(-jit["shift"], jit["shift"]), *q)
 
 
 def roll_prize(rng: random.Random) -> tuple[str, str]:
@@ -58,28 +71,30 @@ def roll_prize(rng: random.Random) -> tuple[str, str]:
     return kind, ""
 
 
-def check_report(box: tuple[float, ...], won: bool) -> tuple[BoxPose, bool] | str:
-    """화면이 보고한 판 끝 상자 자리를 상식선에서 확인한다 — 이상하면 거절 이유("bad"·"won"), 아니면 기계 안으로 자른 자리."""
+def check_report(box: tuple[float, ...], won: bool, kind: str) -> tuple[BoxPose, bool] | str:
+    """화면이 보고한 판 끝 상자 자리를 상식선에서 확인한다 — 이상하면 거절 이유("bad"·"won"), 아니면 상자가 실제로 갈 수 있는 곳
+    (옆은 막대 끝, 앞은 앞판, 뒤는 뒤 벽, 위는 막대 위 상자 길이) 안으로 자른 자리."""
     if len(box) != 7 or not all(math.isfinite(v) for v in box):
         return "bad"
     norm = math.hypot(*box[3:])
     if norm < 1e-6:
         return "bad"
-    x = max(-(_HALF[0] + 0.1), min(_HALF[0] + 0.1, box[0]))
-    y = max(0.3, min(2.2, box[1]))
-    z = max(-(_HALF[1] + 0.1), min(_HALF[1] + 0.1, box[2]))
+    h, bz, half = _box(kind)["h"], _bar_z(kind), _BARS["half_len"]
+    x = max(-half, min(half, box[0]))
+    y = max(0.3, min(_BARS["y"] + h, box[1]))
+    z = max(-(bz + _GUARDS["back_wall"]), min(bz + _GUARDS["front"], box[2]))
     clamped: BoxPose = (x, y, z, *(v / norm for v in box[3:]))
-    if won and y > _BARS["y"] - _BOX["h"] / 2:
+    if won and y > _BARS["y"] - h / 2:
         return "won"
-    if not won and y < _BARS["y"] - _BOX["h"]:
+    if not won and y < _BARS["y"] - h:
         return "won"
     return clamped, won
 
 
-def after_play(state: FigureState, box: BoxPose, won: bool, rng: random.Random) -> tuple[FigureState, bool]:
+def after_play(state: FigureState, box: BoxPose, won: bool, rng: random.Random, kind: str) -> tuple[FigureState, bool]:
     """한 판이 끝난 뒤의 상태: 빠졌으면 새 상자, 아니면 보고한 자리. 여러 판 거의 안 움직였으면 살짝 옮긴다(직원 도움) — (새 상태, 옮겼나)."""
     if won:
-        return FigureState(start_box(rng), 0), False
+        return FigureState(start_box(rng, kind), 0), False
     stuck = FIGURE["stuck"]
     still_now = math.hypot(box[0] - state.box[0], box[2] - state.box[2]) < stuck["move"] and _turn(box, state.box) < stuck["turn"]
     still = state.still + 1 if still_now else 0

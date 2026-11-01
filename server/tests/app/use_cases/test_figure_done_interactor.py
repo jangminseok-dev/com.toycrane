@@ -13,7 +13,7 @@ from toycrane.domain.layout import FIGURES
 from toycrane.domain.report import DollPose, Report
 from toycrane.domain.shared_data import FIGURE
 
-BARS, BOX = FIGURE["bars"], FIGURE["box"]
+BARS, BOX, SQUARE = FIGURE["bars"], FIGURE["variants"]["long"]["box"], FIGURE["variants"]["square"]["box"]  # F-1 긴 상자, F-8 정사각형
 FELL = (0.01, BARS["y"] - BOX["h"] - 0.05, 0.0, 0.0, 0.0, 0.0, 1.0)
 
 
@@ -22,7 +22,7 @@ def setup(rng=None):
     locks = FakeLocks({"c-1": "p1", "c-2": "p2"})
     reg.put("c-1", player("p1", guest="g-1"))
     reg.put("c-2", player("p2", guest="g-2"))
-    boxes = FakeFigureBoxes({m: FigureState(start_box(random.Random(i)), 0) for i, m in enumerate(FIGURES)})
+    boxes = FakeFigureBoxes({m: FigureState(start_box(random.Random(i), f.box), 0) for i, (m, f) in enumerate(FIGURES.items())})
     locks.lock("c-1", "F-1", 10.0)
     return locks, conns, bag, boxes, FigureDoneInteractor(reg, locks, boxes, bag, conns, rng=rng or random.Random(5))
 
@@ -81,3 +81,13 @@ async def test_prize_is_decided_only_at_win():
     await it.done(DoneCommand("c-1", "F-1", report(moved(boxes.stored["F-1"].box, 0.01)), now=20.0))
     said = json.dumps([m for _, m in conns.broadcasts + conns.direct], ensure_ascii=False)
     assert not any(k in said for k in DOLLS) and bag.added == []
+
+
+async def test_square_machine_gets_a_square_box_after_a_win():
+    """정사각형 기계(F-8)에서 빠지면 그 기계에는 정사각형 새 상자가 놓인다 — 당첨 기준도 그 상자 길이로 (설계 §8)."""
+    locks, conns, bag, boxes, it = setup()
+    locks.lock("c-2", "F-8", 10.0)
+    fell = (0.0, BARS["y"] - SQUARE["h"] - 0.05, 0.0, 0.0, 0.0, 0.0, 1.0)
+    await it.done(DoneCommand("c-2", "F-8", report(fell, won=True), now=20.0))
+    new_box = boxes.stored["F-8"].box
+    assert abs(new_box[1] - (BARS["y"] + BARS["radius"] + SQUARE["d"] / 2)) < 1e-9

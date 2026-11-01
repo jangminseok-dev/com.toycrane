@@ -4,8 +4,9 @@ from toycrane.adapter.outbound.js_values import to_py
 from toycrane.app.ports.output.figure_boxes_port import FigureBoxesPort
 from toycrane.domain.figure import FigureState
 
-# v1: 기계 id → {"b": 상자 자리 [x, y, z, qx, qy, qz, qw](기계 좌표), "s": 거의 안 움직인 판 수} — 경품은 뽑힌 순간 정하므로 없다
-KEY = "figures_v1"
+# v2(큰 상자 두 종류, 설계 §8 — v1의 작은 상자는 읽지 않는다): 기계 id → {"b": 상자 자리 [x, y, z, qx, qy, qz, qw](기계 좌표),
+# "s": 거의 안 움직인 판 수} — 경품은 뽑힌 순간 정하므로 없다
+KEY = "figures_v2"
 
 
 class DoStorageFigureBoxes(FigureBoxesPort):

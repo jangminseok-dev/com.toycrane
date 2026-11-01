@@ -10,6 +10,7 @@ from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
 from toycrane.app.use_cases.figure_boxes import ensure_figures
 from toycrane.app.use_cases.report_lock import take_report
 from toycrane.domain.figure import after_play, check_report, roll_prize
+from toycrane.domain.layout import FIGURES
 
 ZONE = "figure"
 
@@ -44,13 +45,14 @@ class FigureDoneInteractor(DoneUseCase):
             self._connections.send_done_no(cmd.conn_id, machine_id, "count")
             return
         r = rows[0]
-        checked = check_report((r.x, r.y, r.z, *r.q), 0 in won_ids)
+        kind = FIGURES[machine_id].box
+        checked = check_report((r.x, r.y, r.z, *r.q), 0 in won_ids, kind)
         if isinstance(checked, str):
             self._connections.send_done_no(cmd.conn_id, machine_id, checked)
             return
         box, won = checked
         states = await ensure_figures(self._figures, self._rng)
-        state, nudged = after_play(states[machine_id], box, won, self._rng)
+        state, nudged = after_play(states[machine_id], box, won, self._rng, kind)
         states[machine_id] = state
         await self._figures.save(states)
         prize: list[tuple[str, int, str, int]] = []
