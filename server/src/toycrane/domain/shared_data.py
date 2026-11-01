@@ -234,7 +234,7 @@ CATALOG = {'sets': [{'id': 'soft', 'name': '말랑 동물', 'color': '#ff7ab6'},
             'rainbowdino': ['dino', 'rainbow'],
             'goldfox': ['fox', 'gold']}}
 
-LAYOUT = {'hall': {'room_half': 22, 'map_half': 21.6, 'tower_half': 1.6, 'spawn_radius': 3.6, 'plaza_radius': 8.5},
+LAYOUT = {'hall': {'room_half': 22, 'map_half': 21.6, 'tower_half': 2.2, 'spawn_radius': 4.0, 'plaza_radius': 8.5},
  'machine': {'front': 1.15,
              'reach': 1.2,
              'play_half': [0.44, 0.38],
@@ -270,7 +270,7 @@ LAYOUT = {'hall': {'room_half': 22, 'map_half': 21.6, 'tower_half': 1.6, 'spawn_
               {'id': 1, 'x': 10, 'z': -10.5, 'ry': 0, 'window': [10, -9.65]},
               {'id': 2, 'x': -10, 'z': 9.5, 'ry': 0, 'window': [-10, 10.35]},
               {'id': 3, 'x': 10, 'z': 9.5, 'ry': 0, 'window': [10, 10.35]}],
- 'obstacles': [[-1.6, -1.6, 1.6, 1.6],
+ 'obstacles': [[-2.2, -2.2, 2.2, 2.2],
                [-23, -7.85, -19.5, 7.85],
                [-17.1, -7.85, -15.7, 7.85],
                [-13.3, -7.85, -11.9, 7.85],

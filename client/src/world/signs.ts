@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { AD_SLOTS } from './ads';
+import { AD_SLOTS, AD_TOWER, type AdSlot } from './ads';
 import { PREP, RARE_TAG, STICKER, WALL_SIGN } from './copy';
 import { canvasTex } from './toon';
 
@@ -111,17 +111,43 @@ export function adSignsTex(): THREE.CanvasTexture {
       outlined(g, text, x + 256, y + 158, '#ffffff', size * 0.14, color);
     });
   });
-  // 그림 광고: 불러온 뒤 그 칸을 그림으로 덮는다 (노드 시험에는 Image가 없다)
-  if (typeof Image !== 'undefined') AD_SLOTS.forEach(({ image }, i) => {
+  loadAdImages(tex, AD_SLOTS, (i) => [(i % AD_COLS) * 512, Math.floor(i / AD_COLS) * 256, 512, 256]);
+  return tex;
+}
+
+// 그림 광고: 불러온 뒤 그 칸(x, y, 폭, 높이)을 그림으로 덮는다 (노드 시험에는 Image가 없다)
+function loadAdImages(tex: THREE.CanvasTexture, slots: AdSlot[], cell: (i: number) => [number, number, number, number]) {
+  if (typeof Image === 'undefined') return;
+  slots.forEach(({ image }, i) => {
     if (!image) return;
     const img = new Image();
     img.onload = () => {
-      const g = (tex.image as HTMLCanvasElement).getContext('2d')!;
-      g.drawImage(img, (i % AD_COLS) * 512, Math.floor(i / AD_COLS) * 256, 512, 256);
+      (tex.image as HTMLCanvasElement).getContext('2d')!.drawImage(img, ...cell(i));
       tex.needsUpdate = true;
     };
     img.src = image;
   });
+}
+
+// 진열탑 전광판 띠(사용자 2026-11-01): 광고 다섯 자리(5~9)를 가로로 이어 붙인 한 장 — 칸마다 512×240, 어두운 점 전광판에 빛나는 글.
+// 한 번에 한 칸 너비만 보이게 반복(repeat 1/칸 수)으로 두고, 진열탑이 offset을 밀어 오른쪽에서 왼쪽으로 흘린다
+export const TICKER_W = 512, TICKER_H = 240;
+export function adTickerTex(): THREE.CanvasTexture {
+  const neon = ['#ff9fe8', '#7fe3ff', '#ffe28a', '#a8ffb5', '#c9a8ff'], n = AD_TOWER.length, w = TICKER_W * n;
+  const tex = canvasTex(w, TICKER_H, (g) => {
+    g.fillStyle = '#0d0a14'; g.fillRect(0, 0, w, TICKER_H);
+    g.fillStyle = 'rgba(255,255,255,.05)';
+    for (let y = 4; y < TICKER_H; y += 8) for (let x = 4; x < w; x += 8) g.fillRect(x, y, 3, 3);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    AD_TOWER.forEach(({ text }, i) => {
+      const cx = i * TICKER_W + TICKER_W / 2, color = neon[i % neon.length];
+      g.shadowBlur = 24; g.shadowColor = color; g.fillStyle = color;
+      fit(g, text, (sz) => `${sz}px ${SIGN_FONT}`, 96, 440); g.fillText(text, cx, 104);
+      g.shadowColor = '#4fd8ff'; g.fillStyle = '#ffffff'; g.font = `34px ${SIGN_FONT}`; g.fillText('toycrane 광고', cx, 182);
+    });
+    g.shadowBlur = 0;
+  }, [1 / n, 1]);
+  loadAdImages(tex, AD_TOWER, (i) => [i * TICKER_W, 0, TICKER_W, TICKER_H]);
   return tex;
 }
 

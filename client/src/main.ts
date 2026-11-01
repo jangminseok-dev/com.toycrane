@@ -866,6 +866,7 @@ function frame(now: number) {
   remotes.update(now);
   updateWatches(now / 1000);
   bigZone.update(now / 1000);
+  tower.update(now / 1000); // 진열탑 전광판 광고 띠
   renderer.render(scene, camera);
 }
 

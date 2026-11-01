@@ -1,6 +1,7 @@
 from pytest import approx
 
 from toycrane.domain.movement import BUDGET_CAP, accept_move
+from toycrane.domain.store_rules import TOWER_HALF
 from toycrane.domain.value_objects.position import Position
 
 
@@ -34,5 +35,5 @@ def test_clamped_to_floor_edge():
 
 
 def test_pushed_out_of_tower():
-    pos, _ = accept_move(Position(0.5, 2.0), 0.6, 0.0, Position(0.5, 1.0), now=0.2)
-    assert pos == Position(0.5, 1.6)
+    pos, _ = accept_move(Position(0.5, TOWER_HALF + 0.4), 0.6, 0.0, Position(0.5, TOWER_HALF - 0.6), now=0.2)
+    assert pos == Position(0.5, TOWER_HALF)  # 탑 가장자리(배치 파일의 tower_half)

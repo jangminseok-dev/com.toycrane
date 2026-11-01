@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { PLAZA_RADIUS, ROOM_HALF, ROOM_HEIGHT, SPAWN_RADIUS, TOWER_HALF } from './layout';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { adSignCell, adSignsTex } from './signs';
+import { AD_TOWER } from './ads';
+import { adSignCell, adSignsTex, adTickerTex } from './signs';
 import { AD_BOARDS } from '../data/storeLayout';
 import { canvasTex, outlineMat, part, toon, toonWith } from './toon';
 import { DOLLS } from '../data/catalog';
@@ -17,6 +18,7 @@ export type HubTower = {
   box: THREE.Box3;
   setOpacity(opacity: number): void;
   showMessage(line1: string, line2: string, gold: boolean, seconds: number): void; // 4면 전광판 문구를 잠깐 바꾼다(희귀 알림)
+  update(t: number): void; // 전광판 광고 띠를 흘린다(t: 초)
 };
 
 export function buildStore(scene: THREE.Scene): HubTower {
@@ -156,12 +158,16 @@ function floorLabels(scene: THREE.Scene, labels: [string, number, number][]) {
   scene.add(m);
 }
 
-// 광장 진열탑(설계 2026-11-01 §3): 3단 진열대에 큰 인형·피규어 상자(투명 창 안에 작은 인형), 꼭대기에 4면 전광판(희귀 알림).
-// 피규어 모델은 피규어 뽑기 단계에서 — 지금 상자 속은 우리 인형. 인형·상자는 재질별로 합쳐 그린다
-const TIERS: [number, number, number][] = [[TOWER_HALF * 2, 0, 0.9], [2.5, 0.9, 1.7], [1.8, 1.7, 2.5]]; // 폭, 아래, 위
+// 광장 진열탑(설계 2026-11-01 §3): 3단 진열대에 큰 인형·피규어 상자(투명 창 안에 작은 인형), 꼭대기에 4면 전광판(광고 띠·희귀 알림).
+// 피규어 모델은 피규어 뽑기 단계에서 — 지금 상자 속은 우리 인형. 인형·상자는 재질별로 합쳐 그린다.
+// 사용자 2026-11-01 "중간 좀 더 크게": 처음 크기(반폭 1.6m)로 지은 탑을 통째로 GROW배 — 크기는 배치 파일의 tower_half
+const BASE_HALF = 1.6, GROW = TOWER_HALF / BASE_HALF;
+const TIERS: [number, number, number][] = [[BASE_HALF * 2, 0, 0.9], [2.5, 0.9, 1.7], [1.8, 1.7, 2.5]]; // 폭, 아래, 위 (처음 크기)
 const BOARD = { w: 2.6, y0: 3.0, y1: 4.3 };
+const TICKER_SPEED = 0.25; // 전광판 광고 띠가 흐르는 빠르기(초당 칸) — 광고 하나가 4초에 지나간다
 function addDisplayTower(scene: THREE.Scene): HubTower {
   const root = new THREE.Group(); root.name = 'display-tower';
+  root.scale.setScalar(GROW);
   scene.add(root);
   // 탑만 흐려지게 공용 재질(툰·외곽선)을 복제해 쓴다
   const bodyMat = toon(0xfbf8ff).clone(), trimMat = toon(0xffb3d9).clone(), edgeMat = outlineMat.clone();
@@ -193,7 +199,7 @@ function addDisplayTower(scene: THREE.Scene): HubTower {
   }
   const cloner = materialCloner();
   for (const m of bakePlush(shelf, cloner.remap)) root.add(m);
-  // 전광판: 평소엔 "toycrane / 어서 오세요", 희귀가 나오면 잠깐 금색 알림 (시제품 drawBoard)
+  // 전광판: 평소엔 광고 띠가 흐르고(adTickerTex), 희귀가 나오면 잠깐 금색 알림 (시제품 drawBoard)
   const draw = (l1: string, l2: string, gold: boolean) => (g: CanvasRenderingContext2D) => {
     g.shadowBlur = 0;
     g.fillStyle = '#0d0a14'; g.fillRect(0, 0, 512, 384);
@@ -205,14 +211,9 @@ function addDisplayTower(scene: THREE.Scene): HubTower {
     g.shadowColor = '#4fd8ff'; g.fillStyle = '#ffffff';
     fitText(g, l2, 40, 700, 480); g.fillText(l2, 256, 262);
   };
-  const idle = draw('toycrane', '어서 오세요', false);
-  const screenTex = canvasTex(512, 384, idle);
+  const ticker = adTickerTex(), alertTex = canvasTex(512, 384, draw('', '', false));
   let restoreTimer = 0;
-  const redraw = (paint: (g: CanvasRenderingContext2D) => void) => {
-    paint((screenTex.image as HTMLCanvasElement).getContext('2d')!);
-    screenTex.needsUpdate = true;
-  };
-  const screenMat = new THREE.MeshBasicMaterial({ map: screenTex });
+  const screenMat = new THREE.MeshBasicMaterial({ map: ticker });
   const screenGeo = new THREE.PlaneGeometry(BOARD.w - 0.2, BOARD.y1 - BOARD.y0 - 0.2);
   for (let k = 0; k < 4; k++) {
     const side = new THREE.Group(); side.rotation.y = (k * Math.PI) / 2;
@@ -224,11 +225,16 @@ function addDisplayTower(scene: THREE.Scene): HubTower {
   const mats: THREE.Material[] = [bodyMat, trimMat, edgeMat, screenMat];
   root.traverse((o) => { const m = (o as THREE.Mesh).material as THREE.Material | undefined; if (m && !mats.includes(m) && !cloner.materials.includes(m)) mats.push(m); });
   return {
-    box: new THREE.Box3(new THREE.Vector3(-TOWER_HALF, 0, -TOWER_HALF), new THREE.Vector3(TOWER_HALF, BOARD.y1, TOWER_HALF)),
+    box: new THREE.Box3(new THREE.Vector3(-TOWER_HALF, 0, -TOWER_HALF), new THREE.Vector3(TOWER_HALF, BOARD.y1 * GROW, TOWER_HALF)),
     showMessage(line1, line2, gold, seconds) {
-      redraw(draw(line1, line2, gold));
+      draw(line1, line2, gold)((alertTex.image as HTMLCanvasElement).getContext('2d')!);
+      alertTex.needsUpdate = true;
+      screenMat.map = alertTex;
       clearTimeout(restoreTimer);
-      restoreTimer = setTimeout(() => redraw(idle), seconds * 1000) as unknown as number;
+      restoreTimer = setTimeout(() => { screenMat.map = ticker; }, seconds * 1000) as unknown as number;
+    },
+    update(t) {
+      ticker.offset.x = ((t * TICKER_SPEED) / AD_TOWER.length) % 1;
     },
     setOpacity(opacity) {
       for (const m of mats) {

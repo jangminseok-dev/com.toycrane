@@ -1,7 +1,7 @@
 // 화면(간판·안내 카드·스티커·벽 간판·장식·버튼·알림)에 쓰는 문구를 한 곳에 — 일본어 글자와 가운데 점(·) 금지(copy.test.ts가 확인),
 // 글꼴 표본도 여기서 만든다. 상태는 버튼 위 작은 글, 버튼 안에는 할 일만 (교환소 개편 설계 §4.7)
 // 기계 간판: 그 기계에 든 캐릭터가 드러나게 (캐릭터 하나에 기계 하나, 설계 2026-10-31 인형 채우기 §4.3)
-import { AD_SLOTS } from './ads';
+import { AD_SLOTS, AD_TOWER } from './ads';
 export const MACHINE_SIGNS: Record<string, string> = {
   bunny: '말랑 토끼', bear: '곰돌이 왕국', cat: '냥냥 하우스', dog: '멍멍 놀이터', panda: '판다 대나무숲', hamster: '햄찌 굴',
   fox: '여우 숲', raccoon: '너구리 마을', squirrel: '도토리 다람쥐', owl: '부엉이 둥지', deer: '아기사슴 들판', hedgehog: '고슴도치 정원',
@@ -14,7 +14,7 @@ export const WALL_SIGN = ['toycrane', '게임센터'];
 export const PREP = '준비 중';
 export const COUNTER_SIGN = '코인 교환소';
 export const DROP_LABEL = '잡기'; // 하강 버튼 윗면 (화살표와 함께)
-export const AD_SIGNS = AD_SLOTS.map((s) => s.text); // 광장 광고판 4개 (광고 자리 1~4, shared/ads.json)
+export const AD_SIGNS = [...AD_SLOTS, ...AD_TOWER].map((s) => s.text); // 광장 광고판 4개(1~4)와 진열탑 전광판 5개(5~9), shared/ads.json
 export const BEGGING = '조르는 중'; // 조르는 사람 이름표 옆
 export const RARE_TAG = { rare: '★ 희귀', gold: '★★ 황금' }; // 희귀가 든 기계 위 이름표
 

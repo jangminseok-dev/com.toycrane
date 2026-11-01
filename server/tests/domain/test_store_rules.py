@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from toycrane.domain.store_rules import choose_store, clamp_to_floor, spawn_position
+from toycrane.domain.store_rules import TOWER_HALF, choose_store, clamp_to_floor, spawn_position
 from toycrane.domain.value_objects.position import Position
 
 
@@ -34,7 +34,7 @@ def test_spawn_on_ring():
 
 def test_clamp_to_floor_bounds_and_tower():
     assert clamp_to_floor(Position(25.0, -30.0)) == Position(21.6, -21.6)
-    assert clamp_to_floor(Position(0.5, 1.0)) == Position(0.5, 1.6)
+    assert clamp_to_floor(Position(0.5, 1.0)) == Position(0.5, TOWER_HALF)
 
 
 # 큰 홀(설계 2026-11-01): 걸을 수 있는 범위·탑·스폰은 화면과 같은 공용 배치 파일에서 읽는다
