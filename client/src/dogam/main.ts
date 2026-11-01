@@ -45,6 +45,17 @@ function place(id: string, look: DollLook, x: number, z: number, label: string):
   labels.push({ el, at: new THREE.Vector3(x, -0.05, z + 0.55) });
 }
 
+// 놓은 인형 전부가 화면에 들어오게 카메라를 앞쪽 위에서 맞춘다 (tilt = 위에서 내려다보는 정도)
+function fit(tilt = 0.12): void {
+  const box = new THREE.Box3();
+  scene.updateMatrixWorld(true); // 놓은 그룹의 자리가 자식 메시에 반영되게
+  scene.traverse((o) => { if ((o as THREE.Mesh).isMesh && o !== floor) box.expandByObject(o); });
+  const c = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3());
+  const t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  const dist = Math.max(size.y / (2 * t), size.x / (2 * t * camera.aspect)) * 1.18 + size.z / 2;
+  camera.position.set(c.x, c.y + dist * tilt, c.z + dist); controls.target.copy(c);
+}
+
 const ready = Object.keys(SPECIES);
 const hud = document.getElementById('hud')!;
 hud.innerHTML = `<h1>인형 도감 시제품 (${ready.length}/24종)</h1>` +
@@ -67,6 +78,7 @@ if (kind && q.get('look') === 'variants') {
   };
   const [pos, at] = views[view] ?? views.front;
   camera.position.copy(pos); controls.target.copy(at);
+  if (view === 'front') fit(); // 귀가 긴 인형도 다 보이게
 } else {
   // 세트마다 한 줄
   const rows = SETS.filter((s) => !set || s.id === set);
@@ -74,7 +86,7 @@ if (kind && q.get('look') === 'variants') {
     const ids = Object.keys(DOLLS).filter((id) => DOLLS[id].set === s.id && SPECIES[id]);
     ids.forEach((id, i) => place(id, { ...PLAIN, face }, (i - 2.5) * 1.5, (r - (rows.length - 1) / 2) * 2.2, DOLLS[id].name));
   });
-  camera.position.set(0, 2.2 + rows.length * 1.6, 5 + rows.length * 3.2); controls.target.set(0, 0.4, 0);
+  fit(0.35);
 }
 controls.update();
 

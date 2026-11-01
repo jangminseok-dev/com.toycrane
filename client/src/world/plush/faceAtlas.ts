@@ -52,11 +52,17 @@ const tabby: Draw = (g, S) => {
   for (const [x, h] of [[0.3, 0.62], [0.5, 0.8], [0.7, 0.62]]) { g.beginPath(); g.ellipse(S * x, S * (1 - h / 2), S * 0.07, (S * h) / 2, 0, 0, Math.PI * 2); g.fill(); }
 };
 
+// 판다 눈 둘레 무늬: 바깥 아래로 처진 둥근 물방울 (진한 회갈색 — 그 위의 눈이 보이게)
+const patch: Draw = (g, S) => {
+  g.fillStyle = '#4b4358';
+  g.beginPath(); g.ellipse(S * 0.52, S * 0.55, S * 0.36, S * 0.44, -0.45, 0, Math.PI * 2); g.fill();
+};
+
 // 칸 차례 (6×6 격자, 위 왼쪽부터). 새 무늬는 끝에 더한다 — 앞 칸 자리가 바뀌지 않게
 const CELLS: [Cell, Draw][] = [
   ['dotEye', dotEye], ['closed', closed(0.1)], ['animeClosed', closed(0.12)], ['sleepy', sleepy], ['blush', blush(0.85, 1)], ['blushBig', blush(1, 1.15)],
   ...(Object.keys(IRIS) as Iris[]).map((i): [Cell, Draw] => [`anime-${i}`, animeEye(i)]),
-  ['mark-tabby', tabby],
+  ['mark-tabby', tabby], ['mark-patch', patch],
 ];
 const GRID = 6, SIZE = 1024, PAD = 2 / SIZE;
 const index = new Map(CELLS.map(([c], i) => [c, i]));

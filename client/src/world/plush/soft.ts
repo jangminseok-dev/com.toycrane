@@ -1,24 +1,17 @@
 import { paintEyes, stitchMouth } from './face';
-import type { PlushBuilder, V3 } from './kit';
+import type { PlushBuilder } from './kit';
+import { mirror, sitBody } from './parts';
 import type { Species } from './species';
 
 // 말랑 동물 세트. 곰·고양이는 승인 시제품 v13(docs/reference/prototypes/spike-plush-v13.html)을 그대로 옮긴 것
-const mirror = (s: number, [x, y, z]: V3): V3 => [s * x, y, z];
 
 const bear: Species = {
   id: 'bear', round: false, eyes: 'dot', iris: 'brown', slots: { accent: 0xfff4e2, pad: 0xfff4e2, inner: 0xfff4e2, nose: 0x4a2c34, thread: 0x3a2330 },
   make(b: PlushBuilder, face: number) {
     b.sphere(0.6, [0, 1.2, 0], [1.12, 0.94, 0.96], [0, 0, 0], { name: 'head' }); // 머리 (몸보다 크게)
     for (const s of [-1, 1] as const) b.sphere(0.18, [s * 0.5, 1.62, -0.06], [1, 1, 0.6], [0, 0, -s * 0.3], { hit: 'ear' }); // 귀
-    b.pear([[0.02, 0], [0.05, 0.27], [0.14, 0.4], [0.28, 0.43], [0.44, 0.41], [0.6, 0.36], [0.74, 0.27], [0.84, 0.15], [0.88, 0]], 0.94, 0.02); // 몸
-    for (const s of [-1, 1]) {
-      b.tube([mirror(s, [0.2, 0.8, 0.02]), mirror(s, [0.38, 0.68, 0.1]), mirror(s, [0.42, 0.52, 0.22]), mirror(s, [0.36, 0.4, 0.3])], 0.11, (t) => 0.95 + 0.3 * t); // 팔
-      b.sphere(0.14, mirror(s, [0.36, 0.39, 0.31]), [1, 0.92, 1]); // 앞발
-      b.sphere(0.17, mirror(s, [0.23, 0.2, 0.2]), [1, 0.85, 1.3]); // 허벅지
-      b.sphere(0.16, mirror(s, [0.25, 0.16, 0.38]), [1.05, 0.95, 1.1]); // 발
-      b.sphere(0.1, mirror(s, [0.25, 0.16, 0.54]), [1.05, 1, 0.3], [0, 0, 0], { slot: 'pad', hit: 'none' }); // 발바닥
-      b.sphere(0.11, [s * 0.5, 1.61, 0.02], [1, 1, 0.32], [0, 0, -s * 0.3], { slot: 'inner', outline: false, hit: 'none' }); // 귓속
-    }
+    sitBody(b); // 몸·앞발·허벅지·뒷발·크림 발바닥
+    for (const s of [-1, 1]) b.sphere(0.11, [s * 0.5, 1.61, 0.02], [1, 1, 0.32], [0, 0, -s * 0.3], { slot: 'inner', outline: false, hit: 'none' }); // 귓속
     b.sphere(0.1, [0, 0.35, -0.38]); // 꼬리
     b.sphere(0.21, [0, 1.04, 0.47], [1.3, 0.9, 0.75], [0, 0, 0], { slot: 'accent' }); // 주둥이
     b.nub(0.055, [0, 1.11], [1.4, 0.9, 0.55], { slot: 'nose' }); // 코
@@ -57,4 +50,72 @@ const cat: Species = {
   },
 };
 
-export const SOFT: Species[] = [bear, cat];
+// 토끼: 긴 귀(말랑), 큰 애니 눈, 코 아래 볼록한 두 볼, 솜뭉치 꼬리, 긴 뒷발에 분홍 젤리
+const bunny: Species = {
+  id: 'bunny', round: false, eyes: 'anime', iris: 'pink', slots: { accent: 0xffffff, pad: 0xffb3cd, inner: 0xffb3cd, nose: 0xff8fb0, thread: 0x4a2a3a },
+  make(b: PlushBuilder, face: number) {
+    b.sphere(0.58, [0, 1.18, 0], [1.12, 0.95, 0.95], [0, 0, 0], { name: 'head' });
+    for (const s of [-1, 1]) {
+      b.sphere(0.15, [s * 0.2, 1.9, -0.06], [0.8, 2.7, 0.55], [-0.12, 0, -s * 0.14], { hit: 'ear' }); // 긴 귀
+      b.sphere(0.1, [s * 0.205, 1.92, 0.0], [0.65, 2.9, 0.25], [-0.12, 0, -s * 0.14], { slot: 'inner', outline: false, hit: 'none' }); // 귓속
+      b.sphere(0.11, [s * 0.1, 1.0, 0.5], [1.1, 0.85, 0.75], [0, 0, 0], { slot: 'accent' }); // 코 아래 두 볼
+    }
+    sitBody(b, { pads: 'beans', footLong: 1.35, toes: true });
+    b.sphere(0.12, [0, 0.32, -0.4], [1, 1, 1], [0, 0, 0], { slot: 'accent' }); // 솜뭉치 꼬리
+    b.nub(0.035, [0, 1.07], [1.3, 0.9, 0.5], { slot: 'nose' });
+    const omega = paintEyes(b, this.eyes, this.iris, face, { x: 0.22, y: 1.2, w: 0.17, h: 0.2 }, { x: 0.36, y: 1.02, w: 0.15, h: 0.09 });
+    stitchMouth(b, omega, 0, 1.01, 0.022, 0.006);
+  },
+};
+
+// 강아지: 처진 큰 귀(갈색), 넓은 흰 주둥이, 큰 검은 코, 위로 말린 꼬리
+const dog: Species = {
+  id: 'dog', round: false, eyes: 'dot', iris: 'brown', slots: { accent: 0xffffff, inner: 0xc98a5a, pad: 0xfff4e2, nose: 0x3a2a30, thread: 0x3a2330 },
+  make(b: PlushBuilder, face: number) {
+    b.sphere(0.6, [0, 1.2, 0], [1.1, 0.95, 0.97], [0, 0, 0], { name: 'head' });
+    for (const s of [-1, 1]) b.sphere(0.24, [s * 0.6, 1.16, 0.14], [0.55, 1.4, 0.38], [0.2, s * 0.35, s * 0.3], { slot: 'inner', hit: 'ear' }); // 처진 귀 (앞으로 조금 나와 보이게)
+    b.sphere(0.24, [0, 1.02, 0.46], [1.25, 0.85, 0.8], [0, 0, 0], { slot: 'accent' }); // 주둥이
+    sitBody(b, { pads: 'cream', toes: true });
+    b.tube([[0, 0.3, -0.34], [0, 0.42, -0.5], [0.02, 0.58, -0.5], [0.04, 0.66, -0.42]], 0.07, (t) => 1 - 0.3 * t, { name: 'tail' }); // 위로 말린 꼬리
+    b.nub(0.07, [0, 1.1], [1.4, 0.95, 0.6], { slot: 'nose' });
+    const omega = paintEyes(b, this.eyes, this.iris, face, { x: 0.22, y: 1.28, w: 0.1, h: 0.125 }, { x: 0.39, y: 1.08, w: 0.15, h: 0.09 });
+    stitchMouth(b, omega, 0, 0.98, 0.034, 0.009);
+  },
+};
+
+// 판다: 흰 몸, 진한 귀·팔·다리, 눈 둘레 처진 무늬(그 위에 눈), 흰 주둥이
+const PANDA_DARK = 0x3d3546;
+const panda: Species = {
+  id: 'panda', round: false, eyes: 'dot', iris: 'brown', slots: { accent: 0xffffff, pad: 0x5a5066, nose: 0x2a2230, thread: 0x2a2230 },
+  make(b: PlushBuilder, face: number) {
+    b.sphere(0.6, [0, 1.2, 0], [1.12, 0.94, 0.96], [0, 0, 0], { name: 'head' });
+    for (const s of [-1, 1] as const) b.sphere(0.17, [s * 0.47, 1.65, -0.08], [1, 1, 0.6], [0, 0, -s * 0.3], { slot: PANDA_DARK, hit: 'ear' }); // 귀
+    b.sphere(0.2, [0, 1.04, 0.47], [1.25, 0.88, 0.75], [0, 0, 0], { slot: 'accent' }); // 주둥이
+    sitBody(b, { armSlot: PANDA_DARK, legSlot: PANDA_DARK, pads: 'cream' });
+    b.sphere(0.09, [0, 0.35, -0.38]); // 꼬리
+    b.nub(0.05, [0, 1.11], [1.4, 0.9, 0.55], { slot: 'nose' });
+    for (const s of [-1, 1]) b.paint('mark-patch', [s * 0.21, 1.24], [0.23, 0.28], 'mark-patch', s < 0); // 눈 둘레 무늬 (눈보다 먼저 — 눈이 위에)
+    const omega = paintEyes(b, this.eyes, this.iris, face, { x: 0.21, y: 1.26, w: 0.09, h: 0.115 }, { x: 0.38, y: 1.05, w: 0.15, h: 0.09 });
+    stitchMouth(b, omega, 0, 1.04, 0.032, 0.009);
+  },
+};
+
+// 햄찌: 옆으로 통통한 머리, 볼주머니(흰 볼록이 둘), 작은 동그란 귀, 큰 애니 눈, 짧은 몸, 분홍 젤리
+const hamster: Species = {
+  id: 'hamster', round: false, eyes: 'anime', iris: 'brown', slots: { pad: 0xffb3cd, inner: 0xffb3cd, nose: 0xff8fb0, thread: 0x4a2a3a }, // 볼주머니는 몸 색을 밝게(accent 기본)
+  make(b: PlushBuilder, face: number) {
+    b.sphere(0.62, [0, 1.12, 0], [1.18, 0.94, 1.0], [0, 0, 0], { name: 'head' });
+    for (const s of [-1, 1]) {
+      b.sphere(0.13, [s * 0.4, 1.64, -0.05], [1, 1, 0.55], [0, 0, -s * 0.35], { hit: 'ear' }); // 동그란 귀
+      b.sphere(0.085, [s * 0.4, 1.64, 0.01], [1, 1, 0.3], [0, 0, -s * 0.35], { slot: 'inner', outline: false, hit: 'none' });
+      b.sphere(0.23, [s * 0.32, 0.97, 0.37], [1, 0.85, 0.8], [0, 0, 0], { slot: 'accent', outline: false }); // 볼주머니 (얼굴에 녹아 볼록, 스티커처럼 보이지 않게 외곽선 없음)
+    }
+    sitBody(b, { width: 1.08, height: 0.9, pads: 'beans', toes: true });
+    b.sphere(0.06, [0, 0.28, -0.4]); // 꼬리
+    b.nub(0.03, [0, 1.06], [1.3, 0.9, 0.5], { slot: 'nose' });
+    const omega = paintEyes(b, this.eyes, this.iris, face, { x: 0.22, y: 1.17, w: 0.16, h: 0.19 }, { x: 0.36, y: 0.99, w: 0.15, h: 0.09 });
+    stitchMouth(b, omega, 0, 1.01, 0.024, 0.006);
+  },
+};
+
+export const SOFT: Species[] = [bunny, bear, cat, dog, panda, hamster];
