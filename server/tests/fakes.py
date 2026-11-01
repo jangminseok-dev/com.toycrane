@@ -143,6 +143,9 @@ class FakeConnections:
     def broadcast_machine(self, machine_id, spots) -> None:
         self.broadcasts.append((None, server_messages.machine(machine_id, spots)))
 
+    def broadcast_figure(self, machine_id, box, nudged) -> None:
+        self.broadcasts.append((None, server_messages.figure(machine_id, box, nudged)))
+
     def broadcast_free(self, machine_id) -> None:
         self.broadcasts.append((None, server_messages.free(machine_id)))
 
@@ -238,6 +241,21 @@ class FakeContents:
 
     async def due_at(self) -> float | None:
         return self.due
+
+
+class FakeFigureBoxes:
+    """피규어 상자 저장소(DO 저장소) 가짜: 기계 id → FigureState."""
+
+    def __init__(self, stored: dict | None = None) -> None:
+        self.stored = dict(stored or {})
+        self.saves = 0
+
+    async def load(self) -> dict:
+        return dict(self.stored)
+
+    async def save(self, states: dict) -> None:
+        self.stored = dict(states)
+        self.saves += 1
 
 
 class FakeStorage:

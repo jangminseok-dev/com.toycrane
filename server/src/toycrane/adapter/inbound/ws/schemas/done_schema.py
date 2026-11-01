@@ -2,7 +2,7 @@
 
 import math
 
-from toycrane.domain.layout import MACHINES
+from toycrane.domain.layout import machine_spot
 from toycrane.domain.report import DollPose, Report
 from toycrane.domain.stock import DOLLS_PER_MACHINE
 
@@ -30,7 +30,7 @@ def parse_pose(row, digits: int) -> DollPose | None:
 
 def parse(data: dict) -> tuple[str, Report] | None:
     m, won, dolls = data.get("m"), data.get("won"), data.get("dolls")
-    if not (isinstance(m, str) and m in MACHINES and isinstance(won, list) and isinstance(dolls, list)):
+    if not (isinstance(m, str) and machine_spot(m) is not None and isinstance(won, list) and isinstance(dolls, list)):
         return None
     if len(won) > DOLLS_PER_MACHINE or len(dolls) > DOLLS_PER_MACHINE:  # 당첨이 많은 건 도메인이 "wins"로 거절해 done_no가 가게 (최종 리뷰 I2)
         return None

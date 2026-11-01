@@ -8,7 +8,7 @@ from toycrane.app.dtos.player_view import PlayerView
 from toycrane.app.dtos.store_snapshot import StoreSnapshot
 from toycrane.domain.crane import DollSpot
 
-PROTOCOL = 9  # 메시지 형식 버전 — 화면(net/protocol.ts PROTOCOL)과 다르면 화면이 새로고침한다
+PROTOCOL = 10  # 메시지 형식 버전 — 화면(net/protocol.ts PROTOCOL)과 다르면 화면이 새로고침한다
 
 
 def _player(p: PlayerView) -> dict:
@@ -32,7 +32,17 @@ def welcome(store_no: int, you: PlayerView, players: list[PlayerView], snapshot:
         "coins": snapshot.coins, "bag": snapshot.bag,
         "machines": {m: _spots(spots) for m, spots in snapshot.machines.items()},
         "plays": snapshot.plays,
+        "figures": {m: _box(b) for m, b in snapshot.figures.items()},
     }
+
+
+def _box(b) -> list[float]:
+    return [round(v, 3) for v in b]
+
+
+def figure(machine_id: str, box, nudged: bool) -> dict:
+    """피규어 기계 상자 자리(판이 끝난 뒤·새 상자·직원이 옮긴 뒤) — 경품은 담지 않는다."""
+    return {"t": "figure", "m": machine_id, "box": _box(box), "nudged": nudged}
 
 
 def join(p: PlayerView) -> dict:

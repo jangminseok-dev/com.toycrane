@@ -7,7 +7,7 @@ from toycrane.app.ports.output.play_lock_port import PlayLockPort
 from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
 from toycrane.app.ports.output.wallet_port import WalletPort
 from toycrane.domain.coins import WALLET_CAP
-from toycrane.domain.layout import MACHINE_SPEC, MACHINES, front_spot
+from toycrane.domain.layout import MACHINE_SPEC, front_spot, machine_spot
 from toycrane.domain.play_rules import PLAY_SECONDS, expired, hold_over
 
 
@@ -21,7 +21,7 @@ class PlayStartInteractor(PlayStartUseCase):
         self._connections = connections
 
     async def start(self, cmd: PlayStartCommand) -> None:
-        machine = MACHINES.get(cmd.machine_id)
+        machine = machine_spot(cmd.machine_id)  # 인형 기계·피규어 기계 같은 잠금 규칙
         me = dict(self._registry.entries()).get(cmd.conn_id)
         if machine is None or me is None:
             return

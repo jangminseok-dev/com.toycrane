@@ -123,3 +123,17 @@ async def test_my_own_expired_lock_is_released_on_the_next_play():
     await it.start(PlayStartCommand("c-1", "A-1", now=40.0))
     assert (None, free("A-1")) in conns.broadcasts
     assert conns.direct[-1] == ("c-1", play_ok("A-1", 2, 20)) and locks.holder("A-1") == ("c-1", 40.0)
+
+
+# 9단계 피규어 뽑기: 판 잠금·코인·거리 규칙은 인형 기계와 같다
+async def test_play_start_accepts_figure_machine():
+    from toycrane.domain.layout import FIGURES
+
+    front = front_spot(FIGURES["F-1"])
+    reg, locks, conns, wallet, it = setup(at=front)
+    await it.start(PlayStartCommand("c-1", "F-1", now=5.0))
+    assert conns.direct == [("c-1", play_ok("F-1", 2, 20))]
+    assert locks.holder("F-1") == ("c-1", 5.0)
+    reg2, locks2, conns2, wallet2, it2 = setup(at=Position(front.x - 3.0, front.z))
+    await it2.start(PlayStartCommand("c-1", "F-1", now=5.0))
+    assert conns2.direct[-1] == ("c-1", play_no("F-1", "far"))

@@ -92,6 +92,9 @@ class WsConnectionsAdapter(ConnectionsPort):
     def broadcast_machine(self, machine_id: str, spots: list[DollSpot]) -> None:
         self._to_all_except(None, server_messages.machine(machine_id, spots))
 
+    def broadcast_figure(self, machine_id: str, box, nudged: bool) -> None:
+        self._to_all_except(None, server_messages.figure(machine_id, box, nudged))
+
     def broadcast_free(self, machine_id: str) -> None:
         self._to_all_except(None, server_messages.free(machine_id))
 

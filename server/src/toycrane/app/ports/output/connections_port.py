@@ -82,6 +82,10 @@ class ConnectionsPort(ABC):
     def broadcast_free(self, machine_id: str) -> None: ...
 
     @abstractmethod
+    def broadcast_figure(self, machine_id: str, box, nudged: bool) -> None:
+        """피규어 기계 상자 자리를 모두에게."""
+
+    @abstractmethod
     def send_bag(self, conn_id: str, total: int) -> None: ...
 
     @abstractmethod

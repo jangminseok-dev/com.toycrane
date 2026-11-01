@@ -30,3 +30,13 @@ async def test_pose_from_someone_else_is_dropped():
     locks.hold("c-1", "A-1", 12.0)
     await it.relay(PoseCommand("c-1", "A-1", C, D, now=12.0))
     assert conns.broadcasts == []
+
+
+# 9단계 피규어 뽑기: 집게와 상자(uid 0) 자리를 인형 기계처럼 중계한다
+async def test_pose_relays_for_figure_machine():
+    reg, conns, locks, it = setup()
+    locks.release("c-1")
+    locks.lock("c-1", "F-1", 10.0)
+    box = ((0, 0.01, 1.03, 0.02, 0.0, 0.0, 0.0, 1.0),)
+    await it.relay(PoseCommand("c-1", "F-1", C, box, now=12.0))
+    assert conns.broadcasts == [("c-1", pose("p1", "F-1", list(C), [list(box[0])]))]

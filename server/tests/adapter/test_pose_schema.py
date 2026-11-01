@@ -8,6 +8,11 @@ from toycrane.adapter.inbound.ws.schemas.pose_schema import parse
 FX = json.loads((Path(__file__).resolve().parents[3] / "shared" / "protocol_fixtures.json").read_text(encoding="utf-8"))
 
 
+def test_pose_takes_a_figure_machine():
+    msg = {"t": "pose", "m": "F-2", "c": [0.1, 1.6, 0.2, 0.4], "d": [[0, 0.01, 1.03, 0.02, 0, 0, 0, 1]]}
+    assert parse(msg)[0] == "F-2"
+
+
 def test_pose_fixture_parses():
     assert parse(FX["client_pose"]) == ("A-3", (0.1, 1.6, 0.2, 0.4), ((7, 0.2, 1.3, 0.1, 0, 0, 0, 1),))
 

@@ -8,12 +8,14 @@ from toycrane.app.dtos.store_snapshot import StoreSnapshot
 from toycrane.app.ports.input.enter_use_case import EnterUseCase
 from toycrane.app.ports.output.bag_port import BagPort
 from toycrane.app.ports.output.connections_port import ConnectionsPort
+from toycrane.app.ports.output.figure_boxes_port import FigureBoxesPort
 from toycrane.app.ports.output.machine_contents_port import MachineContentsPort
 from toycrane.app.ports.output.occupancy_port import OccupancyPort
 from toycrane.app.ports.output.play_lock_port import PlayLockPort
 from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
 from toycrane.app.ports.output.wallet_port import WalletPort
 from toycrane.app.use_cases.connection_cleanup import release_connection
+from toycrane.app.use_cases.figure_boxes import ensure_figures
 from toycrane.app.use_cases.machine_contents import ensure_contents
 from toycrane.app.use_cases.occupancy_note import note_occupancy
 from toycrane.domain.entities.player import Player
@@ -37,6 +39,7 @@ class EnterInteractor(EnterUseCase):
         wallet: WalletPort,
         bag: BagPort,
         contents: MachineContentsPort,
+        figures: FigureBoxesPort,
         locks: PlayLockPort,
         rng: random.Random,
     ) -> None:
@@ -47,6 +50,7 @@ class EnterInteractor(EnterUseCase):
         self._wallet = wallet
         self._bag = bag
         self._contents = contents
+        self._figures = figures
         self._locks = locks
         self._rng = rng
 
@@ -55,6 +59,7 @@ class EnterInteractor(EnterUseCase):
         coins = await _or_zero(self._wallet.balance(cmd.guest_id))
         bag = await _or_zero(self._bag.total(cmd.guest_id))
         stocks = await ensure_contents(self._contents, self._rng)
+        figures = await ensure_figures(self._figures, self._rng)
         for conn_id, old in self._registry.entries():
             if old.guest_id == cmd.guest_id:
                 # 같은 게스트의 이전 접속(네트워크가 바뀜·다른 탭): 하던 기계·줄을 정리하고 내보낸다
@@ -79,6 +84,7 @@ class EnterInteractor(EnterUseCase):
             bag=bag,
             machines={m: s.dolls for m, s in stocks.items()},
             plays=self._locks.plays(),
+            figures={m: s.box for m, s in figures.items()},
         )
         self._connections.send_welcome(cmd.conn_id, cmd.store_no, you, list(result.others), snapshot)
         self._connections.broadcast_join(cmd.conn_id, you)
