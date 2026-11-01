@@ -1,5 +1,10 @@
 import * as THREE from 'three';
+import { DecalGeometry } from 'three/examples/jsm/geometries/DecalGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { CEL, cel } from './cel';
+import { FACE_MAT, cellUV, ensureFaceAtlas, type Cell } from './faceAtlas';
+
+export { CEL };
 
 // 새 인형의 재질과 모양 도구 (인형 리뉴얼 설계 §3, 승인 시제품 docs/reference/prototypes/spike-plush-v13.html).
 // 매끈한 무광 천 + 또렷한 2단 셀 음영 + 가장자리 빛 + 굵은 뒷면 외곽선. 털 표현은 넣지 않는다(사용자 결정).
@@ -10,23 +15,6 @@ export type PartOpts = { slot?: Slot; outline?: boolean; hit?: 'solid' | 'ear' |
 export type Hit = { c: THREE.Vector3; r: number; part?: 'crown' };
 export type BuiltPlush = { group: THREE.Group; surface: THREE.Mesh[]; solid: Hit[]; ears: Hit[]; head: { c: number; r: number } };
 
-// 어두운 단 165 · 밝은 단 255, 그 사이만 선형으로 살짝 번진다
-export const CEL = new THREE.DataTexture(new Uint8Array([...Array(8).fill(165), ...Array(8).fill(255)]), 16, 1, THREE.RedFormat);
-CEL.minFilter = CEL.magFilter = THREE.LinearFilter;
-CEL.needsUpdate = true;
-
-// 가장자리를 살짝 밝혀 몸통이 둥글게 떠 보이게
-const RIM = `
-  float rimF = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.0);
-  outgoingLight += diffuseColor.rgb * 0.22 * smoothstep(0.35, 0.5, rimF);
-  #include <opaque_fragment>`;
-function cel(params: THREE.MeshToonMaterialParameters): THREE.MeshToonMaterial {
-  const m = new THREE.MeshToonMaterial({ ...params, gradientMap: CEL, vertexColors: true }); // 꼭짓점 색 = 미리 구운 주름 그늘(무더기에서는 그늘 × 색)
-  m.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', RIM); };
-  m.customProgramCacheKey = () => 'plush-cel';
-  m.userData.plush = true;
-  return m;
-}
 const byColor = new Map<number, THREE.MeshToonMaterial>();
 export function plushMat(color: number): THREE.MeshToonMaterial {
   let m = byColor.get(color);
@@ -49,9 +37,13 @@ const AO_STRENGTH = 0.25; // 시제품 v13 카툰 값 (셀 음영이 이미 입�
 
 type Occ = { c: THREE.Vector3; r: number };
 type Part = { geo: THREE.BufferGeometry; slot: Slot; outline: boolean; hit: 'solid' | 'ear' | 'none'; name?: string; balls: Hit[]; occ: Occ[] };
+type Paint = { cell: Cell; at: [number, number]; size: [number, number]; name: string; flip: boolean };
+type Stitch = { points: [number, number][]; r: number; name: string };
 
 export class PlushBuilder {
   protected parts: Part[] = [];
+  protected paints: Paint[] = [];
+  protected stitches: Stitch[] = [];
   protected seg: { sphere: [number, number]; tube: [number, number]; lathe: number; curve: number };
 
   constructor(readonly o: { lite: boolean }) {
@@ -119,6 +111,18 @@ export class PlushBuilder {
     return this.add(g, [{ c: V(at), r: r * 0.75 }], [{ c: V(at), r: r * 0.75 }], o, 'ear');
   }
 
+  // 그린 얼굴 조각: 앞에서 본 (x, y) 자리의 겉면에 w×h로 투사한다(얼굴 한 장 그림의 cell 칸). flip = 좌우 뒤집기(왼눈)
+  paint(cell: Cell, at: [number, number], size: [number, number], name: string, flip = false): this {
+    this.paints.push({ cell, at, size, name, flip });
+    return this;
+  }
+
+  // 실로 수놓은 선: 앞에서 본 점들을 겉면에 붙인 가는 관. lite에서는 입('face-mouth')만 남긴다
+  stitch(points: [number, number][], r = 0.009, name = 'stitch'): this {
+    if (!this.o.lite || name === 'face-mouth') this.stitches.push({ points, r, name });
+    return this;
+  }
+
   build(colors: (slot: Slot) => THREE.Material): BuiltPlush {
     const occ = this.parts.flatMap((p) => p.occ);
     const bySlot = new Map<Slot, THREE.BufferGeometry[]>();
@@ -146,6 +150,9 @@ export class PlushBuilder {
       marker.userData.ear = { c: b.c.clone(), r: b.r, out: new THREE.Vector3(Math.sign(b.c.x) || 1, 0.5, 0).normalize() };
       group.add(marker);
     }
+    group.updateMatrixWorld(true);
+    addPaints(group, surface, this.paints);
+    addStitches(group, surface, this.stitches, colors('thread'), this.o.lite);
     const head = this.parts.find((p) => p.name === 'head')?.balls[0];
     return {
       group, surface,
@@ -154,6 +161,54 @@ export class PlushBuilder {
       head: head ? { c: head.c.y, r: head.r / 0.95 } : { c: 0, r: 0 },
     };
   }
+}
+
+const ray = new THREE.Raycaster(), FRONT = new THREE.Vector3(0, 0, -1), UP = new THREE.Vector3(0, 1, 0);
+// 앞에서 본 (x, y) 자리의 겉면 점과 바깥 법선
+function surfaceAt(surface: THREE.Mesh[], x: number, y: number): { p: THREE.Vector3; n: THREE.Vector3 } {
+  ray.set(new THREE.Vector3(x, y, 6), FRONT);
+  const hit = ray.intersectObjects(surface, false)[0];
+  if (!hit?.face) throw new Error(`겉면 없음 ${x},${y}`);
+  return { p: hit.point.clone(), n: hit.face.normal.clone().transformDirection(hit.object.matrixWorld) };
+}
+
+// 얼굴 조각을 겉면에 투사해 한 메시(FACE_MAT)로, 조각마다 이름 단 표지(자리·크기)를 남긴다 — 표정 시험이 읽는다
+function addPaints(group: THREE.Group, surface: THREE.Mesh[], paints: Paint[]): void {
+  if (!paints.length) return;
+  ensureFaceAtlas();
+  const geos: THREE.BufferGeometry[] = [];
+  for (const pt of paints) {
+    const { p, n } = surfaceAt(surface, pt.at[0], pt.at[1]);
+    const rot = new THREE.Euler().setFromRotationMatrix(new THREE.Matrix4().lookAt(p.clone().add(n), p, UP));
+    const [u0, v0, u1, v1] = cellUV(pt.cell);
+    for (const m of surface) {
+      const d = new DecalGeometry(m, p, rot, new THREE.Vector3(pt.size[0], pt.size[1], 0.25));
+      const uv = d.getAttribute('uv');
+      if (!uv || uv.count === 0) continue;
+      for (let i = 0; i < uv.count; i++) { const u = uv.getX(i); uv.setXY(i, pt.flip ? u1 - u * (u1 - u0) : u0 + u * (u1 - u0), v0 + uv.getY(i) * (v1 - v0)); }
+      geos.push(d);
+    }
+    const marker = new THREE.Object3D(); marker.name = pt.name; marker.position.copy(p); marker.scale.set(pt.size[0], pt.size[1], 1);
+    group.add(marker);
+  }
+  const face = new THREE.Mesh(mergeGeometries(geos, false)!, FACE_MAT);
+  face.name = 'face'; face.renderOrder = 1;
+  group.add(face);
+}
+
+function addStitches(group: THREE.Group, surface: THREE.Mesh[], stitches: Stitch[], mat: THREE.Material, lite: boolean): void {
+  if (!stitches.length) return;
+  const geos: THREE.BufferGeometry[] = [];
+  for (const st of stitches) {
+    const pts = st.points.map(([x, y]) => { const { p, n } = surfaceAt(surface, x, y); return p.addScaledVector(n, st.r * 0.4); });
+    const g = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), lite ? 8 : 24, st.r, lite ? 5 : 8, false);
+    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(g.getAttribute('position').count * 3).fill(1), 3));
+    geos.push(g);
+    const marker = new THREE.Object3D(); marker.name = st.name; marker.position.copy(pts[0]); group.add(marker);
+  }
+  const m = new THREE.Mesh(mergeGeometries(geos, false)!, mat);
+  m.name = 'stitch'; m.castShadow = false;
+  group.add(m);
 }
 
 // 뒷면 외곽선 껍질: 법선 쪽으로 w만큼 부풀린 위치만 가진 도형
