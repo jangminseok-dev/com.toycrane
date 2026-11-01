@@ -7,9 +7,11 @@ import { FigureWorld } from '../physics/figureWorld';
 import type { Rapier } from '../physics/rapier';
 import { PoseReceiver, PoseSender } from '../physics/relay';
 import { FIGURE_CONTROLS, buildFigureControls, type FigureControls } from '../world/figureControls';
+import { UI } from '../world/copy';
 import { playReveal } from '../world/figureReveal';
 import type { FigureZone } from '../world/figureZone';
-import { SideBlend } from './figureCamera';
+import type { ButtonPlay } from './buttonPlay';
+import { SideBlend, figureCameraPose } from './figureCamera';
 import { FigureSession } from './figureSession';
 import type { Vec2 } from './movement';
 
@@ -26,9 +28,10 @@ export type FigurePlayDeps = {
   onOverdue(): void; // 내린 뒤 결과를 너무 오래 못 받음
 };
 
-export class FigurePlay {
+export class FigurePlay implements ButtonPlay {
   session: FigureSession | null = null; // 버튼 단계
   side = new SideBlend(); // 0 정면 ~ 1 옆 대각선
+  readonly hint = UI.figureHint;
   private playId: string | null = null; // 내 판(버튼부터 결과까지)
   private saved = new Map<string, BoxWire>(); // 서버가 알려 준 상자 자리(welcome·figure) — 판의 시작점, 판이 결과 없이 끝나면 되돌린다
   private controls: FigureControls | null = null;
@@ -139,6 +142,14 @@ export class FigurePlay {
     }
     this.reveals = this.reveals.filter((r) => r.update(dt));
   }
+
+  handles(id: string): boolean { return FIGURE_SPOTS.has(id); }
+
+  readonly prizeWord = '';
+
+  finished(): Promise<void> { return Promise.resolve(); }
+
+  cameraPose(id: string, now: number, aspect: number) { return figureCameraPose(FIGURE_SPOTS.get(id)!, this.side.value(now), aspect); }
 
   cycling(): boolean { return this.runner !== null; }
 

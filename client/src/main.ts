@@ -7,6 +7,8 @@ import { aimHeight, aimVisible } from './game/aim';
 import { blocksView, machineCameraPose } from './game/machineCamera';
 import { figureCameraPose } from './game/figureCamera';
 import { FIGURE_SPOTS, FigurePlay } from './game/figurePlay';
+import type { ButtonPlay } from './game/buttonPlay';
+import { RingPlay } from './game/ringPlay';
 import { MachineBusy } from './game/machineBusy';
 import { PlaySession } from './game/playSession';
 import { HoldLook } from './game/holdLook';
@@ -44,8 +46,10 @@ import { makeAvatar, type Avatar } from './world/avatar';
 import { DOLLS, GOLD, SETS, dollName } from './data/catalog';
 import { COUNTERS, MACHINES, MACHINE_SPEC, frontSpot, nearestMachine } from './data/storeLayout';
 import { FIGURES, isFigure, nearestFigure } from './data/figures';
+import { RINGS, nearestRing } from './data/rings';
 import { buildBigZone, type LiveDolls } from './world/bigZone';
 import { buildFigureZone } from './world/figureZone';
+import { buildRingZone } from './world/ringZone';
 import { figureName, makeFigure } from './world/figureModel';
 import { PLAIN, makeDoll } from './world/dolls';
 import { grounded } from './world/dollPose';
@@ -93,7 +97,8 @@ Object.assign(window, { __toycrane: {
     return { x: ((p.x + 1) / 2) * innerWidth, y: ((1 - p.y) / 2) * innerHeight };
   },
   // 피규어 기계(9단계): 누를 버튼 ①②의 화면 자리, 이 화면이 아는 상자 자리, 지금 옆 시점 정도(0 정면 ~ 1 옆)
-  buttonAt: (b: 1 | 2) => figurePlay.buttonAt(b, camera),
+  buttonAt: (b: 1 | 2) => activePlay()?.buttonAt(b, camera) ?? null,
+  ringBoard: (id: string) => ringZone.boardOf(id),
   figureBox: (id: string) => figureZone.boxOf(id),
   figureSide: () => figurePlay.side.value(clock()),
 } });
@@ -108,8 +113,9 @@ let sampler = new InputSampler();
 
 const bigZone = buildBigZone(scene);
 const figureZone = buildFigureZone(scene); // 동쪽 피규어 기계 14대(9단계)
+const ringZone = buildRingZone(scene); // 북쪽 고리 뽑기 10대(설계 2026-11-02)
 // 탑·기계 행·교환소가 내 캐릭터를 가리면 그것만 흐리게(머리·몸통 중 하나라도 가리면)
-const fader = new OcclusionFader([tower, ...bigZone.occluders, ...figureZone.occluders, ...buildCoinCounters(scene), ...buildDecor(scene)]);
+const fader = new OcclusionFader([tower, ...bigZone.occluders, ...figureZone.occluders, ...ringZone.occluders, ...buildCoinCounters(scene), ...buildDecor(scene)]);
 
 let me: LocalPlayer | null = null;
 let wallet = { coins: 0, bag: 0 }; // 코인·가방 수 (서버가 알려 준 값)
@@ -127,7 +133,7 @@ let holdFrom = 0; // 서버가 내 자리를 잡아 둔 시각(내 결과를 받
 const busy = new MachineBusy(MACHINE_SPEC.play_seconds, MACHINE_SPEC.hold_seconds, CLAW.cycle_seconds + CLAW.settle_seconds);
 let dropped: PlaySession | null = null; // 내리고 결과를 기다리는 판 (8초 넘게 못 받으면 포기)
 const clock = () => performance.now() / 1000;
-const spotOf = new Map<string, { x: number; z: number; ry: number }>([...MACHINES, ...FIGURES].map((m) => [m.id, m])); // 인형·피규어 기계
+const spotOf = new Map<string, { x: number; z: number; ry: number }>([...MACHINES, ...FIGURES, ...RINGS].map((m) => [m.id, m])); // 인형·피규어·고리 기계
 // 피규어 한 판(9단계): 버튼·물리·중계·상자 까기는 FigurePlay가 맡고, 판 사이 흐름(awaiting·seated·이어 하기)은 인형 판과 함께 쓴다
 const figurePlay = new FigurePlay(scene, figureZone, {
   send: (msg) => socket?.send(msg),
@@ -135,6 +141,16 @@ const figurePlay = new FigurePlay(scene, figureZone, {
   onDrop: (id) => { awaiting = id; hidePlayControls(); },
   onOverdue: () => { endPlay(); toast('결과를 받지 못했어요'); },
 });
+// 고리 뽑기 한 판(설계 2026-11-02 §3): 결과는 서버가 정하고 ring 메시지로 모두가 같은 찌르기를 그린다
+const ringPlay = new RingPlay(ringZone, {
+  send: (msg) => socket?.send(msg),
+  onDrop: (id) => { awaiting = id; hidePlayControls(); },
+  onOverdue: () => { endPlay(); toast('결과를 받지 못했어요'); },
+});
+// 버튼으로 하는 기계들 — 판 흐름(시작·누르기·결과 기다리기·그만하기·시점)은 같은 길로
+const buttonPlays: ButtonPlay[] = [figurePlay, ringPlay];
+const playFor = (id: string) => buttonPlays.find((p) => p.handles(id)) ?? null;
+const activePlay = () => buttonPlays.find((p) => p.session) ?? null;
 const camLook = new THREE.Vector3();
 // 연출: 기계마다 돌고 있는 코인·조이스틱 모션, 결과 연출 중인 기계.
 // 결과마다 표(ticket)를 두고, 바로 뒤에 오는 새 배치(machine)는 그 결과 연출이 끝난 뒤에 넣는다
@@ -243,7 +259,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       for (const p of m.players) { remotes.add(p, now); if (p.beg != null) remotes.setBegging(p.id, p.beg, tw); }
       scheduleRapier(); // 물리 모듈은 입장 뒤 한가할 때 받는다 (물리 뽑기 설계 §4.1)
       for (const [id, spots] of Object.entries(m.machines)) bigZone.setContents(id, spots.map(grounded));
-      figurePlay.clearWatches(); figurePlay.setBoxes(m.figures);
+      figurePlay.clearWatches(); figurePlay.setBoxes(m.figures); ringPlay.setBoards(m.rings);
       wallet = { coins: m.coins, bag: m.bag };
       setHud(wallet.coins, wallet.bag);
       myId = m.you.id;
@@ -267,7 +283,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
         if (rig && busy.who(m.m, clock()) === m.id) playing.set(m.m, startPlaying(rig, tw, spotOf.get(m.m)!.ry + Math.PI));
       });
       break;
-    case 'play_ok': if (isFigure(m.m)) startFigurePlay(m.m, m.limit, m.coins); else startPlay(m.m, m.limit, m.coins); break;
+    case 'play_ok': { const bp = playFor(m.m); if (bp) startButtonPlay(bp, m.m, m.limit, m.coins); else startPlay(m.m, m.limit, m.coins); break; }
     case 'done_no': onDoneNo(m.m); break;
     case 'pose': watches.get(m.m)?.receiver.push(m, now / 1000); figurePlay.onPose(m, now / 1000); break;
     case 'play_no':
@@ -278,15 +294,15 @@ function onMessage(m: ServerMsg, guest: Guest) {
       busy.clear(m.m);
       stopWatch(m.m); figurePlay.stopWatch(m.m);
       void playing.get(m.m)?.stop(); playing.delete(m.m);
-      if (session?.machineId === m.m || figurePlay.session?.machineId === m.m || awaiting === m.m) { endPlay(); toast('시간이 지나 기계가 풀렸어요'); }
+      if (session?.machineId === m.m || activePlay()?.session?.machineId === m.m || awaiting === m.m) { endPlay(); toast('시간이 지나 기계가 풀렸어요'); }
       else if (seated === m.m) { endPlay(); toast('자리를 비운 사이 다른 사람이 시작했어요'); }
       break;
     case 'result': {
       busy.hold(m.m, m.id, now / 1000); // 서버가 그 사람이 이어서 할 수 있게 자리를 잡아 둔다
-      if (m.id === myId) { holdFrom = now / 1000; figurePlay.resulted(m.m); } // 보고한 때 = 서버가 자리를 잡아 둔 때
+      if (m.id === myId) { holdFrom = now / 1000; playFor(m.m)?.resulted(m.m); } // 보고한 때 = 서버가 자리를 잡아 둔 때
       const t: Ticket = { done: false, gen: genOf(m.m) };
       tickets.set(m.m, t);
-      after(m.m, () => (isFigure(m.m) ? showFigureResult(m, t) : showResult(m, t)));
+      after(m.m, () => (isFigure(m.m) ? showFigureResult(m, t) : playFor(m.m) ? showPrizeResult(m, t) : showResult(m, t)));
       break;
     }
     case 'machine': {
@@ -301,6 +317,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       if (m.nudged && f && me && Math.hypot(me.pos.x - frontSpot(f).x, me.pos.z - frontSpot(f).z) < 6) toast(UI.figureNudged);
       break;
     }
+    case 'ring': ringPlay.onRing(m); break;
     case 'bag': wallet.bag = m.n; setHud(wallet.coins, wallet.bag); break;
     case 'spawn': announceSpawn(m.m, m.k, m.rv); break;
     case 'stock':
@@ -402,7 +419,7 @@ function startPlay(machineId: string, limit: number, coins: number) {
 }
 
 // 피규어 한 판(9단계 설계 §3.3): 조작대 버튼 ①② + 정면 시점. 판 사이 흐름(이어 하기·그만하기)은 인형 판과 같다
-function startFigurePlay(machineId: string, limit: number, coins: number) {
+function startButtonPlay(play: ButtonPlay, machineId: string, limit: number, coins: number) {
   wallet.coins = coins;
   setHud(wallet.coins, wallet.bag);
   busy.set(machineId, myId, clock());
@@ -410,8 +427,8 @@ function startFigurePlay(machineId: string, limit: number, coins: number) {
   seated = null; nextRunAt = null; hideSeatControls();
   if (run.current() >= 2) showRunPause(quitRun);
   setAction(null); setInfo(null);
-  showPlayControls(); showHint(UI.figureHint);
-  figurePlay.start(machineId, limit, clock());
+  showPlayControls(); showHint(play.hint);
+  play.start(machineId, limit, clock());
   if (myAvatar) {
     myAvatar.root.visible = false; // 정면 카메라를 가리지 않게 (다른 사람 화면에는 보임)
     playing.set(machineId, startPlaying(myAvatar.rig, tw, spotOf.get(machineId)!.ry + Math.PI, sfx.coin));
@@ -456,10 +473,11 @@ function runCycleFrame(dt: number) {
   cycle.runner = null; cycle.reported = true;
 }
 function onDoneNo(machineId: string) {
-  if (isFigure(machineId)) { // 피규어: 상자는 판 시작 전 그대로
+  const bp = playFor(machineId);
+  if (bp) { // 버튼 기계(피규어·고리·미는 뽑기): 기계 상태는 판 시작 전 그대로
     if (awaiting !== machineId) return;
     toast(UI.saveFailed);
-    figurePlay.refused(machineId);
+    bp.refused(machineId);
     sitDown(machineId, false);
     return;
   }
@@ -539,8 +557,8 @@ function sendDrop() {
 
 function endPlay() {
   const id = session?.machineId ?? awaiting ?? seated;
-  figurePlay.end();
-  if (id && !isFigure(id)) {
+  for (const p of buttonPlays) p.end();
+  if (id && !playFor(id)) {
     bigZone.clawOf(id).position.copy(CLAW_REST); bigZone.showAim(id, false);
     if (!showing.has(id)) bigZone.releaseClaw(id);
   }
@@ -570,17 +588,18 @@ function letGoOfLever() { leverDrag = null; leverInput = { x: 0, z: 0 }; control
 // 피규어 기계: 버튼 ①②는 누르는 동안 움직이고 떼면 멈춘다(②는 떼면 내린다)
 let figureHold: { id: number; b: 1 | 2 } | null = null;
 function letGoOfFigure() {
-  if (figureHold) figurePlay.release(figureHold.b, clock());
+  if (figureHold) activePlay()?.release(figureHold.b, clock());
   figureHold = null;
 }
 renderer.domElement.addEventListener('pointerdown', (e) => {
   ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   raycaster.setFromCamera(ndc, camera);
-  if (figurePlay.session) {
-    const b = figurePlay.pick(raycaster);
+  const bp = activePlay();
+  if (bp) {
+    const b = bp.pick(raycaster);
     if (!b || figureHold) return;
     e.preventDefault();
-    if (figurePlay.press(b)) { figureHold = { id: e.pointerId, b }; navigator.vibrate?.(15); }
+    if (bp.press(b)) { figureHold = { id: e.pointerId, b }; navigator.vibrate?.(15); }
     return;
   }
   if (!session || !controls) return;
@@ -638,7 +657,7 @@ function standUp() {
 // 이어 하는 판 도중의 그만하기: 이어 하기를 멈추고 바로 일어난다(그 판의 코인은 넣은 것). 집게가 도는 중이면 그 판 결과까지만 보고 묻는다
 function quitRun() {
   run.stop();
-  if (session || figurePlay.session) standUp(); // 피규어 버튼 단계도 (최종 리뷰 I2)
+  if (session || activePlay()) standUp(); // 버튼 기계의 버튼 단계도 (최종 리뷰 I2)
   else hideSeatControls();
 }
 
@@ -745,6 +764,38 @@ async function showFigureResult(m: Result, t: Ticket) {
   if (mine) showingMe = false;
 }
 
+// 보이는 경품 기계(고리·미는 뽑기, 설계 2026-11-02)의 결과: 결과 그리기(찌르기·밀기)가 끝난 뒤 — 내 판은 당첨 카드, 남의 판은 그 사람이 꺼내 보여 주기.
+// 희귀·황금이면 탑 알림
+async function showPrizeResult(m: Result, t: Ticket) {
+  const bp = playFor(m.m)!, mine = m.id === myId;
+  showing.add(m.m);
+  if (mine) showingMe = true;
+  await playing.get(m.m)?.stop(); playing.delete(m.m);
+  await bp.finished(m.m);
+  const spot = spotOf.get(m.m)!, front = frontSpot(spot), first = m.won[0];
+  const tier = first?.[2] === GOLD.id ? 'gold' : first?.[2] ? 'rare' : '';
+  const name = first ? `${dollName(first[0], first[1], first[2])} ${bp.prizeWord}` : '';
+  const near = mine || (!!me && Math.hypot(me.pos.x - front.x, me.pos.z - front.z) < 6);
+  const announce = () => {
+    if (!tier) { if (near) sfx.win(); return; }
+    const nick = mine ? myNick : remotes.nickOf(m.id);
+    tower.showMessage(tier === 'gold' ? '★★ 매우 희귀! ★★' : '★ 희귀 뽑기! ★', `${nick} 님이 ${name}${eulReul(name)} 뽑았어요`, true, tier === 'gold' ? 8 : 6);
+    sfx.rare();
+  };
+  if (mine) {
+    if (first) { announce(); showWinCard(name, bp.prizeWord, tier, wallet.bag); if (m.won.length > 1) toast(UI.wonMore(m.won.length - 1)); } else sfx.fail();
+    if (awaiting === m.m) sitDown(m.m, !!first);
+  } else {
+    const rig = remotes.rigOf(m.id), doll = rig && first ? makeDoll(first[0], { ...PLAIN, color: first[1], rare: first[2] }) : null;
+    const fx = { bonk: () => { if (near) sfx.bonk(); }, claw: async () => {}, afterClaw: () => {}, pop: () => { if (near) sfx.pop(); }, win: () => { announce(); return tier ? 1.7 : 1.0; }, fail: () => {} };
+    if (rig) await playResult(rig, tw, first ? 'win' : 'miss', doll, fx, spot.ry + Math.PI);
+    else if (first) announce();
+  }
+  showing.delete(m.m);
+  t.done = true;
+  if (mine) showingMe = false;
+}
+
 // 새 배치(machine)를 넣는다 — 그 판(gen)의 live 모드는 여기서 끝나고 무더기로 돌아간다. 이미 다음 판이 시작됐으면 그 판의 구경·물리는 둔다
 function applyMachine(id: string, dolls: DollSpot[], gen: number) {
   bigZone.setContents(id, dolls.map(grounded));
@@ -790,10 +841,9 @@ const poseSender = new PoseSender((msg) => socket?.send(msg));
 // 기계 앞자리 가까이면 그 기계: 비었으면 "🪙1 넣고 하기", 남이 하면 구경 중
 function showMachineUi(): boolean {
   if (!me) return false;
-  // 인형 기계·피규어 기계 중 앞자리가 더 가까운 쪽
-  const pos = me.pos, dm = nearestMachine(pos), df = nearestFigure(pos);
-  const gap = (m: { x: number; z: number; ry: number }) => { const f = frontSpot(m); return Math.hypot(pos.x - f.x, pos.z - f.z); };
-  const near = dm && df ? (gap(dm) <= gap(df) ? dm : df) : dm ?? df;
+  // 인형·피규어·고리 기계 중 앞자리가 가장 가까운 쪽
+  const pos = me.pos, gap = (m: { x: number; z: number; ry: number }) => { const f = frontSpot(m); return Math.hypot(pos.x - f.x, pos.z - f.z); };
+  const near = [nearestMachine(pos), nearestFigure(pos), nearestRing(pos)].filter((m) => m !== null).sort((a, b) => gap(a) - gap(b))[0];
   if (!near) return false;
   const who = busy.who(near.id, clock());
   if (who && who !== myId) { setAction(null); setInfo(UI.watching); return true; }
@@ -915,9 +965,9 @@ function frame(now: number) {
     const input = Math.hypot(stick.x, stick.z) > 0 ? stick : readKeyboard();
     if (dropped && awaiting && dropped.resultOverdue(now / 1000)) { endPlay(); toast('결과를 받지 못했어요'); }
     runCycleFrame(dt); // 내린 뒤 집게 한 바퀴(물리)
-    figurePlay.frame(dt, now / 1000); // 피규어: 버튼 단계·집게 한 바퀴·구경·상자 까기
+    for (const p of buttonPlays) p.frame(dt, now / 1000); // 버튼 기계: 버튼 단계·결과 그리기·구경
     settleNearby(); // 가까운 기계의 안 앉은 인형 앉히기
-    const atMachine = session?.machineId ?? figurePlay.session?.machineId ?? awaiting ?? seated; // 기계 카메라를 쓰는 동안
+    const atMachine = session?.machineId ?? activePlay()?.session?.machineId ?? awaiting ?? seated; // 기계 카메라를 쓰는 동안
     joystick.setEnabled(!atMachine); // 기계 앞에서는 기계 버튼으로 — 걷기 조이스틱은 숨긴다
     bigZone.hideRowsBehind(atMachine ?? null); // 기계 앞 화면에선 내 기계 뒤 줄을 숨긴다 (휴대폰 그리기 호출, 큰 홀 설계 §6)
     bigZone.setFocus(me.pos.x, me.pos.z); // 먼 묶음은 인형 외곽선을 끈다 (큰 홀 설계 §6)
@@ -943,11 +993,12 @@ function frame(now: number) {
       }
       me.autoTarget = frontSpot(spotOf.get(playId)!); // 기계 앞자리 가운데로 (카메라 구도가 늘 같게)
       me.drive({ x: 0, z: 0 }, dt);
-    } else if (figurePlay.session) {
-      setTimer(figurePlay.session.remaining(now / 1000), run.label());
-      me.autoTarget = frontSpot(spotOf.get(figurePlay.session.machineId)!);
+    } else if (activePlay()?.session) {
+      const bs = activePlay()!.session!;
+      setTimer(bs.remaining(now / 1000), run.label());
+      me.autoTarget = frontSpot(spotOf.get(bs.machineId)!);
       me.drive({ x: 0, z: 0 }, dt);
-    } else if (showingMe || cycle?.runner || figurePlay.cycling()) {
+    } else if (showingMe || cycle?.runner || buttonPlays.some((p) => p.cycling())) {
       me.drive({ x: 0, z: 0 }, dt); // 내 결과 모션·집게 한 바퀴 동안은 제자리
     } else if (seated) {
       me.autoTarget = frontSpot(spotOf.get(seated)!); // 판 사이에도 기계 앞자리에 그대로
@@ -973,8 +1024,8 @@ function frame(now: number) {
     if (socket && sampler.shouldSend(me.dir, now)) socket.send(encodeMove(me.pos, me.dir));
     if (atMachine) {
       // 기계 정면에서 유리 칸을 본다 (0.6초쯤에 걸쳐 부드럽게). 피규어 기계는 ①을 떼면 옆 대각선, 판이 끝나면 정면
-      const f = FIGURE_SPOTS.get(atMachine);
-      const pose = f ? figureCameraPose(f, figurePlay.side.value(now / 1000), camera.aspect) : machineCameraPose(spotOf.get(atMachine)!);
+      const bp = playFor(atMachine);
+      const pose = bp ? bp.cameraPose(atMachine, now / 1000, camera.aspect) : machineCameraPose(spotOf.get(atMachine)!);
       camera.position.lerp(pose.pos, Math.min(1, dt * 5));
       camLook.lerp(pose.look, Math.min(1, dt * 5));
       camera.lookAt(camLook);

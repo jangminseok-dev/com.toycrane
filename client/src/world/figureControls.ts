@@ -14,8 +14,14 @@ export const BUTTON_SCALE: [number, number, number] = [1.5, 0.62, 1.5]; // 인�
 export const LABEL = new THREE.PlaneGeometry(0.08, 0.08); // 윗면 지름(0.11)의 73% — 기계 그림의 고정 버튼(figureZone)도 같은 글씨
 export const LABEL_Y = 0.057; // 돔 기준 글씨 높이(돔 크기 BUTTON_SCALE를 따라간다)
 const LOOK = [{ arrow: 'right', ink: '#8a0f2a' }, { arrow: 'up', ink: '#123a8a' }] as const;
-let labelMats: THREE.Material[] | null = null; // 판마다 새로 그리지 않게 한 번만
-export const labelMat = (i: number) => (labelMats ??= LOOK.map((l, k) => new THREE.MeshBasicMaterial({ map: buttonLabelTex(FIGURE_BUTTONS[k], l.arrow, l.ink), transparent: true, depthWrite: false })))[i];
+export type ButtonLabels = readonly [string, string]; // ①② 윗면 글씨(피규어 '오른쪽'·'안쪽', 고리 '오른쪽'·'위로') — 화살표는 ▶·▲
+const labelMats = new Map<string, THREE.Material>(); // 판마다 새로 그리지 않게 글씨마다 한 번만
+export const labelMat = (i: number, labels: ButtonLabels = FIGURE_BUTTONS): THREE.Material => {
+  const key = `${i}|${labels[i]}`;
+  let m = labelMats.get(key);
+  if (!m) labelMats.set(key, (m = new THREE.MeshBasicMaterial({ map: buttonLabelTex(labels[i], LOOK[i].arrow, LOOK[i].ink), transparent: true, depthWrite: false })));
+  return m;
+};
 const PRESS_DEPTH = 0.012, GLOW = 0.75;
 
 export type FigureControls = {
@@ -28,15 +34,15 @@ export type FigureControls = {
   dispose(): void;
 };
 
-export function buildFigureControls(anchor: THREE.Object3D): FigureControls {
+export function buildFigureControls(anchor: THREE.Object3D, labels: ButtonLabels = FIGURE_BUTTONS): FigureControls {
   const group = new THREE.Group(); group.name = 'figure-controls';
   const hitMat = new THREE.MeshBasicMaterial({ visible: false });
   const buttons = ([[FIGURE_CONTROLS.one, 0xff3b5c], [FIGURE_CONTROLS.two, 0x3b8bff]] as const).map(([[x, y, z], c], i) => {
     const mat = toonWith({ color: c, emissive: c, emissiveIntensity: 0 });
     const dome = part(DOME, mat, [x, y, z], BUTTON_SCALE, [0, 0, 0], 1.04);
     // 윗면 글씨: 버튼 자식이라 함께 눌린다. 글씨 위(+y)가 기계 안쪽(−z)을 본다
-    const label = new THREE.Mesh(LABEL, labelMat(i));
-    label.name = `figure-label-${i + 1}`; label.userData.text = FIGURE_BUTTONS[i]; label.rotation.x = -Math.PI / 2; label.position.y = LABEL_Y;
+    const label = new THREE.Mesh(LABEL, labelMat(i, labels));
+    label.name = `figure-label-${i + 1}`; label.userData.text = labels[i]; label.rotation.x = -Math.PI / 2; label.position.y = LABEL_Y;
     dome.add(label);
     const hit = new THREE.Mesh(HIT, hitMat); hit.position.set(x, y + 0.04, z); hit.userData.button = (i + 1) as 1 | 2;
     group.add(dome, hit);
