@@ -2,7 +2,10 @@ import { beforeAll, expect, test } from 'vitest';
 import { MACHINE_SPEC } from '../data/storeLayout';
 import type { DollSpot } from '../net/protocol';
 import { stubCanvas } from '../test/canvasStub';
-import { DOLL_FLOOR } from '../world/machine';
+import { DOLLS } from '../data/catalog';
+import { dollHits } from '../world/dolls';
+import { DOLL_FLOOR, DOLL_SCALE } from '../world/machine';
+import { dollColliders } from './dollBody';
 import { MachineWorld, type Rapier } from './machineWorld';
 import { MACHINES } from '../data/storeLayout';
 import { loadRapier } from './rapier';
@@ -123,7 +126,8 @@ test('refilled dolls never end up lying across the hole', () => {
 test('a pushed doll stops within 20cm and a second and a half', () => {
   const cases: [string, 'n' | 'c', [number, number, number, number]][] = [['octopus', 'c', [0, 0, 0, 1]], ['bear', 'n', [Math.SQRT1_2, 0, 0, Math.SQRT1_2]], ['whale', 'n', [0, 0, 0, 1]]];
   for (const [kind, body, q] of cases) {
-    const world = new MachineWorld(R, [[kind, -0.2, DOLL_FLOOR + (q[0] ? 0.11 : 0), 0, q[0], q[1], q[2], q[3], 0, body, 0, '', 1]]);
+    // 바닥 가운데(구멍·벽에서 먼 곳): 옛 자리(−0.2, 0)는 엎드린 새 곰(머리가 큼)의 머리가 구멍 턱에 얹혀 구멍으로 굴러 빠졌다
+    const world = new MachineWorld(R, [[kind, 0.1, DOLL_FLOOR + (q[0] ? 0.11 : 0), -0.1, q[0], q[1], q[2], q[3], 0, body, 0, '', 1]]);
     world.settle(2);
     const b = world.bodyOf(1)!, p0 = b.translation();
     b.setLinvel({ x: 0.8, y: 0, z: 0 }, true);
@@ -134,4 +138,18 @@ test('a pushed doll stops within 20cm and a second and a half', () => {
     expect(t, kind).toBeLessThan(1.5);
     world.dispose();
   }
+});
+
+// 인형 리뉴얼 설계 §6: 앞으로 나온 발·몸을 감은 꼬리에도 부딪힘이 있다 — 옆 인형이 뚫고 들어가지 않는다
+test("a doll dropped onto another doll's foot rests on it", () => {
+  const foot = dollHits('cat').solid.reduce((a, h) => (h.c.z > a.c.z ? h : a)); // 가장 앞으로 나온 공
+  const fx = foot.c.x * DOLL_SCALE, fz = foot.c.z * DOLL_SCALE;
+  const world = new MachineWorld(R, [['cat', 0, DOLL_FLOOR, 0, 0, 0, 0, 1, 0, 'n', 0, '', 1], ['bear', fx, null, fz, 0, 0, 0, 1, 0, 'n', 0, '', 2]]);
+  world.settle();
+  expect(world.overlaps()).toBe(0);
+  world.dispose();
+});
+
+test('every kind has at most twenty colliders', () => {
+  for (const id of Object.keys(DOLLS)) expect(dollColliders([id, 0, 0, 0, 0, 0, 0, 1, 0, 'n', 0, '', 1]).shapes.length, id).toBeLessThanOrEqual(20);
 });

@@ -28,6 +28,8 @@ const HOLE_HALF = CLAW.hole.size / 2;
 const STRADDLE_ROUNDS = 3; // 걸친 인형을 다시 떨어뜨리는 횟수 한도 (먼 칸으로 가니 보통 한 번이면 된다)
 const REFILL_SETTLE = 6; // 채우기 앉히기: 마지막 인형이 떨어진 뒤 이만큼(물리 시간) — 무더기는 5초쯤 걸린다
 const CONTACT_HZ = 12; // 접촉 강성(기본 30Hz): 봉제 인형은 푹신해서 쇠 집게에 맞아도 튕겨 나가지 않는다 — 30Hz면 2.3m/s로 튕기고, 8Hz는 무더기가 앉는 데 7초가 걸린다
+// 손가락 끝에 바닥으로 눌렸다 풀린 인형이 다시 펴지는 속도 한도(m/s)·시간(초): 그대로 두면 눌린 만큼 접촉이 밀어 내 0.8m/s 넘게 튀어 올랐다 (인형 리뉴얼, 앞으로 나온 발)
+const CUSHION_V = 0.3, CUSHION_SECONDS = 0.25;
 const STILL_V = 0.02, STILL_W = 0.1; // 이보다 느리면 멈춘 것 (m/s, rad/s) — 무더기 속 인형은 아주 천천히 기어 오래 안 잠든다 // 채우기 중 구멍에 빠진 인형을 다시 떨어뜨릴 때 다른 인형과 띄우는 거리
 
 export class MachineWorld {
@@ -38,6 +40,8 @@ export class MachineWorld {
   private spots = new Map<number, DollSpot>();
   private pending: { uid: number; at: number }[] = [];
   private holeOpen = false;
+  private cushions = new Map<number, number>(); // 천천히 펴지는 인형 → 끝나는 시각
+  private target: number | null = null;
   private dropped = new Set<number>(); // 이번 세계에서 채우기로 떨어뜨린 인형 — 구멍 위 걸침 규칙은 이들에게만 (판에서 밀려 간 인형은 그대로, 사용자 결정)
 
   constructor(readonly R: Rapier, spots: DollSpot[]) {
@@ -119,7 +123,22 @@ export class MachineWorld {
     this.pending = this.pending.filter((p) => p.at > this.time);
     this.world.step();
     this.time += STEP;
+    this.softenCushions();
     if (!this.holeOpen) this.redropFallen();
+  }
+
+  // 손가락 끝에 눌려 있다 풀린 인형들 — 잠깐 동안 CUSHION_V보다 빨리 움직이지 않는다. 노린 인형은 끝에 눌리지 않으니(충돌 그룹) 뺀다
+  cushion(uids: number[]): void {
+    for (const uid of uids) if (uid !== this.target && this.bodies.has(uid)) this.cushions.set(uid, this.time + CUSHION_SECONDS);
+  }
+
+  private softenCushions(): void {
+    for (const [uid, until] of this.cushions) {
+      const b = this.bodies.get(uid);
+      if (!b || this.time > until) { this.cushions.delete(uid); continue; }
+      const v = b.linvel(), s = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z); // Math.hypot은 엔진마다 끝자리가 다를 수 있다 — 결정성
+      if (s > CUSHION_V) b.setLinvel({ x: (v.x * CUSHION_V) / s, y: (v.y * CUSHION_V) / s, z: (v.z * CUSHION_V) / s }, true);
+    }
   }
 
   // 모두 잠들 때까지 돌리고 쓴 초를 돌려준다 — 한도(maxSeconds)는 마지막 인형이 떨어진 뒤부터 센다 (최종 리뷰 I9)
@@ -209,6 +228,7 @@ export class MachineWorld {
 
   // 노린 인형은 손가락 끝에 밀리지 않는다 (손가락 끝 콜라이더의 필터가 GROUP_TARGET을 뺀다) — 내려가다 쳐서 넘어뜨리지 않게. 허브는 민다
   markTarget(uid: number | null): void {
+    this.target = uid;
     for (const [id, b] of this.bodies) {
       const g = groups(id === uid ? GROUP_TARGET : GROUP_DOLL, ALL);
       for (let i = 0; i < b.numColliders(); i++) b.collider(i).setCollisionGroups(g);

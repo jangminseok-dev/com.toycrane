@@ -202,8 +202,11 @@ export class ClawBody {
     this.heldUid = null;
   }
 
-  // 오므리기 시작: 손가락 끝이 인형을 밀어 넘어뜨리지 않게(쇠 손가락은 무한히 세다) 닿기만 재는 상태로. 허브는 쥘 때까지 단단하다
+  // 오므리기 시작: 손가락 끝이 인형을 밀어 넘어뜨리지 않게(쇠 손가락은 무한히 세다) 닿기만 재는 상태로. 허브는 쥘 때까지 단단하다.
+  // 내려오며 끝에 바닥으로 눌린 옆 인형은 끝이 사라지는 순간 튀어 오르지 않게 천천히 펴진다
   softHands(): void {
+    const tips = this.tips.map((t) => { const p = t.translation(); return new THREE.Vector3(p.x, p.y, p.z); });
+    this.world.cushion(this.world.uids().filter((uid) => this.world.balls(uid).some((b) => tips.some((p) => p.distanceTo(b.c) < b.r + TIP_R + TOUCH))));
     for (const t of this.tips) t.setSensor(true);
   }
 
