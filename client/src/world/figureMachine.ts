@@ -97,7 +97,7 @@ export function makeFigureMachineParts(spot: FigureSpot, index: number, color: n
   const plate = m.getObjectByName('plate') as THREE.Mesh;
   plate.geometry = plateCell(plate.geometry, index);
   const add = (o: THREE.Object3D) => { m.add(o); return o; };
-  const { y, half_len } = FIGURE.bars, bz = barZ(), white = toon(0xfafafc), floorMat = toon(0xffeef6);
+  const { y, half_len } = FIGURE.bars, bz = barZ('long'), white = toon(0xfafafc), floorMat = toon(0xffeef6);
   // 쇠막대 두 개 + 양옆 흰 기둥(바닥에서 막대까지) + 죔쇠
   for (const side of [-1, 1]) {
     const z = side * bz;

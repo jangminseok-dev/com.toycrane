@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { FIGURE, FIGURES } from '../data/figures';
+import { FIGURE, FIGURES, boxKindOf } from '../data/figures';
 import { encodeDone, type BoxWire, type DollPose, type Pose } from '../net/protocol';
 import { FigureClaw } from '../physics/figureClaw';
 import { FigureCycleRunner } from '../physics/figureCycle';
@@ -70,7 +70,7 @@ export class FigurePlay {
     this.controls.setPhase('one');
     this.zone.hideControls(id, true); // 기계 그림의 고정 버튼은 숨긴다(살아 있는 버튼이 덮는다)
     const R = this.deps.rapier();
-    if (R) this.world = new FigureWorld(R, this.zone.boxOf(id));
+    if (R) this.world = new FigureWorld(R, this.zone.boxOf(id), boxKindOf(id)); // 그 기계의 상자 종류(설계 §8)
   }
 
   pick(ray: THREE.Raycaster): 1 | 2 | null {

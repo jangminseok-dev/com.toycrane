@@ -1,4 +1,4 @@
-import { FIGURE, variantOf } from '../data/figures';
+import { FIGURE } from '../data/figures';
 import type { BoxWire, ClawPose } from '../net/protocol';
 import type { FigureClaw } from './figureClaw';
 import { FIG_STEP, type FigureWorld } from './figureWorld';
@@ -41,7 +41,7 @@ export class FigureCycleRunner {
   private go(phase: FigurePhase): void {
     this.phase = phase;
     this.at = this.world.time;
-    const c = this.claw, C = variantOf('long').power; // Task 3에서 세계의 종류
+    const c = this.claw, C = this.world.variant.power; // 그 기계 상자 종류의 집게 힘
     if (phase === 'close') c.grab(C.grip);
     else if (phase === 'lift') { c.watchBox(); c.setPower(C.lift); }
     else if (phase === 'hold') c.setPower(C.carry);

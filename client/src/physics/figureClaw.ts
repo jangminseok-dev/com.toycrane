@@ -1,6 +1,6 @@
 import type RAPIER from '@dimforge/rapier3d-deterministic-compat';
 import * as THREE from 'three';
-import { FIGURE, variantOf } from '../data/figures';
+import { FIGURE } from '../data/figures';
 import type { FigureWorld } from './figureWorld';
 import type { Rapier } from './rapier';
 
@@ -9,11 +9,13 @@ import type { Rapier } from './rapier';
 // 진짜처럼 내려가다 무엇에 얹히면 줄만 느슨해지고 위에서 누르지 못한다(운동학 머리는 무한한 힘으로 부딪혀 상자를 튕겨 뒤집었다).
 // 팔은 동적 몸체이고 경첩 모터가 목표 각으로 민다 — 힘은 단계마다 토크 한도(grip·lift·carry, N·m)라 약해서 상자를 번쩍 못 든다.
 // 상자 모서리가 처음보다 max_lift 넘게 오르거나 상자 전체가 max_clear 넘게 뜨면 팔이 미끄러져 놓는다
-const HEAD = { hx: 0.045, hy: 0.03, hz: 0.035 }, HEAD_MASS = 0.4;
-const HINGE: [number, number] = [0.04, -0.02]; // 머리 기준 경첩(오른팔, 왼팔은 x 반대)
-const ELBOW: [number, number] = [0.045, -0.08], TIP: [number, number] = [0.005, -0.17]; // 경첩 기준(오른팔)
-const PLATE_T = 0.004, PLATE_W = 0.018, TIP_R = 0.008; // 판 두께 반, 판 폭 반(z), 고무 끝
-const ARM_MASS = 0.02;
+// 모양은 9단계 집게를 claw.scale(1.5)배 — 큰 상자(설계 §8) 모서리를 누르고 걸 수 있게. 질량은 부피(배율³)만큼
+const K = FIGURE.claw.scale, K3 = K * K * K, K5 = K3 * K * K;
+const HEAD = { hx: 0.045 * K, hy: 0.03 * K, hz: 0.035 * K }, HEAD_MASS = 0.4 * K3;
+const HINGE: [number, number] = [0.04 * K, -0.02 * K]; // 머리 기준 경첩(오른팔, 왼팔은 x 반대)
+const ELBOW: [number, number] = [0.045 * K, -0.08 * K], TIP: [number, number] = [0.005 * K, -0.17 * K]; // 경첩 기준(오른팔)
+const PLATE_T = 0.004 * K, PLATE_W = 0.018 * K, TIP_R = 0.008 * K; // 판 두께 반, 판 폭 반(z), 고무 끝
+const ARM_MASS = 0.02 * K3;
 const OPEN = 0.35, CLOSE = 0.6; // 경첩 각(rad): 바깥으로 벌림, 안으로 오므림 한도
 const STIFF = 3, DAMP = 0.08, OPEN_FORCE = 0.3;
 // 그림이 물리와 같은 모양이 되게 내보낸다(figureZone)
@@ -39,14 +41,14 @@ export class FigureClaw {
     this.x = x; this.z = z;
     this.rail = w.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y, z));
     this.head = w.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(x, y, z).setCanSleep(false)
-      .setAdditionalMassProperties(HEAD_MASS, { x: 0, y: 0, z: 0 }, { x: 4e-4, y: 4e-4, z: 4e-4 }, { x: 0, y: 0, z: 0, w: 1 }));
+      .setAdditionalMassProperties(HEAD_MASS, { x: 0, y: 0, z: 0 }, { x: 4e-4 * K5, y: 4e-4 * K5, z: 4e-4 * K5 }, { x: 0, y: 0, z: 0, w: 1 }));
     this.colliders.push(w.createCollider(R.ColliderDesc.cuboid(HEAD.hx, HEAD.hy, HEAD.hz).setDensity(0).setFriction(0.6).setCollisionGroups(clawGroups), this.head));
     this.cable = w.createImpulseJoint(R.JointData.prismatic({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }), this.rail, this.head, true) as RAPIER.PrismaticImpulseJoint;
     this.cable.setContactsEnabled(false);
     this.setCable(0);
     for (const side of [1, -1]) {
       const arm = w.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(x + side * HINGE[0], y + HINGE[1], z)
-        .setAdditionalMassProperties(ARM_MASS, { x: side * 0.025, y: -0.09, z: 0 }, { x: 5e-5, y: 5e-5, z: 5e-5 }, { x: 0, y: 0, z: 0, w: 1 })
+        .setAdditionalMassProperties(ARM_MASS, { x: side * 0.025 * K, y: -0.09 * K, z: 0 }, { x: 5e-5 * K5, y: 5e-5 * K5, z: 5e-5 * K5 }, { x: 0, y: 0, z: 0, w: 1 })
         .setAngularDamping(0.5).setCanSleep(false));
       const plate = (a: [number, number], b: [number, number]) => {
         const ax = side * a[0], bx = side * b[0], len = Math.hypot(bx - ax, b[1] - a[1]), t = Math.atan2(b[1] - a[1], bx - ax) / 2;
@@ -115,7 +117,7 @@ export class FigureClaw {
   // 상자 모서리가 max_lift 넘게 오르거나 상자 전체가 max_clear 넘게 뜨면 미끄러져 놓는다 (조사한 실제 기계의 들림 한계)
   checkSlip(): void {
     if (this.slipped || !this.base.length) return;
-    const now = this.corners(), { max_lift, max_clear } = variantOf('long').power;
+    const now = this.corners(), { max_lift, max_clear } = this.fw.variant.power;
     if (now.some((y, i) => y - this.base[i] > max_lift) || Math.min(...now) - this.baseLow > max_clear) {
       this.slipped = true;
       this.drive(true, OPEN_FORCE); // 확실히 벌린다 — 약하게 풀면 상자 밑에 걸린 갈고리째 상자가 따라 올라가 뒤집혔다
@@ -132,7 +134,7 @@ export class FigureClaw {
   }
 
   private corners(): number[] {
-    const p = this.fw.box.translation(), r = this.fw.box.rotation(), { w, d, h } = variantOf('long').box;
+    const p = this.fw.box.translation(), r = this.fw.box.rotation(), { w, d, h } = this.fw.variant.box;
     const q = new THREE.Quaternion(r.x, r.y, r.z, r.w), v = new THREE.Vector3(), out: number[] = [];
     for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) out.push(v.set((sx * w) / 2, (sy * d) / 2, (sz * h) / 2).applyQuaternion(q).y + p.y);
     return out;

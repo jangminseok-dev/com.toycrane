@@ -1,41 +1,44 @@
 import type RAPIER from '@dimforge/rapier3d-deterministic-compat';
-import { FIGURE, variantOf } from '../data/figures';
+import { FIGURE, variantOf, type BoxKind, type Variant } from '../data/figures';
 import type { BoxWire } from '../net/protocol';
 import type { Rapier } from './rapier';
 
-// 피규어 기계 속 물리 세계(9단계, 설계 §3.2): 기계 좌표(앞 +z, 오른쪽 +x). 고정 간격 1/120초.
-// x를 따라 놓인 쇠막대 두 개(맨 쇠, 미끄러움) 위에 상자 하나. 막대 사이 틈(bars.gap, 막대 겉면 사이)은 상자 길이보다 좁고 세운 단면보다 넓다.
-// 앞뒤 멈춤판은 상자가 막대 밖으로 미끄러져 엉뚱한 데로 떨어지지 않게(틈으로만 빠짐), 아래 받는 바닥은 빠진 상자를 멈춘다
+// 피규어 기계 속 물리 세계(9단계, 설계 §3.2·§8): 기계 좌표(앞 +z, 오른쪽 +x). 고정 간격 1/120초.
+// x를 따라 놓인 쇠막대 두 개(맨 쇠, 미끄러움) 위에 큰 상자 하나(종류 long·square마다 치수·막대 틈). 틈은 눕힌 상자보다 좁고 세운 단면보다 넓다.
+// 앞은 낮은 투명판, 뒤는 받침 막대와 투명 벽 — 틈이 모두 상자 두께보다 좁아 두 막대 사이로만 빠진다. 아래 받는 바닥은 빠진 상자를 멈춘다
 export const FIG_STEP = 1 / 120;
 const MAX_STEPS = 4;
 const BAR_FRICTION = 0.22, BOX_FRICTION = 0.5, BOX_RESTITUTION = 0.04;
-const STOP_OUT = 0.13; // 막대 중심에서 멈춤판까지(z)
-// 멈춤판은 막대 위로 STOP_TOP만 솟고 미끄럽다(마찰 0) — 높고 거칠면 선반처럼 상자 끝을 받쳐 기운 채 갇혔다(판수 시뮬 꼬리)
-const STOP_TOP = 0.06, STOP_HALF_H = 0.15;
-const CATCH_DROP = 0.5; // 막대 아래 받는 바닥 깊이
+// 앞판·뒤 벽은 미끄럽다(마찰 0) — 높고 거친 판은 선반처럼 상자 끝을 받쳐 기운 채 갇혔다(9단계 판수 시뮬 꼬리)
+const FRONT_TOP = 0.07, WALL_TOP = 0.3, PLATE_HALF_H = 0.15;
+const CATCH_DROP = 0.8; // 막대 아래 받는 바닥 깊이 — 세운 채 떨어진 긴 상자(34cm)도 가운데가 빠짐 기준(막대 − 길이) 아래에 오게
 
-export const barZ = (): number => variantOf('long').gap / 2 + FIGURE.bars.radius; // 막대 중심 z(±) — Task 3에서 종류별
+export const barZ = (kind: BoxKind): number => variantOf(kind).gap / 2 + FIGURE.bars.radius; // 막대 중심 z(±)
 
 export class FigureWorld {
   readonly world: RAPIER.World;
   readonly box: RAPIER.RigidBody;
   readonly boxCollider: RAPIER.Collider;
-  readonly solids: RAPIER.Collider[] = []; // 막대·멈춤판·벽 — 집게가 닿으면 내려가기를 멈춘다
+  readonly solids: RAPIER.Collider[] = []; // 막대·판·벽 — 집게가 닿으면 내려가기를 멈춘다
+  readonly variant: Variant;
   time = 0;
   private carry = 0;
 
-  constructor(readonly R: Rapier, start: BoxWire) {
-    const { bars } = FIGURE, { box } = variantOf('long');
+  constructor(readonly R: Rapier, start: BoxWire, readonly kind: BoxKind) {
+    const { bars, guards } = FIGURE, bz = barZ(kind);
+    this.variant = variantOf(kind);
+    const { box } = this.variant;
     this.world = new R.World({ x: 0, y: -9.81, z: 0 });
     this.world.timestep = FIG_STEP;
     const fixed = (desc: RAPIER.ColliderDesc) => { const c = this.world.createCollider(desc); this.solids.push(c); return c; };
     const s = Math.SQRT1_2;
-    for (const side of [-1, 1]) {
-      // 캡슐 축(기본 y)을 x로 눕힌 쇠막대
-      fixed(R.ColliderDesc.capsule(bars.half_len, bars.radius).setTranslation(0, bars.y, side * barZ()).setRotation({ x: 0, y: 0, z: s, w: s }).setFriction(BAR_FRICTION).setRestitution(0));
-      fixed(R.ColliderDesc.cuboid(bars.half_len, STOP_HALF_H, 0.005).setTranslation(0, bars.y + STOP_TOP - STOP_HALF_H, side * (barZ() + STOP_OUT)).setFriction(0));
-      fixed(R.ColliderDesc.cuboid(0.005, 0.4, 0.4).setTranslation(side * (bars.half_len + 0.005), bars.y, 0).setFriction(BAR_FRICTION));
+    // 캡슐 축(기본 y)을 x로 눕힌 쇠막대: 앞·뒤 막대(그 사이가 GET 구멍)와 뒤 받침 막대
+    for (const z of [bz, -bz, -(bz + guards.back_bar)]) {
+      fixed(R.ColliderDesc.capsule(bars.half_len, bars.radius).setTranslation(0, bars.y, z).setRotation({ x: 0, y: 0, z: s, w: s }).setFriction(BAR_FRICTION).setRestitution(0));
     }
+    fixed(R.ColliderDesc.cuboid(bars.half_len, PLATE_HALF_H, 0.005).setTranslation(0, bars.y + FRONT_TOP - PLATE_HALF_H, bz + guards.front).setFriction(0));
+    fixed(R.ColliderDesc.cuboid(bars.half_len, PLATE_HALF_H * 2, 0.005).setTranslation(0, bars.y + WALL_TOP - PLATE_HALF_H * 2, -(bz + guards.back_wall)).setFriction(0));
+    for (const side of [-1, 1]) fixed(R.ColliderDesc.cuboid(0.005, 0.4, 0.4).setTranslation(side * (bars.half_len + 0.005), bars.y, 0).setFriction(BAR_FRICTION));
     fixed(R.ColliderDesc.cuboid(0.6, 0.02, 0.6).setTranslation(0, bars.y - CATCH_DROP, 0).setFriction(0.8));
     // 상자: 무게중심을 긴 변(z) 쪽으로 com × h만큼 치우침 — 실제처럼 무거운 쪽으로 기운다
     const [hx, hy, hz] = [box.w / 2, box.d / 2, box.h / 2], m = box.mass;
@@ -66,9 +69,9 @@ export class FigureWorld {
     return [p.x, p.y, p.z, q.x, q.y, q.z, q.w];
   }
 
-  // 상자가 막대 사이로 빠졌나 — 상자 가운데가 막대보다 상자 길이만큼 아래
+  // 상자가 막대 사이로 빠졌나 — 상자 가운데가 막대보다 상자 길이만큼 아래(앞뒤 틈은 상자 두께보다 좁아 막대 사이로만 갈 수 있다)
   fallen(): boolean {
-    return this.box.translation().y < FIGURE.bars.y - variantOf('long').box.h;
+    return this.box.translation().y < FIGURE.bars.y - this.variant.box.h;
   }
 
   still(): boolean {
