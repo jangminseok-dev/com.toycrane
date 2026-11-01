@@ -103,3 +103,19 @@ def after_play(state: FigureState, box: BoxPose, won: bool, rng: random.Random, 
     side = _BARS["half_len"] - _box(kind)["w"] / 2
     x = max(-side, min(side, box[0] + math.cos(a) * d))
     return FigureState((x, _lying_y(kind), math.sin(a) * d, *_yaw(twist)), 0), True
+
+
+def _figure_rules():
+    from toycrane.domain.box_rules import BoxRules
+    from toycrane.domain.layout import FIGURES
+
+    kind = lambda m: FIGURES[m].box  # noqa: E731
+    return BoxRules(
+        machines=tuple(FIGURES), zone="figure",
+        start_box=lambda rng, m: start_box(rng, kind(m)),
+        check_report=lambda box, won, m: check_report(box, won, kind(m)),
+        after_play=lambda state, box, won, rng, m: after_play(state, box, won, rng, kind(m)),
+    )
+
+
+FIGURE_RULES = _figure_rules()  # 피규어 기계 규칙(막대 두 개, 상자 종류는 기계 줄마다)

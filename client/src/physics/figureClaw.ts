@@ -1,7 +1,7 @@
 import type RAPIER from '@dimforge/rapier3d-deterministic-compat';
 import * as THREE from 'three';
 import { FIGURE, variantOf, type BoxKind } from '../data/figures';
-import type { FigureWorld } from './figureWorld';
+import type { BoxWorld } from './boxWorld';
 import type { Rapier } from './rapier';
 
 // 피규어 두 팔 집게(9단계, 그래픽 설계 §3.5 모양): 각진 머리 + 양옆 경첩에서 내려오는 납작한 판 팔 두 개
@@ -41,8 +41,8 @@ export class FigureClaw {
   x: number;
   z: number;
 
-  constructor(readonly R: Rapier, readonly fw: FigureWorld, x: number, z: number) {
-    const w = fw.world, y = FIGURE.claw.rest_y, S = clawShapeOf(fw.kind), { head: HEAD, hinge: HINGE, elbow: ELBOW, tip: TIP, plateT: PLATE_T, plateW: PLATE_W, tipR: TIP_R } = S;
+  constructor(readonly R: Rapier, readonly fw: BoxWorld, x: number, z: number) {
+    const w = fw.world, y = FIGURE.claw.rest_y, S = clawShape(fw.clawScale), { head: HEAD, hinge: HINGE, elbow: ELBOW, tip: TIP, plateT: PLATE_T, plateW: PLATE_W, tipR: TIP_R } = S;
     const K = S.k, K5 = K ** 5;
     this.x = x; this.z = z;
     this.rail = w.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y, z));
@@ -122,8 +122,8 @@ export class FigureClaw {
 
   // 상자 모서리가 max_lift 넘게 오르거나 상자 전체가 max_clear 넘게 뜨면 미끄러져 놓는다 (조사한 실제 기계의 들림 한계)
   checkSlip(): void {
-    if (this.slipped || !this.base.length) return;
-    const now = this.corners(), { max_lift, max_clear } = this.fw.variant.power;
+    if (this.slipped || !this.base.length || this.fw.slipRule === 'none') return;
+    const now = this.corners(), { max_lift, max_clear } = this.fw.power;
     if (now.some((y, i) => y - this.base[i] > max_lift) || Math.min(...now) - this.baseLow > max_clear) {
       this.slipped = true;
       this.drive(true, OPEN_FORCE); // 확실히 벌린다 — 약하게 풀면 상자 밑에 걸린 갈고리째 상자가 따라 올라가 뒤집혔다
@@ -140,7 +140,7 @@ export class FigureClaw {
   }
 
   private corners(): number[] {
-    const p = this.fw.box.translation(), r = this.fw.box.rotation(), { w, d, h } = this.fw.variant.box;
+    const p = this.fw.box.translation(), r = this.fw.box.rotation(), { w, d, h } = this.fw.dims;
     const q = new THREE.Quaternion(r.x, r.y, r.z, r.w), v = new THREE.Vector3(), out: number[] = [];
     for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) out.push(v.set((sx * w) / 2, (sy * d) / 2, (sz * h) / 2).applyQuaternion(q).y + p.y);
     return out;

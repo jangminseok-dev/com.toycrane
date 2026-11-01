@@ -91,3 +91,24 @@ async def test_square_machine_gets_a_square_box_after_a_win():
     await it.done(DoneCommand("c-2", "F-8", report(fell, won=True), now=20.0))
     new_box = boxes.stored["F-8"].box
     assert abs(new_box[1] - (BARS["y"] + BARS["radius"] + SQUARE["d"] / 2)) < 1e-9
+
+
+# 상자 기계 일반화(계획 12 Task 4): 판 보고는 기계 종류의 규칙(BoxRules)과 가방 구역을 따른다 — 고리 걸기도 같은 길
+async def test_box_done_uses_the_given_rules_and_zone():
+    from toycrane.domain.box_rules import BoxRules
+    from toycrane.domain.figure import FIGURE_RULES
+
+    calls = []
+    rules = BoxRules(
+        machines=("F-1",), zone="ring",
+        start_box=lambda rng, m: FIGURE_RULES.start_box(rng, m),
+        check_report=lambda box, won, m: (calls.append(("check", m)), FIGURE_RULES.check_report(box, won, m))[1],
+        after_play=lambda state, box, won, rng, m: (calls.append(("after", m)), FIGURE_RULES.after_play(state, box, won, rng, m))[1],
+    )
+    locks, conns, bag, boxes, _ = setup()
+    reg = FakeRegistry()
+    reg.put("c-1", player("p1", guest="g-1"))
+    it = FigureDoneInteractor(reg, locks, boxes, bag, conns, rules=rules, rng=random.Random(5))
+    await it.done(DoneCommand("c-1", "F-1", report(FELL, won=True), now=20.0))
+    assert calls == [("check", "F-1"), ("after", "F-1")]
+    assert bag.added[0][4] == "ring"

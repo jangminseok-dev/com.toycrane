@@ -3,10 +3,11 @@ import { FIGURE, FIGURES, boxKindOf, type BoxKind } from '../data/figures';
 import { encodeDone, type BoxWire, type DollPose, type Pose } from '../net/protocol';
 import { FigureClaw } from '../physics/figureClaw';
 import { FigureCycleRunner } from '../physics/figureCycle';
+import type { BoxWorld } from '../physics/boxWorld';
 import { FigureWorld } from '../physics/figureWorld';
 import type { Rapier } from '../physics/rapier';
 import { PoseReceiver, PoseSender } from '../physics/relay';
-import { FIGURE_CONTROLS, buildFigureControls, type FigureControls } from '../world/figureControls';
+import { FIGURE_CONTROLS, buildFigureControls, type ButtonLabels, type FigureControls } from '../world/figureControls';
 import { UI } from '../world/copy';
 import { playReveal } from '../world/figureReveal';
 import type { FigureZone } from '../world/figureZone';
@@ -19,6 +20,14 @@ import type { Vec2 } from './movement';
 // 구경꾼은 중계(pose: 집게 + 상자 uid 0)를 받아 그린다. 판 사이 흐름(이어 하기·그만하기)은 main.ts가 인형 판과 함께 쓴다
 const WATCH_REACH = 12;
 export const FIGURE_SPOTS = new Map(FIGURES.map((f) => [f.id, f]));
+// 상자 기계 한 종류(피규어·고리 걸기, 계획 12): 자리, 물리 세계 만들기, 버튼 글씨, 판 시작 안내 — 판 흐름·집게·구경·중계는 같다
+export type BoxMachine = {
+  spots: Map<string, { id: string; x: number; z: number; ry: number }>;
+  makeWorld(R: Rapier, box: BoxWire, id: string): BoxWorld;
+  hint: string;
+  labels?: ButtonLabels;
+};
+export const FIGURE_MACHINE: BoxMachine = { spots: FIGURE_SPOTS, makeWorld: (R, box, id) => new FigureWorld(R, box, boxKindOf(id)), hint: UI.figureHint };
 const boxPose = (b: BoxWire): DollPose => ({ uid: 0, p: [b[0], b[1], b[2]], q: [b[3], b[4], b[5], b[6]] });
 
 export type FigurePlayDeps = {
@@ -31,11 +40,11 @@ export type FigurePlayDeps = {
 export class FigurePlay implements ButtonPlay {
   session: FigureSession | null = null; // 버튼 단계
   side = new SideBlend(); // 0 정면 ~ 1 옆 대각선
-  readonly hint = UI.figureHint;
+  get hint(): string { return this.machine.hint; }
   private playId: string | null = null; // 내 판(버튼부터 결과까지)
   private saved = new Map<string, BoxWire>(); // 서버가 알려 준 상자 자리(welcome·figure) — 판의 시작점, 판이 결과 없이 끝나면 되돌린다
   private controls: FigureControls | null = null;
-  private world: FigureWorld | null = null;
+  private world: BoxWorld | null = null;
   private claw: FigureClaw | null = null;
   private runner: FigureCycleRunner | null = null;
   private dropped: FigureSession | null = null;
@@ -43,7 +52,7 @@ export class FigurePlay implements ButtonPlay {
   private reveals: { update(dt: number): boolean }[] = [];
   private poseSender: PoseSender;
 
-  constructor(private scene: THREE.Scene, readonly zone: FigureZone, private deps: FigurePlayDeps) {
+  constructor(private scene: THREE.Scene, readonly zone: FigureZone, private deps: FigurePlayDeps, readonly machine: BoxMachine = FIGURE_MACHINE) {
     this.poseSender = new PoseSender((m) => deps.send(m));
   }
 
@@ -52,7 +61,7 @@ export class FigurePlay implements ButtonPlay {
   }
 
   setBox(id: string, box: BoxWire): void {
-    if (!FIGURE_SPOTS.has(id)) return;
+    if (!this.machine.spots.has(id)) return;
     this.saved.set(id, box);
     this.zone.setBox(id, box);
   }
@@ -69,11 +78,11 @@ export class FigurePlay implements ButtonPlay {
     this.stopWatch(id);
     this.restoreBox(id);
     this.session = new FigureSession(id, limit, now);
-    this.controls = buildFigureControls(this.zone.worldOf(id));
+    this.controls = buildFigureControls(this.zone.worldOf(id), this.machine.labels);
     this.controls.setPhase('one');
     this.zone.hideControls(id, true); // 기계 그림의 고정 버튼은 숨긴다(살아 있는 버튼이 덮는다)
     const R = this.deps.rapier();
-    if (R) this.world = new FigureWorld(R, this.zone.boxOf(id), boxKindOf(id)); // 그 기계의 상자 종류(설계 §8)
+    if (R) this.world = this.machine.makeWorld(R, this.zone.boxOf(id), id); // 그 기계의 상자 세계(피규어는 상자 종류, 설계 §8)
   }
 
   pick(ray: THREE.Raycaster): 1 | 2 | null {
@@ -143,11 +152,11 @@ export class FigurePlay implements ButtonPlay {
     this.reveals = this.reveals.filter((r) => r.update(dt));
   }
 
-  handles(id: string): boolean { return FIGURE_SPOTS.has(id); }
+  handles(id: string): boolean { return this.machine.spots.has(id); }
 
 
 
-  cameraPose(id: string, now: number, aspect: number) { return figureCameraPose(FIGURE_SPOTS.get(id)!, this.side.value(now), aspect); }
+  cameraPose(id: string, now: number, aspect: number) { return figureCameraPose(this.machine.spots.get(id)!, this.side.value(now), aspect); }
 
   cycling(): boolean { return this.runner !== null; }
 
@@ -164,7 +173,7 @@ export class FigurePlay implements ButtonPlay {
 
   // 남의 판: 가까운 기계만 중계를 그린다
   watch(id: string, me: Vec2): void {
-    const f = FIGURE_SPOTS.get(id);
+    const f = this.machine.spots.get(id);
     if (!f || id === this.playId || Math.hypot(me.x - f.x, me.z - f.z) > WATCH_REACH) return;
     if (!this.watches.has(id)) this.watches.set(id, new PoseReceiver());
   }

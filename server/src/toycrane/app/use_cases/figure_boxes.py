@@ -1,16 +1,16 @@
 import random
 
 from toycrane.app.ports.output.figure_boxes_port import FigureBoxesPort
-from toycrane.domain.figure import FigureState, start_box
-from toycrane.domain.layout import FIGURES
+from toycrane.domain.box_rules import BoxRules
+from toycrane.domain.figure import FIGURE_RULES, FigureState
 
 
-async def ensure_figures(port: FigureBoxesPort, rng: random.Random) -> dict[str, FigureState]:
-    """저장된 상자를 읽고, 상자가 없는 피규어 기계에는 새 상자를 놓아 저장한다."""
+async def ensure_figures(port: FigureBoxesPort, rng: random.Random, rules: BoxRules = FIGURE_RULES) -> dict[str, FigureState]:
+    """저장된 상자를 읽고, 상자가 없는 상자 기계(규칙의 기계들)에는 새 상자를 놓아 저장한다."""
     states = await port.load()
-    missing = [m for m in FIGURES if m not in states]
+    missing = [m for m in rules.machines if m not in states]
     for m in missing:
-        states[m] = FigureState(start_box(rng, FIGURES[m].box), 0)
+        states[m] = FigureState(rules.start_box(rng, m), 0)
     if missing:
         await port.save(states)
     return states

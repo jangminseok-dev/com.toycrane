@@ -9,10 +9,8 @@ from toycrane.app.ports.output.play_lock_port import PlayLockPort
 from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
 from toycrane.app.use_cases.figure_boxes import ensure_figures
 from toycrane.app.use_cases.report_lock import take_report
-from toycrane.domain.figure import after_play, check_report, roll_prize
-from toycrane.domain.layout import FIGURES
-
-ZONE = "figure"
+from toycrane.domain.box_rules import BoxRules
+from toycrane.domain.figure import FIGURE_RULES, roll_prize
 
 
 class FigureDoneInteractor(DoneUseCase):
@@ -22,8 +20,9 @@ class FigureDoneInteractor(DoneUseCase):
 
     def __init__(
         self, registry: PlayerRegistryPort, locks: PlayLockPort, figures: FigureBoxesPort, bag: BagPort, connections: ConnectionsPort,
-        rng: random.Random | None = None,
+        rules: BoxRules = FIGURE_RULES, rng: random.Random | None = None,
     ) -> None:
+        self._rules = rules
         self._registry = registry
         self._locks = locks
         self._figures = figures
@@ -45,20 +44,19 @@ class FigureDoneInteractor(DoneUseCase):
             self._connections.send_done_no(cmd.conn_id, machine_id, "count")
             return
         r = rows[0]
-        kind = FIGURES[machine_id].box
-        checked = check_report((r.x, r.y, r.z, *r.q), 0 in won_ids, kind)
+        checked = self._rules.check_report((r.x, r.y, r.z, *r.q), 0 in won_ids, machine_id)
         if isinstance(checked, str):
             self._connections.send_done_no(cmd.conn_id, machine_id, checked)
             return
         box, won = checked
-        states = await ensure_figures(self._figures, self._rng)
-        state, nudged = after_play(states[machine_id], box, won, self._rng, kind)
+        states = await ensure_figures(self._figures, self._rng, self._rules)
+        state, nudged = self._rules.after_play(states[machine_id], box, won, self._rng, machine_id)
         states[machine_id] = state
         await self._figures.save(states)
         prize: list[tuple[str, int, str, int]] = []
         if won:
             kind, rare = roll_prize(self._rng)
-            total = await self._bag.add(me.guest_id, kind, 0, rare, ZONE, cmd.now)
+            total = await self._bag.add(me.guest_id, kind, 0, rare, self._rules.zone, cmd.now)
             self._connections.send_bag(cmd.conn_id, total)
             prize = [(kind, 0, rare, 0)]
         self._connections.broadcast_result(machine_id, me.player_id, prize)
