@@ -1,5 +1,12 @@
 from toycrane.adapter.outbound.js_values import to_py
+from toycrane.app.dtos.bag_dto import BagEntry
 from toycrane.app.ports.output.bag_port import BagPort
+
+LIST_SQL = "SELECT doll, color, rare, zone, count, first_at FROM bag WHERE guest_id = ? ORDER BY first_at DESC"
+
+
+def rows_to_entries(rows: list[dict]) -> list[BagEntry]:
+    return [BagEntry(r["doll"], int(r["color"]), r["rare"], r["zone"], int(r["count"]), float(r["first_at"])) for r in rows]
 
 
 class D1BagAdapter(BagPort):
@@ -16,3 +23,7 @@ class D1BagAdapter(BagPort):
             "ON CONFLICT(guest_id, doll, color, rare, zone) DO UPDATE SET count = count + 1"
         ).bind(guest_id, doll, color, rare, zone, now).run()
         return await self.total(guest_id)
+
+    async def items(self, guest_id: str) -> list[BagEntry]:
+        res = to_py(await self._db.prepare(LIST_SQL).bind(guest_id).all())
+        return rows_to_entries(res.get("results", []) if res else [])

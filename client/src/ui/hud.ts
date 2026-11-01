@@ -15,10 +15,16 @@ function pill(style: Partial<CSSStyleDeclaration>): HTMLDivElement {
   return el;
 }
 
-let coinsEl: HTMLDivElement | null = null, bagEl: HTMLDivElement | null = null;
+let coinsEl: HTMLDivElement | null = null, bagEl: HTMLDivElement | null = null, bagTap: (() => void) | null = null;
+// 가방 칸을 누르면 가방 보기(설계 2026-11-02 §5)
+export function onBagTap(fn: () => void): void { bagTap = fn; }
 export function setHud(coins: number, bag: number): void {
   coinsEl ??= pill({ top: 'calc(env(safe-area-inset-top) + 14px)', left: 'calc(env(safe-area-inset-left) + 14px)' });
-  bagEl ??= pill({ top: 'calc(env(safe-area-inset-top) + 14px)', left: 'calc(env(safe-area-inset-left) + 96px)' });
+  if (!bagEl) {
+    bagEl = pill({ top: 'calc(env(safe-area-inset-top) + 14px)', left: 'calc(env(safe-area-inset-left) + 96px)', pointerEvents: 'auto', cursor: 'pointer' });
+    bagEl.className = 'hud-bag';
+    bagEl.addEventListener('click', () => bagTap?.());
+  }
   coinsEl.textContent = `🪙 ${coins}`;
   bagEl.textContent = `🎒 ${bag}`;
 }

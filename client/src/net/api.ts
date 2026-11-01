@@ -25,3 +25,11 @@ export async function admit(guestId: string): Promise<{ store: number } | { full
   if (!res.ok) throw new Error(`admission ${res.status}`);
   return res.json();
 }
+
+// 가방 보기(설계 2026-11-02 §5): 뽑은 것 목록, 처음 뽑은 때가 늦은 것부터
+export type BagEntry = { doll: string; color: number; rare: string; zone: string; count: number; first_at: number };
+export async function getBag(guestId: string): Promise<BagEntry[]> {
+  const res = await fetch(`/api/bag/${encodeURIComponent(guestId)}`);
+  if (!res.ok) throw new Error(`bag ${res.status}`);
+  return (await res.json()).items;
+}

@@ -22,7 +22,7 @@ import { CoinShow } from './game/coinShow';
 import { RemotePlayers } from './game/remotePlayers';
 import { installJoystick } from './input/joystick';
 import { readKeyboard } from './input/keyboard';
-import { admit, createGuest, getGuest, type Guest } from './net/api';
+import { admit, createGuest, getBag, getGuest, type Guest } from './net/api';
 import { encodeBeg, encodeCounterBeg, encodeDone, encodeGive, encodeMove, encodePlay, encodeStand, encodeTake, encodeTick, lookOf, uidOf, type Coins, type DollPose, type DollSpot, type Result, type ServerMsg } from './net/protocol';
 import { loadRapier, rapierNow, rapierReady } from './physics/rapier';
 import { MachineWorld } from './physics/machineWorld';
@@ -35,7 +35,8 @@ import { safeStorage } from './net/storage';
 import { StoreSocket, storeUrl } from './net/storeSocket';
 import { setAction } from './ui/actionButton';
 import { askNickname, hideEntry, showFull, showMessage, showWelcomeBack } from './ui/entry';
-import { setHud, setInfo, toast } from './ui/hud';
+import { onBagTap, setHud, setInfo, toast } from './ui/hud';
+import { bagGroups, openBagSheet } from './ui/bagSheet';
 import { eulReul, iGa } from './ui/josa';
 import { hidePlayControls, hideSeatControls, setTimer, showHint, showPlayControls, showRunPause, showSeatControls } from './ui/playControls';
 import { PlayRun, runSize } from './game/playRun';
@@ -103,6 +104,7 @@ Object.assign(window, { __toycrane: {
   buttonAt: (b: 1 | 2) => activePlay()?.buttonAt(b, camera) ?? null,
   ringBoard: (id: string) => ringZone.boardOf(id),
   pusherShelf: (id: string) => pusherZone.shelfOf(id),
+  pusherPlate: (id: string) => pusherZone.plateOf(id),
   figureBox: (id: string) => figureZone.boxOf(id),
   figureSide: () => figurePlay.side.value(clock()),
 } });
@@ -238,7 +240,13 @@ function retryLater(guest: Guest) {
   setTimeout(() => enter(guest), nextDelay(attempt++));
 }
 
+// 가방 보기(설계 2026-11-02 §5): 가방 칸을 누르면 서버에서 뽑은 것 목록을 받아 시트로
+async function showBag(guestId: string) {
+  try { openBagSheet(bagGroups(await getBag(guestId))); } catch { toast(UI.bagFailed); }
+}
+
 async function enter(guest: Guest): Promise<void> {
+  onBagTap(() => showBag(guest.guestId));
   let seat;
   try {
     seat = await admit(guest.guestId);

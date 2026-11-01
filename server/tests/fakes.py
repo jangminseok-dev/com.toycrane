@@ -212,9 +212,13 @@ class FakeWallet:
 
 
 class FakeBag:
-    def __init__(self, totals: dict[str, int] | None = None) -> None:
+    def __init__(self, totals: dict[str, int] | None = None, entries: dict | None = None) -> None:
         self.totals = dict(totals or {})
+        self.entries = dict(entries or {})
         self.added: list[tuple[str, str, int, str, str]] = []
+
+    async def items(self, guest_id: str) -> list:
+        return list(self.entries.get(guest_id, []))
 
     async def total(self, guest_id: str) -> int:
         return self.totals.get(guest_id, 0)
