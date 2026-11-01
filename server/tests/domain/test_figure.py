@@ -84,20 +84,26 @@ def test_check_report_needs_box_below_bars_for_a_win():
 
 
 def test_stuck_box_gets_nudged():
-    rng, state = random.Random(3), FigureState(start_box(random.Random(0), "long"), 0)
+    """여러 판 거의 안 움직인 상자는 직원이 다시 반듯이 올려놓는다(설계 §8 개정): 막대 위에 눕혀, 거의 곧게(3~7°), 앞뒤는 가운데 가까이,
+    옆 자리는 그대로 — 기운 채 낀 상자를 그 자세로 살짝 옮기면 바로 빠져 공짜 당첨이 됐다(시뮬 seed 11)."""
+    rng = random.Random(3)
     nudge = FIGURE["nudge"]
+    q = (-0.265, 0.003, -0.011, 0.964)
+    n = math.hypot(*q)
+    wedged = (0.018, 1.019, 0.035, *(v / n for v in q))  # 31° 기운 채 한쪽 끝이 틈에 걸림(check_report가 정규화한 자리)
+    state = FigureState(wedged, 0)
     for play in range(1, FIGURE["stuck"]["plays"] + 1):
-        before = state.box
-        report = shifted(before, dx=0.001 * (-1) ** play, dyaw_deg=1.0 * (-1) ** play)
+        report = (wedged[0] + 0.001 * (-1) ** play, *wedged[1:])
         state, nudged = after_play(state, report, False, rng, "long")
         if play < FIGURE["stuck"]["plays"]:
             assert not nudged and state.still == play
     assert nudged and state.still == 0
-    moved = math.hypot(state.box[0] - report[0], state.box[2] - report[2])
-    assert nudge["shift"][0] - 1e-9 <= moved <= nudge["shift"][1] + 1e-9
-    turn = abs(yaw_of(state.box) - yaw_of(report))
-    assert nudge["twist_deg"][0] - 1e-6 <= turn <= nudge["twist_deg"][1] + 1e-6
-    assert state.box[1] == report[1]
+    b = state.box
+    assert math.isclose(b[1], lying_y("long"), abs_tol=1e-9)  # 막대 위에 눕힘
+    assert b[3] == 0.0 and b[5] == 0.0  # 기울기 없이(요 돌림만)
+    assert nudge["twist_deg"][0] - 1e-6 <= abs(yaw_of(b)) <= nudge["twist_deg"][1] + 1e-6
+    assert abs(b[2]) <= nudge["shift"][1] + 1e-9  # 앞뒤는 가운데 가까이
+    assert abs(b[0] - report[0]) <= nudge["shift"][1] + 1e-9  # 옆 자리는 그대로(조금 옮김)
 
 
 def test_moving_box_resets_still():

@@ -42,12 +42,6 @@ def _yaw(degrees: float) -> tuple[float, float, float, float]:
     return (0.0, math.sin(a), 0.0, math.cos(a))
 
 
-def _mul(a: tuple[float, ...], b: tuple[float, ...]) -> tuple[float, float, float, float]:
-    ax, ay, az, aw = a
-    bx, by, bz, bw = b
-    return (aw * bx + ax * bw + ay * bz - az * by, aw * by - ax * bz + ay * bw + az * bx, aw * bz + ax * by - ay * bx + az * bw, aw * bw - ax * bx - ay * by - az * bz)
-
-
 def _turn(a: BoxPose, b: BoxPose) -> float:
     """두 상자 돌림 사이의 각(라디안)."""
     dot = abs(sum(p * q for p, q in zip(a[3:], b[3:])))
@@ -92,7 +86,10 @@ def check_report(box: tuple[float, ...], won: bool, kind: str) -> tuple[BoxPose,
 
 
 def after_play(state: FigureState, box: BoxPose, won: bool, rng: random.Random, kind: str) -> tuple[FigureState, bool]:
-    """한 판이 끝난 뒤의 상태: 빠졌으면 새 상자, 아니면 보고한 자리. 여러 판 거의 안 움직였으면 살짝 옮긴다(직원 도움) — (새 상태, 옮겼나)."""
+    """한 판이 끝난 뒤의 상태: 빠졌으면 새 상자, 아니면 보고한 자리. 여러 판 거의 안 움직였으면 직원이 다시 반듯이 올려놓는다 — (새 상태, 옮겼나).
+
+    올려놓기: 막대 위에 눕혀(기울기 없이) 거의 곧게(nudge.twist_deg), 앞뒤는 가운데 가까이(nudge.shift 안), 옆 자리는 그대로(조금 옮김).
+    기운 채 낀 상자를 그 자세로 살짝 옮기면 바로 빠져 공짜 당첨이 됐다(설계 §8 개정, 시뮬)."""
     if won:
         return FigureState(start_box(rng, kind), 0), False
     stuck = FIGURE["stuck"]
@@ -103,5 +100,6 @@ def after_play(state: FigureState, box: BoxPose, won: bool, rng: random.Random, 
     nudge = FIGURE["nudge"]
     a, d = rng.uniform(0, 2 * math.pi), rng.uniform(*nudge["shift"])
     twist = rng.uniform(*nudge["twist_deg"]) * rng.choice((-1, 1))
-    q = _mul(_yaw(twist), box[3:])
-    return FigureState((box[0] + math.cos(a) * d, box[1], box[2] + math.sin(a) * d, *q), 0), True
+    side = _BARS["half_len"] - _box(kind)["w"] / 2
+    x = max(-side, min(side, box[0] + math.cos(a) * d))
+    return FigureState((x, _lying_y(kind), math.sin(a) * d, *_yaw(twist)), 0), True

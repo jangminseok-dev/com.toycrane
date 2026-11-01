@@ -4,12 +4,12 @@
   "claw": {"home": [-0.4, 0.3], "speed": 0.3, "rest_y": 1.9, "descend": 0.35, "scale": 1.5},
   "guards": {"front": 0.06, "back_bar": 0.09, "back_wall": 0.17},
   "variants": {
-    "long": {"box": {"w": 0.17, "d": 0.12, "h": 0.34, "mass": 0.5, "com": -0.15}, "gap": 0.255, "power": {"grip": 1.02, "lift": 0.84, "carry": 0.4, "max_lift": 0.04, "max_clear": 0.008}},
-    "square": {"box": {"w": 0.26, "d": 0.13, "h": 0.26, "mass": 0.6, "com": 0}, "gap": 0.2, "power": {"grip": 1.36, "lift": 1.12, "carry": 0.54, "max_lift": 0.04, "max_clear": 0.008}}
+    "long": {"box": {"w": 0.17, "d": 0.12, "h": 0.34, "mass": 0.4, "com": -0.15}, "gap": 0.285, "power": {"grip": 1.02, "lift": 1.0, "carry": 0.4, "max_lift": 0.06, "max_clear": 0.012}},
+    "square": {"box": {"w": 0.26, "d": 0.13, "h": 0.26, "mass": 0.5, "com": 0}, "gap": 0.215, "power": {"grip": 1.36, "lift": 1.12, "carry": 0.54, "max_lift": 0.06, "max_clear": 0.012}}
   },
   "play_half": [0.4, 0.3],
   "odds": {"rare": 0.03, "gold": 0.005},
   "stuck": {"plays": 8, "move": 0.004, "turn": 0.035},
-  "nudge": {"shift": [0.005, 0.01], "twist_deg": [3, 7]},
+  "nudge": {"shift": [0.003, 0.006], "twist_deg": [3, 7]},
   "start_jitter": {"shift": 0.006, "twist_deg": 2}
 }

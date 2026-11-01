@@ -82,16 +82,16 @@ describe.each(['long', 'square'] as const)('%s box', (kind) => {
     w.dispose();
   });
 
-  // 앞뒤로는 빠질 곳이 없다(설계 §8.2): 세게 밀려도 앞판·받침 막대·뒤 벽에 막히고, 막대 아래로 간다면 두 막대 사이로만
+  // 앞뒤로는 빠질 곳이 없다(설계 §8.2): 세게 밀려도 앞판·받침 막대·뒤 벽에 막히고, 막대 아래로 간다면 두 막대 사이로만 —
+  // 상자 가운데가 처음 막대보다 두께만큼 아래로 내려가는 순간 두 막대 사이에 있다(빠진 뒤 기계 속에서 막대 밑으로 밀려가는 건 상관없다)
   test('the box never leaves over the front or back', () => {
     for (const v of [1.5, -1.5]) {
       const w = new FigureWorld(R, lying(kind), kind);
       w.box.setLinvel({ x: 0, y: 0, z: v }, true);
-      let outside = false;
-      settle(w, 3, () => { const p = w.boxPose(); if (p[1] < bars.y - 0.05 && Math.abs(p[2]) > barZ(kind)) outside = true; });
-      const p = w.boxPose();
-      expect(outside, `push ${v}`).toBe(false);
-      expect(Math.abs(p[2]), `push ${v}`).toBeLessThan(barZ(kind) + guards.back_wall);
+      let crossZ: number | null = null;
+      settle(w, 3, () => { const p = w.boxPose(); if (crossZ === null && p[1] < bars.y - B.d) crossZ = p[2]; });
+      if (crossZ !== null) expect(Math.abs(crossZ), `push ${v} fell at`).toBeLessThan(barZ(kind));
+      else expect(Math.abs(w.boxPose()[2]), `push ${v} stays inside`).toBeLessThan(barZ(kind) + guards.back_wall);
       w.dispose();
     }
   });
