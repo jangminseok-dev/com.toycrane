@@ -4,7 +4,7 @@ import type { Occluder } from '../game/occlusion';
 import { bakeByMaterial, fadeMaterials, materialCloner, mergeBuckets } from './bake';
 import { BODY_W, makeDoll } from './dolls';
 import { dollPose } from './dollPose';
-import { PLUSH_VC, plushVCWithMap } from './plush/kit';
+import { bakePlush } from './plushBake';
 import { rareTagTex, twinkleTex } from './signs';
 import { TOP_LAYER } from './topView';
 import { CHROME, idleClawGeometry, makeClawRig, type ClawRig } from './claw';
@@ -64,17 +64,6 @@ const rigPool: ClawRig[] = [];
 // 빛나지 않는 툰 칠 부품은 색을 꼭짓점 색으로 옮겨 공용 재질(무늬 없으면 DOLL_VC, 다람쥐 줄무늬처럼 무채색 무늬면 그 무늬마다 하나)로
 // 모은다 — 색이 여러 가지여도 그리기 호출이 늘지 않게. 빛나는 특수효과·황금만 따로 묶인다 (설계 2026-10-31 인형 채우기 §5)
 type Part = { geo: THREE.BufferGeometry; mat: THREE.Material };
-// 새 인형(plush)의 빛나지 않는 칠은 색을 꼭짓점 색(주름 그늘)에 곱해 PLUSH_VC 하나로 모은다 (인형 리뉴얼 설계 §7)
-const tintable = (m: THREE.Material): m is THREE.MeshToonMaterial => m instanceof THREE.MeshToonMaterial && m.userData.plush === true && m.emissive.getHex() === 0;
-// 합칠 수 있게 속성을 position·normal·uv·color 넷으로 맞춘다(외곽선·왕관처럼 uv·색이 없는 도형도)
-function uniform(g: THREE.BufferGeometry): THREE.BufferGeometry {
-  const n = g.getAttribute('position').count;
-  for (const key of Object.keys(g.attributes)) if (!['position', 'normal', 'uv', 'color'].includes(key)) g.deleteAttribute(key);
-  if (!g.getAttribute('normal')) g.computeVertexNormals();
-  if (!g.getAttribute('uv')) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(n * 2), 2));
-  if (!g.getAttribute('color')) g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3).fill(1), 3));
-  return g;
-}
 // 합쳐 둔 모양은 최근에 쓴 것만 이만큼 둔다 — 겉모습이 2천 가지 가까이라 다 두면 휴대폰 메모리가 넘친다(매장 무더기는 216개)
 export const LITE_CACHE_MAX = 300;
 const partsCache = new Map<string, Part[] | null>();
@@ -88,25 +77,7 @@ function liteParts(spot: DollSpot): Part[] | null {
   if (known !== undefined) { partsCache.delete(key); partsCache.set(key, known); return known; } // 최근에 쓴 것으로
   const doll = makeDoll(spot[0], look, true);
   let parts: Part[] | null = null;
-  if (doll) {
-    // 조각마다 속성을 맞춘 뒤(uniform) 한 번에 합친다 — 재질별로 먼저 합치면 uv 없는 왕관과 uv 있는 몸이 한 재질(외곽선)에서 만나 합치기가 실패하고 그 덩어리가 통째로 빠졌다
-    const buckets = new Map<THREE.Material, { line: boolean; geos: THREE.BufferGeometry[] }>();
-    doll.updateMatrixWorld(true);
-    doll.traverse((o) => {
-      const m = o as THREE.Mesh;
-      if (!m.isMesh) return;
-      let mat = m.material as THREE.Material;
-      const geo = uniform(m.geometry.clone().applyMatrix4(m.matrixWorld));
-      if (tintable(mat)) {
-        const c = mat.color, col = geo.getAttribute('color') as THREE.BufferAttribute;
-        for (let i = 0; i < col.count; i++) col.setXYZ(i, col.getX(i) * c.r, col.getY(i) * c.g, col.getZ(i) * c.b);
-        mat = mat.map ? plushVCWithMap(mat.map) : PLUSH_VC;
-      }
-      if (!buckets.has(mat)) buckets.set(mat, { line: false, geos: [] });
-      buckets.get(mat)!.geos.push(geo);
-    });
-    parts = mergeBuckets(buckets).map((m) => ({ geo: m.geometry, mat: m.material as THREE.Material }));
-  }
+  if (doll) parts = bakePlush(doll).map((m) => ({ geo: m.geometry, mat: m.material as THREE.Material }));
   partsCache.set(key, parts);
   while (partsCache.size > LITE_CACHE_MAX) {
     const [oldest, gone] = partsCache.entries().next().value!;

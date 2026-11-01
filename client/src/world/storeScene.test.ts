@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { beforeAll, expect, test } from 'vitest';
 import { stubCanvas } from '../test/canvasStub';
-import { ROOM_HEIGHT } from './layout';
+import { ROOM_HALF, ROOM_HEIGHT, TOWER_HALF } from './layout';
 import { buildStore } from './storeScene';
 
 beforeAll(stubCanvas);
@@ -37,4 +37,35 @@ test('ten ad signs hang on the walls as one mesh', () => {
   expect(signs).toBeDefined();
   const tris = (signs.geometry.index ? signs.geometry.index.count : signs.geometry.getAttribute('position').count) / 3;
   expect(tris).toBe(20);
+});
+
+// 큰 홀(설계 2026-11-01 §3): 광장 가운데 진열탑 — 큰 인형·피규어 상자가 층층이, 4면 전광판은 꼭대기에, 높이 4.5m 이하
+test('the display tower stands in the plaza with the four-sided board on top', () => {
+  const scene = new THREE.Scene();
+  const tower = buildStore(scene);
+  scene.updateMatrixWorld(true);
+  const display = scene.getObjectByName('display-tower')!;
+  expect(display).toBeDefined();
+  const box = new THREE.Box3().setFromObject(display);
+  expect(box.max.y).toBeLessThanOrEqual(4.5);
+  expect(Math.max(Math.abs(box.min.x), Math.abs(box.max.x), Math.abs(box.min.z), Math.abs(box.max.z))).toBeLessThanOrEqual(TOWER_HALF + 0.05);
+  const screens: THREE.Object3D[] = [];
+  scene.traverse((o) => { if (o.name === 'tower-screen') screens.push(o); });
+  expect(screens).toHaveLength(4);
+  for (const sc of screens) expect(new THREE.Vector3().setFromMatrixPosition(sc.matrixWorld).y).toBeGreaterThanOrEqual(3);
+  expect(tower.box.min.x).toBeCloseTo(-TOWER_HALF); expect(tower.box.max.z).toBeCloseTo(TOWER_HALF);
+  expect(tower.box.max.y).toBeCloseTo(box.max.y, 1);
+  let dolls = 0; display.traverse((o) => { if (o.name.startsWith('tower-doll')) dolls++; });
+  expect(dolls).toBe(0); // 탑의 인형·상자는 재질별로 합쳐 그린다(메시 몇 개)
+});
+
+test('the walls enclose the big hall', () => {
+  const scene = new THREE.Scene(); buildStore(scene);
+  scene.updateMatrixWorld(true);
+  const walls: THREE.Box3[] = [];
+  scene.traverse((o) => { if (o.name === 'hall-wall') walls.push(new THREE.Box3().setFromObject(o)); });
+  expect(walls).toHaveLength(4);
+  const all = walls.reduce((a, b) => a.union(b), new THREE.Box3());
+  expect(all.min.x).toBeCloseTo(-ROOM_HALF); expect(all.max.x).toBeCloseTo(ROOM_HALF);
+  expect(all.min.z).toBeCloseTo(-ROOM_HALF); expect(all.max.z).toBeCloseTo(ROOM_HALF);
 });

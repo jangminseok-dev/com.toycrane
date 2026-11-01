@@ -3,6 +3,10 @@ import { PLAZA_RADIUS, ROOM_HALF, ROOM_HEIGHT, SPAWN_RADIUS, TOWER_HALF } from '
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { adSignCell, adSignsTex } from './signs';
 import { canvasTex, outlineMat, part, toon, toonWith } from './toon';
+import { DOLLS } from '../data/catalog';
+import { fadeMaterials, materialCloner } from './bake';
+import { bakePlush } from './plushBake';
+import { PLAIN, makeDoll } from './dolls';
 
 // 매장 겉모습(밝은 대형 일본 게임센터): 큰 판 대리석 바닥 · 흰 벽 + 색 띠·별 · "toycrane 게임센터" 벽 간판 ·
 // 구역 바닥 색 · 허브 4면 전광판 탑 · 스폰 링. 카메라가 위에서 내려다보므로 천장은 없다(설계 §3.7 2차)
@@ -20,7 +24,8 @@ export function buildStore(scene: THREE.Scene): HubTower {
   addFloor(scene);
   addWallsAndCeiling(scene);
   addZones(scene);
-  return addHubTower(scene);
+  addEntrance(scene);
+  return addDisplayTower(scene);
 }
 
 function addLights(scene: THREE.Scene) {
@@ -92,14 +97,15 @@ function addWallsAndCeiling(scene: THREE.Scene) {
   // 벽은 안쪽 면만 그려서 카메라가 방 밖으로 나가면 그쪽 벽이 저절로 사라진다
   for (const [x, z, ry] of [[0, -ROOM_HALF, 0], [0, ROOM_HALF, Math.PI], [-ROOM_HALF, 0, Math.PI / 2], [ROOM_HALF, 0, -Math.PI / 2]]) {
     const w = new THREE.Mesh(new THREE.PlaneGeometry(size, h), wallMat);
-    w.position.set(x, h / 2, z); w.rotation.y = ry; w.receiveShadow = true;
+    w.position.set(x, h / 2, z); w.rotation.y = ry; w.receiveShadow = true; w.name = 'hall-wall';
     scene.add(w);
   }
-  // 벽 광고 간판 10장('광고문의1'~'광고문의10', 교환소 개편 설계 §4.6): 북쪽 4·동쪽 2·서쪽 2·남쪽 2, 한 그림의 칸을 나눠 써 메시 하나로
+  // 벽 광고 간판 10장('광고문의1'~'광고문의10', 교환소 개편 설계 §4.6): 북쪽 4·동쪽 2·서쪽 2·남쪽 2, 한 그림의 칸을 나눠 써 메시 하나로.
+  // 큰 홀(설계 2026-11-01): 벽마다 기계·장식이 없는 구간에 고르게
   const spots: [number, number, number][] = [ // x, z, 돌림(벽 안쪽을 봄)
-    [-9, -ROOM_HALF + 0.02, 0], [-3, -ROOM_HALF + 0.02, 0], [3, -ROOM_HALF + 0.02, 0], [9, -ROOM_HALF + 0.02, 0],
-    [ROOM_HALF - 0.02, -1, -Math.PI / 2], [ROOM_HALF - 0.02, 6, -Math.PI / 2], [-ROOM_HALF + 0.02, -1, Math.PI / 2], [-ROOM_HALF + 0.02, 6, Math.PI / 2],
-    [-5, ROOM_HALF - 0.02, Math.PI], [5, ROOM_HALF - 0.02, Math.PI],
+    [-16, -ROOM_HALF + 0.02, 0], [-1.3, -ROOM_HALF + 0.02, 0], [1.3, -ROOM_HALF + 0.02, 0], [16, -ROOM_HALF + 0.02, 0],
+    [ROOM_HALF - 0.02, -15, -Math.PI / 2], [ROOM_HALF - 0.02, 12, -Math.PI / 2], [-ROOM_HALF + 0.02, -15, Math.PI / 2], [-ROOM_HALF + 0.02, 12, Math.PI / 2],
+    [-8, ROOM_HALF - 0.02, Math.PI], [8, ROOM_HALF - 0.02, Math.PI],
   ];
   const signs = mergeGeometries(spots.map(([x, z, ry], i) => {
     const geo = new THREE.PlaneGeometry(1.4, 0.7), uv = geo.getAttribute('uv') as THREE.BufferAttribute, cell = adSignCell(i);
@@ -112,21 +118,28 @@ function addWallsAndCeiling(scene: THREE.Scene) {
 }
 
 function addZones(scene: THREE.Scene) {
-  const tint = (color: number, opacity: number, w: number, d: number, x: number, z: number, y = 0.005) => {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }));
-    m.rotation.x = -Math.PI / 2; m.position.set(x, y, z);
-    scene.add(m);
+  // 구역 바닥 칠(큰 홀, 설계 2026-11-01 §3, layout.zoneAt과 같은 모양): 서쪽 인형, 동쪽 피규어, 북쪽 고리·미는 뽑기, 남쪽 두 모서리 쉼터,
+  // 가운데 둥근 광장 — 꼭짓점 색으로 한 덩어리
+  const tints: THREE.BufferGeometry[] = [];
+  const tint = (color: number, geo: THREE.BufferGeometry, x: number, z: number) => {
+    geo.rotateX(-Math.PI / 2).translate(x, 0.005, z);
+    const c = new THREE.Color(color), n = geo.getAttribute('position').count;
+    geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(Array.from({ length: n }, () => [c.r, c.g, c.b]).flat()), 3));
+    tints.push(geo.index ? geo.toNonIndexed() : geo);
   };
-  // 큰인형 = 위쪽 띠, 미니·피규어 = 좌우 ㄴ자 (layout.zoneAt과 같은 모양)
-  tint(0xff7ab6, 0.08, 26, 7.5, 0, -9.25);
-  tint(0xb48cff, 0.1, 7.5, 18.5, -9.25, 3.75);
-  tint(0xb48cff, 0.1, 5, 7.5, -3, 9.25);
-  tint(0x4fd8ff, 0.1, 7.5, 18.5, 9.25, 3.75);
-  tint(0x4fd8ff, 0.1, 5, 7.5, 3, 9.25);
-  tint(0xffe08a, 0.06, PLAZA_RADIUS * 2, PLAZA_RADIUS * 2, 0, 0, 0.006);
-  floorText(scene, '큰인형', 0, -9.25);
-  floorText(scene, '미니', -9.25, 1);
-  floorText(scene, '피규어', 9.25, 1);
+  tint(0xff7ab6, new THREE.PlaneGeometry(11, 19), -16.5, 0);
+  tint(0xb48cff, new THREE.PlaneGeometry(10.5, 20), 16.75, 0);
+  tint(0x4fd8ff, new THREE.PlaneGeometry(44, 8), 0, -18);
+  tint(0x7bd88f, new THREE.PlaneGeometry(9, 9), -17.5, 17.5);
+  tint(0x7bd88f, new THREE.PlaneGeometry(9, 9), 17.5, 17.5);
+  tint(0xffe08a, new THREE.CircleGeometry(PLAZA_RADIUS, 72), 0, 0);
+  const zones = new THREE.Mesh(mergeGeometries(tints)!, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.1, depthWrite: false }));
+  zones.name = 'zone-tints';
+  scene.add(zones);
+  floorLabels(scene, [
+    ['인형뽑기', -16.5, 9.2], ['피규어뽑기', 16.75, 10.2], ['고리뽑기', -8, -13.6], ['미는뽑기', 0, -13.6], ['고리뽑기', 8, -13.6],
+    ['쉼터', -17.5, 13.6], ['쉼터', 17.5, 13.6], ['입구', 0, ROOM_HALF - 2.2],
+  ]);
   const ring = new THREE.Mesh(
     new THREE.RingGeometry(SPAWN_RADIUS - 0.1, SPAWN_RADIUS + 0.1, 72),
     new THREE.MeshBasicMaterial({ color: 0xff7ab6, transparent: true, opacity: 0.45, depthWrite: false }),
@@ -135,24 +148,61 @@ function addZones(scene: THREE.Scene) {
   scene.add(ring);
 }
 
-function floorText(scene: THREE.Scene, text: string, x: number, z: number) {
-  const tex = canvasTex(512, 128, (g) => {
+// 바닥 글씨(구역 이름): 한 그림에 줄마다 하나씩 그려 메시 하나로
+function floorLabels(scene: THREE.Scene, labels: [string, number, number][]) {
+  const rowH = 128, tex = canvasTex(512, rowH * labels.length, (g) => {
     g.font = '900 88px -apple-system, "Apple SD Gothic Neo", sans-serif';
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillStyle = 'rgba(80,60,100,.25)'; g.fillText(text, 256, 68);
+    g.fillStyle = 'rgba(80,60,100,.25)';
+    labels.forEach(([text], i) => g.fillText(text, 256, i * rowH + 68));
   });
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(4, 1), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
-  m.rotation.x = -Math.PI / 2; m.position.set(x, 0.01, z);
+  const geos = labels.map(([, x, z], i) => {
+    const geo = new THREE.PlaneGeometry(4, 1), uv = geo.getAttribute('uv') as THREE.BufferAttribute;
+    for (let k = 0; k < uv.count; k++) uv.setY(k, 1 - (i + 1 - uv.getY(k)) / labels.length); // 캔버스 위에서 i번째 줄
+    return geo.rotateX(-Math.PI / 2).translate(x, 0.01, z);
+  });
+  const m = new THREE.Mesh(mergeGeometries(geos)!, new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+  m.name = 'floor-labels';
   scene.add(m);
 }
 
-function addHubTower(scene: THREE.Scene): HubTower {
-  const w = TOWER_HALF * 2, h = 2.8;
+// 광장 진열탑(설계 2026-11-01 §3): 3단 진열대에 큰 인형·피규어 상자(투명 창 안에 작은 인형), 꼭대기에 4면 전광판(희귀 알림).
+// 피규어 모델은 피규어 뽑기 단계에서 — 지금 상자 속은 우리 인형. 인형·상자는 재질별로 합쳐 그린다
+const TIERS: [number, number, number][] = [[TOWER_HALF * 2, 0, 0.9], [2.5, 0.9, 1.7], [1.8, 1.7, 2.5]]; // 폭, 아래, 위
+const BOARD = { w: 2.6, y0: 3.0, y1: 4.3 };
+function addDisplayTower(scene: THREE.Scene): HubTower {
+  const root = new THREE.Group(); root.name = 'display-tower';
+  scene.add(root);
   // 탑만 흐려지게 공용 재질(툰·외곽선)을 복제해 쓴다
-  const bodyMat = toon(0xfbf8ff).clone(), edgeMat = outlineMat.clone();
-  const body = part(new THREE.BoxGeometry(w, h, w), bodyMat, [0, h / 2, 0], [1, 1, 1], [0, 0, 0], 1.02);
-  body.traverse((o) => { if (o instanceof THREE.Mesh && o.material === outlineMat) o.material = edgeMat; });
-  scene.add(body);
+  const bodyMat = toon(0xfbf8ff).clone(), trimMat = toon(0xffb3d9).clone(), edgeMat = outlineMat.clone();
+  const add = (mesh: THREE.Mesh) => { mesh.traverse((o) => { if (o instanceof THREE.Mesh && o.material === outlineMat) o.material = edgeMat; }); root.add(mesh); };
+  TIERS.forEach(([w, y0, y1], k) => add(part(new THREE.BoxGeometry(w, y1 - y0, w), k % 2 ? trimMat : bodyMat, [0, (y0 + y1) / 2, 0], [1, 1, 1], [0, 0, 0], 1.02)));
+  add(part(new THREE.BoxGeometry(0.6, BOARD.y0 - TIERS[2][2], 0.6), bodyMat, [0, (BOARD.y0 + TIERS[2][2]) / 2, 0], [1, 1, 1], [0, 0, 0], 1.02));
+  add(part(new THREE.BoxGeometry(BOARD.w, BOARD.y1 - BOARD.y0, BOARD.w), toon(0x2a2236).clone(), [0, (BOARD.y0 + BOARD.y1) / 2, 0], [1, 1, 1], [0, 0, 0], 1.02));
+  // 진열: 아래 단 가장자리에 큰 인형(면마다 둘), 가운데 단에 피규어 상자(면마다 둘), 맨 위 단 네 모서리에 큰 인형
+  const kinds = Object.keys(DOLLS), shelf = new THREE.Group();
+  const boxMat = toon(0xffe9a8), glass = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.22, depthWrite: false });
+  const boxGeo = new THREE.BoxGeometry(0.3, 0.42, 0.2), windowGeo = new THREE.PlaneGeometry(0.24, 0.32);
+  const doll = (k: number, scale: number, x: number, y: number, z: number, ry: number) => {
+    const d = makeDoll(kinds[k % kinds.length], PLAIN, true);
+    if (!d) return;
+    d.scale.setScalar(scale); d.position.set(x, y, z); d.rotation.y = ry;
+    shelf.add(d);
+  };
+  for (let side = 0; side < 4; side++) {
+    const ry = (side * Math.PI) / 2, out = new THREE.Vector3(Math.sin(ry), 0, Math.cos(ry)), along = new THREE.Vector3(Math.cos(ry), 0, -Math.sin(ry));
+    for (const t of [-0.6, 0.6]) {
+      const a = out.clone().multiplyScalar(1.42).addScaledVector(along, t), b = out.clone().multiplyScalar(1.07).addScaledVector(along, t * 0.75);
+      doll(side * 2 + (t > 0 ? 1 : 0), 0.5, a.x, TIERS[0][2], a.z, ry);
+      const box = new THREE.Mesh(boxGeo, boxMat); box.position.set(b.x, TIERS[1][2] + 0.21, b.z); box.rotation.y = ry; shelf.add(box);
+      const pane = new THREE.Mesh(windowGeo, glass); pane.position.copy(box.position).addScaledVector(out, 0.101); pane.rotation.y = ry; shelf.add(pane);
+      doll(8 + side * 2 + (t > 0 ? 1 : 0), 0.22, b.x, TIERS[1][2] + 0.04, b.z, ry);
+    }
+    const c = out.clone().add(along).multiplyScalar(0.62);
+    doll(16 + side, 0.62, c.x, TIERS[2][2], c.z, ry + Math.PI / 4);
+  }
+  const cloner = materialCloner();
+  for (const m of bakePlush(shelf, cloner.remap)) root.add(m);
   // 전광판: 평소엔 "toycrane / 어서 오세요", 희귀가 나오면 잠깐 금색 알림 (시제품 drawBoard)
   const draw = (l1: string, l2: string, gold: boolean) => (g: CanvasRenderingContext2D) => {
     g.shadowBlur = 0;
@@ -173,20 +223,18 @@ function addHubTower(scene: THREE.Scene): HubTower {
     screenTex.needsUpdate = true;
   };
   const screenMat = new THREE.MeshBasicMaterial({ map: screenTex });
-  const glow = new THREE.MeshBasicMaterial({ color: 0xff6fb5 });
+  const screenGeo = new THREE.PlaneGeometry(BOARD.w - 0.2, BOARD.y1 - BOARD.y0 - 0.2);
   for (let k = 0; k < 4; k++) {
     const side = new THREE.Group(); side.rotation.y = (k * Math.PI) / 2;
-    const screen = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.25, 1.7), screenMat);
-    screen.position.set(0, 1.85, TOWER_HALF + 0.012);
+    const screen = new THREE.Mesh(screenGeo, screenMat); screen.name = 'tower-screen';
+    screen.position.set(0, (BOARD.y0 + BOARD.y1) / 2, BOARD.w / 2 + 0.012);
     side.add(screen);
-    const band = new THREE.Mesh(new THREE.BoxGeometry(w - 0.1, 0.04, 0.02), glow);
-    band.position.set(0, 0.08, TOWER_HALF + 0.012);
-    side.add(band);
-    scene.add(side);
+    root.add(side);
   }
-  const mats = [bodyMat, edgeMat, screenMat, glow];
+  const mats: THREE.Material[] = [bodyMat, trimMat, edgeMat, screenMat];
+  root.traverse((o) => { const m = (o as THREE.Mesh).material as THREE.Material | undefined; if (m && !mats.includes(m) && !cloner.materials.includes(m)) mats.push(m); });
   return {
-    box: new THREE.Box3(new THREE.Vector3(-TOWER_HALF, 0, -TOWER_HALF), new THREE.Vector3(TOWER_HALF, h, TOWER_HALF)),
+    box: new THREE.Box3(new THREE.Vector3(-TOWER_HALF, 0, -TOWER_HALF), new THREE.Vector3(TOWER_HALF, BOARD.y1, TOWER_HALF)),
     showMessage(line1, line2, gold, seconds) {
       redraw(draw(line1, line2, gold));
       clearTimeout(restoreTimer);
@@ -198,8 +246,21 @@ function addHubTower(scene: THREE.Scene): HubTower {
         m.opacity = opacity;
         m.depthWrite = opacity >= 1;
       }
+      fadeMaterials(cloner.materials, opacity);
     },
   };
+}
+
+// 입구(남쪽 벽 가운데): 기둥 둘과 가로대를 한 덩어리로 — 걷기 카메라가 북쪽을 보므로 남쪽으로 걸어갈 때만 보인다
+function addEntrance(scene: THREE.Scene) {
+  const z = ROOM_HALF - 0.4;
+  const geo = mergeGeometries([
+    new THREE.BoxGeometry(0.4, 3, 0.4).translate(-2.2, 1.5, z), new THREE.BoxGeometry(0.4, 3, 0.4).translate(2.2, 1.5, z),
+    new THREE.BoxGeometry(4.8, 0.5, 0.4).translate(0, 2.9, z),
+  ])!;
+  const g = part(geo, toon(0xff7ab6));
+  g.name = 'entrance';
+  scene.add(g);
 }
 
 // 글자가 폭을 넘으면 크기를 줄인다
