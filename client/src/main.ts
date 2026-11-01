@@ -37,6 +37,7 @@ import { setAction } from './ui/actionButton';
 import { askNickname, hideEntry, showFull, showMessage, showWelcomeBack } from './ui/entry';
 import { onBagTap, setHud, setInfo, toast } from './ui/hud';
 import { bagGroups, openBagSheet } from './ui/bagSheet';
+import { buildMinimap, mapSize } from './ui/minimap';
 import { eulReul, iGa } from './ui/josa';
 import { hidePlayControls, hideSeatControls, setTimer, showHint, showPlayControls, showRunPause, showSeatControls } from './ui/playControls';
 import { PlayRun, runSize } from './game/playRun';
@@ -121,6 +122,7 @@ const bigZone = buildBigZone(scene);
 const figureZone = buildFigureZone(scene); // 동쪽 피규어 기계 14대(9단계)
 const ringZone = buildRingZone(scene); // 북쪽 고리 뽑기 10대(설계 2026-11-02)
 const pusherZone = buildPusherZone(scene); // 북쪽 가운데 미는 뽑기 4대(설계 2026-11-02)
+const minimap = buildMinimap(document.body, mapSize(innerWidth, innerHeight)); // 오른쪽 위 매장 지도(설계 2026-11-02 §6)
 // 탑·기계 행·교환소가 내 캐릭터를 가리면 그것만 흐리게(머리·몸통 중 하나라도 가리면)
 const fader = new OcclusionFader([tower, ...bigZone.occluders, ...figureZone.occluders, ...ringZone.occluders, ...pusherZone.occluders, ...buildCoinCounters(scene), ...buildDecor(scene)]);
 
@@ -991,6 +993,7 @@ function frame(now: number) {
     joystick.setEnabled(!atMachine); // 기계 앞에서는 기계 버튼으로 — 걷기 조이스틱은 숨긴다
     bigZone.hideRowsBehind(atMachine ?? null); // 기계 앞 화면에선 내 기계 뒤 줄을 숨긴다 (휴대폰 그리기 호출, 큰 홀 설계 §6)
     bigZone.setFocus(me.pos.x, me.pos.z); // 먼 묶음은 인형 외곽선을 끈다 (큰 홀 설계 §6)
+    minimap.frame({ me: { x: me.pos.x, z: me.pos.z, heading: myAvatar.root.rotation.y }, others: remotes.positions(), atMachine: !!atMachine }, now / 1000); // 기계 앞에선 숨김
     const myMachine = atMachine ? spotOf.get(atMachine) : undefined;
     remotes.fade(myMachine ? (p) => blocksView(myMachine, p) : null, dt); // 한 판 중 내 카메라를 가리는 사람은 거의 투명하게
     if (session) {

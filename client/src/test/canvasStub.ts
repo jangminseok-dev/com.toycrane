@@ -17,5 +17,5 @@ const ctx = new Proxy({} as Record<string | symbol, unknown>, {
 export function stubCanvas(): void {
   const g = globalThis as { document?: unknown };
   if (g.document) return;
-  g.document = { createElement: () => ({ width: 0, height: 0, style: {}, getContext: () => ctx }) };
+  g.document = { createElement: () => ({ width: 0, height: 0, style: { setProperty: noop }, getContext: () => ctx }) };
 }

@@ -46,3 +46,12 @@ test('removing a begging remote stops its begging loop', async () => {
   for (let i = 0; i < 10; i++) { await run(0.05); seen.push(rig.crouch); }
   expect(seen).toEqual(Array(10).fill(0));
 });
+
+// 매장 지도의 다른 사람 점: 화면에 보이는 자리(부드럽게 따라간 자리)
+test('remotes report where they are shown for the map', () => {
+  const remotes = new RemotePlayers(new THREE.Scene());
+  remotes.add(view('p2', 1, 2), 0); remotes.add(view('p3', -5, 4), 0);
+  expect(remotes.positions()).toEqual([{ x: 1, z: 2 }, { x: -5, z: 4 }]);
+  remotes.remove('p2');
+  expect(remotes.positions()).toEqual([{ x: -5, z: 4 }]);
+});

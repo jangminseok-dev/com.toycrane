@@ -44,6 +44,11 @@ export class RemotePlayers {
     this.remotes.delete(id);
   }
 
+  // 매장 지도의 다른 사람 점(화면에 보이는 자리)
+  positions(): { x: number; z: number }[] {
+    return [...this.remotes.values()].map((r) => ({ x: r.shown.x, z: r.shown.y }));
+  }
+
   // 모션(기계 앞 코인·조이스틱·결과)을 그 사람 아바타에 입힐 때
   rigOf(id: string): AvatarRig | null {
     return this.remotes.get(id)?.avatar.rig ?? null;
