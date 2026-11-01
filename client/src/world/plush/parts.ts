@@ -26,7 +26,7 @@ export function sitBody(b: PlushBuilder, o: BodyOpts = {}): void {
     b.sphere(0.16, mirror(s, [0.25 * w, 0.16, 0.38 + (long - 1) * 0.08]), [1.05, 0.95, 1.1 * long], [0, 0, 0], leg); // 뒷발
     // 발바닥은 뒷발 앞면에 붙인다(겉면 위치를 재서) — 발 모양이 달라도 반쯤 박힌 채 보이게
     const fx = s * 0.25 * w;
-    if (o.pads === 'cream' || o.pads === undefined) b.nub(0.1, [fx, 0.16], [1.05, 1, 0.3], { slot: 'pad', outline: true });
+    if (o.pads === 'cream' || o.pads === undefined) b.nub(0.1, [fx, 0.16], [1.05, 1, 0.42], { slot: 'pad', outline: true });
     if (o.pads === 'beans') {
       b.nub(0.07, [fx, 0.14], [1.05, 0.9, 0.3], { slot: 'pad' });
       for (const k of [-1, 0, 1]) b.nub(0.024, [fx + k * 0.046, 0.215 - Math.abs(k) * 0.014], [1, 1, 0.35], { slot: 'pad' });

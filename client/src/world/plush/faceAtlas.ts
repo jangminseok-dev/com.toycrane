@@ -58,11 +58,18 @@ const patch: Draw = (g, S) => {
   g.beginPath(); g.ellipse(S * 0.52, S * 0.55, S * 0.36, S * 0.44, -0.45, 0, Math.PI * 2); g.fill();
 };
 
+// 너구리 눈가 띠: 두 눈을 잇는 넓은 띠 (가운데가 좁다)
+const mask: Draw = (g, S) => {
+  g.fillStyle = '#4e4250';
+  for (const x of [0.27, 0.73]) { g.beginPath(); g.ellipse(S * x, S * 0.52, S * 0.24, S * 0.2, x < 0.5 ? 0.25 : -0.25, 0, Math.PI * 2); g.fill(); }
+  g.fillRect(S * 0.3, S * 0.44, S * 0.4, S * 0.12);
+};
+
 // 칸 차례 (6×6 격자, 위 왼쪽부터). 새 무늬는 끝에 더한다 — 앞 칸 자리가 바뀌지 않게
 const CELLS: [Cell, Draw][] = [
   ['dotEye', dotEye], ['closed', closed(0.1)], ['animeClosed', closed(0.12)], ['sleepy', sleepy], ['blush', blush(0.85, 1)], ['blushBig', blush(1, 1.15)],
   ...(Object.keys(IRIS) as Iris[]).map((i): [Cell, Draw] => [`anime-${i}`, animeEye(i)]),
-  ['mark-tabby', tabby], ['mark-patch', patch],
+  ['mark-tabby', tabby], ['mark-patch', patch], ['mark-mask', mask],
 ];
 const GRID = 6, SIZE = 1024, PAD = 2 / SIZE;
 const index = new Map(CELLS.map(([c], i) => [c, i]));
