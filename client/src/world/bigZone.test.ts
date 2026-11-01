@@ -14,7 +14,7 @@ const fill = (zone: ReturnType<typeof buildBigZone>, t = 0) => { for (let i = 0;
 
 test('big zone builds 24 machines in two fade rows', () => {
   const zone = buildBigZone(new THREE.Scene());
-  expect(zone.occluders).toHaveLength(2);
+  expect(zone.occluders).toHaveLength(3); // 큰 홀: 서쪽 세 줄(d1·d2·d3)
   expect(MACHINES.every((m) => zone.worldOf(m.id))).toBe(true);
 });
 
@@ -50,7 +50,7 @@ test('a contents change rebuilds only its block of machines', () => {
   const after = blocks();
   const changed = before.filter((meshes, i) => meshes.some((m, k) => m !== after[i][k]));
   expect(changed).toHaveLength(1);
-  expect(groups.length).toBe(5); // 벽 13대 → 3묶음, 섬 11대 → 2묶음 (6대 이하씩)
+  expect(groups.length).toBe(6); // 큰 홀: 세 줄 × 8대 → 줄마다 2묶음 (6대 이하씩)
 });
 
 // 서버가 정한 얹힌 높이(y)대로 그린다 — 위층 인형이 바닥 인형보다 높이 있다
@@ -80,7 +80,7 @@ test('a machine borrows the moving claw while in use', () => {
 test('marquee bulbs chase around over time', () => {
   const scene = new THREE.Scene();
   const zone = buildBigZone(scene);
-  const bulbs = scene.getObjectByName('bulbs-big-island') as THREE.InstancedMesh;
+  const bulbs = scene.getObjectByName('bulbs-big-d3') as THREE.InstancedMesh;
   fill(zone);
   const a = Array.from(bulbs.instanceColor!.array);
   zone.update(0.2);
@@ -91,7 +91,7 @@ test('marquee bulbs chase around over time', () => {
 test('marquee bulbs are cheap little gems', () => {
   const scene = new THREE.Scene();
   buildBigZone(scene);
-  const bulbs = scene.getObjectByName('bulbs-big-island') as THREE.InstancedMesh;
+  const bulbs = scene.getObjectByName('bulbs-big-d3') as THREE.InstancedMesh;
   const geo = bulbs.geometry;
   expect((geo.index ? geo.index.count : geo.attributes.position.count) / 3).toBeLessThanOrEqual(40);
 });
@@ -143,7 +143,7 @@ test('six machines of different colors still bake into few materials', () => {
   const zone = buildBigZone(scene);
   for (const [k, m] of MACHINES.slice(0, 6).entries()) zone.setContents(m.id, nineDolls(m.kind, k % 6));
   fill(zone);
-  expect(materialsIn(scene, 'dolls-big-wall-0')).toBeLessThanOrEqual(6);
+  expect(materialsIn(scene, 'dolls-big-d1-0')).toBeLessThanOrEqual(6);
 });
 
 // 물리 뽑기 설계 §4.5·§9.2: 안 앉은 인형(y null)은 물리가 앉힐 차례이고, 앉힌 자리·돌림을 입히면 y가 채워진다
@@ -197,7 +197,7 @@ test('machines holding a rare show a name tag and twinkles above them', () => {
   zone.setContents('A-2', [spot('fox', 0, 0, 0)]);
   zone.update(0.2);
   expect(count('rare-tags') + count('rare-twinkles')).toBe(0);
-  expect(scene.getObjectByName('rare-sparkles-big-wall')).toBeUndefined();
+  expect(scene.getObjectByName('rare-sparkles-big-d1')).toBeUndefined();
 });
 
 test('chubby dolls are drawn wider', () => {
@@ -206,7 +206,7 @@ test('chubby dolls are drawn wider', () => {
     const zone = buildBigZone(scene);
     zone.setContents('C-6', [spot('bear', 0, 0, 0, 0, { body })]);
     fill(zone);
-    return new THREE.Box3().setFromObject(scene.getObjectByName('dolls-big-island-0')!).getSize(new THREE.Vector3()).x;
+    return new THREE.Box3().setFromObject(scene.getObjectByName('dolls-big-d3-0')!).getSize(new THREE.Vector3()).z; // 큰 홀: 기계가 +x를 보니 인형 폭(기계 안 x)은 세계 z
   };
   expect(width('c')).toBeGreaterThan(width('n') * 1.08);
   expect(width('s')).toBeLessThan(width('n') * 0.94);
@@ -219,7 +219,7 @@ test('squirrels of every color share one striped material', () => {
     const zone = buildBigZone(scene);
     zone.setContents('A-10', colors.map((c, i) => spot('squirrel', -0.3 + (i % 3) * 0.25, -0.25 + Math.floor(i / 3) * 0.22, i, 0, { color: c })));
     fill(zone);
-    return materialsIn(scene, 'dolls-big-wall-1');
+    return materialsIn(scene, 'dolls-big-d2-0');
   };
   expect(count([0, 1, 2, 3, 4, 5])).toBe(count([0, 0, 0, 0, 0, 0]));
 });
@@ -243,7 +243,7 @@ test('live mode on one machine leaves the rest of its block drawn', () => {
   const zone = buildBigZone(scene);
   for (const id of ['C-1', 'C-2', 'C-3', 'C-4', 'C-5', 'C-6']) zone.setContents(id, nineDolls('octopus', 0));
   fill(zone);
-  const block = scene.getObjectByName('dolls-big-island-0')!;
+  const block = scene.getObjectByName('dolls-big-d2-1')!; // 큰 홀: C-1·C-2·C-3은 d2 둘째 묶음
   const before = block.children.length;
   expect(before).toBeGreaterThan(0);
   const live = zone.live('C-3');
@@ -290,7 +290,7 @@ test('a block mixing every kind, face and rarity keeps few materials', () => {
   for (const [k, m] of MACHINES.slice(0, 6).entries())
     zone.setContents(m.id, Array.from({ length: 9 }, (_, i) => spot(kinds[(k * 9 + i) % kinds.length], -0.3 + (i % 3) * 0.25, -0.25 + Math.floor(i / 3) * 0.22, i, 0, { color: i % 6, face: i % 5, rare: i === 4 ? 'star' : '' })));
   fill(zone);
-  expect(materialsIn(scene, 'dolls-big-wall-0')).toBeLessThanOrEqual(6);
+  expect(materialsIn(scene, 'dolls-big-d1-0')).toBeLessThanOrEqual(6);
 });
 // Review Focus 5: 처음 들어올 때 기계 하나(9마리, 서로 다른 겉모습) lite 만들기 200ms 이하
 test('building one machine of fresh lite dolls is quick', () => {
@@ -328,3 +328,13 @@ test('crowned dolls bake into the pile without dropping a material', () => {
     expect(err.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('mergeGeometries'))).toEqual([]);
   } finally { err.mockRestore(); }
 }, 60_000);
+
+// 큰 홀(설계 2026-11-01): 기계 줄은 배치 데이터의 row에서 — 서쪽 세 줄(d1·d2·d3), 묶음마다 6대 이하
+test('rows come from the layout, three doll rows of at most six per block', () => {
+  const scene = new THREE.Scene();
+  buildBigZone(scene);
+  const blocks: string[] = [];
+  scene.traverse((o) => { if (o.name.startsWith('dolls-big-')) blocks.push(o.name); });
+  expect(new Set(blocks.map((n) => n.split('-')[2]))).toEqual(new Set(['d1', 'd2', 'd3']));
+  expect(blocks).toHaveLength(6);
+});

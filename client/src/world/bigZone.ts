@@ -130,7 +130,8 @@ const TWINKLE_SPOTS: [number, number, number][] = [[-0.42, 2.7, 0.32], [0.42, 2.
 // 재질은 행마다 복제해서, 내 캐릭터를 가리는 행만 흐리게 할 수 있다.
 export function buildBigZone(scene: THREE.Scene): BigZone {
   const units = new Map<string, Unit>();
-  const rows: Row[] = (['wall', 'island'] as const).map((name) => {
+  // 기계 줄은 배치 데이터의 row 값에서, 처음 나온 순서대로 (큰 홀: 서쪽 세 줄 d1·d2·d3)
+  const rows: Row[] = [...new Set(MACHINES.map((m) => m.row))].map((name) => {
     const group = new THREE.Group(); group.name = `big-${name}`;
     scene.add(group);
     return { group, cloner: materialCloner(), spots: MACHINES.filter((m) => m.row === name) };
