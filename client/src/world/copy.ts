@@ -21,6 +21,7 @@ export const FIGURE_SIGN = '피규어 뽑기'; // 피규어 기계 간판(9단�
 export const FIGURE_BOX = 'toycrane 피규어 컬렉션'; // 랜덤 상자 윗면 — 캐릭터는 안 보인다
 export const FIGURE_REVEAL = { rare: '희귀!', gold: '황금!' }; // 상자 까기 이름표(일반은 없음)
 export const FIGURE_WORD = '피규어';
+export const FIGURE_BUTTONS = ['오른쪽', '안쪽'] as const; // 피규어 버튼 ①② 윗면(화살표와 함께)
 
 const COUNT = ['', '한', '두', '세', '네', '다섯'];
 const ORDINAL = ['', '첫 번째', '두 번째', '세 번째', '네 번째', '다섯 번째'];
@@ -62,4 +63,4 @@ export const UI = {
     full: '그 사람 코인이 가득 찼어요', self: '나에게는 줄 수 없어요', playing: '한 판이 끝나면 줄 수 있어요',
   } as Record<string, string>,
 };
-export const ALL_COPY = [...Object.values(MACHINE_SIGNS), ...POP_CARDS, STICKER, ...WALL_SIGN, PREP, COUNTER_SIGN, DROP_LABEL, ...AD_SIGNS, ...Object.values(RARE_TAG), FIGURE_SIGN, FIGURE_BOX, ...Object.values(FIGURE_REVEAL), FIGURE_WORD, '0123456789-ABCF?!GET'].join('');
+export const ALL_COPY = [...Object.values(MACHINE_SIGNS), ...POP_CARDS, STICKER, ...WALL_SIGN, PREP, COUNTER_SIGN, DROP_LABEL, ...AD_SIGNS, ...Object.values(RARE_TAG), FIGURE_SIGN, FIGURE_BOX, ...Object.values(FIGURE_REVEAL), FIGURE_WORD, ...FIGURE_BUTTONS, '0123456789-ABCF?!GET'].join('');

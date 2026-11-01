@@ -5,7 +5,7 @@ import type { Occluder } from '../game/occlusion';
 import type { BoxWire } from '../net/protocol';
 import { CLAW_SHAPE } from '../physics/figureClaw';
 import { bakeByMaterial, fadeMaterials, materialCloner } from './bake';
-import { FIGURE_CONTROLS } from './figureControls';
+import { BUTTON_SCALE, FIGURE_CONTROLS } from './figureControls';
 import { blindBoxGeo, blindBoxMat, clawGeos, clawMats, makeFigureMachineParts } from './figureMachine';
 import { ledBaseMat } from './machine';
 import { toonWith } from './toon';
@@ -97,7 +97,7 @@ export function buildFigureZone(scene: THREE.Scene): FigureZone {
   function placeButtons(u: Unit) {
     [FIGURE_CONTROLS.one, FIGURE_CONTROLS.two].forEach(([bx, by, bz], k) => {
       const s = u.hidden ? 0 : 1;
-      set(rows[u.row].inst.button, u.slot * 2 + k, new THREE.Matrix4().compose(v.set(bx, by, bz), q.identity(), new THREE.Vector3(1.05 * s, 0.47 * s, 1.05 * s)), u.matrix);
+      set(rows[u.row].inst.button, u.slot * 2 + k, new THREE.Matrix4().compose(v.set(bx, by, bz), q.identity(), new THREE.Vector3(BUTTON_SCALE[0] * s, BUTTON_SCALE[1] * s, BUTTON_SCALE[2] * s)), u.matrix);
     });
   }
   const unit = (id: string) => { const u = units.get(id); if (!u) throw new Error(`no figure machine ${id}`); return u; };

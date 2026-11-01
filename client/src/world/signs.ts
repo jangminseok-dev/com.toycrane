@@ -185,6 +185,19 @@ export function prepTex(): THREE.CanvasTexture {
   });
 }
 
+// 피규어 버튼 윗면 글씨(9단계): 흰 글씨와 그 아래 흰 화살표(right ▶ 오른쪽, up ▲ 기계 안쪽), 버튼 색의 진한 테두리. 밖은 투명
+export function buttonLabelTex(text: string, arrow: 'right' | 'up', ink: string): THREE.CanvasTexture {
+  return canvasTex(256, 256, (g) => {
+    g.font = `62px ${SIGN_FONT}`; // '오른쪽' 세 글자도 윗면 안에 (가장자리 20% 남짓 비움)
+    outlined(g, text, 128, 108, ink, 14, '#ffffff');
+    g.beginPath();
+    if (arrow === 'right') { g.moveTo(108, 150); g.lineTo(108, 196); g.lineTo(150, 173); } else { g.moveTo(104, 194); g.lineTo(152, 194); g.lineTo(128, 152); }
+    g.closePath();
+    g.lineJoin = 'round'; g.lineWidth = 16; g.strokeStyle = ink; g.stroke();
+    g.fillStyle = '#ffffff'; g.fill();
+  });
+}
+
 // 하강 버튼 윗면 글씨: 흰 '잡기'와 그 아래 흰 화살표(▼), 진한 빨강 테두리. 밖은 투명
 export function dropLabelTex(text: string): THREE.CanvasTexture {
   return canvasTex(256, 256, (g) => {
