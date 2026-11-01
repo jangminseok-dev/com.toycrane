@@ -5,7 +5,7 @@ import type { Occluder } from '../game/occlusion';
 import type { BoxWire } from '../net/protocol';
 import { CLAW_SHAPE } from '../physics/figureClaw';
 import { bakeByMaterial, fadeMaterials, materialCloner } from './bake';
-import { BUTTON_SCALE, FIGURE_CONTROLS } from './figureControls';
+import { BUTTON_SCALE, FIGURE_CONTROLS, LABEL, LABEL_Y, labelMat } from './figureControls';
 import { blindBoxGeo, blindBoxMat, clawGeos, clawMats, makeFigureMachineParts } from './figureMachine';
 import { ledBaseMat } from './machine';
 import { toonWith } from './toon';
@@ -32,7 +32,7 @@ type Unit = { row: number; slot: number; matrix: THREE.Matrix4; anchor: THREE.Ob
 export function buildFigureZone(scene: THREE.Scene): FigureZone {
   const units = new Map<string, Unit>(), rows: { inst: Record<string, THREE.InstancedMesh>; cloner: ReturnType<typeof materialCloner>; spots: FigureSpot[] }[] = [];
   const geos = clawGeos(), mats = clawMats(), tmp = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
-  const occluders: Occluder[] = [];
+  const occluders: Occluder[] = [], flatUp = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)); // 버튼 글씨는 윗면에 눕힌다
   (['f1', 'f2'] as const).forEach((rowId, r) => {
     const spots = FIGURES.filter((f) => f.row === rowId), root = new THREE.Group(), cloner = materialCloner();
     root.name = `figure-row-${rowId}`;
@@ -59,7 +59,10 @@ export function buildFigureZone(scene: THREE.Scene): FigureZone {
       box: make(blindBoxGeo(kind), blindBoxMat(kind)), head: make(geos.head, mats.head), black: make(geos.black, mats.black), red: make(geos.red, mats.red),
       sticker: make(geos.sticker, mats.sticker), armR: make(geos.armR, mats.arm), armL: make(geos.armL, mats.arm), cable: make(geos.cable, mats.cable),
       button: make(DOME, toonWith({ color: 0xffffff, emissive: 0x220011, emissiveIntensity: 0.3 }), n * 2),
+      // 버튼 윗면 글씨 '오른쪽'·'안쪽' — 판 사이에도 그대로 보이게(사용자 2026-11-02)
+      label1: make(LABEL, labelMat(0)), label2: make(LABEL, labelMat(1)),
     };
+    inst.label1.name = 'figure-labels-1'; inst.label2.name = 'figure-labels-2';
     inst.box.name = 'figure-boxes';
     rows.push({ inst, cloner, spots });
     const body = new THREE.Box3(), boxes: THREE.Box3[] = [];
@@ -97,9 +100,12 @@ export function buildFigureZone(scene: THREE.Scene): FigureZone {
     set(inst.cable, u.slot, new THREE.Matrix4().compose(v.set(x, top, z), q.identity(), new THREE.Vector3(1, len, 1)), u.matrix);
   }
   function placeButtons(u: Unit) {
+    const { inst } = rows[u.row];
     [FIGURE_CONTROLS.one, FIGURE_CONTROLS.two].forEach(([bx, by, bz], k) => {
       const s = u.hidden ? 0 : 1;
-      set(rows[u.row].inst.button, u.slot * 2 + k, new THREE.Matrix4().compose(v.set(bx, by, bz), q.identity(), new THREE.Vector3(BUTTON_SCALE[0] * s, BUTTON_SCALE[1] * s, BUTTON_SCALE[2] * s)), u.matrix);
+      set(inst.button, u.slot * 2 + k, new THREE.Matrix4().compose(v.set(bx, by, bz), q.identity(), new THREE.Vector3(BUTTON_SCALE[0] * s, BUTTON_SCALE[1] * s, BUTTON_SCALE[2] * s)), u.matrix);
+      const label = new THREE.Matrix4().compose(v.set(bx, by + LABEL_Y * BUTTON_SCALE[1] + 0.001, bz), flatUp, new THREE.Vector3(BUTTON_SCALE[0] * s, BUTTON_SCALE[2] * s, 1));
+      set(k === 0 ? inst.label1 : inst.label2, u.slot, label, u.matrix);
     });
   }
   const unit = (id: string) => { const u = units.get(id); if (!u) throw new Error(`no figure machine ${id}`); return u; };

@@ -11,10 +11,11 @@ export const FIGURE_CONTROLS = { one: [0.12, 0.925, 0.66], two: [0.32, 0.925, 0.
 const DOME = new THREE.SphereGeometry(0.055, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2);
 const HIT = new THREE.BoxGeometry(0.26, 0.16, 0.26);
 export const BUTTON_SCALE: [number, number, number] = [1.5, 0.62, 1.5]; // 인형 기계 잡기 버튼과 같은 크기(글씨가 읽히게) — 기계 그림의 고정 버튼도 같게
-const LABEL = new THREE.PlaneGeometry(0.08, 0.08); // 윗면 지름(0.11)의 73%
+export const LABEL = new THREE.PlaneGeometry(0.08, 0.08); // 윗면 지름(0.11)의 73% — 기계 그림의 고정 버튼(figureZone)도 같은 글씨
+export const LABEL_Y = 0.057; // 돔 기준 글씨 높이(돔 크기 BUTTON_SCALE를 따라간다)
 const LOOK = [{ arrow: 'right', ink: '#8a0f2a' }, { arrow: 'up', ink: '#123a8a' }] as const;
 let labelMats: THREE.Material[] | null = null; // 판마다 새로 그리지 않게 한 번만
-const labelMat = (i: number) => (labelMats ??= LOOK.map((l, k) => new THREE.MeshBasicMaterial({ map: buttonLabelTex(FIGURE_BUTTONS[k], l.arrow, l.ink), transparent: true, depthWrite: false })))[i];
+export const labelMat = (i: number) => (labelMats ??= LOOK.map((l, k) => new THREE.MeshBasicMaterial({ map: buttonLabelTex(FIGURE_BUTTONS[k], l.arrow, l.ink), transparent: true, depthWrite: false })))[i];
 const PRESS_DEPTH = 0.012, GLOW = 0.75;
 
 export type FigureControls = {
@@ -35,7 +36,7 @@ export function buildFigureControls(anchor: THREE.Object3D): FigureControls {
     const dome = part(DOME, mat, [x, y, z], BUTTON_SCALE, [0, 0, 0], 1.04);
     // 윗면 글씨: 버튼 자식이라 함께 눌린다. 글씨 위(+y)가 기계 안쪽(−z)을 본다
     const label = new THREE.Mesh(LABEL, labelMat(i));
-    label.name = `figure-label-${i + 1}`; label.userData.text = FIGURE_BUTTONS[i]; label.rotation.x = -Math.PI / 2; label.position.y = 0.057;
+    label.name = `figure-label-${i + 1}`; label.userData.text = FIGURE_BUTTONS[i]; label.rotation.x = -Math.PI / 2; label.position.y = LABEL_Y;
     dome.add(label);
     const hit = new THREE.Mesh(HIT, hitMat); hit.position.set(x, y + 0.04, z); hit.userData.button = (i + 1) as 1 | 2;
     group.add(dome, hit);

@@ -72,3 +72,17 @@ test('both box kinds carry the blind box art', () => {
   buildFigureZone(new THREE.Scene());
   expect(drawnTexts.filter((t) => t === 'toycrane 피규어 컬렉션').length).toBeGreaterThanOrEqual(2);
 });
+
+// 버튼 글씨는 판 사이에도 그대로(사용자 2026-11-02 "중간에 버튼에 글자가 사라지는데") — 기계에 그린 고정 버튼에도 '오른쪽'·'안쪽'.
+// 하는 기계는 살아 있는 버튼이 덮으니 고정 글씨도 함께 숨는다
+test('static buttons keep their labels between plays', () => {
+  const scene = new THREE.Scene(), zone = buildFigureZone(scene);
+  const row = scene.getObjectByName('figure-row-f1')!;
+  const labels = [1, 2].map((b) => row.getObjectByName(`figure-labels-${b}`) as THREE.InstancedMesh);
+  expect(labels.every((l) => l?.isInstancedMesh && l.count === 7)).toBe(true);
+  const scaleOf = (im: THREE.InstancedMesh, i: number) => { const m = new THREE.Matrix4(); im.getMatrixAt(i, m); return new THREE.Vector3().setFromMatrixScale(m).x; };
+  expect(scaleOf(labels[0], 0)).toBeGreaterThan(0);
+  zone.hideControls('F-1', true);
+  expect(scaleOf(labels[0], 0)).toBe(0);
+  expect(scaleOf(labels[1], 1)).toBeGreaterThan(0); // 다른 기계는 그대로
+});
