@@ -223,6 +223,7 @@ function addDisplayTower(scene: THREE.Scene): HubTower {
     root.add(side);
   }
   const mats: THREE.Material[] = [bodyMat, trimMat, edgeMat, screenMat];
+  const shells = [edgeMat, ...cloner.materials.filter((m) => m.side === THREE.BackSide)]; // 탑·인형 외곽선 껍질
   root.traverse((o) => { const m = (o as THREE.Mesh).material as THREE.Material | undefined; if (m && !mats.includes(m) && !cloner.materials.includes(m)) mats.push(m); });
   return {
     box: new THREE.Box3(new THREE.Vector3(-TOWER_HALF, 0, -TOWER_HALF), new THREE.Vector3(TOWER_HALF, BOARD.y1 * GROW, TOWER_HALF)),
@@ -236,13 +237,16 @@ function addDisplayTower(scene: THREE.Scene): HubTower {
     update(t) {
       ticker.offset.x = ((t * TICKER_SPEED) / AD_TOWER.length) % 1;
     },
+    // 흐릴 때 외곽선 껍질(뒷면)은 감추고 몸은 깊이를 계속 쓴다 — 반투명 껍질이 몸 위에 겹겹이 그려져 탑 전체가 짙은 보라 유리 상자처럼 보였다
     setOpacity(opacity) {
+      for (const m of shells) m.visible = opacity >= 1;
       for (const m of mats) {
+        if (m === edgeMat) continue;
         if (m.transparent !== opacity < 1) { m.transparent = opacity < 1; m.needsUpdate = true; }
         m.opacity = opacity;
-        m.depthWrite = opacity >= 1;
       }
       fadeMaterials(cloner.materials, opacity);
+      for (const m of cloner.materials) if (!m.userData.baseTransparent) m.depthWrite = true; // 인형도 안쪽 면이 비쳐 겹치지 않게(유리창만 빼고)
     },
   };
 }

@@ -136,3 +136,24 @@ test('the sun shadow covers the whole hall', () => {
     expect(p.y, `${x},${y},${z}`).toBeGreaterThanOrEqual(0); expect(p.y, `${x},${y},${z}`).toBeLessThanOrEqual(1);
   }
 });
+
+// 진열탑이 나를 가려 흐려질 때(사용자 2026-11-01 "중앙에 딱 붙으면 깨져 보여"): 외곽선 껍질(뒷면)을 감추고 몸은 깊이를 계속 쓴다 —
+// 반투명 껍질이 몸 위에 겹겹이 그려져 탑 전체가 짙은 보라 유리 상자처럼 보였다
+test('a faded tower hides its outline shells and keeps its depth', () => {
+  const scene = new THREE.Scene(); const tower = buildStore(scene);
+  const display = scene.getObjectByName('display-tower')!;
+  const meshes: THREE.Mesh[] = [];
+  display.traverse((o) => { if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh); });
+  const mat = (m: THREE.Mesh) => m.material as THREE.Material;
+  const shells = meshes.filter((m) => mat(m).side === THREE.BackSide);
+  expect(shells.length).toBeGreaterThan(0);
+  const drawn = (m: THREE.Mesh) => m.visible && mat(m).visible;
+  const solid = meshes.filter((m) => mat(m).side !== THREE.BackSide && !mat(m).transparent); // 원래 불투명한 것(유리창 빼고)
+  expect(solid.length).toBeGreaterThan(3);
+  tower.setOpacity(0.5);
+  expect(shells.filter(drawn)).toEqual([]);
+  for (const m of solid) { expect(mat(m).transparent).toBe(true); expect(mat(m).depthWrite).toBe(true); }
+  tower.setOpacity(1);
+  expect(shells.every(drawn)).toBe(true);
+  for (const m of solid) expect(mat(m).transparent).toBe(false);
+});
