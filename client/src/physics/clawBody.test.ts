@@ -1,6 +1,7 @@
 import { beforeAll, expect, test } from 'vitest';
 import type { DollSpot } from '../net/protocol';
 import { stubCanvas } from '../test/canvasStub';
+import { CLAW } from '../data/claw';
 import { DOLL_FLOOR } from '../world/machine';
 import { ClawBody } from './clawBody';
 import { MachineWorld, type Rapier } from './machineWorld';
@@ -74,4 +75,22 @@ test('heldBall follows the gripped ball', () => {
   expect(held.r).toBeCloseTo(head.r, 3);
   expect(Math.hypot(held.c[0] - head.c.x, held.c[1] - head.c.y, held.c[2] - head.c.z)).toBeLessThan(0.005);
   world.dispose();
+});
+
+// 종류별 힘 배율 (인형 리뉴얼 설계 §6): 같은 자리·같은 쥠이면 배율만큼 최대 힘이 커진다
+test('a per-kind factor scales the grip force', () => {
+  const world = new MachineWorld(R, [standing(1, 0, 0)]);
+  world.settle(1);
+  const claw = new ClawBody(R, world);
+  const plan = claw.plan(0, 0);
+  claw.setPose(0, plan.y, 0, plan.open);
+  const before = CLAW.kind.bear;
+  try {
+    CLAW.kind.bear = 1; claw.grip(1, 'three'); const one = claw.maxForceNow();
+    CLAW.kind.bear = 2; claw.grip(1, 'three'); const two = claw.maxForceNow();
+    expect(two).toBeCloseTo(one * 2, 6);
+  } finally {
+    if (before === undefined) delete CLAW.kind.bear; else CLAW.kind.bear = before;
+    world.dispose();
+  }
 });

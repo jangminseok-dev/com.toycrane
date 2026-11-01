@@ -3,9 +3,10 @@
   "spread": 0.4,
   "quality": {"three": 1.0, "two": 0.5},
   "carry_relax": 0.6,
-  "rare": {"rare": 0.65, "gold": 0.55},
+  "rare": {"rare": 0.77, "gold": 0.68},
   "hole": {"size": 0.34, "lip": 0.06},
   "max_wins": 3,
   "cycle_seconds": 12,
-  "settle_seconds": 3
+  "settle_seconds": 3,
+  "kind": {"cat": 1.38, "panda": 0.94, "hamster": 1.2, "fox": 1.17, "raccoon": 1.12, "squirrel": 1.37, "owl": 1.37, "deer": 0.9, "hedgehog": 1.27, "penguin": 1.12, "frog": 1.07, "duck": 1.12, "seal": 1.15, "octopus": 1.17, "whale": 1.21, "chick": 1.12, "pig": 0.82, "cow": 0.92, "dino": 1.29, "unicorn": 1.24}
 }

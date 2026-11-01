@@ -1,5 +1,5 @@
 // 집게 성격표 (shared/claw.json, 서버 domain/shared_data.CLAW와 같은 파일) — 물리 뽑기 설계 §3.2·§3.3·§9.4.
-// 집게는 판마다 똑같다: 쥠의 최대 힘 = base_force × clawStrength(x, z) × 쥠의 질 × 희귀 배율
+// 집게는 판마다 똑같다: 쥠의 최대 힘 = base_force × clawStrength(x, z) × 쥠의 질 × 희귀 배율 × 종류 배율
 import claw from '../../../shared/claw.json';
 import { MACHINE_SPEC } from './storeLayout';
 
@@ -13,6 +13,7 @@ export type ClawTable = {
   max_wins: number; // 한 판에 서버가 받아 주는 당첨 수
   cycle_seconds: number; // 집게 한 바퀴
   settle_seconds: number; // 놓은 뒤 멈춤 대기
+  kind: Record<string, number>; // 종류별 힘 배율 (없는 종은 1) — 승인된 생김새는 고치지 않고 이것으로 종마다 3~4/10 (인형 리뉴얼 설계 §6)
 };
 export const CLAW = claw as ClawTable;
 

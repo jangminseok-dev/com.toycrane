@@ -9,7 +9,7 @@ import { ALL, GROUP_TARGET, GROUP_TIP, STEP, groups, type MachineWorld, type Rap
 
 // 집게 몸 (물리 뽑기 설계 §4.3·§9.4·§9.5): 손가락까지 물리로 계산하지 않는다. 허브와 손가락 끝은 정해진 대로 움직이는(kinematic) 몸이라
 // 인형을 밀 수 있고, 오므릴 때 손가락 끝 둘 이상이 같은 인형에 닿으면 그 인형을 쥔 것으로 보고 허브↔인형 사이에 끊어지는 스프링 관절을 둔다.
-// 관절의 최대 힘 F = base_force × clawStrength(x, z) × 쥠의 질(셋 1.0 / 둘 0.6) × 희귀 배율. 걸린 힘(= 스프링 늘어난 길이 × 세기)이 F를 넘으면 끊어진다
+// 관절의 최대 힘 F = base_force × clawStrength(x, z) × 쥠의 질(셋 1.0 / 둘 0.6) × 희귀 배율 × 종류 배율(CLAW.kind). 걸린 힘(= 스프링 늘어난 길이 × 세기)이 F를 넘으면 끊어진다
 export type GripQuality = 'three' | 'two';
 const HUB_R = 0.055, TIP_R = 0.018, TOUCH = 0.012; // 허브 공·손가락 끝 공 반지름, 닿음으로 치는 여유(m)
 const LOAD_AVG_SECONDS = 0.1;
@@ -112,7 +112,7 @@ export class ClawBody {
     const spot = this.world.spotOf(uid);
     const rare = spot?.[11] ?? '';
     const tier = rare === 'gold' ? CLAW.rare.gold : rare ? CLAW.rare.rare : 1;
-    this.maxForce = baseForce * clawStrength(this.x, this.z) * CLAW.quality[quality] * tier;
+    this.maxForce = baseForce * clawStrength(this.x, this.z) * CLAW.quality[quality] * tier * (CLAW.kind[spot?.[0] ?? ''] ?? 1);
     // 붙는 점 = 닿은 손가락 끝들의 가운데에서 쥔 공(접촉점 가운데가 표면에 가장 가까운 공, 보통 머리)의 중심 쪽으로 ANCHOR_IN만큼 들어간 점.
     // 접촉점에 그대로 매달면 인형이 손가락 끝 아래로 줄처럼 늘어져 감싸는 모양이 안 나고, 공 중심에 매달면 아랫부분을 잡아도 안 기운다
     const balls = this.world.balls(uid);
