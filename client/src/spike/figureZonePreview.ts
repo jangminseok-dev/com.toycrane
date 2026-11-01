@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { FIGURE, FIGURES } from '../data/figures';
 import { figureCameraPose } from '../game/figureCamera';
 import { buildFigureZone } from '../world/figureZone';
+import { playReveal } from '../world/figureReveal';
 
 // 피규어 기계 미리보기(개발 전용): ?view=front|side|row, 집게는 상자 위에 내려와 반쯤 벌림
 const q = new URLSearchParams(location.search), view = q.get('view') ?? 'front';
@@ -22,4 +23,17 @@ a.updateMatrixWorld(true);
 const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.05, 100);
 if (view === 'row') { camera.position.copy(a.localToWorld(new THREE.Vector3(0, 3.2, 6))); camera.lookAt(a.localToWorld(new THREE.Vector3(0, 1.2, 0))); }
 else { const p = figureCameraPose(f, view === 'side' ? 1 : 0, camera.aspect); camera.position.copy(p.pos); camera.lookAt(p.look); }
-renderer.setAnimationLoop(() => renderer.render(scene, camera));
+// ?reveal=|star|gold — 카메라 앞 0.7m에서 상자 까기(?at=초에서 멈춤)
+let reveal: { update(dt: number): boolean } | null = null, last = performance.now();
+if (q.has('reveal')) {
+  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+  const at = camera.position.clone().addScaledVector(dir, 0.9).add(new THREE.Vector3(0, -0.15, 0));
+  reveal = playReveal(scene, at, camera.position, q.get('kind') ?? 'cat', q.get('reveal') ?? '', () => {});
+}
+const stopAt = Number(q.get('at') ?? 1e9);
+let shown = 0;
+renderer.setAnimationLoop(() => {
+  const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (reveal && shown < stopAt) { reveal.update(dt); shown += dt; }
+  renderer.render(scene, camera);
+});
