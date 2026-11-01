@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { CLAW } from '../data/claw';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { MachineSpot } from '../data/storeLayout';
+import { MACHINE_SPEC, type MachineSpot } from '../data/storeLayout';
 import { MACHINE_SIGNS, POP_CARDS } from './copy';
 import { backArtTex, plateTex, popTex, signTex, stickerTex } from './signs';
 import { part, toon } from './toon';
@@ -13,6 +13,10 @@ import { part, toon } from './toon';
 export const CLAW_REST = new THREE.Vector3(-0.36, 1.95, 0.27); // 기계 안 좌표 — 상품 구멍 위(앞 왼쪽): 한 판은 여기서 시작한다(설계 §3.10)
 export const DOLL_FLOOR = 0.87; // 펠트 위 인형 바닥 높이
 export const DOLL_SCALE = 0.3; // 기계 속 인형 크기
+// 인형 기계·미는 뽑기 몸통은 예전(가로 1.2m)보다 가로·깊이로 5% 크다 — 상품 구멍을 38cm로 넓히며 기계도 살짝 키웠다(사용자 2026-11-02)
+export const CABINET_SCALE = 1.05;
+// 펠트(놀이 바닥) 반폭 = 집게 놀이 영역 + 물리 벽 여유(physics/machineWorld WALL_MARGIN 0.12와 같은 값 — machine.test가 맞는지 본다)
+export const PLAY_BOX = { x: MACHINE_SPEC.play_half[0] + 0.12, z: MACHINE_SPEC.play_half[1] + 0.12 };
 export const HOLE = { size: CLAW.hole.size, lip: CLAW.hole.lip }; // 상품 구멍 네모 한 변·턱 높이 (shared/claw.json, 물리와 같은 값)
 // 조작대(기계 안 좌표): 레버(끌면 집게가 그쪽으로), 큰 빨간 하강 버튼 하나 (설계 §3.10, 3차)
 export const CONTROLS = { lever: [-0.3, 0.92, 0.66], drop: [0.26, 0.925, 0.66] } as const;
@@ -38,7 +42,7 @@ const G = once(() => ({
   flap: new THREE.BoxGeometry(0.3, 0.01, 0.06), coinPlate: rbox(0.16, 0.22, 0.03, 0.01), sticker: new THREE.PlaneGeometry(0.2, 0.1),
   deck: rbox(1.2, 0.07, 0.28, 0.02), leverBase: new THREE.CylinderGeometry(0.05, 0.055, 0.02, 20), stick: new THREE.CylinderGeometry(0.01, 0.01, 0.09, 10),
   ball: new THREE.SphereGeometry(0.04, 16, 12), ring: new THREE.CylinderGeometry(0.065, 0.068, 0.025, 24), dome: new THREE.SphereGeometry(0.055, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2),
-  pillar: rbox(0.06, 1.1, 0.06, 0.015), felt: new THREE.BoxGeometry(1.12, 0.02, 0.98), back: new THREE.PlaneGeometry(1.12, 1.08),
+  pillar: rbox(0.06, 1.1, 0.06, 0.015), felt: new THREE.BoxGeometry(PLAY_BOX.x * 2, 0.02, PLAY_BOX.z * 2), back: new THREE.PlaneGeometry(PLAY_BOX.x * 2, 1.08),
   hole: new THREE.PlaneGeometry(HOLE.size, HOLE.size), acryl: new THREE.BoxGeometry(HOLE.size, HOLE.lip, HOLE.size), rim: rbox(HOLE.size, 0.012, 0.012, 0.004),
   ceilingLight: new THREE.PlaneGeometry(1.0, 0.85), rail: rbox(1.08, 0.022, 0.022, 0.008), glass: new THREE.BoxGeometry(1.14, 1.1, 1.0),
   streak: new THREE.PlaneGeometry(0.06, 0.55), streakThin: new THREE.PlaneGeometry(0.025, 0.55), pop: new THREE.PlaneGeometry(0.2, 0.14),
@@ -66,7 +70,7 @@ const signMat = cached((k) => { const [name, color] = k.split('|'); return new T
 
 // 간판 둘레 전구 자리(기계 안 좌표, 간판 앞면보다 앞): 위·아래 변과 양옆, 0.05m 간격
 export const bulbSpots = once((): THREE.Vector3[] => {
-  const pts: THREE.Vector3[] = [], cx = 0, cy = 2.2, z = 0.575, bw = 0.54, bh = 0.19, step = 0.05;
+  const pts: THREE.Vector3[] = [], cx = 0, cy = 2.2, z = 0.555 * CABINET_SCALE + 0.02, bw = 0.54 * CABINET_SCALE, bh = 0.19, step = 0.05 * CABINET_SCALE;
   for (let x = -bw; x <= bw + 1e-6; x += step) pts.push(new THREE.Vector3(cx + x, cy + bh, z), new THREE.Vector3(cx + x, cy - bh, z));
   for (let y = -bh + step; y < bh - 1e-6; y += step) pts.push(new THREE.Vector3(cx - bw, cy + y, z), new THREE.Vector3(cx + bw, cy + y, z));
   return pts;
@@ -90,10 +94,12 @@ export function makeControlParts(): THREE.Group {
 // index: 배치 순서 (몸통·펠트 색, 이름표, 안내 카드를 돌려 쓰는 기준)
 // 기계 몸통(인형·피규어 기계가 함께 씀): 아래 캐비닛(원색 몸통·흰 앞판·상품 출구·코인 투입구·스티커·흰 조작대) / 유리 칸(크롬 기둥·
 // 천장 조명판·레일·유리와 테두리·반사 줄·손글씨 안내 카드) / 위 간판(몸통 색 상자·이름판·번호판) + LED 한 덩어리 도형을 돌려준다.
-// 속(인형 기계의 펠트·구멍·뒷그림, 피규어 기계의 막대·진열대)은 부르는 쪽이 넣는다. 번호판 메시 이름은 'plate'
-export function makeCabinetShell(m: THREE.Group, color: number, look: { sign: THREE.Material; plate: THREE.Material; pop: THREE.Material }): THREE.BufferGeometry {
-  const g = G(), mat = M();
-  const add = (o: THREE.Object3D) => { m.add(o); return o; };
+// 속(인형 기계의 펠트·구멍·뒷그림, 피규어 기계의 막대·진열대)은 부르는 쪽이 넣는다. 번호판 메시 이름은 'plate'.
+// scale: 가로·깊이 배율(인형 기계·미는 뽑기는 CABINET_SCALE, 피규어·고리 걸기는 1) — 높이는 그대로
+export function makeCabinetShell(m: THREE.Group, color: number, look: { sign: THREE.Material; plate: THREE.Material; pop: THREE.Material }, scale = 1): THREE.BufferGeometry {
+  const g = G(), mat = M(), shell = new THREE.Group();
+  shell.scale.set(scale, 1, scale); m.add(shell);
+  const add = (o: THREE.Object3D) => { shell.add(o); return o; };
   const chrome = toon(CHROME), white = toon(WHITE);
   // 아래 캐비닛: 원색 몸통 + 흰 앞판 + 상품 출구(투명 덮개) + 크롬 코인 투입구·스티커
   const cabinet = add(part(g.cabinet, toon(color), [0, 0.425, 0], [1, 1, 1], [0, 0, 0], 1.02));
@@ -109,13 +115,13 @@ export function makeCabinetShell(m: THREE.Group, color: number, look: { sign: TH
   add(flat(g.ceilingLight, mat.light, [0, 1.93, 0], [Math.PI / 2, 0, 0]));
   for (const z of [-0.42, 0.42]) add(part(g.rail, chrome, [0, 1.9, z], [1, 1, 1], [0, 0, 0], 0));
   // 유리 + 테두리 + 만화식 대각 반사 줄 + 손글씨 안내 카드
-  add(flat(g.glass, mat.glass, [0, 1.4, 0]));
+  add(flat(g.glass, mat.glass, [0, 1.4, 0])).name = 'glass';
   add(new THREE.LineSegments(EDGES().glass, mat.edge)).position.y = 1.4;
   add(flat(g.streak, mat.streak, [0.22, 1.5, 0.505], [0, 0, -0.5]));
   add(flat(g.streakThin, mat.streak, [0.31, 1.5, 0.505], [0, 0, -0.5]));
   add(flat(g.pop, look.pop, [0.4, 1.72, 0.47], [0, 0, -0.12]));
   // 위 간판: 몸통 색 상자 + 이름판 + 번호판
-  add(part(g.header, toon(color), [0, 2.2, 0], [1, 1, 1], [0, 0, 0], 1.02));
+  add(part(g.header, toon(color), [0, 2.2, 0], [1, 1, 1], [0, 0, 0], 1.02)).name = 'header';
   add(flat(g.sign, look.sign, [0, 2.2, 0.558]));
   add(part(g.plateBox, white, [-0.42, 2.53, 0.47], [1, 1, 1], [0, 0, 0], 1.04));
   add(flat(g.plate, look.plate, [-0.42, 2.53, 0.492])).name = 'plate';
@@ -135,7 +141,7 @@ export function makeCabinetShell(m: THREE.Group, color: number, look: { sign: TH
   led(g.slot, LED.slot, [0.42, 0.53, 0.558]);
   const tint = new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.6);
   for (const x of [-0.53, 0.53]) led(g.pillarLed, tint, [x, 1.4, 0.49]);
-  return mergeGeometries(leds.map((l) => (l.index ? l.toNonIndexed() : l)))!;
+  return mergeGeometries(leds.map((l) => (l.index ? l.toNonIndexed() : l)))!.applyMatrix4(new THREE.Matrix4().makeScale(scale, 1, scale));
 }
 
 // 레버 크롬 받침 + 하강 버튼 크롬 고리 (움직이는 레버 막대·공과 버튼은 makeControlParts — 하는 기계에서 숨길 수 있게 따로 그린다).
@@ -158,11 +164,11 @@ export function makeMachineParts(spot: MachineSpot, index: number): MachineParts
     sign: signMat(`${MACHINE_SIGNS[spot.kind] ?? ''}|${color}`), // 그 기계에 든 캐릭터 이름 간판
     plate: new THREE.MeshBasicMaterial({ map: plateTex(spot.id) }),
     pop: popMat(String(index % POP_CARDS.length)),
-  });
+  }, CABINET_SCALE);
   addControlBases(m);
   // 펠트 · 뒷판 그림
-  add(part(g.felt, toon(FELT_COLORS[felt]), [0, 0.86, 0], [1, 1, 1], [0, 0, 0], 0));
-  add(flat(g.back, backMat(String(felt)), [0, 1.4, -0.48]));
+  add(part(g.felt, toon(FELT_COLORS[felt]), [0, 0.86, 0], [1, 1, 1], [0, 0, 0], 0)).name = 'felt';
+  add(flat(g.back, backMat(String(felt)), [0, 1.4, 0.01 - PLAY_BOX.z]));
   // 상품 구멍 + 투명 아크릴 가림막 + 크롬 테두리 (앞 왼쪽 구석)
   add(flat(g.hole, mat.hole, [-0.36, 0.875, 0.27], [-Math.PI / 2, 0, 0]));
   // 구멍 둘레 낮은 턱(6cm) — 인형 키의 2/3였던 20cm 가림막은 '조금 들어서 넘기기'가 안 됐다 (물리 뽑기 설계 §9.3)

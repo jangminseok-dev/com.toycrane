@@ -187,3 +187,18 @@ test('a doll dropped right against a wall falls to the floor instead of hanging 
     world.dispose();
   }
 });
+
+// 사용자 2026-11-02(사진 201): 긴 다리·꼬리 인형(문어·공룡 등)이 상품 구멍 위에서 놓여도 다리가 구멍 테두리에 걸려 안 빠졌다 —
+// 구멍 가운데에서 10cm 안에 놓인 인형은 어느 방향이든 빠진다
+test('a long-legged doll let go near the middle of the prize hole drops in', () => {
+  const [hx, hz] = MACHINE_SPEC.hole, stuck: string[] = [];
+  for (const kind of ['octopus', 'whale', 'dino', 'unicorn']) for (const off of [0.05, 0.1]) for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2, yaw = k * 0.7;
+    const w = new MachineWorld(R, [[kind, hx + Math.cos(a) * off, DOLL_FLOOR + 0.5, hz + Math.sin(a) * off, 0, Math.sin(yaw / 2), 0, Math.cos(yaw / 2), 0, 'n', 0, '', 1]]);
+    w.setHoleOpen(true);
+    for (let t = 0; t < 4; t += 1 / 60) w.step(1 / 60);
+    if (!w.fallen().length) stuck.push(`${kind}@${off}/${k}`);
+    w.dispose();
+  }
+  expect(stuck).toEqual([]);
+});

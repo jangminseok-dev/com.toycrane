@@ -4,6 +4,7 @@ import random
 import pytest
 
 from toycrane.domain.layout import MACHINE_SPEC
+from toycrane.domain.shared_data import CLAW
 from toycrane.domain.stock import MachineStock, due, generate_stock, new_doll, on_taken, refill
 
 
@@ -37,9 +38,11 @@ def test_first_fill_has_nine_dolls_no_gold_and_at_most_one_rare():
 def test_first_fill_stays_in_play_area_and_out_of_hole():
     s = generate_stock("bunny", random.Random(1))
     hx, hz, _ = MACHINE_SPEC.hole
+    w, depth = MACHINE_SPEC.play_half
+    keep = CLAW["hole"]["size"] / 2 + 0.05  # 구멍 네모 둘레 5cm 더
     for d in s.dolls:
-        assert abs(d.x) <= 0.44 and abs(d.z) <= 0.38
-        assert abs(d.x - hx) > 0.22 or abs(d.z - hz) > 0.22
+        assert abs(d.x) <= w and abs(d.z) <= depth
+        assert abs(d.x - hx) > keep or abs(d.z - hz) > keep
         assert d.kind == "bunny"
 
 

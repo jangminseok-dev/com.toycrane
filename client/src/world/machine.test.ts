@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { beforeAll, expect, test } from 'vitest';
-import { MACHINES } from '../data/storeLayout';
+import { MACHINES, MACHINE_SPEC } from '../data/storeLayout';
+import { WALL_MARGIN } from '../physics/machineWorld';
 import { stubCanvas } from '../test/canvasStub';
 import { bakeByMaterial } from './bake';
 import { HOLE, MACHINE_COLORS, bulbSpots, makeMachineParts } from './machine';
@@ -47,11 +48,29 @@ test('one machine stays light in triangles', () => {
   expect(tris).toBeLessThan(9000);
 });
 
-// 물리 뽑기 설계 §9.3: 구멍은 34cm 네모, 둘레는 6cm 낮은 턱 (20cm 가림막은 '조금 들어서 넘기기'를 막았다)
+// 물리 뽑기 설계 §9.3: 둘레는 6cm 낮은 턱 (20cm 가림막은 '조금 들어서 넘기기'를 막았다). 구멍은 38cm 네모 —
+// 34cm에선 문어 다리·공룡 꼬리가 테두리에 걸렸다(사용자 2026-11-02, 사진 201)
 test('the prize hole has a low lip', () => {
-  expect(HOLE).toEqual({ size: 0.34, lip: 0.06 });
+  expect(HOLE).toEqual({ size: 0.38, lip: 0.06 });
   const statics = makeMachineParts(MACHINES[0], 0).statics;
   let lip: THREE.Mesh | undefined;
-  statics.traverse((o) => { const g = (o as THREE.Mesh).geometry as THREE.BoxGeometry | undefined; if (g?.type === 'BoxGeometry' && g.parameters.width === 0.34 && g.parameters.depth === 0.34) lip = o as THREE.Mesh; });
+  statics.traverse((o) => { const g = (o as THREE.Mesh).geometry as THREE.BoxGeometry | undefined; if (g?.type === 'BoxGeometry' && g.parameters.width === 0.38 && g.parameters.depth === 0.38) lip = o as THREE.Mesh; });
   expect((lip!.geometry as THREE.BoxGeometry).parameters.height).toBeCloseTo(0.06);
+});
+
+
+// 사용자 2026-11-02: 구멍을 넓히며 기계도 살짝 크게 — 몸통은 예전(1.2m)보다 5% 넓고, 펠트·유리는 물리 벽(놀이 영역 + 여유)을 다 덮고,
+// 간판 전구는 커진 간판 앞에 있다
+test('the doll machine is a little bigger and its felt and glass hold the play box', () => {
+  const statics = makeMachineParts({ ...MACHINES[0], x: 0, z: 0, ry: 0 }, 0).statics;
+  statics.updateMatrixWorld(true);
+  const size = (name: string) => new THREE.Box3().setFromObject(statics.getObjectByName(name)!).getSize(new THREE.Vector3());
+  const [W, D] = MACHINE_SPEC.play_half;
+  expect(size('cabinet').x).toBeGreaterThan(1.2 * 1.04);
+  for (const name of ['felt', 'glass']) {
+    expect(size(name).x / 2).toBeGreaterThanOrEqual(W + WALL_MARGIN - 1e-3);
+    expect(size(name).z / 2).toBeGreaterThanOrEqual(D + WALL_MARGIN - 1e-3);
+  }
+  const header = new THREE.Box3().setFromObject(statics.getObjectByName('header')!);
+  expect(Math.min(...bulbSpots().map((p) => p.z))).toBeGreaterThan(header.max.z);
 });

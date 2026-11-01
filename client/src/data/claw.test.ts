@@ -14,8 +14,8 @@ test('claw strength grows from the hole edge to the far corner', () => {
 
 test('claw table carries the spec numbers', () => {
   expect(CLAW.quality).toEqual({ three: 1, two: 0.5 });
-  expect(CLAW.rare).toEqual({ rare: 0.77, gold: 0.68 }); // 인형 리뉴얼(새 모양은 힘을 줄이면 확률이 더 가파르게 떨어진다) 뒤 곰·펭귄 1000판 기준에 맞춘 값
-  expect(CLAW.hole).toEqual({ size: 0.34, lip: 0.06 });
+  expect(CLAW.rare).toEqual({ rare: 0.79, gold: 0.72 }); // 곰·펭귄 1000판 기준에 맞춘 값(구멍 38cm·집게 힘 4.4 뒤 다시 맞춤, 2026-11-02)
+  expect(CLAW.hole).toEqual({ size: 0.38, lip: 0.06 }); // 34cm에선 긴 다리 인형이 테두리에 걸렸다(사용자 2026-11-02)
   expect(CLAW.max_wins).toBe(3);
   expect(CLAW.carry_relax).toBeGreaterThan(0);
   expect(CLAW.base_force).toBeGreaterThan(0);

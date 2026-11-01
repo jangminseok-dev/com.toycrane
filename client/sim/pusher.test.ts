@@ -16,6 +16,11 @@ import { openDolls, seededRandom, withPoses, type Rng } from './world';
 
 // 미는 뽑기 판수(설계 ring-hook §4): 영리한 사람(칸에서 위가 열린 미니 인형의 머리를 겨냥, 눈대중 오차 ±1.5cm)은 처음 기계에서
 // 50%선 4~6판, 아무 데나 누르는 사람은 그보다 오래. 겨누는 동안(aimSeconds)에도 판이 오가며 민다(진짜처럼). SIM_TRIALS(기본 40), SIM_OUT
+// 맞추기용: PUSHER_PATCH='{"ledge":{"z1":0.3}}'처럼 수치 일부를 바꿔 돌려 본다(shared/pusher.json은 그대로)
+if (process.env.PUSHER_PATCH) {
+  const patch = JSON.parse(process.env.PUSHER_PATCH) as Record<string, unknown>;
+  for (const [k, v] of Object.entries(patch)) Object.assign(PUSHER as Record<string, unknown>, { [k]: typeof v === 'object' && v ? { ...(PUSHER as Record<string, object>)[k], ...v } : v });
+}
 let R: Rapier;
 beforeAll(async () => { R = await loadRapier(); });
 const trials = Number(process.env.SIM_TRIALS ?? 40), CAP = 30, AIM_SECONDS = 8;
@@ -66,7 +71,7 @@ const pct = (xs: number[], p: number) => [...xs].sort((a, b) => a - b)[Math.min(
 test('a careful player wins a mini doll in about four to six plays', () => {
   const smartPlays = Array.from({ length: trials }, (_, i) => playsToWin(smart, 11 + i));
   const randomPlays = Array.from({ length: Math.max(15, trials / 3) }, (_, i) => playsToWin(random, 901 + i));
-  const line = `pusher smart p10 ${pct(smartPlays, 0.1)} p50 ${pct(smartPlays, 0.5)} p90 ${pct(smartPlays, 0.9)} random p50 ${pct(randomPlays, 0.5)}`;
+  const line = `${process.env.PUSHER_PATCH ?? ''} pusher smart p10 ${pct(smartPlays, 0.1)} p50 ${pct(smartPlays, 0.5)} p90 ${pct(smartPlays, 0.9)} random p50 ${pct(randomPlays, 0.5)}`;
   console.log(line);
   if (process.env.SIM_OUT) appendFileSync(process.env.SIM_OUT, `${line}\n`);
   expect(pct(smartPlays, 0.5)).toBeGreaterThanOrEqual(4);

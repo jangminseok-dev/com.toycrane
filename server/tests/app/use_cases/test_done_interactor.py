@@ -126,10 +126,10 @@ async def test_pusher_win_goes_to_the_bag_in_zone_pusher():
     locks.lock("c-2", "P-1", 10.0)
     it = DoneInteractor(reg, locks, contents, bag, conns)
     stock = contents.stored["P-1"]
-    won = [d for d in stock.dolls if d.uid in (27, 28)]
-    await it.done(DoneCommand("c-2", "P-1", report(stock, won=(27, 28)), now=20.0))
+    won = stock.dolls[-2:]  # 턱 위 인형과 칸의 마지막 인형 — 한 판에 둘
+    await it.done(DoneCommand("c-2", "P-1", report(stock, won=tuple(d.uid for d in won)), now=20.0))
     assert bag.added == [("g-2", d.kind, d.color, d.rare, "pusher") for d in won]
-    assert len(contents.stored["P-1"].dolls) == 26 and contents.stored["P-1"].next_at == 50.0
+    assert len(contents.stored["P-1"].dolls) == len(stock.dolls) - 2 and contents.stored["P-1"].next_at == 50.0
     assert (None, result("P-1", "p2", [(d.kind, d.color, d.rare, d.uid) for d in won])) in conns.broadcasts
 
 

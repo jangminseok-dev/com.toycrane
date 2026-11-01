@@ -29,7 +29,7 @@ const STRADDLE_ROUNDS = 3; // 걸친 인형을 다시 떨어뜨리는 횟수 한
 const REFILL_SETTLE = 6; // 채우기 앉히기: 마지막 인형이 떨어진 뒤 이만큼(물리 시간) — 무더기는 5초쯤 걸린다
 const CONTACT_HZ = 12; // 접촉 강성(기본 30Hz): 봉제 인형은 푹신해서 쇠 집게에 맞아도 튕겨 나가지 않는다 — 30Hz면 2.3m/s로 튕기고, 8Hz는 무더기가 앉는 데 7초가 걸린다
 // 손가락 끝에 바닥으로 눌렸다 풀린 인형이 다시 펴지는 속도 한도(m/s)·시간(초): 그대로 두면 눌린 만큼 접촉이 밀어 내 0.8m/s 넘게 튀어 올랐다 (인형 리뉴얼, 앞으로 나온 발)
-const CUSHION_V = 0.3, CUSHION_SECONDS = 0.25;
+const CUSHION_V = 0.3, CUSHION_SECONDS = 0.25, NEIGHBOR_GAP = 0.01; // 맞닿음으로 치는 틈(m)
 const STILL_V = 0.02, STILL_W = 0.1; // 이보다 느리면 멈춘 것 (m/s, rad/s) — 무더기 속 인형은 아주 천천히 기어 오래 안 잠든다 // 채우기 중 구멍에 빠진 인형을 다시 떨어뜨릴 때 다른 인형과 띄우는 거리
 
 export class MachineWorld {
@@ -152,9 +152,18 @@ export class MachineWorld {
     if (!this.holeOpen) this.redropFallen();
   }
 
-  // 손가락 끝에 눌려 있다 풀린 인형들 — 잠깐 동안 CUSHION_V보다 빨리 움직이지 않는다. 노린 인형은 끝에 눌리지 않으니(충돌 그룹) 뺀다
+  // 손가락 끝에 눌려 있다 풀린 인형들 — 잠깐 동안 CUSHION_V보다 빨리 움직이지 않는다. 노린 인형은 끝에 눌리지 않으니(충돌 그룹) 뺀다.
+  // 눌린 인형에 맞닿은 옆 인형도 함께 — 눌린 인형이 옆 인형을 짜내듯 밀어 1.2m/s로 튀어 나갔다(구멍·기계를 키운 뒤 시험 배치에서, 2026-11-02)
   cushion(uids: number[]): void {
-    for (const uid of uids) if (uid !== this.target && this.bodies.has(uid)) this.cushions.set(uid, this.time + CUSHION_SECONDS);
+    const until = this.time + CUSHION_SECONDS, pressed = uids.filter((uid) => uid !== this.target && this.bodies.has(uid));
+    for (const uid of pressed) this.cushions.set(uid, until);
+    if (!pressed.length) return;
+    const near = pressed.map((uid) => this.balls(uid));
+    for (const uid of this.bodies.keys()) {
+      if (uid === this.target || pressed.includes(uid)) continue;
+      const mine = this.balls(uid);
+      if (near.some((bs) => bs.some((a) => mine.some((b) => a.c.distanceTo(b.c) < a.r + b.r + NEIGHBOR_GAP)))) this.cushions.set(uid, until);
+    }
   }
 
   private softenCushions(): void {

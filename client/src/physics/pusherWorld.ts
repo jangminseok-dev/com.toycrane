@@ -2,7 +2,8 @@ import type RAPIER from '@dimforge/rapier3d-deterministic-compat';
 import { PUSHER, plateFront } from '../data/pushers';
 import type { DollSpot } from '../net/protocol';
 import { DOLL_FLOOR } from '../world/machine';
-import { MachineWorld } from './machineWorld';
+import { MACHINE_SPEC } from '../data/storeLayout';
+import { MachineWorld, WALL_MARGIN } from './machineWorld';
 import type { Rapier } from './rapier';
 
 // 미는 뽑기 기계 속 물리 세계(설계 2026-11-02 ring-hook §4, 사진 187·188): 인형 기계 세계에 바닥만 다르다.
@@ -23,9 +24,10 @@ export class PusherWorld extends MachineWorld {
 
   protected buildBox(): void {
     const { ledge, plate, chute, house } = PUSHER, top = DOLL_FLOOR + ledge.h, f = DOLL_FLOOR - T;
-    const lw = ledge.x1 - ledge.x0, lx = (ledge.x0 + ledge.x1) / 2, back = -0.5, front = 0.5;
-    // 칸 바닥(턱 오른쪽 전체)
-    this.fixed((0.56 - ledge.x1) / 2, T, front, (0.56 + ledge.x1) / 2, f, 0);
+    const [W, D] = MACHINE_SPEC.play_half, right = W + WALL_MARGIN, front = D + WALL_MARGIN, back = -front;
+    const lw = ledge.x1 - ledge.x0, lx = (ledge.x0 + ledge.x1) / 2;
+    // 칸 바닥(턱 오른쪽 전체, 벽까지)
+    this.fixed((right - ledge.x1) / 2, T, front, (right + ledge.x1) / 2, f, 0);
     // 턱: 윗면이 top인 덩어리, 오른쪽 끝에 낮은 턱
     this.fixed(lw / 2, ledge.h / 2 + T, (ledge.z1 - ledge.z0) / 2, lx, DOLL_FLOOR + ledge.h / 2 - T, (ledge.z0 + ledge.z1) / 2);
     this.fixed(0.006, ledge.lip / 2, (ledge.z1 - ledge.z0) / 2, ledge.x1 - 0.006, top + ledge.lip / 2, (ledge.z0 + ledge.z1) / 2);
