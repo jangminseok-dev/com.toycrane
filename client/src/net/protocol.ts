@@ -16,9 +16,11 @@ export const lookOf = (s: DollSpot): DollLook => ({ color: s[8], body: s[9], fac
 export const uidOf = (s: DollSpot): number => s[12];
 // 인형 하나의 자리·돌림 (물리 → 보고·중계)
 export type DollPose = { uid: number; p: [number, number, number]; q: [number, number, number, number] };
+// 피규어 기계(9단계) 상자 자리 — 기계 좌표 (x, y, z, qx, qy, qz, qw). 경품은 담지 않는다(뽑힌 순간 result로만)
+export type BoxWire = [x: number, y: number, z: number, qx: number, qy: number, qz: number, qw: number];
 export type Welcome = {
   t: 'welcome'; v: number; store: number; you: PlayerView; players: PlayerView[];
-  coins: number; bag: number; machines: Record<string, DollSpot[]>; plays: Record<string, string>;
+  coins: number; bag: number; machines: Record<string, DollSpot[]>; plays: Record<string, string>; figures: Record<string, BoxWire>;
 };
 export type Join = { t: 'join'; p: PlayerView };
 export type Move = { t: 'move'; id: string; x: number; z: number; dx: number; dz: number };
@@ -46,8 +48,9 @@ export type Gave = { t: 'gave'; from: string; to: string; n: number }; // 코인
 export type GiveNo = { t: 'give_no'; why: string };
 export type Spawn = { t: 'spawn'; m: string; k: string; rv: string }; // 희귀·황금이 채워졌다
 export type Stock = { t: 'stock'; in: number | null }; // 다음 채울 때까지 남은 초 (가득이면 null)
+export type FigureMsg = { t: 'figure'; m: string; box: BoxWire; nudged: boolean }; // 피규어 상자 자리(판 뒤·새 상자·직원이 옮김)
 export type ServerMsg = Welcome | Join | Move | Correct | Leave | Coins | PlayOk | PlayNo | Play | Result | DoneNo | Pose | MachineMsg | Free | Bag
-  | Spawn | Stock | TakeNo | CounterBeg | CounterBegNo | Beg | Gave | GiveNo;
+  | Spawn | Stock | TakeNo | CounterBeg | CounterBegNo | Beg | Gave | GiveNo | FigureMsg;
 
 // 닫기 코드 (서버와 같은 값)
 export const CLOSE_FULL = 4001;
@@ -67,6 +70,8 @@ const isSpot = (v: unknown) => Array.isArray(v) && v.length === 13 && str(v[0]) 
 const isWon = (v: unknown) => Array.isArray(v) && v.length === 4 && str(v[0]) && num(v[1]) && str(v[2]) && num(v[3]);
 const isPoseWire = (v: unknown) => Array.isArray(v) && v.length === 8 && v.every(num);
 const isClawPose = (v: unknown) => Array.isArray(v) && v.length === 4 && v.every(num);
+const isBox = (v: unknown): v is BoxWire => Array.isArray(v) && v.length === 7 && v.every(num);
+const isFigures = (v: unknown) => !!v && typeof v === 'object' && Object.values(v).every(isBox);
 const isMachines = (v: unknown) => !!v && typeof v === 'object' && Object.values(v).every((spots) => Array.isArray(spots) && spots.every(isSpot));
 
 export function decode(raw: string): ServerMsg | null {
@@ -75,7 +80,7 @@ export function decode(raw: string): ServerMsg | null {
   if (!m || typeof m !== 'object') return null;
   switch (m.t) {
     case 'welcome': return m.v === PROTOCOL && num(m.store) && isPlayer(m.you) && Array.isArray(m.players) && m.players.every(isPlayer)
-      && num(m.coins) && num(m.bag) && isMachines(m.machines) && !!m.plays && typeof m.plays === 'object' ? (m as Welcome) : null;
+      && num(m.coins) && num(m.bag) && isMachines(m.machines) && !!m.plays && typeof m.plays === 'object' && isFigures(m.figures) ? (m as Welcome) : null;
     case 'join': return isPlayer(m.p) ? (m as Join) : null;
     case 'move': return str(m.id) && pose(m) ? (m as Move) : null;
     case 'correct': return num(m.x) && num(m.z) ? (m as Correct) : null;
@@ -92,6 +97,7 @@ export function decode(raw: string): ServerMsg | null {
     case 'bag': return num(m.n) ? (m as Bag) : null;
     case 'spawn': return str(m.m) && str(m.k) && str(m.rv) ? (m as Spawn) : null;
     case 'stock': return m.in === null || num(m.in) ? (m as Stock) : null;
+    case 'figure': return str(m.m) && isBox(m.box) && typeof m.nudged === 'boolean' ? { t: 'figure', m: m.m, box: m.box, nudged: m.nudged } : null;
     case 'take_no': return num(m.c) && str(m.why) ? (m as TakeNo) : null;
     case 'cbeg': return str(m.id) && num(m.c) && num(m.n) ? (m as CounterBeg) : null;
     case 'cbeg_no': return num(m.c) && str(m.why) && num(m.wait) ? (m as CounterBegNo) : null;

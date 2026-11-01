@@ -7,7 +7,7 @@ const fx = fixtures as Record<string, unknown>;
 test('decodes every server fixture', () => {
   for (const k of ['server_welcome', 'server_join', 'server_move', 'server_correct', 'server_leave', 'server_coins',
     'server_play_ok', 'server_play_no', 'server_play', 'server_result', 'server_machine', 'server_free', 'server_bag', 'server_spawn', 'server_stock',
-    'server_take_no', 'server_cbeg', 'server_cbeg_no', 'server_beg', 'server_gave', 'server_give_no', 'server_done_no', 'server_pose'])
+    'server_take_no', 'server_cbeg', 'server_cbeg_no', 'server_beg', 'server_gave', 'server_give_no', 'server_done_no', 'server_pose', 'server_figure'])
     expect(decode(JSON.stringify(fx[k]))).toEqual(fx[k]);
 });
 
@@ -68,4 +68,17 @@ test('a welcome from another protocol version asks for a reload', () => {
   expect(needsReload(JSON.stringify({ t: 'move', v: 1 }))).toBe(false);
   expect(needsReload('not json')).toBe(false);
   expect((fx.server_welcome as { v: number }).v).toBe(PROTOCOL);
+});
+
+// 9단계 피규어 뽑기: 상자 메시지에는 상자 자리와 직원이 옮겼는지뿐 — 경품은 뽑힌 순간 result로만 온다(설계 §3.4).
+// 화면은 정해진 네 키만 받아들인다(서버가 무엇을 더 붙여 보내도 화면 코드로 새지 않게)
+test('figure messages carry no prize', () => {
+  const fig = fx.server_figure as Record<string, unknown>;
+  const got = decode(JSON.stringify({ ...fig, k: 'bunny', rv: 'gold' })) as Record<string, unknown>;
+  expect(Object.keys(got).sort()).toEqual(['box', 'm', 'nudged', 't']);
+  expect(decode(JSON.stringify({ ...fig, box: [0, 1, 0, 0, 0, 1] }))).toBeNull();
+  expect(decode(JSON.stringify({ ...fig, box: [0, 1, 0, 0, 0, 0, 'x'] }))).toBeNull();
+  expect(decode(JSON.stringify({ t: 'figure', m: 'F-1', box: fig.box }))).toBeNull();
+  const w = fx.server_welcome as Record<string, unknown>;
+  expect(decode(JSON.stringify({ ...w, figures: { 'F-1': [0, 1, 0] } }))).toBeNull();
 });

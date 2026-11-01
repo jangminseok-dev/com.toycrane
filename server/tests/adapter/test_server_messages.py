@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from toycrane.adapter.inbound.ws.schemas.server_messages import (
-    bag, coins, correct, done_no, free, join, leave, machine, move, play, play_no, play_ok, pose, result, spawn, stock, take_no, cbeg, cbeg_no, beg, gave, give_no, welcome,
+    bag, coins, correct, done_no, figure, free, join, leave, machine, move, play, play_no, play_ok, pose, result, spawn, stock, take_no, cbeg, cbeg_no, beg, gave, give_no, welcome,
 )
 from toycrane.app.dtos.player_view import PlayerView
 from toycrane.app.dtos.store_snapshot import StoreSnapshot
@@ -98,3 +98,7 @@ def test_give_schema_takes_an_id_and_one_to_ninety_nine():
     assert parse(FX["client_give"]) == ("p2", 3)
     for bad in ({"to": "p2", "n": 0}, {"to": "p2", "n": 100}, {"to": "p2", "n": True}, {"to": "p2", "n": "3"}, {"to": 5, "n": 3}, {"to": "", "n": 3}):
         assert parse(bad) is None
+
+
+def test_figure_matches_fixture():
+    assert figure("F-1", (0.0041, 1.0324, -0.0031, 0.0, 0.0123, 0.0, 1.0), False) == FX["server_figure"]
