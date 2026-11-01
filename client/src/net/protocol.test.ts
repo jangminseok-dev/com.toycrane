@@ -1,13 +1,14 @@
 import { expect, test } from 'vitest';
 import fixtures from '../../../shared/protocol_fixtures.json';
-import { PROTOCOL, decode, encodeBeg, encodeCounterBeg, encodeDone, encodeGive, encodeMove, encodePlay, encodePose, encodeStand, encodeTake, encodeTick, lookOf, needsReload, uidOf, type DollSpot, type MachineMsg } from './protocol';
+import { PROTOCOL, decode, encodeAct, encodeBeg, encodeCounterBeg, encodeDone, encodeGive, encodeMove, encodePlay, encodePose, encodeStand, encodeTake, encodeTick, lookOf, needsReload, uidOf, type DollSpot, type MachineMsg } from './protocol';
 
 const fx = fixtures as Record<string, unknown>;
 
 test('decodes every server fixture', () => {
   for (const k of ['server_welcome', 'server_join', 'server_move', 'server_correct', 'server_leave', 'server_coins',
     'server_play_ok', 'server_play_no', 'server_play', 'server_result', 'server_machine', 'server_free', 'server_bag', 'server_spawn', 'server_stock',
-    'server_take_no', 'server_cbeg', 'server_cbeg_no', 'server_beg', 'server_gave', 'server_give_no', 'server_done_no', 'server_pose', 'server_figure'])
+    'server_take_no', 'server_cbeg', 'server_cbeg_no', 'server_beg', 'server_gave', 'server_give_no', 'server_done_no', 'server_pose', 'server_figure',
+    'server_ring', 'server_pusher'])
     expect(decode(JSON.stringify(fx[k]))).toEqual(fx[k]);
 });
 
@@ -30,7 +31,7 @@ test('counter, begging and giving messages match client fixtures', () => {
 test('the old queue and drop-result messages are gone', () => {
   expect(decode('{"t":"queue","c":0,"ids":[]}')).toBeNull();
   expect(decode('{"t":"result","m":"A-3","id":"p1","x":0.1,"z":0,"o":"win","part":"head","k":"bunny"}')).toBeNull();
-  expect(PROTOCOL).toBe(11); // 피규어 큰 상자 두 종류(설계 §8): 물리·상자가 바뀜 — 옛 화면은 새로 고친다
+  expect(PROTOCOL).toBe(12); // 고리·미는 뽑기(설계 2026-11-02 §8): act·ring·pusher, welcome 상태 — 옛 화면은 새로 고친다
 });
 
 test('play messages match client fixtures', () => {
@@ -81,4 +82,15 @@ test('figure messages carry no prize', () => {
   expect(decode(JSON.stringify({ t: 'figure', m: 'F-1', box: fig.box }))).toBeNull();
   const w = fx.server_welcome as Record<string, unknown>;
   expect(decode(JSON.stringify({ ...w, figures: { 'F-1': [0, 1, 0] } }))).toBeNull();
+});
+
+// 고리·미는 뽑기 한 판(설계 2026-11-02 §8): 멈춘 자리만 보낸다
+test('act matches the client fixture', () => {
+  expect(JSON.parse(encodeAct('R-1', -0.1001, 1.4502))).toEqual(fx.client_act);
+});
+
+test('ring and pusher messages with broken shapes are rejected', () => {
+  expect(decode(JSON.stringify({ ...(fx.server_ring as object), pegs: [['bear', '2', '']] }))).toBeNull();
+  expect(decode(JSON.stringify({ ...(fx.server_pusher as object), items: [[1, 'bear', 0, '', 'x', 0]] }))).toBeNull();
+  expect(decode(JSON.stringify({ ...(fx.server_pusher as object), drop: null }))).not.toBeNull();
 });

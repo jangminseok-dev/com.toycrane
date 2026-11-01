@@ -5,7 +5,8 @@ import random
 import pytest
 
 from fakes import (
-    BrokenOccupancy, FakeBag, FakeConnections, FakeContents, FakeFigureBoxes, FakeLocks, FakeOccupancy, FakeRegistry, FakeWallet, player,
+    BrokenOccupancy, FakeBag, FakeConnections, FakeContents, FakeFigureBoxes, FakeLocks, FakeOccupancy, FakePusherShelves, FakeRegistry,
+    FakeRingBoards, FakeWallet, player,
     stocks_with_empty,
 )
 from toycrane.adapter.inbound.ws.schemas.server_messages import join, leave
@@ -18,7 +19,7 @@ from toycrane.app.use_cases.stock_interactor import StockInteractor
 def enter_interactor(reg=None, conns=None, occ=None, new_id=lambda: "p-1", wallet=None, bag=None, contents=None, locks=None):
     return EnterInteractor(
         reg or FakeRegistry(), conns or FakeConnections(), occ or FakeOccupancy(), new_player_id=new_id,
-        wallet=wallet or FakeWallet(), bag=bag or FakeBag(), contents=contents or FakeContents(), figures=FakeFigureBoxes(),
+        wallet=wallet or FakeWallet(), bag=bag or FakeBag(), contents=contents or FakeContents(), figures=FakeFigureBoxes(), rings=FakeRingBoards(), pushers=FakePusherShelves(),
         locks=locks or FakeLocks(), rng=random.Random(1),
     )
 

@@ -3,7 +3,7 @@ import type { Vec2 } from '../game/movement';
 
 export type PlayerView = { id: string; nick: string; color: number; x: number; z: number; dx: number; dz: number; beg?: number | null }; // beg: 조르는 중이면 더 받을 수 있는 코인 수
 // 메시지 형식 버전 — 서버 welcome의 v와 다르면(배포로 형식이 바뀜) 화면을 새로고침한다
-export const PROTOCOL = 11;
+export const PROTOCOL = 12;
 export type Body = 'n' | 'c' | 's'; // 보통 · 뚱뚱 · 마른
 // 기계 속 인형 한 칸 [캐릭터, x, y, z, qx, qy, qz, qw, 색, 체형, 표정, 희귀, 번호] (기계 안 좌표·돌림 쿼터니언 — 물리 뽑기 설계 §4.5).
 // y가 null이면 서버가 (x, z) 위 천장에서 떨어뜨린 아직 안 앉은 인형(돌림은 0,0,0,1) — 화면들이 같은 물리로 앉힌다.
@@ -18,9 +18,13 @@ export const uidOf = (s: DollSpot): number => s[12];
 export type DollPose = { uid: number; p: [number, number, number]; q: [number, number, number, number] };
 // 피규어 기계(9단계) 상자 자리 — 기계 좌표 (x, y, z, qx, qy, qz, qw). 경품은 담지 않는다(뽑힌 순간 result로만)
 export type BoxWire = [x: number, y: number, z: number, qx: number, qy: number, qz: number, qw: number];
+// 고리·미는 뽑기(설계 2026-11-02): 걸이 카드 [캐릭터, 색, 희귀], 선반 인형 [번호, 캐릭터, 색, 희귀, x, z] — 보이는 경품
+export type CardWire = [kind: string, color: number, rare: string];
+export type ItemWire = [uid: number, kind: string, color: number, rare: string, x: number, z: number];
 export type Welcome = {
   t: 'welcome'; v: number; store: number; you: PlayerView; players: PlayerView[];
   coins: number; bag: number; machines: Record<string, DollSpot[]>; plays: Record<string, string>; figures: Record<string, BoxWire>;
+  rings: Record<string, CardWire[]>; pushers: Record<string, ItemWire[]>;
 };
 export type Join = { t: 'join'; p: PlayerView };
 export type Move = { t: 'move'; id: string; x: number; z: number; dx: number; dz: number };
@@ -49,8 +53,12 @@ export type GiveNo = { t: 'give_no'; why: string };
 export type Spawn = { t: 'spawn'; m: string; k: string; rv: string }; // 희귀·황금이 채워졌다
 export type Stock = { t: 'stock'; in: number | null }; // 다음 채울 때까지 남은 초 (가득이면 null)
 export type FigureMsg = { t: 'figure'; m: string; box: BoxWire; nudged: boolean }; // 피규어 상자 자리(판 뒤·새 상자·직원이 옮김)
+// 고리 한 판: 판 뒤 카드, 갈고리가 멈춘 자리, 걸린 걸이(-1이면 없음), 출구까지 왔나
+export type RingMsg = { t: 'ring'; m: string; pegs: CardWire[]; x: number; y: number; peg: number; caught: boolean };
+// 미는 뽑기 한 판: 민 자리, 판 뒤 선반, 이 판에 뒤에 떨어진 새 인형, 앞으로 떨어진 번호
+export type PusherMsg = { t: 'pusher'; m: string; x: number; items: ItemWire[]; drop: ItemWire | null; fell: number[] };
 export type ServerMsg = Welcome | Join | Move | Correct | Leave | Coins | PlayOk | PlayNo | Play | Result | DoneNo | Pose | MachineMsg | Free | Bag
-  | Spawn | Stock | TakeNo | CounterBeg | CounterBegNo | Beg | Gave | GiveNo | FigureMsg;
+  | Spawn | Stock | TakeNo | CounterBeg | CounterBegNo | Beg | Gave | GiveNo | FigureMsg | RingMsg | PusherMsg;
 
 // 닫기 코드 (서버와 같은 값)
 export const CLOSE_FULL = 4001;
@@ -72,6 +80,9 @@ const isPoseWire = (v: unknown) => Array.isArray(v) && v.length === 8 && v.every
 const isClawPose = (v: unknown) => Array.isArray(v) && v.length === 4 && v.every(num);
 const isBox = (v: unknown): v is BoxWire => Array.isArray(v) && v.length === 7 && v.every(num);
 const isFigures = (v: unknown) => !!v && typeof v === 'object' && Object.values(v).every(isBox);
+const isCard = (v: unknown): v is CardWire => Array.isArray(v) && v.length === 3 && str(v[0]) && num(v[1]) && str(v[2]);
+const isItem = (v: unknown): v is ItemWire => Array.isArray(v) && v.length === 6 && num(v[0]) && str(v[1]) && num(v[2]) && str(v[3]) && num(v[4]) && num(v[5]);
+const isRecordOf = (v: unknown, ok: (x: unknown) => boolean) => !!v && typeof v === 'object' && Object.values(v).every((xs) => Array.isArray(xs) && xs.every(ok));
 const isMachines = (v: unknown) => !!v && typeof v === 'object' && Object.values(v).every((spots) => Array.isArray(spots) && spots.every(isSpot));
 
 export function decode(raw: string): ServerMsg | null {
@@ -80,7 +91,8 @@ export function decode(raw: string): ServerMsg | null {
   if (!m || typeof m !== 'object') return null;
   switch (m.t) {
     case 'welcome': return m.v === PROTOCOL && num(m.store) && isPlayer(m.you) && Array.isArray(m.players) && m.players.every(isPlayer)
-      && num(m.coins) && num(m.bag) && isMachines(m.machines) && !!m.plays && typeof m.plays === 'object' && isFigures(m.figures) ? (m as Welcome) : null;
+      && num(m.coins) && num(m.bag) && isMachines(m.machines) && !!m.plays && typeof m.plays === 'object' && isFigures(m.figures)
+      && isRecordOf(m.rings, isCard) && isRecordOf(m.pushers, isItem) ? (m as Welcome) : null;
     case 'join': return isPlayer(m.p) ? (m as Join) : null;
     case 'move': return str(m.id) && pose(m) ? (m as Move) : null;
     case 'correct': return num(m.x) && num(m.z) ? (m as Correct) : null;
@@ -98,6 +110,9 @@ export function decode(raw: string): ServerMsg | null {
     case 'spawn': return str(m.m) && str(m.k) && str(m.rv) ? (m as Spawn) : null;
     case 'stock': return m.in === null || num(m.in) ? (m as Stock) : null;
     case 'figure': return str(m.m) && isBox(m.box) && typeof m.nudged === 'boolean' ? { t: 'figure', m: m.m, box: m.box, nudged: m.nudged } : null;
+    case 'ring': return str(m.m) && Array.isArray(m.pegs) && m.pegs.every(isCard) && num(m.x) && num(m.y) && num(m.peg) && typeof m.caught === 'boolean' ? (m as RingMsg) : null;
+    case 'pusher': return str(m.m) && num(m.x) && Array.isArray(m.items) && m.items.every(isItem) && (m.drop === null || isItem(m.drop))
+      && Array.isArray(m.fell) && m.fell.every(num) ? (m as PusherMsg) : null;
     case 'take_no': return num(m.c) && str(m.why) ? (m as TakeNo) : null;
     case 'cbeg': return str(m.id) && num(m.c) && num(m.n) ? (m as CounterBeg) : null;
     case 'cbeg_no': return num(m.c) && str(m.why) && num(m.wait) ? (m as CounterBegNo) : null;
@@ -119,6 +134,8 @@ export const encodeCounterBeg = (c: number) => JSON.stringify({ t: 'cbeg', c });
 export const encodeBeg = (on: boolean) => JSON.stringify({ t: 'beg', on }); // 맵 조르기 켜고 끄기
 export const encodeGive = (to: string, n: number) => JSON.stringify({ t: 'give', to, n }); // 조르는 사람에게 코인 주기
 export const encodePlay = (m: string) => JSON.stringify({ t: 'play', m });
+// 고리·미는 뽑기 한 판(설계 2026-11-02 §8): 멈춘 자리만 — 고리는 갈고리 끝 (x, y), 미는 뽑기는 미는 판 x(y 0). 셋째 자리까지
+export const encodeAct = (m: string, x: number, y: number) => JSON.stringify({ t: 'act', m, x: Math.round(x * 1000) / 1000, y: Math.round(y * 1000) / 1000 });
 const wire = (d: DollPose, digits: number): PoseWire => [d.uid, ...d.p.map((v) => round(v, digits)), ...d.q.map((v) => round(v, digits))] as PoseWire;
 // 판 보고: 구멍에 빠진 인형 번호들과 멈춘 인형 전부의 자리·돌림 (소수 3자리)
 export const encodeDone = (m: string, won: number[], dolls: DollPose[]) => JSON.stringify({ t: 'done', m, won, dolls: dolls.map((d) => wire(d, 3)) });

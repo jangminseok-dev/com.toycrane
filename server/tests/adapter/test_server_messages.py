@@ -6,6 +6,8 @@ from toycrane.adapter.inbound.ws.schemas.server_messages import (
 )
 from toycrane.app.dtos.player_view import PlayerView
 from toycrane.app.dtos.store_snapshot import StoreSnapshot
+from toycrane.domain.pusher import Item
+from toycrane.domain.ring import Card
 from toycrane.domain.crane import DollSpot
 
 FX = json.loads((Path(__file__).resolve().parents[3] / "shared" / "protocol_fixtures.json").read_text(encoding="utf-8"))
@@ -22,6 +24,8 @@ def test_welcome_matches_fixture():
         machines={"A-1": [DollSpot("bunny", 0.1204, 0.87, -0.0501, (0, 0, 0, 1), 2, "n", 1, "", 1), DollSpot("bunny", -0.2, None, 0.1, (0, 0, 0, 1), 0, "c", 3, "star", 2)]},
         plays={"A-3": "p2"},
         figures={"F-1": (0.0041, 1.0543, -0.0031, 0.0, 0.0123, 0.0, 1.0)},
+        rings={"R-1": (Card("bear", 2, ""), Card("cat", 0, "gold"))},
+        pushers={"P-1": (Item(1, "bear", 0, "", 0.1004, -0.2001),)},
     )
     assert welcome(fx["store"], view(fx["you"]), [view(p) for p in fx["players"]], snap) == fx
 
@@ -104,8 +108,17 @@ def test_figure_matches_fixture():
     assert figure("F-1", (0.0041, 1.0324, -0.0031, 0.0, 0.0123, 0.0, 1.0), False) == FX["server_figure"]
 
 
-def test_protocol_is_eleven():
-    """피규어 큰 상자 두 종류(설계 §8.4): 물리·상자가 바뀌어 옛 화면은 새로 고친다 — 화면(net/protocol.ts)과 같은 수."""
+def test_protocol_is_twelve():
+    """고리·미는 뽑기(설계 2026-11-02 §8): 새 메시지(act·ring·pusher)와 welcome 상태가 늘어 옛 화면은 새로 고친다 — 화면(net/protocol.ts)과 같은 수."""
     from toycrane.adapter.inbound.ws.schemas.server_messages import PROTOCOL
 
-    assert PROTOCOL == 11
+    assert PROTOCOL == 12
+
+
+def test_ring_and_pusher_messages_match_fixtures():
+    from toycrane.adapter.inbound.ws.schemas.server_messages import pusher, ring
+
+    assert ring("R-1", (Card("bear", 2, ""), Card("cat", 0, "gold")), -0.1001, 1.4502, 1, True) == FX["server_ring"]
+    assert ring("R-1", (Card("bear", 2, ""),), 0.0, 1.3, None, False)["peg"] == -1
+    assert pusher("P-1", (Item(1, "bear", 0, "", 0.1, -0.0102),), 0.0504, Item(2, "cat", 1, "", -0.2, -0.2), [3]) == FX["server_pusher"]
+    assert pusher("P-1", (), 0.0, None, [])["drop"] is None
