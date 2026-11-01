@@ -58,6 +58,7 @@ import { buildDecor } from './world/decor';
 import { buildStore } from './world/storeScene';
 import { ALL_COPY, BEGGING, FIGURE_WORD, UI } from './world/copy';
 import { openGiveSheet } from './ui/giveSheet';
+import { blockSelect, installNoSelect } from './ui/noSelect';
 // 창구 손 닿는 거리(서버 WINDOW_REACH 1.5m)보다 조금 안쪽 — 걷는 사이 위치가 조금 어긋나도 서버가 거절하지 않게
 const COUNTER_REACH = 1.3, TAKE_LIMIT = 15, GIVE_REACH = 1.3;
 import { loadFonts } from './ui/fonts';
@@ -75,6 +76,8 @@ Object.assign(document.body.style, { margin: '0', overflow: 'hidden', background
 // 캔버스는 화면에 고정해 꽉 채운다 — 픽셀 폭을 박으면 휴대폰에서 페이지가 넓어져 축소돼 보인다
 Object.assign(renderer.domElement.style, { position: 'fixed', inset: '0', width: '100%', height: '100%', display: 'block', touchAction: 'none' });
 document.body.appendChild(renderer.domElement);
+installNoSelect(renderer.domElement); // 꾹 누르기(피규어 버튼)가 선택·끌기로 바뀌지 않게
+document.addEventListener('selectstart', blockSelect);
 // 성능 측정용(client/e2e/perf.mjs): 마지막으로 그린 화면의 그리기 호출·삼각형 수
 // controlAt('lever'|'drop'): 하는 기계의 레버·하강 버튼 화면 자리(e2e가 누를 곳)
 Object.assign(window, { __toycrane: {
