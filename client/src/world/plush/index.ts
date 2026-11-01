@@ -85,14 +85,15 @@ function make(id: string, look: DollLook, lite: boolean): Plush | null {
   return { group: out.group, solid, ears: out.ears.map(scaled), head: { c: out.head.c * k, r: out.head.r * k } };
 }
 
-// 같은 겉모습은 한 번만 만들고 복사해 준다(도형·재질 공유) — 매장 무더기는 겉모습 수백 가지를 여러 번 쓴다
+// 같은 겉모습은 한 번만 만들고 복사해 준다(도형·재질 공유). 무더기용(lite)은 붙들지 않는다 — 무더기(bigZone)가 합칠 조각을
+// 겉모습마다 따로 붙들어서, 여기서도 붙들면 같은 도형이 두 벌 남는다(최종 리뷰 I3)
 const cache = new Map<string, Plush | null>();
 const CACHE_MAX = 400;
 export function makePlush(id: string, look: DollLook, lite: boolean): Plush | null {
-  const key = `${id}|${look.color}|${look.face}|${look.rare}|${lite ? 1 : 0}`;
-  let p = cache.get(key);
+  const key = `${id}|${look.color}|${look.face}|${look.rare}`;
+  let p = lite ? make(id, look, true) : cache.get(key);
   if (p === undefined) {
-    p = make(id, look, lite);
+    p = make(id, look, false);
     cache.set(key, p);
     if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value!);
   }

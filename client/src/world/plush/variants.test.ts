@@ -82,11 +82,17 @@ test('gold and effect dolls keep their painted faces', () => {
 }, 60_000);
 
 test('the same look is built once and handed out as copies', () => {
-  const a = makePlush('bear', { ...PLAIN, color: 2, face: 1 }, true)!.group, b = makePlush('bear', { ...PLAIN, color: 2, face: 1 }, true)!.group;
+  const a = makePlush('bear', { ...PLAIN, color: 2, face: 1 }, false)!.group, b = makePlush('bear', { ...PLAIN, color: 2, face: 1 }, false)!.group;
   expect(a).not.toBe(b);
   expect(bodyOf(a).geometry).toBe(bodyOf(b).geometry);
   const ear = a.children.find((o) => o.name === 'ear')!;
   expect(ear.userData.ear.c).toBeInstanceOf(THREE.Vector3); // 복사본의 귀 표지도 진짜 벡터
+}, 60_000);
+
+// 무더기용(lite)은 여기서 붙들지 않는다 — 무더기(bigZone)가 합칠 조각을 따로 붙들어서 같은 도형이 두 벌 남았다 (최종 리뷰 I3)
+test('pile dolls are not kept here a second time', () => {
+  const a = makePlush('bear', { ...PLAIN, color: 3, face: 2 }, true)!.group, b = makePlush('bear', { ...PLAIN, color: 3, face: 2 }, true)!.group;
+  expect(bodyOf(a).geometry).not.toBe(bodyOf(b).geometry);
 }, 60_000);
 
 // 겨냥·물리가 쓰는 가벼운 모양(plushShape)은 그린 인형과 같은 공을 낸다

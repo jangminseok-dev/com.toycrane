@@ -16,6 +16,9 @@ import { outlineMat, part, toon } from './toon';
 // 휴대폰 그리기 호출을 아끼려고 왼쪽·오른쪽마다 [꼭짓점 색 툰 한 덩어리 · 외곽선 · 천 덮개 · 준비 중 판] 넷으로 합친다
 const ROOM = 13, PASTEL = [0xffc6dc, 0xd9c8ff, 0xbdeedd, 0xffe2a8];
 const SHELF_DOLLS = ['bear', 'bunny', 'chick', 'penguin', 'cat', 'pig'];
+// 진열장 인형은 종마다 한 번만 짓고 복사한다(도형·재질 공유) — 무더기용 판은 makePlush가 붙들지 않는다
+const shelfDolls = new Map<string, THREE.Group | null>();
+const shelfDoll = (id: string) => { if (!shelfDolls.has(id)) shelfDolls.set(id, makeDoll(id, PLAIN, true)); return shelfDolls.get(id)?.clone(true) ?? null; };
 type V3 = [number, number, number];
 
 const once = <T>(make: () => T) => { let v: T | undefined; return () => (v ??= make()); };
@@ -43,7 +46,7 @@ function unit(kind: DecorSpot['kind'], i: number, len: number): { solid: THREE.G
     add(new RoundedBoxGeometry(len, 0.7, 0.95, 2, 0.03), 0xfbf8ff, [0, 0.35, 0]);
     add(new RoundedBoxGeometry(len - 0.2, 0.35, 0.42, 2, 0.03), 0xffe6f0, [0, 0.875, 0]);
     const place = (x: number, y: number, z: number, k: number) => {
-      const d = makeDoll(SHELF_DOLLS[k % SHELF_DOLLS.length], PLAIN, true);
+      const d = shelfDoll(SHELF_DOLLS[k % SHELF_DOLLS.length]);
       if (!d) return;
       d.scale.setScalar(DOLL_SCALE); d.position.set(x, y, z); d.rotation.y = z < 0 ? Math.PI : 0;
       solid.add(d);

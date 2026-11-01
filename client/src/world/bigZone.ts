@@ -29,7 +29,8 @@ export interface BigZone {
   unsettled(machineId: string): DollSpot[]; // 아직 안 앉은(y null) 인형들 — 물리가 앉힐 차례
   settleWith(machineId: string, poses: DollPose[]): void; // 물리가 앉힌 자리·돌림을 입힌다
   live(machineId: string): LiveDolls; // 한 판 동안 그 기계의 인형을 무더기에서 빼 따로 그린다 (물리·중계 자세를 입히려고)
-  update(t: number): void; // 깜빡임, 바뀐 행의 인형 다시 합치기, 희귀 반짝임
+  update(t: number): void; // 깜빡임, 바뀐 행의 인형 다시 합치기(새 겉모습은 프레임마다 조금씩 지어 다 지은 묶음부터), 희귀 반짝임
+  pending(): number; // 아직 다시 합치지 못한 묶음 수
   occluders: Occluder[]; // 행 2개: 벽 줄, 섬
 }
 
@@ -78,8 +79,11 @@ function uniform(g: THREE.BufferGeometry): THREE.BufferGeometry {
 export const LITE_CACHE_MAX = 300;
 const partsCache = new Map<string, Part[] | null>();
 export const liteCacheSize = () => partsCache.size;
+const lookKey = (spot: DollSpot) => { const look = lookOf(spot); return `${spot[0]}|${look.color}|${look.face}|${look.rare}`; };
+// 한 프레임에 새 겉모습을 짓는 시간(ms): 매장 입장 때 216마리를 한 번에 지으면 휴대폰이 3초 넘게 멈췄다(최종 리뷰 I1)
+const BUILD_MS = 10;
 function liteParts(spot: DollSpot): Part[] | null {
-  const look = lookOf(spot), key = `${spot[0]}|${look.color}|${look.face}|${look.rare}`;
+  const look = lookOf(spot), key = lookKey(spot);
   const known = partsCache.get(key);
   if (known !== undefined) { partsCache.delete(key); partsCache.set(key, known); return known; } // 최근에 쓴 것으로
   const doll = makeDoll(spot[0], look, true);
@@ -207,6 +211,20 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
   const holder = new THREE.Matrix4(), local = new THREE.Matrix4(), world = new THREE.Matrix4();
   const at = new THREE.Vector3(), turn = new THREE.Quaternion(), size = new THREE.Vector3();
   const UP = new THREE.Vector3(0, 1, 0);
+  // 묶음의 새 겉모습을 시간 안에서 짓는다 — 다 지었으면 true (합칠 수 있음)
+  function warm(block: Block, until: number): boolean {
+    for (const spot of block.spots) {
+      const u = units.get(spot.id)!;
+      if (u.live) continue;
+      for (const d of u.contents) {
+        if (partsCache.has(lookKey(d))) continue;
+        if (performance.now() >= until) return false;
+        liteParts(d);
+      }
+    }
+    return true;
+  }
+
   function rebuild(block: Block) {
     for (const old of block.group.children as THREE.Mesh[]) old.geometry.dispose();
     block.group.clear();
@@ -364,6 +382,9 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
       for (const c of [...rig.grip.children]) rig.grip.remove(c);
       rigPool.push(rig); u.rig = null; u.idle.visible = true;
     },
+    pending() {
+      return blocks.filter((b) => b.dirty).length;
+    },
     hideControls(id, hidden) {
       const u = unit(id), spot = MACHINES.find((m) => m.id === id)!, j = u.row.spots.indexOf(spot);
       for (const mesh of controlRows.find((c) => c.row === u.row)!.meshes) {
@@ -372,7 +393,8 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
       }
     },
     update(t) {
-      for (const block of blocks) if (block.dirty) rebuild(block);
+      const until = performance.now() + BUILD_MS;
+      for (const block of blocks) if (block.dirty && performance.now() < until && warm(block, until)) rebuild(block); // 합치기도 시간이 남을 때만 — 한 프레임에 묶음 하나쯤
       for (const u of units.values()) refreshLive(u);
       for (const m of markRows) {
         const n = { rare: 0, gold: 0, twinkle: 0 };

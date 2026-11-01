@@ -1,8 +1,12 @@
 import * as THREE from 'three';
-import { beforeAll, expect, test } from 'vitest';
+import { beforeAll, expect, test, vi } from 'vitest';
 import { DECOR, OBSTACLES } from '../data/storeLayout';
 import { stubCanvas } from '../test/canvasStub';
 import { buildDecor } from './decor';
+import { makeDoll } from './dolls';
+
+// 진짜 makeDoll을 감싸 부른 횟수만 센다
+vi.mock('./dolls', async (importOriginal) => { const m = await importOriginal<typeof import('./dolls')>(); return { ...m, makeDoll: vi.fn(m.makeDoll) }; });
 
 beforeAll(stubCanvas);
 
@@ -26,3 +30,10 @@ test('shelf dolls keep their painted faces', () => {
   expect(mats.some((m) => m.map && m.transparent)).toBe(true);
   expect(mats.filter((m) => m.side === THREE.BackSide)).toHaveLength(1);
 });
+
+// 진열장 인형(두 진열장 약 78마리, 6종)은 종마다 한 번만 짓고 복사한다 — 무더기용 판은 makePlush가 붙들지 않는다(최종 리뷰 I3)
+test('shelves build each doll kind once', () => {
+  vi.mocked(makeDoll).mockClear();
+  buildDecor(new THREE.Scene());
+  expect(vi.mocked(makeDoll).mock.calls.length).toBeLessThanOrEqual(6);
+}, 60_000);

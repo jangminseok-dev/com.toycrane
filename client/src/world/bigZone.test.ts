@@ -9,6 +9,8 @@ import { PLAIN, makeDoll } from './dolls';
 import { spot } from '../test/spots';
 
 beforeAll(stubCanvas);
+// 새 겉모습은 프레임마다 나눠 지으므로(최종 리뷰 I1) 다 지을 때까지 돌린다
+const fill = (zone: ReturnType<typeof buildBigZone>, t = 0) => { for (let i = 0; i < 5000; i++) { zone.update(t); if (!zone.pending()) return; } };
 
 test('big zone builds 24 machines in two fade rows', () => {
   const zone = buildBigZone(new THREE.Scene());
@@ -20,7 +22,7 @@ test('setContents skips unknown dolls', () => {
   const zone = buildBigZone(new THREE.Scene());
   expect(() => {
     zone.setContents('A-1', [spot('bunny', 0, 0, 0), spot('gone-doll', 0.1, 0.1, 0)]);
-    zone.update(0);
+    fill(zone);
   }).not.toThrow();
 });
 
@@ -38,7 +40,7 @@ test('a contents change rebuilds only its block of machines', () => {
   const scene = new THREE.Scene();
   const zone = buildBigZone(scene);
   for (const m of MACHINES) zone.setContents(m.id, [spot('bear', 0, 0, 0)]);
-  zone.update(0);
+  fill(zone);
   const groups: THREE.Object3D[] = [];
   scene.traverse((o) => { if (o.name.startsWith('dolls-')) groups.push(o); });
   const blocks = () => groups.map((b) => b.children.slice());
@@ -56,7 +58,7 @@ test('dolls are drawn at their resting height', () => {
   const scene = new THREE.Scene();
   const zone = buildBigZone(scene);
   zone.setContents('C-6', [spot('bear', 0, 0, 0, 0.22)]);
-  zone.update(0);
+  fill(zone);
   const box = new THREE.Box3();
   scene.traverse((o) => { if (o.name.startsWith('dolls-')) box.expandByObject(o); });
   expect(box.min.y).toBeGreaterThan(0.87 + 0.15);
@@ -79,7 +81,7 @@ test('marquee bulbs chase around over time', () => {
   const scene = new THREE.Scene();
   const zone = buildBigZone(scene);
   const bulbs = scene.getObjectByName('bulbs-big-island') as THREE.InstancedMesh;
-  zone.update(0);
+  fill(zone);
   const a = Array.from(bulbs.instanceColor!.array);
   zone.update(0.2);
   expect(Array.from(bulbs.instanceColor!.array)).not.toEqual(a);
@@ -140,7 +142,7 @@ test('six machines of different colors still bake into few materials', () => {
   const scene = new THREE.Scene();
   const zone = buildBigZone(scene);
   for (const [k, m] of MACHINES.slice(0, 6).entries()) zone.setContents(m.id, nineDolls(m.kind, k % 6));
-  zone.update(0);
+  fill(zone);
   expect(materialsIn(scene, 'dolls-big-wall-0')).toBeLessThanOrEqual(6);
 });
 
@@ -162,7 +164,7 @@ test('live mode draws a machine\'s dolls one by one and returns them to the pile
   const zone = buildBigZone(scene);
   const dolls = nineDolls('octopus', 0);
   zone.setContents('C-6', dolls);
-  zone.update(0);
+  fill(zone);
   expect(zone.pileOf('C-6')).toHaveLength(9);
   const live = zone.live('C-6');
   zone.update(0.1);
@@ -185,7 +187,7 @@ test('machines holding a rare show a name tag and twinkles above them', () => {
   const zone = buildBigZone(scene);
   const count = (prefix: string) => { let n = 0; scene.traverse((o) => { if (o.name.startsWith(prefix) && o.visible) n += (o as THREE.InstancedMesh).count; }); return n; };
   zone.setContents('A-1', [spot('bunny', 0, 0, 0, 0, { rare: 'star' })]);
-  zone.update(0);
+  fill(zone);
   expect([count('rare-tags-rare'), count('rare-tags-gold')]).toEqual([1, 0]);
   expect(count('rare-twinkles')).toBe(3);
   zone.setContents('A-2', [spot('fox', 0, 0, 0, 0, { rare: 'gold' })]);
@@ -203,7 +205,7 @@ test('chubby dolls are drawn wider', () => {
     const scene = new THREE.Scene();
     const zone = buildBigZone(scene);
     zone.setContents('C-6', [spot('bear', 0, 0, 0, 0, { body })]);
-    zone.update(0);
+    fill(zone);
     return new THREE.Box3().setFromObject(scene.getObjectByName('dolls-big-island-0')!).getSize(new THREE.Vector3()).x;
   };
   expect(width('c')).toBeGreaterThan(width('n') * 1.08);
@@ -216,7 +218,7 @@ test('squirrels of every color share one striped material', () => {
     const scene = new THREE.Scene();
     const zone = buildBigZone(scene);
     zone.setContents('A-10', colors.map((c, i) => spot('squirrel', -0.3 + (i % 3) * 0.25, -0.25 + Math.floor(i / 3) * 0.22, i, 0, { color: c })));
-    zone.update(0);
+    fill(zone);
     return materialsIn(scene, 'dolls-big-wall-1');
   };
   expect(count([0, 1, 2, 3, 4, 5])).toBe(count([0, 0, 0, 0, 0, 0]));
@@ -229,7 +231,7 @@ test('baked doll shapes are kept to a bounded number', () => {
   const kinds = MACHINES.map((m) => m.kind);
   for (let round = 0; round < 60; round++) {
     zone.setContents('C-6', Array.from({ length: 9 }, (_, i) => spot(kinds[(round * 9 + i) % kinds.length], (i % 3) * 0.2 - 0.2, Math.floor(i / 3) * 0.2 - 0.2, 0, 0, { color: (round + i) % 6, face: Math.floor(round / 6) % 5 })));
-    zone.update(round);
+    fill(zone, round);
   }
   expect(liteCacheSize()).toBeLessThanOrEqual(LITE_CACHE_MAX);
   expect(LITE_CACHE_MAX).toBeLessThan(500);
@@ -240,7 +242,7 @@ test('live mode on one machine leaves the rest of its block drawn', () => {
   const scene = new THREE.Scene();
   const zone = buildBigZone(scene);
   for (const id of ['C-1', 'C-2', 'C-3', 'C-4', 'C-5', 'C-6']) zone.setContents(id, nineDolls('octopus', 0));
-  zone.update(0);
+  fill(zone);
   const block = scene.getObjectByName('dolls-big-island-0')!;
   const before = block.children.length;
   expect(before).toBeGreaterThan(0);
@@ -261,7 +263,7 @@ test('live meshes are frustum culled and unchanged poses are not re-uploaded', (
   const zone = buildBigZone(scene);
   const dolls = nineDolls('octopus', 0);
   zone.setContents('C-6', dolls);
-  zone.update(0);
+  fill(zone);
   const live = zone.live('C-6');
   zone.update(0.1);
   const uid = dolls[3][12];
@@ -287,7 +289,7 @@ test('a block mixing every kind, face and rarity keeps few materials', () => {
   const kinds = Object.keys(DOLLS);
   for (const [k, m] of MACHINES.slice(0, 6).entries())
     zone.setContents(m.id, Array.from({ length: 9 }, (_, i) => spot(kinds[(k * 9 + i) % kinds.length], -0.3 + (i % 3) * 0.25, -0.25 + Math.floor(i / 3) * 0.22, i, 0, { color: i % 6, face: i % 5, rare: i === 4 ? 'star' : '' })));
-  zone.update(0);
+  fill(zone);
   expect(materialsIn(scene, 'dolls-big-wall-0')).toBeLessThanOrEqual(6);
 });
 // Review Focus 5: 처음 들어올 때 기계 하나(9마리, 서로 다른 겉모습) lite 만들기 200ms 이하
@@ -296,3 +298,22 @@ test('building one machine of fresh lite dolls is quick', () => {
   Object.keys(DOLLS).slice(0, 9).forEach((id, i) => makeDoll(id, { ...PLAIN, color: (i + 2) % 6, face: (i + 3) % 5 }, true));
   expect(performance.now() - t0).toBeLessThan(200);
 });
+
+// 매장 입장(최종 리뷰 I1): 새 겉모습 216마리를 한 프레임에 지으면 휴대폰이 3초 넘게 멈춘다 — 프레임마다 조금씩 짓고 다 지은 묶음부터 합친다.
+// 첫 프레임은 얼굴 그림 같은 한 번뿐인 준비가 들어 있어 빼고, 그 뒤 프레임마다 인형 하나·묶음 하나쯤만
+test('a store full of new looks is built a little each frame', () => {
+  const scene = new THREE.Scene();
+  const zone = buildBigZone(scene);
+  const kinds = Object.keys(DOLLS);
+  MACHINES.forEach((m, i) => zone.setContents(m.id, Array.from({ length: 9 }, (_, k) => spot(kinds[(i + k) % kinds.length], (k % 3) * 0.2 - 0.2, Math.floor(k / 3) * 0.2 - 0.2, 0, 0, { color: (i + k) % 6, face: 1 + (k % 4) }))));
+  zone.update(0);
+  expect(zone.pending()).toBeGreaterThan(0);
+  let frames = 1, worst = 0;
+  while (zone.pending() && frames < 5000) { const t0 = performance.now(); zone.update(frames / 60); worst = Math.max(worst, performance.now() - t0); frames++; }
+  expect(zone.pending()).toBe(0);
+  expect(frames).toBeGreaterThan(10);
+  expect(worst).toBeLessThan(150);
+  let drawn = 0;
+  scene.traverse((o) => { if (o.name.startsWith('dolls-')) drawn += o.children.length; });
+  expect(drawn).toBeGreaterThan(0);
+}, 120_000);
