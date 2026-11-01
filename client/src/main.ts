@@ -7,14 +7,13 @@ import { aimHeight, aimVisible } from './game/aim';
 import { blocksView, machineCameraPose } from './game/machineCamera';
 import { figureCameraPose } from './game/figureCamera';
 import { FIGURE_SPOTS, FigurePlay } from './game/figurePlay';
+import { watchKind } from './game/watchRoute';
 import type { ButtonPlay } from './game/buttonPlay';
-import { RingPlay } from './game/ringPlay';
-import { PusherPlay } from './game/pusherPlay';
 import { MachineBusy } from './game/machineBusy';
 import { PlaySession } from './game/playSession';
 import { HoldLook } from './game/holdLook';
 import { Swing } from './game/swing';
-import { Tweens, ease } from './game/tween';
+import { Tweens } from './game/tween';
 import { setSfxMuted, sfx, unlockAudio } from './audio/sfx';
 import { Music } from './audio/music';
 import { AutoWalk, nearestCounter } from './game/autoWalk';
@@ -50,12 +49,8 @@ import { makeAvatar, type Avatar } from './world/avatar';
 import { DOLLS, GOLD, SETS, dollName } from './data/catalog';
 import { COUNTERS, MACHINES, MACHINE_SPEC, frontSpot, nearestMachine } from './data/storeLayout';
 import { FIGURES, isFigure, nearestFigure } from './data/figures';
-import { RINGS, nearestRing } from './data/rings';
-import { PUSHERS, nearestPusher } from './data/pushers';
 import { buildBigZone, type LiveDolls } from './world/bigZone';
 import { buildFigureZone } from './world/figureZone';
-import { buildRingZone } from './world/ringZone';
-import { buildPusherZone } from './world/pusherZone';
 import { pumpThumbnails } from './world/thumbs';
 import { figureName, makeFigure } from './world/figureModel';
 import { PLAIN, makeDoll } from './world/dolls';
@@ -105,9 +100,6 @@ Object.assign(window, { __toycrane: {
   },
   // 피규어 기계(9단계): 누를 버튼 ①②의 화면 자리, 이 화면이 아는 상자 자리, 지금 옆 시점 정도(0 정면 ~ 1 옆)
   buttonAt: (b: 1 | 2) => activePlay()?.buttonAt(b, camera) ?? null,
-  ringBoard: (id: string) => ringZone.boardOf(id),
-  pusherShelf: (id: string) => pusherZone.shelfOf(id),
-  pusherPlate: (id: string) => pusherZone.plateOf(id),
   music: () => ({ muted: music.muted, playing: music.playing }),
   figureBox: (id: string) => figureZone.boxOf(id),
   figureSide: () => figurePlay.side.value(clock()),
@@ -123,11 +115,9 @@ let sampler = new InputSampler();
 
 const bigZone = buildBigZone(scene);
 const figureZone = buildFigureZone(scene); // 동쪽 피규어 기계 14대(9단계)
-const ringZone = buildRingZone(scene); // 북쪽 고리 뽑기 10대(설계 2026-11-02)
-const pusherZone = buildPusherZone(scene); // 북쪽 가운데 미는 뽑기 4대(설계 2026-11-02)
 const minimap = buildMinimap(document.body, mapSize(innerWidth, innerHeight)); // 오른쪽 위 매장 지도(설계 2026-11-02 §6)
 // 탑·기계 행·교환소가 내 캐릭터를 가리면 그것만 흐리게(머리·몸통 중 하나라도 가리면)
-const fader = new OcclusionFader([tower, ...bigZone.occluders, ...figureZone.occluders, ...ringZone.occluders, ...pusherZone.occluders, ...buildCoinCounters(scene), ...buildDecor(scene)]);
+const fader = new OcclusionFader([tower, ...bigZone.occluders, ...figureZone.occluders, ...buildCoinCounters(scene), ...buildDecor(scene)]);
 
 let me: LocalPlayer | null = null;
 let wallet = { coins: 0, bag: 0 }; // 코인·가방 수 (서버가 알려 준 값)
@@ -145,7 +135,7 @@ let holdFrom = 0; // 서버가 내 자리를 잡아 둔 시각(내 결과를 받
 const busy = new MachineBusy(MACHINE_SPEC.play_seconds, MACHINE_SPEC.hold_seconds, CLAW.cycle_seconds + CLAW.settle_seconds);
 let dropped: PlaySession | null = null; // 내리고 결과를 기다리는 판 (8초 넘게 못 받으면 포기)
 const clock = () => performance.now() / 1000;
-const spotOf = new Map<string, { x: number; z: number; ry: number }>([...MACHINES, ...FIGURES, ...RINGS, ...PUSHERS].map((m) => [m.id, m])); // 인형·피규어·고리·미는 뽑기 기계
+const spotOf = new Map<string, { x: number; z: number; ry: number }>([...MACHINES, ...FIGURES].map((m) => [m.id, m])); // 인형·피규어 기계
 // 피규어 한 판(9단계): 버튼·물리·중계·상자 까기는 FigurePlay가 맡고, 판 사이 흐름(awaiting·seated·이어 하기)은 인형 판과 함께 쓴다
 const figurePlay = new FigurePlay(scene, figureZone, {
   send: (msg) => socket?.send(msg),
@@ -153,20 +143,8 @@ const figurePlay = new FigurePlay(scene, figureZone, {
   onDrop: (id) => { awaiting = id; hidePlayControls(); },
   onOverdue: () => { endPlay(); toast('결과를 받지 못했어요'); },
 });
-// 고리 뽑기 한 판(설계 2026-11-02 §3): 결과는 서버가 정하고 ring 메시지로 모두가 같은 찌르기를 그린다
-const ringPlay = new RingPlay(ringZone, {
-  send: (msg) => socket?.send(msg),
-  onDrop: (id) => { awaiting = id; hidePlayControls(); },
-  onOverdue: () => { endPlay(); toast('결과를 받지 못했어요'); },
-});
 // 버튼으로 하는 기계들 — 판 흐름(시작·누르기·결과 기다리기·그만하기·시점)은 같은 길로
-// 미는 뽑기 한 판(설계 2026-11-02 §4): 결과는 서버가 정하고 pusher 메시지로 모두가 같은 밀기를 그린다
-const pusherPlay = new PusherPlay(pusherZone, {
-  send: (msg) => socket?.send(msg),
-  onDrop: (id) => { awaiting = id; hidePlayControls(); },
-  onOverdue: () => { endPlay(); toast('결과를 받지 못했어요'); },
-});
-const buttonPlays: ButtonPlay[] = [figurePlay, ringPlay, pusherPlay];
+const buttonPlays: ButtonPlay[] = [figurePlay];
 const playFor = (id: string) => buttonPlays.find((p) => p.handles(id)) ?? null;
 const activePlay = () => buttonPlays.find((p) => p.session) ?? null;
 const camLook = new THREE.Vector3();
@@ -286,7 +264,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       for (const p of m.players) { remotes.add(p, now); if (p.beg != null) remotes.setBegging(p.id, p.beg, tw); }
       scheduleRapier(); // 물리 모듈은 입장 뒤 한가할 때 받는다 (물리 뽑기 설계 §4.1)
       for (const [id, spots] of Object.entries(m.machines)) bigZone.setContents(id, spots.map(grounded));
-      figurePlay.clearWatches(); figurePlay.setBoxes(m.figures); ringPlay.setBoards(m.rings); pusherPlay.setShelves(m.pushers);
+      figurePlay.clearWatches(); figurePlay.setBoxes(m.figures);
       wallet = { coins: m.coins, bag: m.bag };
       setHud(wallet.coins, wallet.bag);
       soundButton(music.muted, UI.sound, (muted) => { music.setMuted(muted); setSfxMuted(muted); });
@@ -302,8 +280,9 @@ function onMessage(m: ServerMsg, guest: Guest) {
       busy.set(m.m, m.id, now / 1000);
       playGen.set(m.m, genOf(m.m) + 1);
       if (m.id !== myId) { // 남의 판: 그 기계의 인형(피규어는 상자)을 따로 그리고 중계(pose)를 기다린다
-        if (!isFigure(m.m)) startWatch(m.m);
-        else if (me) figurePlay.watch(m.m, me.pos);
+        const kind = watchKind(m.m); // 기계 종류에 맞는 구경(인형 구경을 다른 기계에 걸면 예외로 멈췄다)
+        if (kind === 'doll') startWatch(m.m);
+        else if (kind === 'box' && me && isFigure(m.m)) figurePlay.watch(m.m, me.pos);
       }
       else if (cycle?.machineId === m.m) cycle.gen = genOf(m.m); // 내 판의 물리는 play_ok에서 먼저 만들어졌다
       after(m.m, () => {
@@ -330,8 +309,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       if (m.id === myId) { holdFrom = now / 1000; playFor(m.m)?.resulted(m.m); } // 보고한 때 = 서버가 자리를 잡아 둔 때
       const t: Ticket = { done: false, gen: genOf(m.m) };
       tickets.set(m.m, t);
-      const drawn = isFigure(m.m) ? undefined : playFor(m.m)?.finished(m.m); // 고리·미는 뽑기: 뒤따르는 찌르기·밀기를 지금부터 기다린다
-      after(m.m, () => (isFigure(m.m) ? showFigureResult(m, t) : drawn ? showPrizeResult(m, t, drawn) : showResult(m, t)));
+      after(m.m, () => (isFigure(m.m) ? showFigureResult(m, t) : showResult(m, t)));
       break;
     }
     case 'machine': {
@@ -346,8 +324,6 @@ function onMessage(m: ServerMsg, guest: Guest) {
       if (m.nudged && f && me && Math.hypot(me.pos.x - frontSpot(f).x, me.pos.z - frontSpot(f).z) < 6) toast(UI.figureNudged);
       break;
     }
-    case 'ring': ringPlay.onRing(m); break;
-    case 'pusher': pusherPlay.onPusher(m); break;
     case 'bag': wallet.bag = m.n; setHud(wallet.coins, wallet.bag); break;
     case 'spawn': announceSpawn(m.m, m.k, m.rv); break;
     case 'stock':
@@ -794,38 +770,6 @@ async function showFigureResult(m: Result, t: Ticket) {
   if (mine) showingMe = false;
 }
 
-// 보이는 경품 기계(고리·미는 뽑기, 설계 2026-11-02)의 결과: 결과 그리기(찌르기·밀기)가 끝난 뒤 — 내 판은 당첨 카드, 남의 판은 그 사람이 꺼내 보여 주기.
-// 희귀·황금이면 탑 알림
-async function showPrizeResult(m: Result, t: Ticket, drawn: Promise<void>) {
-  const bp = playFor(m.m)!, mine = m.id === myId;
-  showing.add(m.m);
-  if (mine) showingMe = true;
-  await playing.get(m.m)?.stop(); playing.delete(m.m);
-  await drawn;
-  const spot = spotOf.get(m.m)!, front = frontSpot(spot), first = m.won[0];
-  const tier = first?.[2] === GOLD.id ? 'gold' : first?.[2] ? 'rare' : '';
-  const name = first ? `${dollName(first[0], first[1], first[2])} ${bp.prizeWord}` : '';
-  const near = mine || (!!me && Math.hypot(me.pos.x - front.x, me.pos.z - front.z) < 6);
-  const announce = () => {
-    if (!tier) { if (near) sfx.win(); return; }
-    const nick = mine ? myNick : remotes.nickOf(m.id);
-    tower.showMessage(tier === 'gold' ? '★★ 매우 희귀! ★★' : '★ 희귀 뽑기! ★', `${nick} 님이 ${name}${eulReul(name)} 뽑았어요`, true, tier === 'gold' ? 8 : 6);
-    sfx.rare();
-  };
-  if (mine) {
-    if (first) { announce(); showWinCard(name, bp.prizeWord, tier, wallet.bag); if (m.won.length > 1) toast(UI.wonMore(m.won.length - 1)); } else sfx.fail();
-    if (awaiting === m.m) sitDown(m.m, !!first);
-  } else {
-    const rig = remotes.rigOf(m.id), doll = rig && first ? makeDoll(first[0], { ...PLAIN, color: first[1], rare: first[2] }) : null;
-    const fx = { bonk: () => { if (near) sfx.bonk(); }, claw: async () => {}, afterClaw: () => {}, pop: () => { if (near) sfx.pop(); }, win: () => { announce(); return tier ? 1.7 : 1.0; }, fail: () => {} };
-    if (rig) await playResult(rig, tw, first ? 'win' : 'miss', doll, fx, spot.ry + Math.PI);
-    else if (first) announce();
-  }
-  showing.delete(m.m);
-  t.done = true;
-  if (mine) showingMe = false;
-}
-
 // 새 배치(machine)를 넣는다 — 그 판(gen)의 live 모드는 여기서 끝나고 무더기로 돌아간다. 이미 다음 판이 시작됐으면 그 판의 구경·물리는 둔다
 function applyMachine(id: string, dolls: DollSpot[], gen: number) {
   bigZone.setContents(id, dolls.map(grounded));
@@ -871,9 +815,9 @@ const poseSender = new PoseSender((msg) => socket?.send(msg));
 // 기계 앞자리 가까이면 그 기계: 비었으면 "🪙1 넣고 하기", 남이 하면 구경 중
 function showMachineUi(): boolean {
   if (!me) return false;
-  // 인형·피규어·고리·미는 뽑기 기계 중 앞자리가 가장 가까운 쪽
+  // 인형·피규어 기계 중 앞자리가 가장 가까운 쪽
   const pos = me.pos, gap = (m: { x: number; z: number; ry: number }) => { const f = frontSpot(m); return Math.hypot(pos.x - f.x, pos.z - f.z); };
-  const near = [nearestMachine(pos), nearestFigure(pos), nearestRing(pos), nearestPusher(pos)].filter((m) => m !== null).sort((a, b) => gap(a) - gap(b))[0];
+  const near = [nearestMachine(pos), nearestFigure(pos)].filter((m) => m !== null).sort((a, b) => gap(a) - gap(b))[0];
   if (!near) return false;
   const who = busy.who(near.id, clock());
   if (who && who !== myId) { setAction(null); setInfo(UI.watching); return true; }

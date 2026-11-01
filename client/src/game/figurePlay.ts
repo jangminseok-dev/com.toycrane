@@ -145,9 +145,7 @@ export class FigurePlay implements ButtonPlay {
 
   handles(id: string): boolean { return FIGURE_SPOTS.has(id); }
 
-  readonly prizeWord = '';
 
-  finished(): Promise<void> { return Promise.resolve(); }
 
   cameraPose(id: string, now: number, aspect: number) { return figureCameraPose(FIGURE_SPOTS.get(id)!, this.side.value(now), aspect); }
 

@@ -1,4 +1,4 @@
-"""생성 파일 — shared/catalog.json·shared/store_layout.json·shared/claw.json·shared/figure.json·shared/ring.json·shared/pusher.json을 고치고 scripts/gen_shared.py로 다시 생성한다."""
+"""생성 파일 — shared/catalog.json·shared/store_layout.json·shared/claw.json·shared/figure.json을 고치고 scripts/gen_shared.py로 다시 생성한다."""
 
 CATALOG = {'sets': [{'id': 'soft', 'name': '말랑 동물', 'color': '#ff7ab6'},
           {'id': 'forest', 'name': '숲속 친구들', 'color': '#2fbf8f'},
@@ -422,20 +422,3 @@ FIGURE = {'_note': '피규어 뽑기 기계 수치(9단계, 설계 2026-11-01-to
  'stuck': {'plays': 8, 'move': 0.004, 'turn': 0.035},
  'nudge': {'shift': [0.003, 0.006], 'twist_deg': [3, 7]},
  'start_jitter': {'shift': 0.006, 'twist_deg': 2}}
-
-RING = {'_note': '고리 뽑기 기계 수치(설계 2026-11-02 §3). 기계 좌표: 앞 +z, 오른쪽 +x, 위 +y. 뒤쪽 구멍판의 걸이(peg) cols×rows에 경품 카드가 하나씩 걸린다. 갈고리 끝은 '
-          '구멍판 앞 평면(x, y)을 움직이고, 카드 고리 구멍(걸이 자리)과 window 안이면 걸린다 — 걸린 뒤 출구까지 hold 확률. 길이 m, 속도 m/s',
- 'board': {'cols': 4, 'rows': 3, 'x0': -0.3, 'dx': 0.2, 'y0': 1.25, 'dy': 0.2, 'z': -0.36},
- 'card': {'w': 0.11, 'h': 0.15},
- 'hook': {'home': [-0.4, 1.2], 'speed': 0.25, 'x': [-0.4, 0.4], 'y': [1.15, 1.8]},
- 'catch': {'window': 0.008, 'hold': 0.5},
- 'odds': {'rare': 0.03, 'gold': 0.005}}
-
-PUSHER = {'_note': '미는 뽑기 기계 수치(설계 2026-11-02 §4). 기계 좌표: 앞 +z, 오른쪽 +x. 선반(위에서 본 2D) x ∈ ±half_w, z ∈ [back_z, front_z] 위에 미니 '
-          "인형(반지름 r 원판) count개. 뒤쪽 미는 판(폭 2×half_w)이 좌우로 sweep_speed로 오가다 '밀기'를 누른 자리 x에서 rest_z부터 stroke만큼 앞으로 민다. 앞 "
-          '끝(front_z)을 넘은 가운데는 떨어져 당첨. 처음엔 count개(앞 끝에서 start_margin 안쪽까지), 판마다 새 인형 하나가 뒤쪽에 떨어진다(cap개까지). 길이 m, 속도 '
-          'm/s',
- 'shelf': {'half_w': 0.4, 'back_z': -0.25, 'front_z': 0.25, 'y': 1.0},
- 'plate': {'half_w': 0.09, 'rest_z': -0.25, 'stroke': 0.22, 'sweep_speed': 0.3},
- 'item': {'r': 0.04, 'count': 12, 'cap': 20, 'start_margin': 0.08},
- 'odds': {'rare': 0.03, 'gold': 0.005}}

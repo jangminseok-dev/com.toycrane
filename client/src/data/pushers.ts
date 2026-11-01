@@ -1,13 +1,10 @@
-// 미는 뽑기 기계(설계 2026-11-02 §4): 자리는 shared/store_layout.json pushers, 수치는 shared/pusher.json
-import pusher from '../../../shared/pusher.json';
+// 미는 뽑기 기계 자리(shared/store_layout.json pushers)
 import layout from '../../../shared/store_layout.json';
 import type { Vec2 } from '../game/movement';
 import { MACHINE_SPEC, frontSpot } from './storeLayout';
 
 export type PusherSpot = { id: string; x: number; z: number; ry: number };
-export type PusherSpec = Omit<typeof pusher, '_note'>;
 export const PUSHERS = layout.pushers as PusherSpot[];
-export const PUSHER: PusherSpec = pusher;
 const IDS = new Set(PUSHERS.map((p) => p.id));
 
 export function isPusher(id: string): boolean {

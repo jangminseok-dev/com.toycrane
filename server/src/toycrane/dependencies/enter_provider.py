@@ -7,8 +7,6 @@ from toycrane.adapter.outbound.d1_bag_adapter import D1BagAdapter
 from toycrane.adapter.outbound.d1_occupancy_adapter import D1OccupancyAdapter
 from toycrane.adapter.outbound.d1_wallet_adapter import D1WalletAdapter
 from toycrane.adapter.outbound.do_storage_figure_boxes import DoStorageFigureBoxes
-from toycrane.adapter.outbound.do_storage_pushers import DoStoragePusherShelves
-from toycrane.adapter.outbound.do_storage_rings import DoStorageRingBoards
 from toycrane.adapter.outbound.do_storage_machine_contents import DoStorageMachineContents
 from toycrane.adapter.outbound.ws_connections_adapter import WsConnectionsAdapter
 from toycrane.app.ports.input.enter_use_case import EnterUseCase
@@ -25,8 +23,6 @@ def get_enter_use_case(ctx, env) -> EnterUseCase:
         bag=D1BagAdapter(env.DB),
         contents=DoStorageMachineContents(ctx.storage, str(ctx.id), ctx),
         figures=DoStorageFigureBoxes(ctx.storage),
-        rings=DoStorageRingBoards(ctx.storage),
-        pushers=DoStoragePusherShelves(ctx.storage),
         locks=AttachmentPlayLocks(ctx),
         rng=random.Random(),
     )

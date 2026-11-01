@@ -8,7 +8,7 @@ from toycrane.app.dtos.player_view import PlayerView
 from toycrane.app.dtos.store_snapshot import StoreSnapshot
 from toycrane.domain.crane import DollSpot
 
-PROTOCOL = 12  # 메시지 형식 버전 — 화면(net/protocol.ts PROTOCOL)과 다르면 화면이 새로고침한다
+PROTOCOL = 13  # 메시지 형식 버전 — 화면(net/protocol.ts PROTOCOL)과 다르면 화면이 새로고침한다
 
 
 def _player(p: PlayerView) -> dict:
@@ -33,8 +33,6 @@ def welcome(store_no: int, you: PlayerView, players: list[PlayerView], snapshot:
         "machines": {m: _spots(spots) for m, spots in snapshot.machines.items()},
         "plays": snapshot.plays,
         "figures": {m: _box(b) for m, b in snapshot.figures.items()},
-        "rings": {m: [[c.kind, c.color, c.rare] for c in board] for m, board in snapshot.rings.items()},
-        "pushers": {m: [_item(i) for i in items] for m, items in snapshot.pushers.items()},
     }
 
 
@@ -45,21 +43,6 @@ def _box(b) -> list[float]:
 def figure(machine_id: str, box, nudged: bool) -> dict:
     """피규어 기계 상자 자리(판이 끝난 뒤·새 상자·직원이 옮긴 뒤) — 경품은 담지 않는다."""
     return {"t": "figure", "m": machine_id, "box": _box(box), "nudged": nudged}
-
-
-def ring(machine_id: str, board, x: float, y: float, peg: int | None, caught: bool) -> dict:
-    """고리 뽑기 한 판(설계 2026-11-02 §3): 걸이 카드(보이는 경품)와 갈고리가 멈춘 자리·걸린 걸이(-1이면 없음)·출구까지 왔나 — 모두가 같은 찌르기를 그린다."""
-    return {"t": "ring", "m": machine_id, "pegs": [[c.kind, c.color, c.rare] for c in board], "x": round(x, 3), "y": round(y, 3), "peg": -1 if peg is None else peg, "caught": caught}
-
-
-def _item(i) -> list:
-    return [i.uid, i.kind, i.color, i.rare, round(i.x, 3), round(i.z, 3)]
-
-
-def pusher(machine_id: str, items, x: float, dropped, fell: list[int]) -> dict:
-    """미는 뽑기 한 판(설계 2026-11-02 §4): 민 자리 x, 판 뒤 선반 인형(보이는 경품), 이 판에 뒤에 떨어진 새 인형(없으면 null), 앞으로 떨어진 인형 번호 —
-    모두가 같은 밀기를 그린다."""
-    return {"t": "pusher", "m": machine_id, "x": round(x, 3), "items": [_item(i) for i in items], "drop": _item(dropped) if dropped else None, "fell": fell}
 
 
 def join(p: PlayerView) -> dict:
