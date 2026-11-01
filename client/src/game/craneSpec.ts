@@ -17,7 +17,8 @@ export type CraneSpec = {
   floorAt(x: number, z: number): number; // 그 자리 바닥 높이 — 미는 뽑기 턱·판 집 위는 높다
 };
 
-const { ledge, plate, drop } = PUSHER;
+const { ledge, plate, drop, house } = PUSHER;
+const SLOPE = Math.tan((house.slope_deg * Math.PI) / 180);
 const DOLL: CraneSpec = {
   pusher: false, dollScale: DOLL_SCALE, start: { x: MACHINE_SPEC.hole[0], z: MACHINE_SPEC.hole[1] }, rest: CLAW_REST.clone(), cycle: {},
   floorAt: () => DOLL_FLOOR,
@@ -25,12 +26,15 @@ const DOLL: CraneSpec = {
 const START = { x: drop[0], z: drop[1] };
 const PUSHER_CRANE: CraneSpec = {
   pusher: true, dollScale: PUSHER.doll_scale, start: START, rest: new THREE.Vector3(START.x, CLAW_REST.y, START.z),
-  cycle: { carryTo: START, settle: PUSHER.settle, baseForce: CLAW.base_force * PUSHER.grip },
-  floorAt: (x, z) => {
-    if (x < ledge.x0 || x > ledge.x1 || z > ledge.z1) return DOLL_FLOOR;
-    return DOLL_FLOOR + ledge.h + (z < ledge.z0 ? plate.h : 0);
-  },
+  cycle: { carryTo: START, settle: PUSHER.settle, baseForce: CLAW.base_force * PUSHER.grip, floor: (x, z) => pusherFloor(x, z) },
+  floorAt: (x, z) => pusherFloor(x, z),
 };
+// 미는 뽑기 바닥: 턱 윗면, 판 집은 앞벽 위(판 윗면 + over)에서 뒤로 비탈만큼 높아진다(physics/pusherWorld와 같은 치수)
+function pusherFloor(x: number, z: number): number {
+  if (x < ledge.x0 || x > ledge.x1 || z > ledge.z1) return DOLL_FLOOR;
+  const top = DOLL_FLOOR + ledge.h;
+  return z >= ledge.z0 ? top : top + plate.h + house.over + (ledge.z0 - z) * SLOPE;
+}
 
 export function craneSpec(id: string): CraneSpec {
   return isPusher(id) ? PUSHER_CRANE : DOLL;

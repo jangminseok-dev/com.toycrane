@@ -18,6 +18,26 @@ export const STEP = 1 / 120, MAX_STEPS = 4;
 // 충돌 그룹: 인형 0x0001, 노린 인형 0x0002, 손가락 끝 0x0004 (clawBody). 쌍은 (A.소속 & B.필터) && (B.소속 & A.필터)일 때 부딪힌다
 export const GROUP_DOLL = 0x0001, GROUP_TARGET = 0x0002, GROUP_TIP = 0x0004, ALL = 0xffff;
 export const groups = (membership: number, filter: number) => ((membership << 16) | filter) >>> 0;
+// 한 창(seconds) 동안 모든 인형이 3mm 안에서만 움직였나 — 판이 오가며 미는 기계(미는 뽑기)는 속도 문턱으로는 멈춤이 끝나지 않는다
+// (판이 밀 때마다 0.15m/s). 창이 끝날 때마다 자세를 적어 두고 다음 창 끝에 견준다. 결정성 때문에 Math.hypot 대신 sqrt
+export class QuietWindow {
+  private from = -Infinity;
+  private at = new Map<number, [number, number, number]>();
+  constructor(private seconds: number) {}
+  check(t: number, poses: DollPose[]): boolean {
+    if (t - this.from < this.seconds) return false;
+    const quiet = this.from > -Infinity && poses.length === this.at.size && poses.every((p) => {
+      const a = this.at.get(p.uid);
+      if (!a) return false;
+      const dx = p.p[0] - a[0], dy = p.p[1] - a[1], dz = p.p[2] - a[2];
+      return Math.sqrt(dx * dx + dy * dy + dz * dz) < QUIET_MOVE;
+    });
+    this.from = t;
+    this.at = new Map(poses.map((p) => [p.uid, p.p]));
+    return quiet;
+  }
+}
+const QUIET_MOVE = 0.003;
 export const WALL_MARGIN = 0.12; // 놀이 영역(집게가 가는 범위)보다 벽이 이만큼 밖
 const CEILING = 2.2, DROP_GAP = 0.25, DROP_CLEAR = 0.03; // 떨어뜨리는 높이 = 천장 − 그 인형의 키 − 여유 (키 큰 인형이 천장에 끼지 않게, 최종 리뷰 C2)
 const FALL_DEPTH = 0.15; // 구멍 바닥보다 이만큼 아래면 빠진 것
@@ -187,15 +207,13 @@ export class MachineWorld {
   // 걸음 순서는 settle()과 같아 앉힌 자리도 같다
   *settling(maxSeconds = REFILL_SETTLE): Generator<void, number, void> {
     const from = this.time;
-    // 끝나는 기준은 엔진의 잠듦(참된 멈춤) — 중계용 속도 문턱(still)으로 끊으면 기어가는 중에 앉힌 자리가 적힌다
-    const awake = () => [...this.bodies.values()].some((b) => b.isEnabled() && !b.isSleeping());
     let lastDrop = this.pending.reduce((t, p) => Math.max(t, p.at), from);
     // 구멍에 빠져 천장 아래로 옮긴 인형이 있으면 그때부터 다시 센다 — 한도 직전에 빠진 인형이 공중에 멈춘 채 굳었다(라이브 C-4·C-7).
     // 몇 번이고 빠지는 일에 대비해 전체 한도는 네 배
     const hardStop = lastDrop + maxSeconds * 4;
     const until = () => Math.min(Math.max(lastDrop, this.redroppedAt) + maxSeconds, hardStop);
     for (let round = 0; ; round++) {
-      while (this.time < until() && (this.pending.length > 0 || awake())) { this.tick(); yield; }
+      while (this.time < until() && (this.pending.length > 0 || this.settleBusy())) { this.tick(); yield; }
       // 채우기로 떨어진 인형이 구멍 위에 걸쳤으면(거저 뽑기) 구멍에서 먼 빈 칸에 다시 떨어뜨리고 더 앉힌다
       const over = this.straddling();
       if (!over.length || round >= STRADDLE_ROUNDS) break;
@@ -204,6 +222,12 @@ export class MachineWorld {
     }
     for (const b of this.bodies.values()) if (b.isEnabled()) b.sleep(); // 한도에 걸려 아직 흔들리는 인형은 그 자리에 재운다 — 앉힌 자리는 여기서 굳는다
     return this.time - from;
+  }
+
+  // 앉히기가 아직 덜 끝났나: 엔진의 잠듦(참된 멈춤) — 중계용 속도 문턱(still)으로 끊으면 기어가는 중에 앉힌 자리가 적힌다.
+  // 미는 뽑기는 판이 계속 건드려 잠들지 않으니 덮어써 '한 주기 동안 3mm 안'으로 본다
+  protected settleBusy(): boolean {
+    return [...this.bodies.values()].some((b) => b.isEnabled() && !b.isSleeping());
   }
 
   private pose(uid: number, body: Body): DollPose {
@@ -232,8 +256,8 @@ export class MachineWorld {
     this.holeOpen = open;
   }
 
-  // 다시 떨어뜨릴 자리: 구멍에서 먼 순서로 격자를 훑어 다른 인형과 20cm 넘게 떨어진 첫 칸 (없으면 가장 먼 칸)
-  private freeSpotAway(skip: number): [number, number] {
+  // 다시 떨어뜨릴 자리: 구멍에서 먼 순서로 격자를 훑어 다른 인형과 20cm 넘게 떨어진 첫 칸 (없으면 가장 먼 칸). 미는 뽑기는 칸 안에서만
+  protected freeSpotAway(skip: number): [number, number] {
     const [hx, hz] = MACHINE_SPEC.hole, [W, D] = MACHINE_SPEC.play_half;
     const cells: [number, number][] = [];
     for (let x = -W; x <= W + 1e-9; x += 0.1) for (let z = -D; z <= D + 1e-9; z += 0.1) cells.push([Math.round(x * 100) / 100, Math.round(z * 100) / 100]);

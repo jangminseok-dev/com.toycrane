@@ -1,6 +1,7 @@
 import { beforeAll, expect, test } from 'vitest';
 import { PUSHER, plateFront } from '../data/pushers';
 import type { DollSpot } from '../net/protocol';
+import { MACHINE_SPEC } from '../data/storeLayout';
 import { DOLL_FLOOR } from '../world/machine';
 import { PusherWorld } from './pusherWorld';
 import { loadRapier, type Rapier } from './rapier';
@@ -104,3 +105,61 @@ test('a doll dropped on the plate or its housing ends in front of the plate', ()
     w.dispose();
   }
 });
+
+// 최종 리뷰 I1·I2·I3 — 미는 뽑기 앉히기·멈춤 판정·턱 위 내리기
+const rngOf = (seed: number) => { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 2 ** 32; }; };
+// 서버 pusher_crane 처음 배치와 같은 규칙(칸 count개 + 턱 뒤쪽 on_ledge개, 모두 안 앉음)
+const serverFresh = (seed: number): DollSpot[] => {
+  const r = rngOf(seed), [W, D] = MACHINE_SPEC.play_half, out: DollSpot[] = [];
+  for (let uid = 1; uid <= PUSHER.count + PUSHER.on_ledge; uid++) {
+    const pile = uid <= PUSHER.count;
+    const x = pile ? ledge.x1 + 0.06 + r() * (W - ledge.x1 - 0.06) : ledge.x0 + 0.08 + r() * (ledge.x1 - 0.06 - ledge.x0 - 0.08);
+    const z = pile ? (r() * 2 - 1) * D : ledge.z0 + 0.04 + r() * 0.08;
+    out.push([KINDS[Math.floor(r() * KINDS.length)], x, null, z, 0, 0, 0, 1, 0, 'n', 0, '', uid]);
+  }
+  return out;
+};
+const furthest = (a: { uid: number; p: number[] }[], b: { uid: number; p: number[] }[]) => Math.max(...a.map((p) => { const q = b.find((x) => x.uid === p.uid)!; return Math.sqrt((p.p[0] - q.p[0]) ** 2 + (p.p[1] - q.p[1]) ** 2 + (p.p[2] - q.p[2]) ** 2); }));
+
+// I1: 화면이 새 기계를 앉히면(main.ts settleMachine과 같은 settling(3)) 턱·판 집 쪽 인형은 멈춘 채 끝나고(공중에 굳지 않음), 판 집 지붕 위로 옮겨진 인형이 없다
+test('a fresh pusher machine settles at rest with nobody on the plate housing', () => {
+  for (const seed of [2, 6, 7]) {
+    const w = new PusherWorld(R, serverFresh(seed));
+    const run_ = w.settling(3); while (!run_.next().done) { /* 끝까지 */ }
+    const at = w.poses();
+    expect(at.filter((p) => p.p[2] < ledge.z0 && p.p[0] < ledge.x1 && p.p[1] > TOP + 0.02).map((p) => p.uid)).toEqual([]);
+    run(w, plate.period + 0.2);
+    const side = (ps: { uid: number; p: number[] }[]) => ps.filter((p) => p.p[0] < ledge.x1 - 0.04); // 턱·판 집 쪽(칸 무더기와 낮은 턱에 걸친 인형은 무더기와 함께 조금씩 기어 따로 본다)
+    expect(furthest(side(w.poses()), at)).toBeLessThan(0.01);
+    w.dispose();
+  }
+}, 120_000);
+
+// I2: 놓은 뒤 판이 한 주기 동안 아무것도 3mm 넘게 못 밀면 끝 — 늘 최대 15초를 채우지 않는다
+test('a pusher play ends soon after the ledge goes quiet', async () => {
+  const { ClawBody } = await import('./clawBody');
+  const { runCycle } = await import('./clawCycle');
+  const { craneSpec } = await import('../game/craneSpec');
+  const w = new PusherWorld(R, serverFresh(3));
+  w.settle(3);
+  const target = w.poses().filter((p) => p.p[0] > ledge.x1 + 0.1).sort((a, b) => b.p[1] - a.p[1])[0];
+  let settleFrom = 0;
+  runCycle(w, new ClawBody(R, w), target.p[0], target.p[2], { ...craneSpec('P-1').cycle, phase: (n) => { if (n === 'settle') settleFrom = w.time; } });
+  expect(w.time - settleFrom).toBeLessThan(PUSHER.settle.max - 2);
+  w.dispose();
+}, 120_000);
+
+// I3: 턱(또는 판 집) 위에 인형 없이 내리면 손가락 끝은 턱 윗면에서 멈춘다 — 턱 속으로 꺼지지 않게(11cm 꺼졌다).
+// 오므릴 때 끝이 2cm 안쪽으로 내려가는 것은 인형 기계 펠트 위에서와 같다
+test('the claw stops on the ledge top where no doll is under it', async () => {
+  const { ClawBody } = await import('./clawBody');
+  const { runCycle } = await import('./clawCycle');
+  const { craneSpec } = await import('../game/craneSpec');
+  for (const [x, z] of [[drop[0], drop[1]], [-0.34, 0.15]] as const) {
+    const w = new PusherWorld(R, []), claw = new ClawBody(R, w);
+    let low = Infinity;
+    runCycle(w, claw, x, z, { ...craneSpec('P-1').cycle, frame: (_c, _m, phase) => { if (phase === 'descend' || phase === 'close') low = Math.min(low, claw.tipsBottom()); } });
+    expect(low).toBeGreaterThan(TOP - 0.02);
+    w.dispose();
+  }
+}, 120_000);

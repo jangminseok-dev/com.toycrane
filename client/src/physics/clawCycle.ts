@@ -3,7 +3,7 @@ import { MACHINE_SPEC } from '../data/storeLayout';
 import type { DollPose } from '../net/protocol';
 import { CLAW_REST, DOLL_FLOOR } from '../world/machine';
 import type { ClawBody, GripQuality } from './clawBody';
-import { STEP, type MachineWorld } from './machineWorld';
+import { QuietWindow, STEP, type MachineWorld } from './machineWorld';
 
 // 집게 한 바퀴 (물리 뽑기 설계 §4.3·§4.4): 내려감(미리 잰 높이까지) → 오므림(0.6초, 손가락 끝 둘 이상이 닿으면 쥠) → 올림 → 구멍 위로 옮김
 // → 놓음(관절을 끊고 벌림) → 멈춤 대기(모두 잠들 때까지, 최대 settle_seconds). 구멍에 빠진 인형이 당첨.
@@ -13,7 +13,8 @@ export type ClawFrame = { x: number; y: number; z: number; open: number };
 export type CycleOptions = {
   baseForce?: number; // 시뮬레이션에서 힘을 바꿔 볼 때 (기본 CLAW.base_force)
   carryTo?: { x: number; z: number }; // 옮겨 놓는 자리(기본 구멍 위, 미는 뽑기는 턱 위)
-  settle?: { still: number; max: number }; // 놓은 뒤 멈춤 기다리기: 아무것도 안 움직인 채 still초면 끝, 길어도 max초(미는 뽑기는 판이 한 번 더 오갈 때까지)
+  settle?: { still: number; max: number }; // 놓은 뒤 멈춤 기다리기: still초 동안 모든 인형이 3mm 안에서만 움직였으면 끝, 길어도 max초(미는 뽑기 — 판이 한 주기 밀어도 그대로일 때)
+  floor?(x: number, z: number): number; // 그 자리 바닥 높이(미는 뽑기 턱·판 집 위는 높다) — 손가락 끝이 여기서 멈춘다(기본 펠트)
   frame?(claw: ClawFrame, moving: DollPose[], phase: CyclePhase): void;
   phase?(name: CyclePhase): void;
 };
@@ -34,10 +35,13 @@ export class CycleRunner {
   private carry = 0;
   private result: CycleResult | null = null;
   private to: { x: number; z: number };
-  private stillFor = 0;
+  private quiet: QuietWindow | null;
+  private floorY: number;
 
   constructor(private world: MachineWorld, private claw: ClawBody, readonly x: number, readonly z: number, private opts: CycleOptions = {}) {
-    this.plan = claw.plan(x, z);
+    this.floorY = opts.floor?.(x, z) ?? DOLL_FLOOR;
+    this.quiet = opts.settle ? new QuietWindow(opts.settle.still) : null;
+    this.plan = claw.plan(x, z, this.floorY);
     world.markTarget(this.plan.target);
     this.from = { x, z };
     this.to = opts.carryTo ?? CARRY_TO;
@@ -78,7 +82,7 @@ export class CycleRunner {
         // 허브가 인형에 얹히거나 손가락 끝이 바닥에 닿을 때까지 내려간다 — 손가락은 내려가며 옆 인형을 민다 (설계 §9.5)
         const y = c.y - DESCEND_SPEED * STEP;
         c.setPose(this.x, y, this.z, p.descendOpen);
-        if (c.hubTouching() || c.tipsBottom() <= DOLL_FLOOR + FLOOR_GAP) { c.softHands(); this.go('close'); }
+        if (c.hubTouching() || c.tipsBottom() <= this.floorY + FLOOR_GAP) { c.softHands(); this.go('close'); }
         break;
       }
       case 'close': {
@@ -121,10 +125,9 @@ export class CycleRunner {
         break;
       }
       case 'settle': {
-        const st = this.opts.settle, still = this.world.movingPoses().length === 0;
-        if (!st) { if (this.clock >= CLAW.settle_seconds || (still && this.clock > 0.5)) this.finish(); break; } // 인형 기계: 예전 그대로
-        this.stillFor = still ? this.stillFor + STEP : 0;
-        if (this.clock >= st.max || this.stillFor >= st.still) this.finish();
+        const st = this.opts.settle;
+        if (!st || !this.quiet) { const still = this.world.movingPoses().length === 0; if (this.clock >= CLAW.settle_seconds || (still && this.clock > 0.5)) this.finish(); break; } // 인형 기계: 예전 그대로
+        if (this.clock >= st.max || this.quiet.check(this.clock, this.world.poses())) this.finish(); // 미는 뽑기: 판이 한 주기 밀어도 그대로면(최종 리뷰 I2)
         break;
       }
       case 'done': return;

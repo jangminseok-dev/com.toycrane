@@ -13,10 +13,12 @@ test('pusher machines use mini dolls, start and drop on the ledge and wait for t
   expect(p.start).toEqual({ x: PUSHER.drop[0], z: PUSHER.drop[1] });
   expect(d.start).toEqual({ x: MACHINE_SPEC.hole[0], z: MACHINE_SPEC.hole[1] });
   expect([p.rest.x, p.rest.z]).toEqual(PUSHER.drop);
-  expect(p.cycle).toEqual({ carryTo: p.start, settle: PUSHER.settle, baseForce: CLAW.base_force * PUSHER.grip });
+  expect(p.cycle).toMatchObject({ carryTo: p.start, settle: PUSHER.settle, baseForce: CLAW.base_force * PUSHER.grip });
+  expect(p.cycle.floor?.(-0.34, 0)).toBeCloseTo(DOLL_FLOOR + PUSHER.ledge.h); // 손가락 끝도 턱 위에서 멈춘다(최종 리뷰 I3)
   expect(d.cycle).toEqual({});
   expect(p.floorAt(-0.34, 0)).toBeCloseTo(DOLL_FLOOR + PUSHER.ledge.h);
-  expect(p.floorAt(-0.34, -0.3)).toBeCloseTo(DOLL_FLOOR + PUSHER.ledge.h + PUSHER.plate.h); // 판 집 위
+  expect(p.floorAt(-0.34, PUSHER.ledge.z0 - 1e-6)).toBeCloseTo(DOLL_FLOOR + PUSHER.ledge.h + PUSHER.plate.h + PUSHER.house.over); // 판 집 앞벽 위
+  expect(p.floorAt(-0.34, -0.3)).toBeGreaterThan(p.floorAt(-0.34, PUSHER.ledge.z0 - 0.01)); // 뒤로 갈수록 비탈만큼 높다
   expect(p.floorAt(0.2, 0)).toBe(DOLL_FLOOR);
   expect(d.floorAt(-0.34, 0)).toBe(DOLL_FLOOR);
 });

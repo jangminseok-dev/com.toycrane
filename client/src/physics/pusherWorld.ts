@@ -3,14 +3,14 @@ import { PUSHER, plateFront } from '../data/pushers';
 import type { DollSpot } from '../net/protocol';
 import { DOLL_FLOOR } from '../world/machine';
 import { MACHINE_SPEC } from '../data/storeLayout';
-import { MachineWorld, WALL_MARGIN } from './machineWorld';
+import { MachineWorld, QuietWindow, WALL_MARGIN } from './machineWorld';
 import type { Rapier } from './rapier';
 
 // 미는 뽑기 기계 속 물리 세계(설계 2026-11-02 ring-hook §4, 사진 187·188): 인형 기계 세계에 바닥만 다르다.
 // 오른쪽 넓은 칸 = 미니 인형이 수북한 바닥, 왼쪽 앞 = 한 단 높은 턱(오른쪽 끝은 낮은 턱이라 쌓인 인형이 칸으로 굴러떨어질 수 있다),
 // 턱 뒤 = 미는 판이 숨는 집, 턱 앞 = 출구(바닥 없음 — 칸과는 투명 벽으로 막힘). 미는 판은 시각에 따라 턱 깊이의 3분의 1만 오간다.
 // 출구로 떨어진 인형만 당첨(fallen). 시각은 세계 시각(time) — 같은 입력이면 같은 결과
-const T = 0.05;
+const T = 0.05, PILE_GAP = 0.06; // 칸 자리는 턱 오른쪽 끝에서 이만큼(서버 pusher_crane PILE_GAP과 같다)
 
 export class PusherWorld extends MachineWorld {
   declare plate: RAPIER.RigidBody; // 부모 생성자의 buildBox에서 만든다(필드 초기화로 덮이지 않게 declare)
@@ -46,6 +46,30 @@ export class PusherWorld extends MachineWorld {
     const R = this.R;
     this.plate = this.world.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(lx, top + plate.h / 2, ledge.z0 - plate.depth / 2));
     this.world.createCollider(R.ColliderDesc.cuboid(lw / 2 - 0.005, plate.h / 2, plate.depth / 2).setFriction(0.3).setRestitution(0), this.plate);
+  }
+
+  // 앉히기(채우기·처음 기계): 판이 한 주기(settle.still) 동안 아무것도 3mm 넘게 못 밀 때까지, 마지막 떨어뜨림 뒤 길어도 settle.max초 —
+  // 인형 기계 기준(잠듦, 3초)으로는 판에 밀리는 중에 끝나 공중에 굳었다(최종 리뷰 I1). 상품 구멍이 없으니 '구멍 위 걸침'도 없다
+  private quiet = new QuietWindow(PUSHER.settle.still);
+  *settling(maxSeconds?: number): Generator<void, number, void> {
+    this.quiet = new QuietWindow(PUSHER.settle.still);
+    return yield* super.settling(Math.max(maxSeconds ?? 0, PUSHER.settle.max));
+  }
+
+  protected settleBusy(): boolean {
+    return !this.quiet.check(this.time, this.poses());
+  }
+
+  straddling(): number[] {
+    return [];
+  }
+
+  // 출구로 빠진(앉히는 중) 인형을 다시 떨어뜨릴 자리: 칸(턱 오른쪽) 격자에서 다른 인형과 12cm 넘게 떨어진 첫 칸 — 턱·판 집 위로 가지 않게
+  protected freeSpotAway(skip: number): [number, number] {
+    const [W, D] = MACHINE_SPEC.play_half, cells: [number, number][] = [];
+    for (let x = W; x >= PUSHER.ledge.x1 + PILE_GAP - 1e-9; x -= 0.08) for (let z = -D; z <= D + 1e-9; z += 0.08) cells.push([Math.round(x * 100) / 100, Math.round(z * 100) / 100]);
+    const others = this.poses().filter((p) => p.uid !== skip).map((p) => p.p);
+    return cells.find(([x, z]) => others.every((t) => Math.sqrt((t[0] - x) ** 2 + (t[2] - z) ** 2) >= 0.12)) ?? cells[0];
   }
 
   protected beforeStep(): void {

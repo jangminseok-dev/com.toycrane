@@ -32,8 +32,7 @@ function freshMachine(rng: Rng): DollSpot[] {
   for (let uid = 1; uid <= PUSHER.count; uid++) spots.push(spot(uid, ledge.x1 + 0.06 + rng() * (W - ledge.x1 - 0.06), (rng() * 2 - 1) * D));
   for (let k = 0; k < PUSHER.on_ledge; k++) spots.push(spot(PUSHER.count + k + 1, ledge.x0 + 0.08 + rng() * (ledge.x1 - ledge.x0 - 0.14), ledge.z0 + 0.04 + rng() * 0.08));
   const w = new PusherWorld(R, spots);
-  w.settle(8);
-  for (let t = 0; t < 4 * PUSHER.plate.period; t += 1 / 60) w.step(1 / 60); // 가게가 한참 돌아 판이 더 밀어낼 게 없는 상태(출구로 떨어진 건 칸으로 다시)
+  w.settle(3); // 화면(main.ts settleMachine)과 같은 앉히기 — 판이 한 주기 동안 아무것도 못 밀 때까지(출구로 떨어진 건 칸으로 다시)
   const out = withPoses(w);
   w.dispose();
   return out;

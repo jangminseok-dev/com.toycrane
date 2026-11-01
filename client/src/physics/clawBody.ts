@@ -4,7 +4,7 @@ import { CLAW, clawStrength } from '../data/claw';
 import { planGrip, probesAt } from '../game/gripPlan';
 import type { Hit } from '../world/dolls';
 const ANCHOR_IN = 0.5; // 붙는 점이 접촉점(0)에서 쥔 공 중심(1)으로 들어가는 비율
-import { CLAW_REST } from '../world/machine';
+import { CLAW_REST, DOLL_FLOOR } from '../world/machine';
 import { ALL, GROUP_TARGET, GROUP_TIP, STEP, groups, type MachineWorld, type Rapier } from './machineWorld';
 
 // 집게 몸 (물리 뽑기 설계 §4.3·§9.4·§9.5): 손가락까지 물리로 계산하지 않는다. 허브와 손가락 끝은 정해진 대로 움직이는(kinematic) 몸이라
@@ -95,7 +95,7 @@ export class ClawBody {
   }
 
   // 지금 집게 자리에서 내려갈 높이·벌림을 미리 잰다 (game/gripPlan): 손이 닿는 범위의 가장 높은 인형을 노린다
-  plan(x: number, z: number): { y: number; open: number; descendOpen: number; target: number | null } {
+  plan(x: number, z: number, floor = DOLL_FLOOR): { y: number; open: number; descendOpen: number; target: number | null } {
     const uids = this.world.uids();
     // 손가락 끝 공(TIP_R)이 내려가며 노린 인형을 치지 않게, 재는 동안은 인형 공을 그만큼 부풀린다
     const solids: Hit[][] = uids.map((uid) => this.world.balls(uid).map((h) => ({ ...h, r: h.r + TIP_R + 0.004 })));
@@ -106,7 +106,7 @@ export class ClawBody {
       const top = Math.max(...near.map((h) => h.c.y + h.r));
       if (top > best) { best = top; target = i; }
     });
-    const plan = planGrip(x, z, CLAW_REST.y, solids, target);
+    const plan = planGrip(x, z, CLAW_REST.y, solids, target, floor);
     return { ...plan, target: target === null ? null : uids[target] };
   }
 

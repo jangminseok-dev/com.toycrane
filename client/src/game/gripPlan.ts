@@ -50,7 +50,8 @@ function touches(open: number, idx: number[], x: number, y: number, z: number, h
   return false;
 }
 
-export function planGrip(x: number, z: number, startY: number, solids: Hit[][], target: number | null): { y: number; open: number; descendOpen: number } {
+// floor: 그 자리 바닥 높이(미는 뽑기 턱 위는 펠트보다 높다)
+export function planGrip(x: number, z: number, startY: number, solids: Hit[][], target: number | null, floor = DOLL_FLOOR): { y: number; open: number; descendOpen: number } {
   const { poses: P, finger, body } = poses();
   const mine = target === null ? undefined : solids[target];
   const others = solids.filter((_, i) => i !== target);
@@ -73,7 +74,7 @@ export function planGrip(x: number, z: number, startY: number, solids: Hit[][], 
   let y = startY;
   for (;;) {
     const ny = y - STEP_Y;
-    if (ny + lowestTip < DOLL_FLOOR + FLOOR_GAP) break;
+    if (ny + lowestTip < floor + FLOOR_GAP) break;
     if (touches(descendOpen, body, x, ny, z, solids, MARGIN_DOWN)) break;
     if (mine && touches(descendOpen, finger, x, ny, z, [mine], MARGIN_DOWN)) break;
     if (touches(descendOpen, finger, x, ny, z, others, -NEIGHBOUR_LIMIT)) break;
