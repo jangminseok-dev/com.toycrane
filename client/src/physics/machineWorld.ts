@@ -4,7 +4,7 @@ import { CLAW } from '../data/claw';
 import { MACHINE_SPEC } from '../data/storeLayout';
 import type { DollPose, DollSpot } from '../net/protocol';
 import type { Hit } from '../world/dolls';
-import { DOLL_FLOOR } from '../world/machine';
+import { DOLL_FLOOR, DOLL_SCALE } from '../world/machine';
 import { ANGULAR_DAMPING, FRICTION, LINEAR_DAMPING, RESTITUTION, dollColliders, type Ball } from './dollBody';
 import type { Rapier } from './rapier';
 
@@ -18,7 +18,7 @@ export const STEP = 1 / 120, MAX_STEPS = 4;
 // 충돌 그룹: 인형 0x0001, 노린 인형 0x0002, 손가락 끝 0x0004 (clawBody). 쌍은 (A.소속 & B.필터) && (B.소속 & A.필터)일 때 부딪힌다
 export const GROUP_DOLL = 0x0001, GROUP_TARGET = 0x0002, GROUP_TIP = 0x0004, ALL = 0xffff;
 export const groups = (membership: number, filter: number) => ((membership << 16) | filter) >>> 0;
-const WALL_MARGIN = 0.12; // 놀이 영역(집게가 가는 범위)보다 벽이 이만큼 밖
+export const WALL_MARGIN = 0.12; // 놀이 영역(집게가 가는 범위)보다 벽이 이만큼 밖
 const CEILING = 2.2, DROP_GAP = 0.25, DROP_CLEAR = 0.03; // 떨어뜨리는 높이 = 천장 − 그 인형의 키 − 여유 (키 큰 인형이 천장에 끼지 않게, 최종 리뷰 C2)
 const FALL_DEPTH = 0.15; // 구멍 바닥보다 이만큼 아래면 빠진 것
 const CATCH_Y = 0.3; // 빠진 인형이 끝없이 떨어지지 않게 받는 바닥
@@ -45,7 +45,10 @@ export class MachineWorld {
   private redroppedAt = -Infinity; // 마지막으로 다시 떨어뜨린 시각 (앉히기 한도를 그때부터 다시 센다)
   private dropped = new Set<number>(); // 이번 세계에서 채우기로 떨어뜨린 인형 — 구멍 위 걸침 규칙은 이들에게만 (판에서 밀려 간 인형은 그대로, 사용자 결정)
 
-  constructor(readonly R: Rapier, spots: DollSpot[]) {
+  readonly dollScale: number;
+
+  constructor(readonly R: Rapier, spots: DollSpot[], opts: { dollScale?: number } = {}) {
+    this.dollScale = opts.dollScale ?? DOLL_SCALE;
     this.world = new R.World({ x: 0, y: -9.81, z: 0 });
     this.world.timestep = STEP;
     this.world.integrationParameters.contact_natural_frequency = CONTACT_HZ;
@@ -70,22 +73,23 @@ export class MachineWorld {
   // 떨어뜨리는 자리(돌림 없음)를 그 인형의 폭만큼 벽 안쪽으로 — 벽에 박힌 채 떨어뜨리면 마찰로 걸려 떨어뜨리는 높이(1.8m)에서 잠들었다
   // (라이브 C-4·C-7: 옛 모양으로 벽에 기댄 자리를 새 모양으로 다시 떨어뜨림)
   private inside(spot: DollSpot, x: number, z: number): [number, number] {
-    const shapes = dollColliders(spot).shapes, [W, D] = MACHINE_SPEC.play_half;
+    const shapes = dollColliders(spot, this.dollScale).shapes, [W, D] = MACHINE_SPEC.play_half;
     const w = W + WALL_MARGIN - DROP_CLEAR - Math.max(...shapes.map((b) => Math.abs(b.at[0]) + b.r));
     const d = D + WALL_MARGIN - DROP_CLEAR - Math.max(...shapes.map((b) => Math.abs(b.at[2]) + b.r));
     return [Math.min(Math.max(x, -w), w), Math.min(Math.max(z, -d), d)];
   }
 
   private dropHeight(spot: DollSpot): number {
-    const top = Math.max(...dollColliders(spot).shapes.map((b) => b.at[1] + b.r));
+    const top = Math.max(...dollColliders(spot, this.dollScale).shapes.map((b) => b.at[1] + b.r));
     return CEILING - top - DROP_CLEAR;
   }
 
-  private fixed(hx: number, hy: number, hz: number, x: number, y: number, z: number): RAPIER.Collider {
+  protected fixed(hx: number, hy: number, hz: number, x: number, y: number, z: number): RAPIER.Collider {
     return this.world.createCollider(this.R.ColliderDesc.cuboid(hx, hy, hz).setTranslation(x, y, z).setFriction(FRICTION).setRestitution(0));
   }
 
-  private buildBox(): void {
+  // 기계 속 바닥·벽(미는 뽑기는 덮어써 턱·미는 판·출구를 짓는다 — 부모 생성자 안에서 불리니 자식 필드 대신 모듈 값을 쓴다)
+  protected buildBox(): void {
     const [W, D] = MACHINE_SPEC.play_half, [hx, hz] = MACHINE_SPEC.hole, half = CLAW.hole.size / 2;
     const w = W + WALL_MARGIN, d = D + WALL_MARGIN, t = 0.05, f = DOLL_FLOOR - t;
     // 바닥: 구멍 네모를 뺀 네 조각
@@ -97,6 +101,12 @@ export class MachineWorld {
     const lip = CLAW.hole.lip, ly = DOLL_FLOOR + lip / 2, lt = 0.008;
     this.fixed(lt, lip / 2, half + lt, hx - half - lt, ly, hz); this.fixed(lt, lip / 2, half + lt, hx + half + lt, ly, hz);
     this.fixed(half + lt, lip / 2, lt, hx, ly, hz - half - lt); this.fixed(half + lt, lip / 2, lt, hx, ly, hz + half + lt);
+    this.buildWalls();
+  }
+
+  // 벽 넷·천장·받는 바닥(빠진 인형을 멈춤)
+  protected buildWalls(): void {
+    const [W, D] = MACHINE_SPEC.play_half, w = W + WALL_MARGIN, d = D + WALL_MARGIN, t = 0.05, f = DOLL_FLOOR - t;
     const H = (CEILING - f) / 2, cy = f + H;
     this.fixed(t, H, d + t, -w - t, cy, 0); this.fixed(t, H, d + t, w + t, cy, 0);
     this.fixed(w + t, H, t, 0, cy, -d - t); this.fixed(w + t, H, t, 0, cy, d + t);
@@ -105,7 +115,7 @@ export class MachineWorld {
   }
 
   private addDoll(spot: DollSpot, p: [number, number, number], q: [number, number, number, number]): Body {
-    const { shapes, mass } = dollColliders(spot);
+    const { shapes, mass } = dollColliders(spot, this.dollScale);
     const desc = this.R.RigidBodyDesc.dynamic().setTranslation(p[0], p[1], p[2]).setRotation({ x: q[0], y: q[1], z: q[2], w: q[3] })
       .setAngularDamping(ANGULAR_DAMPING).setLinearDamping(LINEAR_DAMPING).setCanSleep(true);
     const body = this.world.createRigidBody(desc);
@@ -121,6 +131,9 @@ export class MachineWorld {
     return body;
   }
 
+  // 세계 한 걸음 전(미는 뽑기: 미는 판을 그 시각 자리로)
+  protected beforeStep(): void {}
+
   // 한 걸음(1/120초)씩, 한 번에 최대 4번 — 남은 시간은 다음 프레임으로
   step(dt: number): void {
     this.carry += dt;
@@ -132,6 +145,7 @@ export class MachineWorld {
   private tick(): void {
     for (const p of this.pending) if (p.at <= this.time) this.bodies.get(p.uid)?.setEnabled(true);
     this.pending = this.pending.filter((p) => p.at > this.time);
+    this.beforeStep();
     this.world.step();
     this.time += STEP;
     this.softenCushions();

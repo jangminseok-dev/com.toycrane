@@ -12,6 +12,8 @@ export type CyclePhase = 'descend' | 'close' | 'lift' | 'carry' | 'release' | 's
 export type ClawFrame = { x: number; y: number; z: number; open: number };
 export type CycleOptions = {
   baseForce?: number; // 시뮬레이션에서 힘을 바꿔 볼 때 (기본 CLAW.base_force)
+  carryTo?: { x: number; z: number }; // 옮겨 놓는 자리(기본 구멍 위, 미는 뽑기는 턱 위)
+  settle?: { still: number; max: number }; // 놓은 뒤 멈춤 기다리기: 아무것도 안 움직인 채 still초면 끝, 길어도 max초(미는 뽑기는 판이 한 번 더 오갈 때까지)
   frame?(claw: ClawFrame, moving: DollPose[], phase: CyclePhase): void;
   phase?(name: CyclePhase): void;
 };
@@ -31,12 +33,15 @@ export class CycleRunner {
   private held: number | null = null;
   private carry = 0;
   private result: CycleResult | null = null;
+  private to: { x: number; z: number };
+  private stillFor = 0;
 
   constructor(private world: MachineWorld, private claw: ClawBody, readonly x: number, readonly z: number, private opts: CycleOptions = {}) {
     this.plan = claw.plan(x, z);
     world.markTarget(this.plan.target);
     this.from = { x, z };
-    this.carryLen = Math.hypot(CARRY_TO.x - x, CARRY_TO.z - z);
+    this.to = opts.carryTo ?? CARRY_TO;
+    this.carryLen = Math.hypot(this.to.x - x, this.to.z - z);
     world.setHoleOpen(true);
     claw.setPose(x, CLAW_REST.y, z, this.plan.descendOpen);
     opts.phase?.('descend');
@@ -105,7 +110,7 @@ export class CycleRunner {
         const k = this.carryLen < 1e-4 ? 1 : Math.min(1, (this.clock * CARRY_SPEED) / this.carryLen);
         const e = k * k * (3 - 2 * k);
         c.setRelax(1 - CLAW.carry_relax * k);
-        c.setPose(this.from.x + (CARRY_TO.x - this.from.x) * e, c.y, this.from.z + (CARRY_TO.z - this.from.z) * e, this.emptyHandsClose(c));
+        c.setPose(this.from.x + (this.to.x - this.from.x) * e, c.y, this.from.z + (this.to.z - this.from.z) * e, this.emptyHandsClose(c));
         if (k >= 1) { c.release(); this.go('release'); }
         break;
       }
@@ -116,7 +121,10 @@ export class CycleRunner {
         break;
       }
       case 'settle': {
-        if (this.clock >= CLAW.settle_seconds || (this.world.movingPoses().length === 0 && this.clock > 0.5)) this.finish();
+        const st = this.opts.settle, still = this.world.movingPoses().length === 0;
+        if (!st) { if (this.clock >= CLAW.settle_seconds || (still && this.clock > 0.5)) this.finish(); break; } // 인형 기계: 예전 그대로
+        this.stillFor = still ? this.stillFor + STEP : 0;
+        if (this.clock >= st.max || this.stillFor >= st.still) this.finish();
         break;
       }
       case 'done': return;

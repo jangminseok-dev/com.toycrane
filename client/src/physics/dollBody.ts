@@ -9,14 +9,15 @@ export const FRICTION = 0.8, RESTITUTION = 0.05, ANGULAR_DAMPING = 20, LINEAR_DA
 export type Ball = { r: number; at: [number, number, number] };
 
 const shapesCache = new Map<string, Ball[]>();
-export function dollColliders(spot: DollSpot): { shapes: Ball[]; mass: number } {
+// scale: 기계 속 인형 크기(인형 기계 DOLL_SCALE, 미는 뽑기 미니 인형은 더 작게) — 무게는 크기의 세제곱으로
+export function dollColliders(spot: DollSpot, scale = DOLL_SCALE): { shapes: Ball[]; mass: number } {
   const [kind, , , , , , , , , body, , rare] = spot;
-  const key = `${kind}|${body}|${rare}`;
+  const key = `${kind}|${body}|${rare}|${scale}`;
   let shapes = shapesCache.get(key);
   if (!shapes) {
     shapes = dollHits(kind, body, rare).solid.filter((h) => h.part !== 'crown')
-      .map((h) => ({ r: h.r * DOLL_SCALE, at: [h.c.x * DOLL_SCALE, h.c.y * DOLL_SCALE, h.c.z * DOLL_SCALE] as [number, number, number] }));
+      .map((h) => ({ r: h.r * scale, at: [h.c.x * scale, h.c.y * scale, h.c.z * scale] as [number, number, number] }));
     shapesCache.set(key, shapes);
   }
-  return { shapes, mass: DOLL_MASS * BODY_W[body] ** 2 };
+  return { shapes, mass: DOLL_MASS * BODY_W[body] ** 2 * (scale / DOLL_SCALE) ** 3 };
 }
