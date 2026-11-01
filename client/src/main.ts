@@ -635,7 +635,7 @@ function standUp() {
 // 이어 하는 판 도중의 그만하기: 이어 하기를 멈추고 바로 일어난다(그 판의 코인은 넣은 것). 집게가 도는 중이면 그 판 결과까지만 보고 묻는다
 function quitRun() {
   run.stop();
-  if (session) standUp();
+  if (session || figurePlay.session) standUp(); // 피규어 버튼 단계도 (최종 리뷰 I2)
   else hideSeatControls();
 }
 

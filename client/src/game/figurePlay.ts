@@ -30,7 +30,7 @@ export class FigurePlay {
   session: FigureSession | null = null; // 버튼 단계
   side = new SideBlend(); // 0 정면 ~ 1 옆 대각선
   private playId: string | null = null; // 내 판(버튼부터 결과까지)
-  private before: BoxWire | null = null; // 판 시작 전 상자(보고가 거절되면 되돌린다)
+  private saved = new Map<string, BoxWire>(); // 서버가 알려 준 상자 자리(welcome·figure) — 판의 시작점, 판이 결과 없이 끝나면 되돌린다
   private controls: FigureControls | null = null;
   private world: FigureWorld | null = null;
   private claw: FigureClaw | null = null;
@@ -45,24 +45,32 @@ export class FigurePlay {
   }
 
   setBoxes(boxes: Record<string, BoxWire>): void {
-    for (const [id, b] of Object.entries(boxes)) if (FIGURE_SPOTS.has(id)) this.zone.setBox(id, b);
+    for (const [id, b] of Object.entries(boxes)) this.setBox(id, b);
   }
 
   setBox(id: string, box: BoxWire): void {
-    if (FIGURE_SPOTS.has(id)) this.zone.setBox(id, box);
+    if (!FIGURE_SPOTS.has(id)) return;
+    this.saved.set(id, box);
+    this.zone.setBox(id, box);
+  }
+
+  // 화면에 그린 상자(중계·내 물리)를 서버 자리로 — 중계로 본 마지막 자리가 다음 판의 시작이 되면 하지도 않은 당첨이 난다 (최종 리뷰 I1)
+  private restoreBox(id: string): void {
+    const b = this.saved.get(id);
+    if (b) this.zone.setBox(id, b);
   }
 
   start(id: string, limit: number, now: number): void {
     this.end();
     this.playId = id;
-    this.before = this.zone.boxOf(id);
+    this.stopWatch(id);
+    this.restoreBox(id);
     this.session = new FigureSession(id, limit, now);
     this.controls = buildFigureControls(this.zone.worldOf(id));
     this.controls.setPhase('one');
     this.zone.hideControls(id, true); // 기계 그림의 고정 버튼은 숨긴다(살아 있는 버튼이 덮는다)
-    this.stopWatch(id);
     const R = this.deps.rapier();
-    if (R) this.world = new FigureWorld(R, this.before);
+    if (R) this.world = new FigureWorld(R, this.zone.boxOf(id));
   }
 
   pick(ray: THREE.Raycaster): 1 | 2 | null {
@@ -141,7 +149,7 @@ export class FigurePlay {
 
   // 서버가 보고를 거절(done_no): 상자는 판 시작 전 그대로
   refused(id: string): void {
-    if (this.playId === id && this.before) this.zone.setBox(id, this.before);
+    if (this.playId === id) this.restoreBox(id);
     this.resulted(id);
   }
 
@@ -157,7 +165,7 @@ export class FigurePlay {
   }
 
   stopWatch(id: string): void {
-    if (this.watches.delete(id)) this.restClaw(id);
+    if (this.watches.delete(id)) { this.restClaw(id); this.restoreBox(id); }
   }
 
   watching(id: string): boolean { return this.watches.has(id); }
@@ -180,10 +188,10 @@ export class FigurePlay {
   // 판을 그만두거나 끝냄(정리): 살아 있는 버튼·물리를 치우고 집게는 제자리, 시점은 바로 정면
   end(): void {
     this.controls?.dispose(); this.controls = null;
-    if (this.playId) { this.zone.hideControls(this.playId, false); this.restClaw(this.playId); }
+    if (this.playId) { this.zone.hideControls(this.playId, false); this.restClaw(this.playId); this.restoreBox(this.playId); }
     this.claw?.dispose(); this.world?.dispose();
     this.claw = null; this.runner = null; this.world = null;
-    this.session = null; this.dropped = null; this.playId = null; this.before = null;
+    this.session = null; this.dropped = null; this.playId = null;
     this.side = new SideBlend();
   }
 
