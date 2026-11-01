@@ -12,19 +12,20 @@ export type FigureCycleResult = { won: boolean; box: BoxWire };
 const CLOSE_SECONDS = 0.6, HOLD_SECONDS = 0.4, RELEASE_SECONDS = 0.3, SETTLE_MIN = 0.5, SETTLE_MAX = 4;
 const FLOOR = FIGURE.bars.y - 0.12; // 아무것도 안 닿아도 이 아래로는 안 내려간다
 const CATCH_UP = 12;
-const BACK_OFF = 0.004;
+const BACK_OFF = 0.003, LAND_LAG = 0.003, LAND_TICKS = 6; // 머리가 줄보다 3mm 넘게 덜 내려간 채 50ms면 얹힌 것 — 3mm 되감는다
 
 export class FigureCycleRunner {
   phase: FigurePhase = 'descend';
   private at = 0;
   private carry = 0;
   private x: number;
-  private y = FIGURE.claw.rest_y;
   private z: number;
+  private cable = 0; // 풀린 줄 길이
+  private lag = 0; // 머리가 줄보다 덜 내려간 걸음 수
 
   constructor(readonly world: FigureWorld, readonly claw: FigureClaw, x: number, z: number, readonly opts: FigureCycleOptions = {}) {
     this.x = x; this.z = z;
-    claw.setHead(x, this.y, z);
+    claw.setRail(x, z);
     claw.release();
     this.at = world.time;
   }
@@ -48,25 +49,20 @@ export class FigureCycleRunner {
   }
 
   private tick(): void {
-    const w = this.world, c = this.claw, C = FIGURE.claw, t = w.time - this.at;
+    const w = this.world, c = this.claw, C = FIGURE.claw, t = w.time - this.at, maxCable = C.rest_y - FLOOR;
     switch (this.phase) {
       case 'descend':
-        this.y = Math.max(FLOOR, this.y - C.descend * FIG_STEP);
-        c.setHead(this.x, this.y, this.z);
-        if (c.touching() || this.y <= FLOOR) {
-          this.y = Math.min(C.rest_y, this.y + BACK_OFF); // 닿으면 살짝 물러나 상자를 막대로 누르지 않게(조사한 시뮬레이터처럼)
-          c.setHead(this.x, this.y, this.z);
-          this.go('close');
-        }
+        this.cable = Math.min(maxCable, this.cable + C.descend * FIG_STEP);
+        c.setCable(this.cable);
         break;
       case 'close':
         if (t >= CLOSE_SECONDS) this.go('lift');
         break;
       case 'lift':
-        this.y = Math.min(C.rest_y, this.y + C.descend * FIG_STEP);
-        c.setHead(this.x, this.y, this.z);
+        this.cable = Math.max(0, this.cable - C.descend * FIG_STEP);
+        c.setCable(this.cable);
         c.checkSlip();
-        if (this.y >= C.rest_y) this.go('hold');
+        if (this.cable <= 0) this.go('hold');
         break;
       case 'hold':
         c.checkSlip();
@@ -78,7 +74,7 @@ export class FigureCycleRunner {
       case 'home': {
         const [hx, hz] = C.home, dx = hx - this.x, dz = hz - this.z, d = Math.hypot(dx, dz), s = C.speed * FIG_STEP;
         if (d <= s) { this.x = hx; this.z = hz; this.go('settle'); } else { this.x += (dx / d) * s; this.z += (dz / d) * s; }
-        c.setHead(this.x, this.y, this.z);
+        c.setRail(this.x, this.z);
         break;
       }
       case 'settle':
@@ -87,10 +83,20 @@ export class FigureCycleRunner {
     }
     w.tick();
     this.opts.onTick?.();
+    if (this.phase === 'descend') {
+      // 얹힘: 머리가 줄보다 덜 내려갔고 떨어지지도 않는 채 머문다(줄을 풀기 시작할 때 잠깐 뒤처지는 건 아님) — 3mm 되감고 오므린다
+      const lagging = c.headY() - (C.rest_y - this.cable) > LAND_LAG && !c.falling();
+      this.lag = lagging ? this.lag + 1 : 0;
+      if (this.lag >= LAND_TICKS || this.cable >= maxCable) {
+        this.cable = Math.max(0, C.rest_y - c.headY() - BACK_OFF);
+        c.setCable(this.cable);
+        this.go('close');
+      }
+    }
   }
 
   clawPose(): ClawPose {
-    return [this.x, this.y, this.z, this.claw.armsOpen()];
+    return [this.x, this.claw.headY(), this.z, this.claw.armsOpen()];
   }
 
   done(): FigureCycleResult {

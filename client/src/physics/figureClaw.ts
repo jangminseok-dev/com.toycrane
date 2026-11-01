@@ -4,10 +4,12 @@ import { FIGURE } from '../data/figures';
 import type { FigureWorld } from './figureWorld';
 import type { Rapier } from './rapier';
 
-// 피규어 두 팔 집게(9단계, 그래픽 설계 §3.5 모양): 각진 머리(운동학) + 양옆 경첩에서 내려오는 납작한 판 팔 두 개
-// (바깥 → 아래 → 끝이 안쪽으로 꺾인 갈고리). 팔은 동적 몸체이고 경첩 모터가 목표 각으로 민다 — 힘은 단계마다 토크 한도(grip·lift·carry, N·m)라
-// 약해서 상자를 번쩍 못 든다. 상자 모서리가 처음보다 max_lift 넘게 오르거나 상자 전체가 max_clear 넘게 뜨면 팔이 미끄러져 놓는다
-const HEAD = { hx: 0.045, hy: 0.03, hz: 0.035 };
+// 피규어 두 팔 집게(9단계, 그래픽 설계 §3.5 모양): 각진 머리 + 양옆 경첩에서 내려오는 납작한 판 팔 두 개
+// (바깥 → 아래 → 끝이 안쪽으로 꺾인 갈고리). 머리는 무게가 있고, 위 레일(운동학)에 '당기기만 하는 줄'(prismatic 아래 한계)로 매달린다 —
+// 진짜처럼 내려가다 무엇에 얹히면 줄만 느슨해지고 위에서 누르지 못한다(운동학 머리는 무한한 힘으로 부딪혀 상자를 튕겨 뒤집었다).
+// 팔은 동적 몸체이고 경첩 모터가 목표 각으로 민다 — 힘은 단계마다 토크 한도(grip·lift·carry, N·m)라 약해서 상자를 번쩍 못 든다.
+// 상자 모서리가 처음보다 max_lift 넘게 오르거나 상자 전체가 max_clear 넘게 뜨면 팔이 미끄러져 놓는다
+const HEAD = { hx: 0.045, hy: 0.03, hz: 0.035 }, HEAD_MASS = 0.4;
 const HINGE: [number, number] = [0.04, -0.02]; // 머리 기준 경첩(오른팔, 왼팔은 x 반대)
 const ELBOW: [number, number] = [0.045, -0.08], TIP: [number, number] = [0.005, -0.17]; // 경첩 기준(오른팔)
 const PLATE_T = 0.004, PLATE_W = 0.018, TIP_R = 0.008; // 판 두께 반, 판 폭 반(z), 고무 끝
@@ -18,7 +20,9 @@ const GROUP_CLAW = 0x0002;
 const clawGroups = ((GROUP_CLAW << 16) | (0xffff & ~GROUP_CLAW)) >>> 0; // 집게끼리는 안 부딪힘
 
 export class FigureClaw {
+  private readonly rail: RAPIER.RigidBody;
   private readonly head: RAPIER.RigidBody;
+  private readonly cable: RAPIER.PrismaticImpulseJoint;
   private readonly arms: RAPIER.RigidBody[] = [];
   private readonly joints: RAPIER.RevoluteImpulseJoint[] = [];
   private readonly colliders: RAPIER.Collider[] = [];
@@ -26,15 +30,18 @@ export class FigureClaw {
   private baseLow = 0;
   private slipped = false;
   x: number;
-  y: number;
   z: number;
 
-  constructor(readonly R: Rapier, readonly fw: FigureWorld, x: number, z: number, y = FIGURE.claw.rest_y) {
-    const w = fw.world;
-    this.x = x; this.y = y; this.z = z;
-    this.head = w.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y, z));
-    this.colliders.push(w.createCollider(R.ColliderDesc.cuboid(HEAD.hx, HEAD.hy, HEAD.hz).setFriction(0.6).setCollisionGroups(clawGroups)
-      .setActiveCollisionTypes(R.ActiveCollisionTypes.DEFAULT | R.ActiveCollisionTypes.KINEMATIC_FIXED), this.head));
+  constructor(readonly R: Rapier, readonly fw: FigureWorld, x: number, z: number) {
+    const w = fw.world, y = FIGURE.claw.rest_y;
+    this.x = x; this.z = z;
+    this.rail = w.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y, z));
+    this.head = w.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(x, y, z).setCanSleep(false)
+      .setAdditionalMassProperties(HEAD_MASS, { x: 0, y: 0, z: 0 }, { x: 4e-4, y: 4e-4, z: 4e-4 }, { x: 0, y: 0, z: 0, w: 1 }));
+    this.colliders.push(w.createCollider(R.ColliderDesc.cuboid(HEAD.hx, HEAD.hy, HEAD.hz).setDensity(0).setFriction(0.6).setCollisionGroups(clawGroups), this.head));
+    this.cable = w.createImpulseJoint(R.JointData.prismatic({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }), this.rail, this.head, true) as RAPIER.PrismaticImpulseJoint;
+    this.cable.setContactsEnabled(false);
+    this.setCable(0);
     for (const side of [1, -1]) {
       const arm = w.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(x + side * HINGE[0], y + HINGE[1], z)
         .setAdditionalMassProperties(ARM_MASS, { x: side * 0.025, y: -0.09, z: 0 }, { x: 5e-5, y: 5e-5, z: 5e-5 }, { x: 0, y: 0, z: 0, w: 1 })
@@ -56,9 +63,24 @@ export class FigureClaw {
     this.release();
   }
 
-  setHead(x: number, y: number, z: number): void {
-    this.x = x; this.y = y; this.z = z;
-    this.head.setNextKinematicTranslation({ x, y, z });
+  // 레일을 그 자리(x, z)로 — 머리는 줄에 매달려 따라온다
+  setRail(x: number, z: number): void {
+    this.x = x; this.z = z;
+    this.rail.setNextKinematicTranslation({ x, y: FIGURE.claw.rest_y, z });
+  }
+
+  // 풀린 줄 길이(m): 머리는 레일에서 이보다 아래로는 못 가고, 위로는(무엇에 얹히면) 자유롭다
+  setCable(length: number): void {
+    this.cable.setLimits(-length, 0);
+  }
+
+  headY(): number {
+    return this.head.translation().y;
+  }
+
+  // 머리가 아래로 떨어지는 중인가(m/s 기준보다 빠르게)
+  falling(): boolean {
+    return this.head.linvel().y < -0.02;
   }
 
   private drive(open: boolean, force: number): void {
@@ -98,22 +120,6 @@ export class FigureClaw {
     }
   }
 
-  // 집게(머리·팔)가 상자나 막대·벽에 닿았나 — 내려가기를 멈춘다
-  touching(): boolean {
-    return this.touched() !== null;
-  }
-
-  // 닿은 집게 부분(0 머리, 1·2 오른팔 판, 3 오른팔 끝, 4·5 왼팔 판, 6 왼팔 끝)과 상대(0 상자, 1~ 막대·벽) — 진단용
-  touched(): [number, number] | null {
-    const w = this.fw.world, targets = [this.fw.boxCollider, ...this.fw.solids];
-    for (let i = 0; i < this.colliders.length; i++) for (let k = 0; k < targets.length; k++) {
-      let hit = false;
-      w.contactPair(this.colliders[i], targets[k], (m) => { for (let n = 0; n < m.numContacts(); n++) if (m.contactDist(n) <= 0.001) hit = true; });
-      if (hit) return [i, k];
-    }
-    return null;
-  }
-
   // 그림·중계용 팔 벌림 0(오므림)~1(벌림)
   armsOpen(): number {
     const a = this.arms.map((arm, i) => {
@@ -133,7 +139,9 @@ export class FigureClaw {
   dispose(): void {
     const w = this.fw.world;
     for (const j of this.joints) w.removeImpulseJoint(j, true);
+    w.removeImpulseJoint(this.cable, true);
     for (const a of this.arms) w.removeRigidBody(a);
     w.removeRigidBody(this.head);
+    w.removeRigidBody(this.rail);
   }
 }

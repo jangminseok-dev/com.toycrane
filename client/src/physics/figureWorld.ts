@@ -10,9 +10,11 @@ export const FIG_STEP = 1 / 120;
 const MAX_STEPS = 4;
 const BAR_FRICTION = 0.22, BOX_FRICTION = 0.5, BOX_RESTITUTION = 0.04;
 const STOP_OUT = 0.13; // 막대 중심에서 멈춤판까지(z)
+// 멈춤판은 막대 위로 STOP_TOP만 솟고 미끄럽다(마찰 0) — 높고 거칠면 선반처럼 상자 끝을 받쳐 기운 채 갇혔다(판수 시뮬 꼬리)
+const STOP_TOP = 0.06, STOP_HALF_H = 0.15;
 const CATCH_DROP = 0.5; // 막대 아래 받는 바닥 깊이
 
-export const barZ = FIGURE.bars.gap / 2 + FIGURE.bars.radius; // 막대 중심 z(±)
+export const barZ = (): number => FIGURE.bars.gap / 2 + FIGURE.bars.radius; // 막대 중심 z(±)
 
 export class FigureWorld {
   readonly world: RAPIER.World;
@@ -30,8 +32,8 @@ export class FigureWorld {
     const s = Math.SQRT1_2;
     for (const side of [-1, 1]) {
       // 캡슐 축(기본 y)을 x로 눕힌 쇠막대
-      fixed(R.ColliderDesc.capsule(bars.half_len, bars.radius).setTranslation(0, bars.y, side * barZ).setRotation({ x: 0, y: 0, z: s, w: s }).setFriction(BAR_FRICTION).setRestitution(0));
-      fixed(R.ColliderDesc.cuboid(bars.half_len, 0.18, 0.005).setTranslation(0, bars.y - 0.06, side * (barZ + STOP_OUT)).setFriction(BAR_FRICTION));
+      fixed(R.ColliderDesc.capsule(bars.half_len, bars.radius).setTranslation(0, bars.y, side * barZ()).setRotation({ x: 0, y: 0, z: s, w: s }).setFriction(BAR_FRICTION).setRestitution(0));
+      fixed(R.ColliderDesc.cuboid(bars.half_len, STOP_HALF_H, 0.005).setTranslation(0, bars.y + STOP_TOP - STOP_HALF_H, side * (barZ() + STOP_OUT)).setFriction(0));
       fixed(R.ColliderDesc.cuboid(0.005, 0.4, 0.4).setTranslation(side * (bars.half_len + 0.005), bars.y, 0).setFriction(BAR_FRICTION));
     }
     fixed(R.ColliderDesc.cuboid(0.6, 0.02, 0.6).setTranslation(0, bars.y - CATCH_DROP, 0).setFriction(0.8));
