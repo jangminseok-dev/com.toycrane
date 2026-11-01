@@ -51,13 +51,14 @@ class ActInteractor(ActUseCase):
         r = hook(board, cmd.x, cmd.y, self._rng)
         prize: list[tuple[str, int, str, int]] = []
         if r.caught and r.peg is not None:
+            # 저장(DO)을 가방(D1)보다 먼저 — D1을 기다리는 사이 끼어든 다른 act가 읽고 쓴 기계 상태를 덮어쓰지 않게 (최종 리뷰 I1)
             card = board[r.peg]
-            total = await self._bag.add(me.guest_id, card.kind, card.color, card.rare, "ring", cmd.now)
-            self._connections.send_bag(cmd.conn_id, total)
             prize = [(card.kind, card.color, card.rare, 0)]
             board = restock(board, r.peg, self._rng)
             boards[machine_id] = board
             await self._rings.save(boards)
+            total = await self._bag.add(me.guest_id, card.kind, card.color, card.rare, "ring", cmd.now)
+            self._connections.send_bag(cmd.conn_id, total)
         self._connections.broadcast_result(machine_id, me.player_id, prize)
         self._connections.broadcast_ring(machine_id, board, cmd.x, cmd.y, r.peg, r.caught)
 
@@ -70,11 +71,11 @@ class ActInteractor(ActUseCase):
         dropped = drop_in(before, self._rng)  # 이 판의 새 인형 하나가 뒤쪽에 떨어진다
         new = next((i for i in dropped if i.uid not in {b.uid for b in before}), None)
         after, fell = push(dropped, cmd.x)
+        shelves[machine_id] = after
+        await self._pushers.save(shelves)  # 가방(D1)보다 먼저 (최종 리뷰 I1)
         for f in fell:
             total = await self._bag.add(me.guest_id, f.kind, f.color, f.rare, "pusher", cmd.now)
         if fell:
             self._connections.send_bag(cmd.conn_id, total)
-        shelves[machine_id] = after
-        await self._pushers.save(shelves)
         self._connections.broadcast_result(machine_id, me.player_id, [(f.kind, f.color, f.rare, f.uid) for f in fell])
         self._connections.broadcast_pusher(machine_id, after, cmd.x, new, [f.uid for f in fell])

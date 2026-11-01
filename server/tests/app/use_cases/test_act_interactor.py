@@ -1,6 +1,7 @@
 """고리·미는 뽑기 판(설계 2026-11-02 §3·§4·§8): 잠근 사람이 멈춘 자리(act)만 보내면 서버가 결과를 정해 가방·result·기계 상태를 알린다.
 잠금 없이·같은 판 두 번·이상한 좌표는 거절하고 기계 상태는 그대로."""
 
+import asyncio
 import math
 import random
 
@@ -108,3 +109,51 @@ async def test_bad_pusher_act_is_refused_and_keeps_the_shelf():
     await it.act(ActCommand("c-1", "P-1", 5.0, 0.0, now=20.0))
     assert conns.direct == [("c-1", done_no("P-1", "bad"))]
     assert conns.broadcasts == [] and bag.added == [] and it.pushers.stored["P-1"] == before
+
+
+class GatedBag(FakeBag):
+    """첫 add가 문(gate)이 열릴 때까지 기다리는 가방 — D1 왕복 사이에 다른 접속의 act가 끼어드는 때."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.gate, self.waiting = asyncio.Event(), asyncio.Event()
+
+    async def add(self, guest_id, doll, color, rare, zone, now):
+        if not self.waiting.is_set():
+            self.waiting.set()
+            await self.gate.wait()
+        return await super().add(guest_id, doll, color, rare, zone, now)
+
+
+# 최종 리뷰 I1: 가방(D1)을 기다리는 사이 다른 기계의 act가 끼어들어도 두 기계의 선반이 모두 남는다(저장을 가방보다 먼저)
+async def test_both_pushers_keep_their_shelves_when_acts_interleave():
+    locks, conns, _, rings, it = setup(random.Random(4))
+    bag = GatedBag()
+    it._bag = bag
+    locks.release("c-1")
+    locks.lock("c-1", "P-1", 10.0)
+    locks.lock("c-2", "P-2", 10.0)
+    before = dict(it.pushers.stored)
+    a = asyncio.create_task(it.act(ActCommand("c-1", "P-1", 0.0, 0.0, now=20.0)))
+    await bag.waiting.wait()
+    await it.act(ActCommand("c-2", "P-2", 0.1, 0.0, now=20.5))
+    bag.gate.set()
+    await a
+    assert it.pushers.stored["P-1"] != before["P-1"]
+    assert it.pushers.stored["P-2"] != before["P-2"]
+
+
+async def test_both_rings_keep_their_boards_when_acts_interleave():
+    locks, conns, _, rings, it = setup(Always(0.0))
+    rings.stored["R-2"] = new_board(random.Random(8))
+    bag = GatedBag()
+    it._bag = bag
+    locks.lock("c-2", "R-2", 10.0)
+    before = dict(rings.stored)
+    a = asyncio.create_task(it.act(ActCommand("c-1", "R-1", *peg_xy(2), now=20.0)))
+    await bag.waiting.wait()
+    await it.act(ActCommand("c-2", "R-2", *peg_xy(5), now=20.5))
+    bag.gate.set()
+    await a
+    assert rings.stored["R-1"] != before["R-1"]
+    assert rings.stored["R-2"] != before["R-2"]
