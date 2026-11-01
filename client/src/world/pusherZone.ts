@@ -8,7 +8,7 @@ import { bakeByMaterial, fadeMaterials, materialCloner } from './bake';
 import { PUSHER_BUTTON, PUSHER_SIGN } from './copy';
 import { BUTTON_SCALE, LABEL, LABEL_Y, labelMat } from './figureControls';
 import { ledBaseMat, machinePopMat, machineSignMat, makeCabinetShell } from './machine';
-import { thumbnail } from './thumbs';
+import { thumbnailSoon } from './thumbs';
 import { canvasTex, part, toon, toonWith } from './toon';
 
 // 미는 뽑기 구역(설계 2026-11-02 §4): 북쪽 가운데 4대. 몸통·선반·벽·출구는 재질별로 합쳐 굽고, 미니 인형은 4대 전부 그림판 한 장 + 한 도형
@@ -57,11 +57,11 @@ export function buildPushButton(anchor: THREE.Object3D): PushButton {
   };
 }
 
-// 미니 인형 칸 하나: 투명 바탕에 작은 그림(없으면 색 동그라미), 희귀·황금은 발밑 별
-function drawItem(g: CanvasRenderingContext2D, x: number, y: number, item: ItemWire | null) {
+// 미니 인형 칸 하나: 투명 바탕에 작은 그림(아직이거나 없으면 색 동그라미 — 찍히면 onReady), 희귀·황금은 발밑 별
+function drawItem(g: CanvasRenderingContext2D, x: number, y: number, item: ItemWire | null, onReady: () => void) {
   g.clearRect(x, y, CELL, CELL);
   if (!item) return;
-  const [, kind, color, rare] = item, pic = thumbnail(kind, color, rare);
+  const [, kind, color, rare] = item, pic = thumbnailSoon(kind, color, rare, onReady);
   if (pic) g.drawImage(pic, x, y, CELL, CELL);
   else { g.fillStyle = rare === GOLD.id ? '#e3a400' : '#ff8fbf'; g.beginPath(); g.arc(x + CELL / 2, y + CELL / 2, CELL * 0.35, 0, Math.PI * 2); g.fill(); }
   if (rare) { g.fillStyle = rare === GOLD.id ? '#e3a400' : '#b46cff'; g.font = '26px sans-serif'; g.textAlign = 'center'; g.fillText(rare === GOLD.id ? '★★' : '★', x + CELL / 2, y + CELL - 10); }
@@ -172,7 +172,7 @@ export function buildPusherZone(scene: THREE.Scene): PusherZone {
   }
   function drawCell(u: Unit, slot: number, item: ItemWire | null) {
     const c = u.index * SLOTS + slot;
-    drawItem(atlas, (c % ATLAS_COLS) * CELL, Math.floor(c / ATLAS_COLS) * CELL, item);
+    drawItem(atlas, (c % ATLAS_COLS) * CELL, Math.floor(c / ATLAS_COLS) * CELL, item, () => { if (item && u.slots.get(item[0]) === slot) drawCell(u, slot, item); });
     tex.needsUpdate = true;
   }
   const unit = (id: string) => { const u = units.get(id); if (!u) throw new Error(`no pusher machine ${id}`); return u; };

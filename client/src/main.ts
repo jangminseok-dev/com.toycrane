@@ -56,6 +56,7 @@ import { buildBigZone, type LiveDolls } from './world/bigZone';
 import { buildFigureZone } from './world/figureZone';
 import { buildRingZone } from './world/ringZone';
 import { buildPusherZone } from './world/pusherZone';
+import { pumpThumbnails } from './world/thumbs';
 import { figureName, makeFigure } from './world/figureModel';
 import { PLAIN, makeDoll } from './world/dolls';
 import { grounded } from './world/dollPose';
@@ -988,6 +989,7 @@ renderer.setAnimationLoop((now) => {
 });
 function frame(now: number) {
   const dt = Math.min((now - last) / 1000, 0.05); last = now;
+  pumpThumbnails(4); // 고리 카드·미니 인형·가방의 작은 그림은 프레임마다 4ms 안에서 몇 장씩 (최종 리뷰 I2)
   if (me && myAvatar) {
     const stick = joystick.read();
     const input = Math.hypot(stick.x, stick.z) > 0 ? stick : readKeyboard();

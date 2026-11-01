@@ -8,7 +8,7 @@ import { bakeByMaterial, fadeMaterials, materialCloner } from './bake';
 import { RING_BUTTONS, RING_SIGN } from './copy';
 import { BUTTON_SCALE, FIGURE_CONTROLS, LABEL, LABEL_Y, labelMat } from './figureControls';
 import { ledBaseMat, machinePopMat, machineSignMat, makeCabinetShell } from './machine';
-import { thumbnail } from './thumbs';
+import { thumbnailSoon } from './thumbs';
 import { canvasTex, part, toon, toonWith } from './toon';
 
 // 고리 뽑기 구역(설계 2026-11-02 §3): 북쪽 두 줄 10대. 줄마다 몸통·구멍판·걸이를 재질별로 합쳐 굽고, 카드(보이는 경품)는 줄마다 그림판 한 장
@@ -34,15 +34,15 @@ export type RingZone = {
   occluders: Occluder[];
 };
 
-// 카드 한 장 그림: 투명 블리스터, 위 고리 구멍, 가운데 인형 작은 그림(없으면 색 동그라미), 아래 이름. 희귀·황금은 테두리 색과 별
-function drawCard(g: CanvasRenderingContext2D, x: number, y: number, card: CardWire | null) {
+// 카드 한 장 그림: 투명 블리스터, 위 고리 구멍, 가운데 인형 작은 그림(아직이거나 없으면 색 동그라미 — 찍히면 onReady), 아래 이름. 희귀·황금은 테두리 색과 별
+function drawCard(g: CanvasRenderingContext2D, x: number, y: number, card: CardWire | null, onReady: () => void = () => {}) {
   g.clearRect(x, y, SLOT_W, SLOT_H);
   if (!card) return;
   const [kind, color, rare] = card, edge = rare === GOLD.id ? '#e3a400' : rare ? '#b46cff' : '#ff8fbf';
   g.fillStyle = 'rgba(255,255,255,0.9)'; g.beginPath(); g.roundRect(x + 4, y + 4, SLOT_W - 8, SLOT_H - 8, 14); g.fill();
   g.lineWidth = 6; g.strokeStyle = edge; g.stroke();
   g.fillStyle = '#d8d4e4'; g.beginPath(); g.arc(x + SLOT_W / 2, y + 20, 9, 0, Math.PI * 2); g.fill(); // 고리 구멍
-  const pic = thumbnail(kind, color, rare);
+  const pic = thumbnailSoon(kind, color, rare, onReady);
   if (pic) g.drawImage(pic, x + 14, y + 34, 100, 100);
   else { g.fillStyle = edge; g.beginPath(); g.arc(x + SLOT_W / 2, y + 84, 36, 0, Math.PI * 2); g.fill(); }
   g.fillStyle = '#2c2470'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `17px ${FONT}`;
@@ -157,7 +157,7 @@ export function buildRingZone(scene: THREE.Scene): RingZone {
   }
   function drawSlot(u: Unit, p: number) {
     const row = rows[u.row], cell = u.slot * PEGS + p;
-    drawCard(row.atlas, (cell % ATLAS_COLS) * SLOT_W, Math.floor(cell / ATLAS_COLS) * SLOT_H, u.shown[p] ? u.cards[p] : null);
+    drawCard(row.atlas, (cell % ATLAS_COLS) * SLOT_W, Math.floor(cell / ATLAS_COLS) * SLOT_H, u.shown[p] ? u.cards[p] : null, () => drawSlot(u, p));
     row.tex.needsUpdate = true;
   }
   const unit = (id: string) => { const u = units.get(id); if (!u) throw new Error(`no ring machine ${id}`); return u; };

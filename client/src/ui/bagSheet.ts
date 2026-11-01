@@ -2,7 +2,7 @@
 // 칸마다 작은 그림·이름·×개수·희귀 표시. 바깥(어두운 바탕)이나 '닫기'를 누르면 닫힌다. 리퀴드 글라스
 import { GOLD, dollName } from '../data/catalog';
 import type { BagEntry } from '../net/api';
-import { thumbnail } from '../world/thumbs';
+import { thumbnailSoon } from '../world/thumbs';
 import { UI } from '../world/copy';
 import { backdropBlur } from './glass';
 import { installNoSelect } from './noSelect';
@@ -34,12 +34,13 @@ export function closeBagSheet(): void {
   shade = null;
 }
 
+// 작은 그림(아직 안 찍혔으면 색 동그라미였다가 찍히면 바꿔 끼움)
 function picture(c: BagCell): HTMLElement {
-  const pic = thumbnail(c.doll, c.color, c.rare);
-  if (pic) { const img = document.createElement('img'); img.src = pic.toDataURL(); Object.assign(img.style, { width: '64px', height: '64px' }); return img; }
+  const img = (pic: HTMLCanvasElement) => { const el = document.createElement('img'); el.src = pic.toDataURL(); Object.assign(el.style, { width: '64px', height: '64px' }); return el; };
   const dot = document.createElement('div');
   Object.assign(dot.style, { width: '48px', height: '48px', margin: '8px auto', borderRadius: '50%', background: c.mark === '★★' ? '#e3a400' : c.mark ? '#b46cff' : '#ff8fbf' });
-  return dot;
+  const pic = thumbnailSoon(c.doll, c.color, c.rare, () => { const p = thumbnailSoon(c.doll, c.color, c.rare, () => {}); if (p && dot.isConnected) dot.replaceWith(img(p)); });
+  return pic ? img(pic) : dot;
 }
 
 export function openBagSheet(groups: BagGroup[]): void {
