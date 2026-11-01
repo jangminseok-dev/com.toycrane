@@ -42,7 +42,7 @@ const raccoon: Species = {
     sitBody(b, { pads: 'cream', toes: true });
     // 고리 무늬 꼬리: 몸 색 마디(부딪힘)와 진한 마디(겉모습만)를 번갈아
     const ring: V3[] = [[0.05, 0.3, -0.36], [0.2, 0.34, -0.5], [0.36, 0.4, -0.56], [0.52, 0.47, -0.55], [0.66, 0.54, -0.5]];
-    ring.forEach((at, i) => b.sphere(0.135 - i * 0.012, at, [1, 1, 1], [0, 0, 0], i % 2 ? { slot: RACCOON_DARK, hit: 'none' } : { name: 'tail' }));
+    ring.forEach((at, i) => b.limb(0.135 - i * 0.012, at, [1, 1, 1], [0, 0, 0], i % 2 ? { slot: RACCOON_DARK, hit: 'none' } : { name: 'tail' }, i ? b.lastLimb : undefined)); // 고리마다 (옮겨진) 앞 고리에 붙음
     b.nub(0.05, [0, 1.11], [1.4, 0.9, 0.55], { slot: 'nose' });
     b.paint('mark-mask', [0, 1.25], [0.62, 0.24], 'mark-mask'); // 눈가 띠 (눈보다 먼저)
     const omega = paintEyes(b, this.eyes, this.iris, face, { x: 0.21, y: 1.26, w: 0.09, h: 0.115 }, { x: 0.39, y: 1.06, w: 0.14, h: 0.08 });
@@ -79,7 +79,7 @@ const owl: Species = {
       b.sphere(0.19, [s * 0.21, 1.03, 0.53], [1, 1, 0.35], [0, 0, 0], { slot: 'accent', hit: 'none' }); // 눈 테두리
       b.pointedEar(0.12, [s * 0.38, 1.5, -0.02], s, 0.45, 0); // 귀깃
       b.sphere(0.22, mirror(s, [0.6, 0.6, 0.02]), [0.45, 1.25, 0.8], [0, 0, s * 0.35], {}); // 날개
-      b.sphere(0.09, mirror(s, [0.2, 0.05, 0.4]), [1.1, 0.6, 1.2], [0, 0, 0], { slot: 'pad' }); // 발
+      b.limb(0.09, mirror(s, [0.2, 0.05, 0.4]), [1.1, 0.6, 1.2], [0, 0, 0], { slot: 'pad' }); // 발
     }
     b.nub(0.07, [0, 0.9], [0.9, 1.2, 0.8], { slot: 'nose' }); // 부리
     const omega = paintEyes(b, this.eyes, this.iris, face, { x: 0.22, y: 1.03, w: 0.12, h: 0.15 }, { x: 0.42, y: 0.86, w: 0.14, h: 0.08 });

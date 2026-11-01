@@ -32,16 +32,21 @@ export function plushVCWithMap(map: THREE.Texture): THREE.MeshToonMaterial {
 export const PLUSH_OUTLINE = new THREE.MeshBasicMaterial({ color: 0x3f2a4f, side: THREE.BackSide, polygonOffset: true, polygonOffsetFactor: 3, polygonOffsetUnits: 12 });
 export const OUTLINE_W = 0.02;
 
+const DOUBLE = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
 const V = (p: V3 | THREE.Vector3) => (p instanceof THREE.Vector3 ? p.clone() : new THREE.Vector3(...p));
 const AO_STRENGTH = 0.25; // 시제품 v13 카툰 값 (셀 음영이 이미 입체를 낸다)
 
 type Occ = { c: THREE.Vector3; r: number };
-type Part = { geo: THREE.BufferGeometry; slot: Slot; outline: boolean; hit: 'solid' | 'ear' | 'none'; name?: string; balls: Hit[]; occ: Occ[]; head?: { c: number; r: number } };
+type Inside = (p: THREE.Vector3) => boolean; // 그 부위 덩어리 안쪽인지(붙음 재기)
+type Part = { geo: THREE.BufferGeometry; slot: Slot; outline: boolean; hit: 'solid' | 'ear' | 'none'; name?: string; balls: Hit[]; occ: Occ[]; head?: { c: number; r: number }; inside: Inside };
+// 단위 공을 m으로 옮긴 타원체의 안쪽
+const ellipsoid = (m: THREE.Matrix4): Inside => { const inv = m.clone().invert(), q = new THREE.Vector3(); return (p) => q.copy(p).applyMatrix4(inv).lengthSq() <= 1; };
 type Paint = { cell: Cell; at: [number, number]; size: [number, number]; name: string; flip: boolean };
 type Stitch = { points: [number, number][]; r: number; name: string };
 
 export class PlushBuilder {
   protected parts: Part[] = [];
+  lastLimb: V3 = [0, 0, 0]; // 마지막 limb가 놓인 자리(이어 붙는 털뭉치·고리가 앞 것을 따라가게)
   protected paints: Paint[] = [];
   protected stitches: Stitch[] = [];
   protected seg: { sphere: [number, number]; tube: [number, number]; cap: [number, number]; lathe: number; curve: number };
@@ -61,8 +66,8 @@ export class PlushBuilder {
     return big < 0.14 ? [8, 6] : [12, 9];
   }
 
-  private add(geo: THREE.BufferGeometry, balls: Hit[], occ: Occ[], o: PartOpts = {}, defaultHit: 'solid' | 'ear' | 'none' = 'solid', head?: { c: number; r: number }): this {
-    this.parts.push({ geo, slot: o.slot ?? 'body', outline: o.outline ?? true, hit: o.hit ?? defaultHit, name: o.name, balls, occ, head });
+  private add(geo: THREE.BufferGeometry, balls: Hit[], occ: Occ[], inside: Inside, o: PartOpts = {}, defaultHit: 'solid' | 'ear' | 'none' = 'solid', head?: { c: number; r: number }): this {
+    this.parts.push({ geo, slot: o.slot ?? 'body', outline: o.outline ?? true, hit: o.hit ?? defaultHit, name: o.name, balls, occ, head, inside });
     return this;
   }
 
@@ -82,7 +87,34 @@ export class PlushBuilder {
       const rr = axes[1].len * 0.95, off = axes[0].len - rr; // 둘째 축 기준 — 날개처럼 납작한 부위도 넓은 면이 감싸지게
       balls = [-1, 0, 1].map((s) => ({ c: c.clone().addScaledVector(axes[0].dir, s * off), r: rr })); // 양끝 + 가운데(앞뒤 가운데가 비지 않게)
     }
-    return this.add(g, balls, [{ c, r: mean }], o, 'solid', o?.name === 'head' ? { c: at[1], r: mean } : undefined);
+    const shape = new THREE.Matrix4().makeTranslation(...at).multiply(turn).multiply(new THREE.Matrix4().makeScale(r * scale[0], r * scale[1], r * scale[2]));
+    return this.add(g, balls, [{ c, r: mean }], ellipsoid(shape), o, 'solid', o?.name === 'head' ? { c: at[1], r: mean } : undefined);
+  }
+
+  // 몸에 붙는 둥근 부위(발·앞발·지느러미·꼬리 털뭉치·물줄기): 지금까지 만든 덩어리 안에 bury만큼 묻히도록 toward(기본: 머리 가운데) 쪽으로
+  // 1cm씩 옮겨 놓는다 — 고정 좌표로 놓으면 둥근 몸에 점으로만 닿아 외곽선이 둘레를 그어 떨어져 보였다(사용자 2026-11-02)
+  limb(r: number, at: V3, scale: V3 = [1, 1, 1], rot: V3 = [0, 0, 0], o?: PartOpts, toward?: V3, bury: [number, number] = [0.22, 0.5]): this {
+    const head = this.parts.find((q) => q.name === 'head') ?? this.parts[0];
+    head.geo.computeBoundingSphere();
+    const goal = toward ? V(toward) : head.geo.boundingSphere!.center.clone(), from = V(at), dir = goal.clone().sub(from).normalize();
+    const turn = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...rot)), size = new THREE.Matrix4().makeScale(r * scale[0], r * scale[1], r * scale[2]);
+    const probe = Array.from({ length: 64 }, (_, i) => { const y = 1 - (2 * (i + 0.5)) / 64, rr = Math.sqrt(1 - y * y), a = i * 2.39996; return new THREE.Vector3(Math.cos(a) * rr, y, Math.sin(a) * rr); });
+    const share = (c: THREE.Vector3) => {
+      const m = new THREE.Matrix4().makeTranslation(c.x, c.y, c.z).multiply(turn).multiply(size), v = new THREE.Vector3();
+      return probe.filter((q) => this.parts.some((part) => part.inside(v.copy(q).applyMatrix4(m)))).length / probe.length;
+    };
+    // 안쪽으로는 목표점을 넘지 않고, 목표 묻힘에 못 미치면 가장 많이 묻힌 자리(가는 꼬리 끝에 붙는 지느러미 등)
+    const c = from.clone(), s0 = share(c), sign = s0 < bury[0] ? 1 : s0 > bury[1] ? -1 : 0, steps = sign > 0 ? Math.floor(from.distanceTo(goal) / 0.01) : 60;
+    let best = { at: c.clone(), s: s0 };
+    for (let i = 0; sign && i < steps; i++) {
+      c.addScaledVector(dir, 0.01 * sign);
+      const s1 = share(c);
+      if (sign > 0 ? s1 >= bury[0] + 0.08 : s1 <= bury[1] - 0.08) { best = { at: c.clone(), s: s1 }; break; }
+      if (sign > 0 && s1 > best.s) best = { at: c.clone(), s: s1 };
+      if (sign < 0) best = { at: c.clone(), s: s1 };
+    }
+    this.lastLimb = [best.at.x, best.at.y, best.at.z];
+    return this.sphere(r, this.lastLimb, scale, rot, o);
   }
 
   // 겉면에 반쯤 박힌 작은 공(코·젤리 볼록이): 앞에서 본 (x, y) 자리의 지금까지 만든 겉면에 붙인다. 기본은 부딪힘 아님·외곽선 없음
@@ -91,9 +123,33 @@ export class PlushBuilder {
     const { p, n } = surfaceAt(meshes, at[0], at[1]);
     const g = new THREE.SphereGeometry(r, ...this.sphereSeg(r, scale));
     g.scale(...scale);
-    g.applyMatrix4(new THREE.Matrix4().lookAt(new THREE.Vector3(), n.clone().negate(), UP));
+    const look = new THREE.Matrix4().lookAt(new THREE.Vector3(), n.clone().negate(), UP);
+    g.applyMatrix4(look);
     g.translate(p.x, p.y, p.z);
-    return this.add(g, [{ c: p, r: r * 0.9 }], [{ c: p, r }], { outline: false, hit: 'none', ...o });
+    const shape = new THREE.Matrix4().makeTranslation(p.x, p.y, p.z).multiply(look).multiply(new THREE.Matrix4().makeScale(r * scale[0], r * scale[1], r * scale[2]));
+    return this.add(g, [{ c: p, r: r * 0.9 }], [{ c: p, r }], ellipsoid(shape), { outline: false, hit: 'none', ...o });
+  }
+
+  // 머리(이름 'head' 부위) 겉면의 높이: 위에서 (x, z)로 내려 쏜 첫 만남, 안 만나면 null — 왕관을 머리에 얹을 때
+  headTopAt(x: number, z: number): number | null {
+    const head = this.parts.filter((q) => q.name === 'head');
+    const meshes = (head.length ? head : this.parts.filter((q) => q.hit === 'solid')).map((q) => new THREE.Mesh(q.geo, DOUBLE));
+    const ray = new THREE.Raycaster(new THREE.Vector3(x, 10, z), new THREE.Vector3(0, -1, 0));
+    return ray.intersectObjects(meshes, false)[0]?.point.y ?? null;
+  }
+
+  // 부위마다 몸(다른 부위들) 안에 묻힌 꼭짓점 비율 — 0이면 떨어져 보이고(외곽선이 둘레를 긋는다), 1이면 묻혀 안 보인다
+  burial(): { name?: string; at: THREE.Vector3; size: number; share: number; outline: boolean }[] {
+    return this.parts.map((q, i) => {
+      const pos = q.geo.getAttribute('position'), step = Math.max(1, Math.floor(pos.count / 120)), v = new THREE.Vector3();
+      let n = 0, hit = 0;
+      for (let k = 0; k < pos.count; k += step) {
+        v.fromBufferAttribute(pos, k); n++;
+        if (this.parts.some((o, j) => j !== i && o.inside(v))) hit++;
+      }
+      q.geo.computeBoundingSphere();
+      return { name: q.name, at: q.geo.boundingSphere!.center.clone(), size: q.geo.boundingSphere!.radius, share: hit / n, outline: q.outline };
+    });
   }
 
   // 겉모습 없이 부딪힘 공·머리만 (그리기·얼굴 그림 없이) — 겨냥·물리가 쓴다
@@ -131,7 +187,8 @@ export class PlushBuilder {
     // 양끝을 같은 굵기의 공으로 막는다 — 열린 관 끝이 구멍처럼 보이지 않게 (외곽선 껍질도 함께 닫힌다)
     const caps = [0, 1].map((t) => { const c = new THREE.SphereGeometry(r * taper(t), ...this.seg.cap); const at = curve.getPointAt(t); c.translate(at.x, at.y, at.z); return c; });
     const merged = merge([g, ...caps]);
-    return this.add(merged, balls, occ, o);
+    const along = Array.from({ length: 41 }, (_, i) => ({ c: curve.getPointAt(i / 40), r: r * taper(i / 40) }));
+    return this.add(merged, balls, occ, (p) => along.some((a) => p.distanceToSquared(a.c) <= a.r * a.r), o);
   }
 
   // 몸통: (높이, 반지름) 윤곽을 매끈하게 이어 돌린 배 모양 한 덩어리, 앞뒤로 flatZ배. 부딪힘 공 둘
@@ -150,8 +207,11 @@ export class PlushBuilder {
       return { c: new THREE.Vector3(0, yb, zOff), r: r * 0.97 };
     });
     const occ = profile.filter(([, r]) => r > 0.05).map(([y, r]) => ({ c: new THREE.Vector3(0, y, zOff), r: r * 0.9 }));
+    // 안쪽: 그 높이의 윤곽 반지름 안(앞뒤는 flatZ로 편 뒤)
+    const radiusAt = (y: number) => { for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i]; if ((y - a.y) * (y - b.y) <= 0 && a.y !== b.y) return a.x + ((b.x - a.x) * (y - a.y)) / (b.y - a.y); } return -1; };
+    const inside: Inside = (p) => { const r = radiusAt(p.y); return r > 0 && Math.hypot(p.x, (p.z - zOff) / flatZ) <= r; };
     // name 'head'면 위쪽 공을 머리로 (동글이형: 몸 하나가 머리이자 몸통)
-    return this.add(g, balls, occ, o, 'solid', o?.name === 'head' ? { c: balls[1].c.y, r: balls[1].r } : undefined);
+    return this.add(g, balls, occ, inside, o, 'solid', o?.name === 'head' ? { c: balls[1].c.y, r: balls[1].r } : undefined);
   }
 
   // 뾰족한 귀(고양이·여우): 아래는 넓고 위는 둥글게 뾰족한 납작한 물방울. 기본은 말랑한 귀(부딪힘 아님)
@@ -163,9 +223,11 @@ export class PlushBuilder {
       pos.setXYZ(i, v.x * k, v.y * 1.3, v.z * k * flat);
     }
     g.computeVertexNormals();
-    g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(lean, 0, -side * 0.32)));
+    const turn = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(lean, 0, -side * 0.32));
+    g.applyMatrix4(turn);
     g.translate(...at);
-    return this.add(g, [{ c: V(at), r: r * 0.75 }], [{ c: V(at), r: r * 0.75 }], o, 'ear');
+    const shape = new THREE.Matrix4().makeTranslation(...at).multiply(turn).multiply(new THREE.Matrix4().makeScale(r * 0.6, r * 1.3, r * 0.6 * flat));
+    return this.add(g, [{ c: V(at), r: r * 0.75 }], [{ c: V(at), r: r * 0.75 }], ellipsoid(shape), o, 'ear');
   }
 
   // 그린 얼굴 조각: 앞에서 본 (x, y) 자리의 겉면에 w×h로 투사한다(얼굴 한 장 그림의 cell 칸). flip = 좌우 뒤집기(왼눈)

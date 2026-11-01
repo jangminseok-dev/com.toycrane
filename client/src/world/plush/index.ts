@@ -27,9 +27,22 @@ function effectMat(rare: string): THREE.MeshToonMaterial {
   if (!m) { const e = effectLook(rare); effectMats.set(rare, (m = cel({ color: 0xffffff, map: e.map, emissive: e.glow, emissiveIntensity: e.strength }))); }
   return m;
 }
-const crownMat = (() => { let m: THREE.MeshToonMaterial | null = null; return () => (m ??= cel({ color: 0xffd36b, emissive: 0x7a5200, emissiveIntensity: 0.35 }, false)); })();
+// 왕관 테는 위아래가 뚫린 고리(머리에 씌움)라 안쪽 면도 그린다
+const crownMat = (() => { let m: THREE.MeshToonMaterial | null = null; return () => (m ??= Object.assign(cel({ color: 0xffd36b, emissive: 0x7a5200, emissiveIntensity: 0.35 }, false), { side: THREE.DoubleSide })); })();
+const goldCrownMat = (() => { let m: THREE.Material | null = null; return () => (m ??= Object.assign(goldMaterial().clone(), { side: THREE.DoubleSide })); })();
 const gemMat = (() => { let m: THREE.MeshToonMaterial | null = null; return () => (m ??= cel({ color: 0xff5fa2 }, false)); })();
-const CROWN = { band: new THREE.CylinderGeometry(0.15, 0.16, 0.08, 24), tip: new THREE.ConeGeometry(0.035, 0.09, 10), gem: new THREE.SphereGeometry(1, 16, 12), spark: new THREE.OctahedronGeometry(0.035) };
+const CROWN_TILT = 0.12, CROWN_Z = 0.04, CROWN_R = 0.155, CROWN_HALF = 0.04; // 왕관은 뒤로 살짝 젖힘, 테 반지름·반높이(배율 1)
+// 왕관 가운데 높이(키 맞춘 뒤): 테 아래 둘레 8점이 머리 겉면에서 뜨지 않게(가장 뜬 점이 1cm 안) 얹는다.
+// 예전에는 '부딪힘 공 맨 위 + 2cm'라 공이 머리보다 높은 동글이형에서 8~23cm 떠 있었다(사용자 2026-11-02 황금 동글이 사진)
+function crownY(b: PlushBuilder, k: number, scale: number, fallbackTop: number): number {
+  const R = CROWN_R * scale, half = CROWN_HALF * scale, cos = Math.cos(CROWN_TILT), sin = Math.sin(CROWN_TILT);
+  const at = (x: number, z: number) => { const y = b.headTopAt(x / k, z / k); return y === null ? null : y * k; };
+  const ring = Array.from({ length: 8 }, (_, i) => { const a = (i / 8) * Math.PI * 2, sz = Math.cos(a) * R, h = at(Math.sin(a) * R, CROWN_Z + sz); return h === null ? null : h + half * cos - sz * sin; }).filter((v): v is number => v !== null);
+  const apex = at(0, CROWN_Z) ?? fallbackTop;
+  // 테가 뚫린 고리라 머리 꼭대기가 테 위로 나와도 된다(머리에 씌운 모양). 머리보다 큰 왕관은 꼭대기를 테 안에 품게
+  return ring.length >= 4 ? Math.min(...ring) + 0.01 : apex - half * 0.5;
+}
+const CROWN = { band: new THREE.CylinderGeometry(0.15, 0.16, 0.08, 24, 1, true), tip: new THREE.ConeGeometry(0.035, 0.09, 10), gem: new THREE.SphereGeometry(1, 16, 12), spark: new THREE.OctahedronGeometry(0.035) };
 
 function built(id: string, look: DollLook, lite: boolean) {
   const sp = SPECIES[id];
@@ -60,16 +73,16 @@ function make(id: string, look: DollLook, lite: boolean): Plush | null {
   out.group.userData.spin = [];
   if (look.rare) {
     // 희귀: 작은 왕관 + 효과 색 반짝이 / 황금: 큰 왕관 + 금빛 반짝이 더 많이 (기존 인형과 같은 자리·크기)
-    const top = Math.max(...solid.map((h) => h.c.y + h.r)), scale = gold ? CROWN_GOLD : 1;
+    const top = Math.max(...solid.map((h) => h.c.y + h.r)), scale = gold ? CROWN_GOLD : 1, cy = crownY(made.b, k, scale, top);
     const crown = new THREE.Group(); crown.name = 'crown';
-    crown.position.set(0, top + 0.02, 0.04); crown.rotation.x = -0.12; crown.scale.setScalar(scale);
-    const mat = gold ? goldMaterial() : crownMat();
+    crown.position.set(0, cy, CROWN_Z); crown.rotation.x = -CROWN_TILT; crown.scale.setScalar(scale);
+    const mat = gold ? goldCrownMat() : crownMat();
     const band = new THREE.Mesh(CROWN.band, mat); band.castShadow = true; crown.add(band);
     for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; const tip = new THREE.Mesh(CROWN.tip, mat); tip.position.set(Math.sin(a) * 0.13, 0.08, Math.cos(a) * 0.13); crown.add(tip); }
     const gem = new THREE.Mesh(CROWN.gem, gemMat()); gem.position.set(0, 0.02, 0.155); gem.scale.set(0.03, 0.03, 0.02); crown.add(gem);
     const ring = new THREE.Mesh(CROWN.band, PLUSH_OUTLINE); ring.scale.setScalar(1.12); crown.add(ring); // 띠 외곽선
     out.group.add(crown);
-    solid.push({ c: new THREE.Vector3(0, top + 0.06 * scale, 0.04), r: 0.15 * scale, part: 'crown' });
+    solid.push({ c: new THREE.Vector3(0, cy + 0.04 * scale, CROWN_Z), r: 0.15 * scale, part: 'crown' });
     if (!lite) {
       const aura = new THREE.Group(); aura.position.y = 0.7; aura.name = 'aura';
       const n = gold ? 11 : 7, radius = gold ? 0.7 : 0.62, smat = sparkMaterial(look.rare);
@@ -121,7 +134,7 @@ export function plushShape(id: string, rare = ''): Omit<Plush, 'group'> | null {
     const k = (sp.round ? TARGET_TOP.round : TARGET_TOP.standing) / top;
     const scaled = (h: Hit): Hit => ({ ...h, c: h.c.clone().multiplyScalar(k), r: h.r * k });
     const solid = raw.solid.map(scaled);
-    if (rare) { const s = rare === GOLD.id ? CROWN_GOLD : 1, t = Math.max(...solid.map((h) => h.c.y + h.r)); solid.push({ c: new THREE.Vector3(0, t + 0.06 * s, 0.04), r: 0.15 * s, part: 'crown' }); }
+    if (rare) { const s = rare === GOLD.id ? CROWN_GOLD : 1, t = Math.max(...solid.map((h) => h.c.y + h.r)); solid.push({ c: new THREE.Vector3(0, crownY(b, k, s, t) + 0.04 * s, CROWN_Z), r: 0.15 * s, part: 'crown' }); }
     out = { solid, ears: raw.ears.map(scaled), head: { c: raw.head.c * k, r: raw.head.r * k } };
   }
   shapes.set(key, out);

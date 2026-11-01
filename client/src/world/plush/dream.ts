@@ -21,7 +21,7 @@ const chick: Species = {
     for (const dx of [-0.07, 0, 0.07]) b.sphere(0.05, [dx, 1.56, -0.02], [0.8, 1.9, 0.8], [0, 0, -dx * 4]); // 머리 깃털
     for (const s of [-1, 1]) {
       b.sphere(0.2, mirror(s, [0.64, 0.66, 0.02]), [0.42, 0.9, 0.8], [0, 0, s * 0.45]); // 날개
-      b.sphere(0.09, mirror(s, [0.2, 0.05, 0.42]), [1.15, 0.5, 1.3], [0, 0, 0], { slot: 'pad' }); // 발
+      b.limb(0.09, mirror(s, [0.2, 0.05, 0.42]), [1.15, 0.5, 1.3], [0, 0, 0], { slot: 'pad' }); // 발
     }
     b.nub(0.07, [0, 0.82], [1, 0.75, 1.05], { slot: 'nose' }); // 부리
     const omega = paintEyes(b, this.eyes, this.iris, face, { x: 0.24, y: 0.98, w: 0.1, h: 0.125 }, { x: 0.41, y: 0.8, w: 0.15, h: 0.09 });
@@ -91,7 +91,12 @@ const dino: Species = {
     // 등 가시: 머리 꼭대기에서 꼬리까지 (부딪힘은 머리 위 셋만)
     const spikes: [V3, number, boolean][] = [[[0, 1.74, 0.02], 0.1, true], [[0, 1.64, -0.32], 0.09, false], [[0, 1.38, -0.55], 0.08, false], [[0, 0.82, -0.38], 0.075, false], [[0, 0.52, -0.5], 0.07, false], [[0.05, 0.38, -0.78], 0.06, false]];
     // 꼭대기 가시만 단단하게(집게가 머리 위에서 닿는 곳), 나머지는 몸·꼬리 공 안에서 겉모습만
-    for (const [at, r, solid] of spikes) b.sphere(r, at, solid ? [0.75, 1.15, 0.9] : [0.55, 1.5, 0.9], along([0, at[1] - 0.6, at[2] - 0.2]), { slot: 0xffb84d, hit: solid ? 'solid' : 'none' });
+    // 꼬리 끝 가시는 꼬리 위에 떠 있었다 — 꼬리 쪽으로 붙인다
+    for (const [at, r, solid] of spikes) {
+      const look: [V3, V3, V3] = [solid ? [0.75, 1.15, 0.9] : [0.55, 1.5, 0.9], along([0, at[1] - 0.6, at[2] - 0.2]), [0, 0, 0]];
+      if (at[2] < -0.7) b.limb(r, at, look[0], look[1], { slot: 0xffb84d, hit: 'none' }, [0.12, 0.15, -0.8]);
+      else b.sphere(r, at, look[0], look[1], { slot: 0xffb84d, hit: solid ? 'solid' : 'none' });
+    }
     b.nub(0.035, [0, 1.06], [1.2, 0.8, 0.5], { slot: 'nose' });
     const omega = paintEyes(b, this.eyes, this.iris, face, { x: 0.22, y: 1.25, w: 0.095, h: 0.12 }, { x: 0.39, y: 1.05, w: 0.15, h: 0.09 });
     stitchMouth(b, omega, 0, 0.96, 0.032, 0.008);
@@ -115,7 +120,9 @@ const unicorn: Species = {
     [[0.1, 1.66, -0.22], [0.3, 1.5, -0.4], [0.44, 1.26, -0.42], [0.5, 1.0, -0.32]].forEach((at, i) => b.sphere(0.17 - i * 0.015, at as V3, [1, 1, 1], [0, 0, 0], { slot: MANES[i % 3], hit: i === 0 ? 'solid' : 'none' }));
     sitBody(b, { pads: 'cream' });
     // 무지개 꼬리: 세 색 공을 바닥 쪽으로
-    [[0.05, 0.36, -0.42], [0.18, 0.26, -0.58], [0.32, 0.17, -0.66]].forEach((at, i) => b.sphere(0.12 - i * 0.015, at as V3, [1, 1, 1], [0, 0, 0], { slot: MANES[i], name: i === 0 ? 'tail' : undefined }));
+    // 털뭉치는 앞 뭉치에 붙어 이어진다(구슬처럼 떨어져 보이지 않게)
+    const tufts: V3[] = [[0.05, 0.36, -0.42], [0.18, 0.26, -0.58], [0.32, 0.17, -0.66]];
+    tufts.forEach((at, i) => b.limb(0.12 - i * 0.015, at, [1, 1, 1], [0, 0, 0], { slot: MANES[i], name: i === 0 ? 'tail' : undefined }, i ? b.lastLimb : undefined));
     b.nub(0.03, [0, 1.04], [1.3, 0.9, 0.5], { slot: 'nose' });
     const omega = paintEyes(b, this.eyes, this.iris, face, { x: 0.23, y: 1.15, w: 0.17, h: 0.2 }, { x: 0.39, y: 0.99, w: 0.15, h: 0.09 });
     stitchMouth(b, omega, 0, 0.98, 0.024, 0.007);
