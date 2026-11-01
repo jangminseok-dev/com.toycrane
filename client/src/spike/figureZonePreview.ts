@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { FIGURE, FIGURES } from '../data/figures';
+import { figureCameraPose } from '../game/figureCamera';
 import { buildFigureZone } from '../world/figureZone';
 
 // 피규어 기계 미리보기(개발 전용): ?view=front|side|row, 집게는 상자 위에 내려와 반쯤 벌림
@@ -19,9 +20,6 @@ zone.setClaw(id, 0.0, 1.25, 0.06, 0.6);
 const a = zone.worldOf(id);
 a.updateMatrixWorld(true);
 const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.05, 100);
-const pose = view === 'side' ? [1.45, 1.55, 1.15] : view === 'row' ? [0, 3.2, 6] : [0, 1.5, 1.4];
-const look = view === 'row' ? [0, 1.2, 0] : [0, 1.05, 0];
-camera.position.copy(a.localToWorld(new THREE.Vector3(...pose)));
-camera.lookAt(a.localToWorld(new THREE.Vector3(...look)));
+if (view === 'row') { camera.position.copy(a.localToWorld(new THREE.Vector3(0, 3.2, 6))); camera.lookAt(a.localToWorld(new THREE.Vector3(0, 1.2, 0))); }
+else { const p = figureCameraPose(f, view === 'side' ? 1 : 0, camera.aspect); camera.position.copy(p.pos); camera.lookAt(p.look); }
 renderer.setAnimationLoop(() => renderer.render(scene, camera));
-void f;
