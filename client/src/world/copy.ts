@@ -70,6 +70,7 @@ export const UI = {
   bagTitle: '내 가방', // 가방 보기(설계 2026-11-02 §5)
   bagEmpty: '아직 뽑은 게 없어요',
   bagFailed: '가방을 불러오지 못했어요',
+  sound: { on: '소리 켜기', off: '소리 끄기' }, // 🔊/🔇 버튼 이름(화면 읽기)
   bagZones: { doll: '인형', figure: '피규어', ring: '고리', pusher: '미는 뽑기' },
   giveNo: {
     gone: '그 사람이 매장을 나갔어요', stopped: '이미 그만 조르고 있어요', far: '조금 더 가까이 가 주세요', poor: '코인이 모자라요',

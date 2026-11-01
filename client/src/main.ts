@@ -15,7 +15,8 @@ import { PlaySession } from './game/playSession';
 import { HoldLook } from './game/holdLook';
 import { Swing } from './game/swing';
 import { Tweens, ease } from './game/tween';
-import { sfx, unlockAudio } from './audio/sfx';
+import { setSfxMuted, sfx, unlockAudio } from './audio/sfx';
+import { Music } from './audio/music';
 import { AutoWalk, nearestCounter } from './game/autoWalk';
 import { OcclusionFader } from './game/occlusion';
 import { CoinShow } from './game/coinShow';
@@ -35,7 +36,7 @@ import { safeStorage } from './net/storage';
 import { StoreSocket, storeUrl } from './net/storeSocket';
 import { setAction } from './ui/actionButton';
 import { askNickname, hideEntry, showFull, showMessage, showWelcomeBack } from './ui/entry';
-import { onBagTap, setHud, setInfo, toast } from './ui/hud';
+import { onBagTap, setHud, setInfo, soundButton, toast } from './ui/hud';
 import { bagGroups, openBagSheet } from './ui/bagSheet';
 import { buildMinimap, mapSize } from './ui/minimap';
 import { eulReul, iGa } from './ui/josa';
@@ -106,6 +107,7 @@ Object.assign(window, { __toycrane: {
   ringBoard: (id: string) => ringZone.boardOf(id),
   pusherShelf: (id: string) => pusherZone.shelfOf(id),
   pusherPlate: (id: string) => pusherZone.plateOf(id),
+  music: () => ({ muted: music.muted, playing: music.playing }),
   figureBox: (id: string) => figureZone.boxOf(id),
   figureSide: () => figurePlay.side.value(clock()),
 } });
@@ -204,7 +206,10 @@ function updateSwings(dt: number) {
 let showingMe = false; // 내 결과 모션 중엔 걷지 않는다
 let myNick = '';
 let myAvatar: Avatar | null = null;
-unlockAudio();
+// 배경음(설계 2026-11-02 §7): 첫 터치·클릭에 소리가 열리면 시작. 🔊/🔇는 배경음과 효과음을 함께, 이 기기에 기억
+const music = new Music(storage);
+setSfxMuted(music.muted);
+unlockAudio((ac) => music.start(ac));
 let socket: StoreSocket | null = null;
 let attempt = 0;
 
@@ -283,6 +288,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       figurePlay.clearWatches(); figurePlay.setBoxes(m.figures); ringPlay.setBoards(m.rings); pusherPlay.setShelves(m.pushers);
       wallet = { coins: m.coins, bag: m.bag };
       setHud(wallet.coins, wallet.bag);
+      soundButton(music.muted, UI.sound, (muted) => { music.setMuted(muted); setSfxMuted(muted); });
       myId = m.you.id;
       myNick = guest.nickname;
       playing.clear(); showing.clear(); tickets.clear(); chains.clear(); showingMe = false;

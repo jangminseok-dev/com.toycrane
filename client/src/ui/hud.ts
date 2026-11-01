@@ -27,6 +27,20 @@ export function setHud(coins: number, bag: number): void {
   }
   coinsEl.textContent = `🪙 ${coins}`;
   bagEl.textContent = `🎒 ${bag}`;
+  placeSound();
+}
+
+// 소리 켜기·끄기(설계 2026-11-02 §7): 가방 칸 바로 옆 🔊/🔇
+let soundEl: HTMLDivElement | null = null;
+function placeSound() {
+  if (soundEl && bagEl) soundEl.style.left = `${bagEl.offsetLeft + bagEl.offsetWidth + 8}px`;
+}
+export function soundButton(muted: boolean, labels: { on: string; off: string }, onToggle: (muted: boolean) => void): void {
+  soundEl ??= pill({ top: 'calc(env(safe-area-inset-top) + 14px)', left: 'calc(env(safe-area-inset-left) + 178px)', pointerEvents: 'auto', cursor: 'pointer' });
+  soundEl.className = 'hud-sound';
+  const paint = () => { soundEl!.textContent = muted ? '🔇' : '🔊'; soundEl!.setAttribute('aria-label', muted ? labels.on : labels.off); };
+  soundEl.onclick = () => { muted = !muted; paint(); onToggle(muted); };
+  paint(); placeSound();
 }
 
 // 계속 보이는 진행 안내 ("줄 서는 중 · 3번째" 등). null이면 숨김
