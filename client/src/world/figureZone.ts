@@ -40,6 +40,7 @@ export type BoxLook = {
   claw(row: number): { shape: ClawShape; geos: ReturnType<typeof clawGeos> };
   restBox(spot: Spot): BoxWire;
   labels?: ButtonLabels;
+  sticker?: string; // 집게 앞 스티커 글씨(기본 '피규어')
   extra?: { geo(row: number): THREE.BufferGeometry; glued(row: number): THREE.BufferGeometry; mat: THREE.Material; rest(row: number, box: BoxWire): BoxWire };
 };
 
@@ -60,7 +61,7 @@ export function buildFigureZone(scene: THREE.Scene): FigureZone {
 
 export function buildBoxZone(scene: THREE.Scene, look: BoxLook): FigureZone {
   const units = new Map<string, Unit>(), rows: { inst: Record<string, THREE.InstancedMesh>; cloner: ReturnType<typeof materialCloner>; spots: Spot[]; shape: ClawShape }[] = [];
-  const mats = clawMats(), tmp = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
+  const mats = clawMats(look.sticker), tmp = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
   const occluders: Occluder[] = [], flatUp = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)); // 버튼 글씨는 윗면에 눕힌다
   look.rows.forEach(({ id: rowId, spots, color }, r) => {
     const root = new THREE.Group(), cloner = materialCloner();
@@ -93,7 +94,7 @@ export function buildBoxZone(scene: THREE.Scene, look: BoxLook): FigureZone {
     };
     if (look.extra) { inst.extra = make(look.extra.geo(r), look.extra.mat); inst.glued = make(look.extra.glued(r), look.extra.mat); }
     inst.label1.name = `${look.name}-labels-1`; inst.label2.name = `${look.name}-labels-2`;
-    inst.box.name = `${look.name}-boxes`;
+    inst.box.name = `${look.name}-boxes`; inst.head.name = `${look.name}-claw-heads`; inst.armR.name = `${look.name}-claw-arms`; inst.sticker.name = `${look.name}-claw-stickers`;
     rows.push({ inst, cloner, spots, shape });
     const body = new THREE.Box3(), boxes: THREE.Box3[] = [];
     spots.forEach((f, slot) => {

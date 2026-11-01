@@ -17,6 +17,7 @@ const HOOK_LOOK: BoxLook = {
   boxGeo: () => hookBoxGeo(),
   boxMat: () => hookBoxMat(),
   claw: () => ({ shape: hookClawShape(), geos: hookClawGeos() }),
+  sticker: '고리',
   restBox: () => [0, HOOK.shelf.y + HOOK.box.h / 2, HOOK.start.z, 0, 0, 0, 1],
   extra: { geo: (row) => flapGeo(sideOfRow(row)), glued: (row) => gluedGeo(sideOfRow(row)), mat: ringMat(), rest: (row, box) => restFlap(sideOfRow(row), box) },
 };

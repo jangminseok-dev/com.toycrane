@@ -148,7 +148,7 @@ export function makeFigureMachineParts(spot: FigureSpot, index: number, color: n
   return { statics: m, ledGeo };
 }
 
-// 집게 그림 도형(물리 figureClaw와 같은 모양, 경첩 기준): 각진 흰 머리·검은·빨간 띠·앞 스티커, 반투명 판 팔(바깥 → 아래 → 끝이 안쪽 갈고리)
+// 집게 그림 도형(물리 figureClaw와 같은 모양, 경첩 기준): 각진 머리·검은·빨간 띠·앞 스티커, 판 팔(바깥 → 아래 → 끝이 안쪽 갈고리)
 const clawGeoCache = new Map<BoxKind, ReturnType<typeof clawGeosOf>>();
 export const clawGeos = (kind: BoxKind = 'long') => {
   let g = clawGeoCache.get(kind);
@@ -175,11 +175,16 @@ export function clawGeosOf(shape: ClawShape) {
   };
 }
 
-const stickerTex = once(() => canvasTex(128, 56, (g) => {
+const stickerTex = (text: string) => canvasTex(128, 56, (g) => {
   g.fillStyle = '#ffe14d'; g.fillRect(0, 0, 128, 56);
-  g.fillStyle = '#2a2a32'; g.font = `30px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('피규어', 64, 30);
-}));
-export const clawMats = once(() => ({
-  head: toon(0xfbfbfd), black: toon(0x2a2a32), red: toon(0xe8384f), sticker: new THREE.MeshBasicMaterial({ map: stickerTex() }),
-  arm: toonWith({ color: 0xeaf2ff, transparent: true, opacity: 0.85 }), cable: toon(0x3b3445),
-}));
+  g.fillStyle = '#2a2a32'; g.font = `30px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 64, 30);
+});
+// 집게 재질 — 머리는 진한 파랑, 팔은 진한 분홍, 둘 다 불투명: 연한 반투명 팔·흰 머리는 휴대폰에서 흰 선반·파스텔 상자에 묻혀 안 보였다(사용자 2026-11-02, 사진 202).
+// 앞 스티커 글씨는 기계마다('피규어'·'고리')
+const clawMatsCache = new Map<string, ReturnType<typeof makeClawMats>>();
+const makeClawMats = (text: string) => {
+  const sticker = new THREE.MeshBasicMaterial({ map: stickerTex(text) });
+  sticker.userData.text = text;
+  return { head: toon(0x2f7cf6), black: toon(0x2a2a32), red: toon(0xe8384f), sticker, arm: toon(0xff3b8f), cable: toon(0x3b3445) };
+};
+export const clawMats = (text = '피규어') => clawMatsCache.get(text) ?? clawMatsCache.set(text, makeClawMats(text)).get(text)!;

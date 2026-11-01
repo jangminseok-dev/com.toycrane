@@ -98,3 +98,17 @@ test('the figure machine shows six display boxes in two tiers', async () => {
     expect(new Set(shown.map((o) => o.position.y.toFixed(3))).size).toBe(2);
   }
 });
+
+// 사용자 2026-11-02(사진 202): 연한 반투명 집게가 휴대폰에서 잘 안 보였다 — 집게 머리·팔은 진하고 불투명한 색(흰 선반·파스텔 상자·민트 몸통 위에서 또렷이)
+test('box machine claws are bold and opaque so they show on a phone', () => {
+  const scene = new THREE.Scene();
+  buildFigureZone(scene);
+  for (const name of ['figure-claw-heads', 'figure-claw-arms']) {
+    const mesh = scene.getObjectByName(name) as THREE.InstancedMesh;
+    const mat = mesh.material as THREE.MeshToonMaterial, hsl = mat.color.getHSL({ h: 0, s: 0, l: 0 });
+    expect(mat.transparent).toBe(false);
+    expect(hsl.s).toBeGreaterThan(0.6);
+    expect(hsl.l).toBeGreaterThan(0.3); expect(hsl.l).toBeLessThan(0.65);
+  }
+  expect((scene.getObjectByName('figure-claw-stickers') as THREE.InstancedMesh).material).toMatchObject({ userData: { text: '피규어' } });
+});

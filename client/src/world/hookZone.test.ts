@@ -29,3 +29,11 @@ test('the ring tab is drawn on the side the world uses', () => {
     expect(Math.sign(hinge[0])).toBe(side === 'right' ? 1 : -1);
   }
 });
+
+// 고리 걸기 집게 스티커는 '피규어'가 아니라 '고리'(Task 14) — 집게 색은 피규어와 같은 진한 색
+test('the hook claw sticker says ring, not figure', () => {
+  const scene = new THREE.Scene();
+  buildHookZone(scene);
+  expect((scene.getObjectByName('hook-claw-stickers') as THREE.InstancedMesh).material).toMatchObject({ userData: { text: '고리' } });
+  expect(((scene.getObjectByName('hook-claw-arms') as THREE.InstancedMesh).material as THREE.MeshToonMaterial).transparent).toBe(false);
+});
