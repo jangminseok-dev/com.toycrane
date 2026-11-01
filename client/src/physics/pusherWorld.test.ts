@@ -40,7 +40,7 @@ test('a doll that rolls off the ledge side lands in the pile and is not won', ()
 
 test('after settling the plate touches no doll', () => {
   const w = new PusherWorld(R, dropped(7));
-  w.setHoleOpen(true); run(w, 30);
+  w.setHoleOpen(true); run(w, 60);
   const before = new Map(w.poses().map((p) => [p.uid, p.p]));
   run(w, plate.period);
   for (const p of w.poses()) {
