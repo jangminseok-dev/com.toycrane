@@ -56,6 +56,7 @@ export const UI = {
   physicsLoading: '준비 중', // 물리 모듈(Rapier)을 아직 받는 중
   saveFailed: '결과를 저장하지 못했어요', // 서버가 판 보고를 거절(물리 뽑기 설계 §9.7)
   staffGift: '15판 동안 못 뽑아서 직원이 하나 꺼내 줬어요', // 미는 뽑기 15판 보장
+  staffTidy: '직원이 걸린 인형을 뒤로 옮겼어요', // 미는 뽑기 턱 앞에서 3판째 안 움직인 인형
   strongIn: (n: number) => `집게가 세지기까지 ${n}판`, // 인형 기계: 연달아 못 뽑으면 집게가 세진다(game/help.ts)
   strongClaw: '집게 힘이 세졌어요',
   nearMiss: '아까워요!', // 인형을 들어 옮기다 놓친 판

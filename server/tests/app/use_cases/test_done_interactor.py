@@ -181,3 +181,21 @@ async def test_a_doll_machine_win_clears_the_miss_count():
     assert contents.stored["A-1"].misses == {"g-2": 4}
     won = [d for d in stock.dolls if d.uid == 7][0]
     assert (None, result("A-1", "p1", [(MACHINES["A-1"].kind, won.color, won.rare, 7)])) in conns.broadcasts
+
+
+# 직원이 정리: 미는 뽑기 판 뒤 턱 앞에서 3판째 안 움직인 인형은 뒤로 옮겨(안 앉은 채) 저장·배치에 실리고, 결과에 tidied 수가 간다
+async def test_a_stuck_ledge_doll_is_tidied_after_a_pusher_play():
+    reg, locks, conns, bag, contents, _ = setup()
+    stock = generate_mixed_stock(random.Random(3))
+    front = replace(stock.dolls[0], x=-0.3, y=0.99, z=PUSHER["ledge"]["z1"] - 0.03, uid=stock.next_uid)
+    contents.stored["P-1"] = replace(stock, dolls=[*stock.dolls, front], next_uid=stock.next_uid + 1, stuck={front.uid: 2})
+    locks.lock("c-2", "P-1", 10.0)
+    it = DoneInteractor(reg, locks, contents, bag, conns)
+    stock = contents.stored["P-1"]
+    still = Report((), tuple(DollPose(d.uid, d.x, d.y if d.uid == front.uid else 0.87, d.z, UP) for d in stock.dolls))  # 걸린 인형은 그 자리 그대로
+    await it.done(DoneCommand("c-2", "P-1", still, now=20.0))
+    after = contents.stored["P-1"]
+    moved = next(d for d in after.dolls if d.uid == front.uid)
+    assert moved.y is None and moved.z < PUSHER["ledge"]["z0"] + 0.13 and front.uid not in after.stuck
+    assert (None, result("P-1", "p2", [], miss=1, tidied=1)) in conns.broadcasts
+    assert (None, machine("P-1", after.dolls)) in conns.broadcasts

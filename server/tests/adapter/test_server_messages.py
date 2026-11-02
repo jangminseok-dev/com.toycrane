@@ -60,6 +60,7 @@ def test_play_messages_match_fixtures():
     assert result("A-3", "p1", [("bunny", 2, "", 7)]) == FX["server_result"]
     assert result("P-1", "p1", [("bunny", 2, "", 7)], staff=True) == FX["server_result_staff"]  # 미는 뽑기 15판 보장(직원이 꺼내 줌)
     assert result("A-3", "p1", [], miss=3) == FX["server_result_miss"]  # 연달아 못 뽑은 판 수(있을 때만)
+    assert result("P-1", "p1", [], miss=2, tidied=1) == FX["server_result_tidy"]  # 직원이 정리한 인형 수(있을 때만)
     assert machine("A-3", [DollSpot("bear", 0.2, 0.87, 0.1, (0, 0, 0, 1), 3, "s", 4, "", 7), DollSpot("bear", -0.1, None, 0.3, (0, 0, 0, 1), 1, "n", 0, "", 8)]) == FX["server_machine"]
 
 

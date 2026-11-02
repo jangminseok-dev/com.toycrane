@@ -29,7 +29,7 @@ class DoStorageMachineContents(MachineContentsPort):
     async def load(self) -> dict[str, MachineStock]:
         raw = to_py(await self._storage.get(KEY))
         if raw:
-            return {m: MachineStock([_doll(d) for d in v["d"]], v["n"], v["u"], v.get("m", {})) for m, v in json.loads(raw).items()}
+            return {m: MachineStock([_doll(d) for d in v["d"]], v["n"], v["u"], v.get("m", {}), {int(k): n for k, n in v.get("s", {}).items()}) for m, v in json.loads(raw).items()}
         for key, read in ((V5_KEY, _from_v5), (V4_KEY, lambda _m, d: _from_v4(d)), (V3_KEY, lambda _m, d: _from_v3(d))):
             old = to_py(await self._storage.get(key))
             if old:
@@ -39,7 +39,8 @@ class DoStorageMachineContents(MachineContentsPort):
     async def save(self, stocks: dict[str, MachineStock]) -> None:
         raw = {
             m: {"d": [[d.kind, d.x, d.y, d.z, *d.q, d.color, d.body, d.face, d.rare, d.uid] for d in s.dolls], "n": s.next_at, "u": s.next_uid}
-            | ({"m": s.misses} if s.misses else {})  # 미는 뽑기 15판 보장의 판 수(있을 때만)
+            | ({"m": s.misses} if s.misses else {})  # 연달아 못 뽑은 판 수(있을 때만)
+            | ({"s": s.stuck} if s.stuck else {})  # 미는 뽑기 직원이 정리의 판 수(인형 번호별, 있을 때만)
             for m, s in stocks.items()
         }
         when = due(stocks)

@@ -72,7 +72,7 @@ class ConnectionsPort(ABC):
         """판을 하는 사람의 집게·인형 자리 중계 — 본인 빼고 모두에게."""
 
     @abstractmethod
-    def broadcast_result(self, machine_id: str, player_id: str, won: list[tuple[str, int, str, int]], staff: bool = False, miss: int = 0) -> None:
+    def broadcast_result(self, machine_id: str, player_id: str, won: list[tuple[str, int, str, int]], staff: bool = False, miss: int = 0, tidied: int = 0) -> None:
         """본인 포함 모두에게. staff: 직원이 꺼내 준 인형이 든 결과(미는 뽑기 15판 보장). miss: 그 사람이 연달아 못 뽑은 판 수."""
 
     @abstractmethod

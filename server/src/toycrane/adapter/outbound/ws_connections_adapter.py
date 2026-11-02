@@ -86,8 +86,8 @@ class WsConnectionsAdapter(ConnectionsPort):
     def broadcast_pose(self, except_conn: str, player_id: str, machine_id: str, f: list) -> None:
         self._to_all_except(except_conn, server_messages.pose(player_id, machine_id, f))
 
-    def broadcast_result(self, machine_id: str, player_id: str, won: list[tuple[str, int, str, int]], staff: bool = False, miss: int = 0) -> None:
-        self._to_all_except(None, server_messages.result(machine_id, player_id, won, staff, miss))
+    def broadcast_result(self, machine_id: str, player_id: str, won: list[tuple[str, int, str, int]], staff: bool = False, miss: int = 0, tidied: int = 0) -> None:
+        self._to_all_except(None, server_messages.result(machine_id, player_id, won, staff, miss, tidied))
 
     def broadcast_machine(self, machine_id: str, spots: list[DollSpot]) -> None:
         self._to_all_except(None, server_messages.machine(machine_id, spots))

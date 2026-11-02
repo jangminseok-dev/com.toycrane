@@ -473,6 +473,7 @@ PUSHER = {'_note': '미는 뽑기 기계 수치(설계 2026-11-02 ring-hook §4)
  'cap': 32,
  'on_ledge': 0,
  'pity': 15,
+ 'tidy': {'plays': 3, 'move': 0.01, 'front': 0.15},
  'max_wins': 8,
  'grip': 0.668,
  'ledge': {'x0': -0.58, 'x1': -0.12, 'z0': -0.29, 'z1': 0.3, 'h': 0.1, 'lip': 0.025, 'friction': 0.8},

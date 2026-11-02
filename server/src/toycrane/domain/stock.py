@@ -26,6 +26,7 @@ class MachineStock:
     next_at: float | None  # 다음 빈 자리를 채울 시각 (가득 차 있으면 None)
     next_uid: int  # 다음에 들어올 인형의 번호
     misses: dict[str, int] = field(default_factory=dict)  # 손님마다 이 기계에서 연달아 못 뽑은 판 수(count_miss)
+    stuck: dict[int, int] = field(default_factory=dict)  # 미는 뽑기 직원이 정리: 인형 번호마다 턱 위에서 연달아 안 움직인 판 수(pusher_crane.tidy_stuck)
 
 
 def new_doll(kind: str, rng: random.Random, x: float, z: float, uid: int, *, rare_ok: bool, gold_ok: bool) -> DollSpot:

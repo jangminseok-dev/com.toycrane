@@ -96,3 +96,13 @@ async def test_pusher_miss_counts_round_trip():
     stocks["A-1"] = replace(stocks["A-1"], misses={"g-1": 3, "g-2": 14})
     await DoStorageMachineContents(storage, "s-m", owner).save(stocks)
     assert (await DoStorageMachineContents(storage, "s-m", owner).load())["A-1"].misses == {"g-1": 3, "g-2": 14}
+
+
+# 직원이 정리의 판 수(인형 번호별)도 기계 저장에 같이 — 번호는 JSON에서 글자가 되므로 다시 수로
+async def test_stuck_counts_round_trip():
+    from dataclasses import replace
+    storage, owner = FakeStorage({}), object()
+    stocks = stocks_with_empty("A-1", next_at=30.0)
+    stocks["A-1"] = replace(stocks["A-1"], stuck={7: 2, 12: 1})
+    await DoStorageMachineContents(storage, "s-s", owner).save(stocks)
+    assert (await DoStorageMachineContents(storage, "s-s", owner).load())["A-1"].stuck == {7: 2, 12: 1}

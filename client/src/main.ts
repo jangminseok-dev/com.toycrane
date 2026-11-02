@@ -789,6 +789,7 @@ async function showResult(m: Result, t: Ticket) {
       }
       if (mine && info) showWinCard(won.map((w) => dollName(w[0], w[1], w[2])), SETS.find((x) => x.id === info.set)?.name ?? '', tier, wallet.bag); // 여럿이 빠지면 모두 내 것 (물리 뽑기 설계 §9.1)
       if (mine && m.staff) toast(UI.staffGift); // 미는 뽑기 15판 보장: 직원이 턱 맨 앞 인형을 꺼내 줬다
+      else if (mine && m.tidied) toast(UI.staffTidy); // 직원이 정리: 턱 앞에 걸린 인형을 뒤로
       return rare ? 1.7 : 1.0;
     },
     fail: () => {
@@ -796,7 +797,8 @@ async function showResult(m: Result, t: Ticket) {
       sfx.fail();
       const note = missNote(isPusher(m.m), m.miss ?? 0, nearMiss === m.m); // '아까워요!', '집게가 세지기까지 2판', '직원 도움까지 1판'…
       nearMiss = null;
-      if (note) toast(note);
+      if (m.tidied) toast(UI.staffTidy); // 직원이 정리: 턱 앞에 걸린 인형을 뒤로 — 못 뽑은 판이면 이 안내가 먼저
+      else if (note) toast(note);
     },
   };
   if (rig) await playResult(rig, tw, o, doll, fx, face);

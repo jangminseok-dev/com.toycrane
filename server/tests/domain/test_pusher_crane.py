@@ -4,7 +4,7 @@ from toycrane.domain.catalog import DOLLS
 from toycrane.domain.layout import MACHINE_SPEC
 from dataclasses import replace
 
-from toycrane.domain.pusher_crane import FULL, PITY_PLAYS, after_pusher_play, generate_mixed_stock, refill_mixed
+from toycrane.domain.pusher_crane import TIDY, tidy_stuck, FULL, PITY_PLAYS, after_pusher_play, generate_mixed_stock, refill_mixed
 from toycrane.domain.shared_data import PUSHER
 from toycrane.domain.stock import on_taken
 
@@ -93,3 +93,39 @@ def test_with_an_empty_ledge_the_front_pile_doll_is_given():
     stock = replace(stock, dolls=pile, misses={"g-1": PITY_PLAYS - 1})
     stock, gift = after_pusher_play(stock, "g-1", won=False)
     assert gift == max(pile, key=lambda d: d.z).uid
+
+
+# 직원이 정리(사용자 2026-11-02 사진 273 '턱 앞에 인형이 걸린다'): 턱 위(판 바로 앞은 빼고)에서 판이 미는데도 TIDY.plays판 연속 TIDY.move(1cm)도
+# 안 움직인 인형은 직원이 턱 뒤쪽(판 바로 앞)으로 옮겨 다시 밀리게 한다 — 옮긴 인형은 안 앉은 채(y None)로 화면이 떨어뜨린다
+def _ledge_doll(stock, uid, x, z, y=0.99):
+    return replace(stock.dolls[0], x=x, y=y, z=z, uid=uid)
+
+
+def test_a_ledge_doll_that_never_moves_is_tidied_to_the_back_after_three_plays():
+    stock = generate_mixed_stock(random.Random(5))
+    front = _ledge_doll(stock, 901, -0.3, LEDGE["z1"] - 0.03)  # 턱 앞 끝에 걸린 인형
+    stock = replace(stock, dolls=[*stock.dolls, front])
+    rng = random.Random(1)
+    for n in (1, 2):
+        stock, moved = tidy_stuck(stock, stock, rng)
+        assert moved == [] and stock.stuck[901] == n
+    stock, moved = tidy_stuck(stock, stock, rng)
+    assert moved == [901] and 901 not in stock.stuck
+    d = next(d for d in stock.dolls if d.uid == 901)
+    assert d.y is None and LEDGE["z0"] + 0.04 <= d.z <= LEDGE["z0"] + 0.12 and LEDGE["x0"] < d.x < LEDGE["x1"]
+
+
+def test_moving_or_leaving_resets_the_count_and_the_plate_side_is_never_counted():
+    stock = generate_mixed_stock(random.Random(5))
+    front = _ledge_doll(stock, 901, -0.3, LEDGE["z1"] - 0.03)
+    back = _ledge_doll(stock, 902, -0.3, LEDGE["z0"] + 0.05)  # 판 바로 앞 — 판이 들어가 있으면 원래 안 움직인다
+    pile = _ledge_doll(stock, 903, 0.2, 0.0)  # 칸(턱 밖)
+    stock = replace(stock, dolls=[*stock.dolls, front, back, pile], stuck={901: 2})
+    moved_front = replace(front, z=front.z - 0.02)  # 2cm 움직였다
+    after = replace(stock, dolls=[*stock.dolls[:-3], moved_front, back, pile])
+    after, moved = tidy_stuck(stock, after, random.Random(1))
+    assert moved == [] and after.stuck == {}
+    gone = replace(after, dolls=[d for d in after.dolls if d.uid != 901], stuck={901: 2})
+    gone, moved = tidy_stuck(after, gone, random.Random(1))
+    assert moved == [] and gone.stuck == {}
+    assert TIDY["plays"] == 3 and TIDY["move"] == 0.01

@@ -101,11 +101,13 @@ def play(machine_id: str, player_id: str) -> dict:
     return {"t": "play", "m": machine_id, "id": player_id}
 
 
-def result(machine_id: str, player_id: str, won: list[tuple[str, int, str, int]], staff: bool = False, miss: int = 0) -> dict:
+def result(machine_id: str, player_id: str, won: list[tuple[str, int, str, int]], staff: bool = False, miss: int = 0, tidied: int = 0) -> dict:
     """한 판 결과: 구멍에 빠진 인형들 [캐릭터, 색, 희귀, 번호] (판을 한 화면이 보고, 서버는 확인해 중계).
     staff: 미는 뽑기 15판 보장으로 직원이 꺼내 준 인형이 든 결과(있을 때만 실음). miss: 그 사람이 이 기계에서 연달아 못 뽑은 판 수(있을 때만 —
-    화면이 '집게가 세지기까지 N판'·'직원 도움까지 N판'을 알리고, 인형 기계는 claw.json help.plays판부터 센 집게로 한다)."""
-    return {"t": "result", "m": machine_id, "id": player_id, "won": [list(w) for w in won]} | ({"staff": True} if staff else {}) | ({"miss": miss} if miss else {})
+    화면이 '집게가 세지기까지 N판'·'직원 도움까지 N판'을 알리고, 인형 기계는 claw.json help.plays판부터 센 집게로 한다).
+    tidied: 직원이 턱 앞에 걸린 인형을 뒤로 옮긴 수(미는 뽑기, 있을 때만)."""
+    return ({"t": "result", "m": machine_id, "id": player_id, "won": [list(w) for w in won]} | ({"staff": True} if staff else {}) | ({"miss": miss} if miss else {})
+            | ({"tidied": tidied} if tidied else {}))
 
 
 def done_no(machine_id: str, why: str) -> dict:
