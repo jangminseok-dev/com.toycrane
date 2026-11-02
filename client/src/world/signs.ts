@@ -102,13 +102,14 @@ export function adSignCell(i: number): { u: number; v: number; w: number; h: num
 export function adSignsTex(): THREE.CanvasTexture {
   const colors = ['#ff4f9a', '#2f7cf6', '#22b36b', '#ff9f1c', '#8b5cf6'];
   const tex = canvasTex(512 * AD_COLS, 256 * AD_ROWS, (g) => {
-    AD_SLOTS.forEach(({ text }, i) => {
+    AD_SLOTS.forEach(({ text, sub }, i) => {
       const x = (i % AD_COLS) * 512, y = Math.floor(i / AD_COLS) * 256, color = colors[i % colors.length];
       g.fillStyle = '#fbf8ff'; g.fillRect(x, y, 512, 256);
       g.lineWidth = 10; g.strokeStyle = color; rounded(g, x + 10, y + 10, 492, 236, 26); g.stroke();
       g.font = `44px ${SIGN_FONT}`; g.fillStyle = '#ff4f9a'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(WALL_SIGN[0], x + 256, y + 62);
-      const size = fit(g, text, (sz) => `${sz}px ${SIGN_FONT}`, 92, 440);
-      outlined(g, text, x + 256, y + 158, '#ffffff', size * 0.14, color);
+      const size = fit(g, text, (sz) => `${sz}px ${SIGN_FONT}`, sub ? 80 : 92, 440);
+      outlined(g, text, x + 256, y + (sub ? 140 : 158), '#ffffff', size * 0.14, color);
+      if (sub) { fit(g, sub, (sz) => `${sz}px ${SIGN_FONT}`, 40, 420); g.fillStyle = color; g.fillText(sub, x + 256, y + 208); } // 작은 줄(누르면 열리는 곳)
     });
   });
   loadAdImages(tex, AD_SLOTS, (i) => [(i % AD_COLS) * 512, Math.floor(i / AD_COLS) * 256, 512, 256]);
@@ -139,11 +140,11 @@ export function adTickerTex(): THREE.CanvasTexture {
     g.fillStyle = 'rgba(255,255,255,.05)';
     for (let y = 4; y < TICKER_H; y += 8) for (let x = 4; x < w; x += 8) g.fillRect(x, y, 3, 3);
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    AD_TOWER.forEach(({ text }, i) => {
+    AD_TOWER.forEach(({ text, sub }, i) => {
       const cx = i * TICKER_W + TICKER_W / 2, color = neon[i % neon.length];
       g.shadowBlur = 24; g.shadowColor = color; g.fillStyle = color;
       fit(g, text, (sz) => `${sz}px ${SIGN_FONT}`, 96, 440); g.fillText(text, cx, 104);
-      g.shadowColor = '#4fd8ff'; g.fillStyle = '#ffffff'; g.font = `34px ${SIGN_FONT}`; g.fillText('toycrane 광고', cx, 182);
+      g.shadowColor = '#4fd8ff'; g.fillStyle = '#ffffff'; g.font = `34px ${SIGN_FONT}`; g.fillText(sub ?? WALL_SIGN[0], cx, 182); // 작은 줄(없으면 toycrane)
     });
     g.shadowBlur = 0;
   }, [1 / n, 1]);

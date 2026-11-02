@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PLAZA_RADIUS, ROOM_HALF, ROOM_HEIGHT, SPAWN_RADIUS, TOWER_HALF } from './layout';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { AD_TOWER } from './ads';
+import { AD_SLOTS, AD_TOWER } from './ads';
 import { adSignCell, adSignsTex, adTickerTex } from './signs';
 import { AD_BOARDS } from '../data/storeLayout';
 import { canvasTex, outlineMat, part, toon, toonWith } from './toon';
@@ -119,18 +119,18 @@ function addZones(scene: THREE.Scene) {
     geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(Array.from({ length: n }, () => [c.r, c.g, c.b]).flat()), 3));
     tints.push(geo.index ? geo.toNonIndexed() : geo);
   };
-  tint(0xff7ab6, new THREE.PlaneGeometry(11, 24.6), -16.5, 0);
-  tint(0xb48cff, new THREE.PlaneGeometry(10.5, 20), 16.75, 0);
-  tint(0x4fd8ff, new THREE.PlaneGeometry(44, 8), 0, -18);
-  tint(0x7bd88f, new THREE.PlaneGeometry(9, 9), -17.5, 17.5);
-  tint(0x7bd88f, new THREE.PlaneGeometry(9, 9), 17.5, 17.5);
+  tint(0xff7ab6, new THREE.PlaneGeometry(11, 24.6), -13.5, 0);
+  tint(0xb48cff, new THREE.PlaneGeometry(10.5, 20), 13.75, 0);
+  tint(0x4fd8ff, new THREE.PlaneGeometry(ROOM_HALF * 2, 8), 0, -15);
+  tint(0x7bd88f, new THREE.PlaneGeometry(9, 9), -14.5, 14.5);
+  tint(0x7bd88f, new THREE.PlaneGeometry(9, 9), 14.5, 14.5);
   tint(0xffe08a, new THREE.CircleGeometry(PLAZA_RADIUS, 72), 0, 0);
   const zones = new THREE.Mesh(mergeGeometries(tints)!, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.1, depthWrite: false }));
   zones.name = 'zone-tints';
   scene.add(zones);
   floorLabels(scene, [
-    ['인형뽑기', -16.5, 11.6], ['피규어뽑기', 16.75, 10.2], ['고리뽑기', -8, -13.6], ['미는뽑기', 0, -13.6], ['고리뽑기', 8, -13.6],
-    ['쉼터', -17.5, 13.6], ['쉼터', 17.5, 13.6], ['입구', 0, ROOM_HALF - 2.2],
+    ['인형뽑기', -13.5, 11.6], ['피규어뽑기', 13.75, 10.2], ['고리뽑기', -8, -10.6], ['미는뽑기', 0, -10.6], ['고리뽑기', 8, -10.6],
+    ['쉼터', -14.5, 10.6], ['쉼터', 14.5, 10.6], ['입구', 0, ROOM_HALF - 2.2],
   ]);
   const ring = new THREE.Mesh(
     new THREE.RingGeometry(SPAWN_RADIUS - 0.1, SPAWN_RADIUS + 0.1, 72),
@@ -261,6 +261,17 @@ function addPlazaAds(scene: THREE.Scene) {
   const boards = new THREE.Mesh(mergeGeometries(faces)!, new THREE.MeshBasicMaterial({ map: adSignsTex() }));
   boards.name = 'plaza-ads';
   scene.add(boards);
+  // 링크가 있는 판(광고 문의 → 인스타그램, 사용자 2026-11-02)만 보이지 않는 누르는 상자 — main이 걷는 중 누르면 연다
+  const links = new THREE.Group(), hitMat = new THREE.MeshBasicMaterial({ visible: false });
+  links.name = 'ad-links';
+  for (const { x, z, slot } of AD_BOARDS) {
+    const link = AD_SLOTS.find((s) => s.id === slot)?.link;
+    if (!link) continue;
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(W + 0.2, H + 0.2, 0.3), hitMat);
+    hit.position.set(x, Y, z); hit.userData.link = link;
+    links.add(hit);
+  }
+  scene.add(links);
   scene.add(outlinedBoxes(AD_BOARDS.flatMap(({ x, z }) => [
     [W + 0.12, H + 0.12, 0.1, x, Y, z], [0.14, Y - H / 2, 0.14, x, (Y - H / 2) / 2, z],
   ] as Box[]), toon(0xfbf8ff)));

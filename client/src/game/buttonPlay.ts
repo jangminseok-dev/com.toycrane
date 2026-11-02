@@ -17,6 +17,7 @@ export interface ButtonPlay {
   refused(id: string): void; // 서버가 거절(done_no)
   end(): void;
   cameraPose(id: string, now: number, aspect: number): { pos: THREE.Vector3; look: THREE.Vector3 };
+  worldOf(id: string): THREE.Object3D; // 기계 기준점(앞 +z) — 조작대 위 남은 시간 표시판이 붙는다
   buttonAt(button: 1 | 2, camera: THREE.Camera): { x: number; y: number } | null;
 }
 

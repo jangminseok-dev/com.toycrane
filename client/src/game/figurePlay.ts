@@ -162,6 +162,8 @@ export class FigurePlay implements ButtonPlay {
 
 
 
+  worldOf(id: string): THREE.Object3D { return this.zone.worldOf(id); }
+
   cameraPose(id: string, now: number, aspect: number) { return figureCameraPose(this.machine.spots.get(id)!, this.side.value(now), aspect, this.machine.camera); }
 
   cycling(): boolean { return this.runner !== null; }

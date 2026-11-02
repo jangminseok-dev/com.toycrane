@@ -31,7 +31,7 @@ def test_bunched_messages_use_saved_budget():
 def test_clamped_to_floor_edge():
     # z=12: 큰 홀 동쪽 벽 앞 빈 바닥 가장자리(피규어 장식 z ±9.1과 쉼터 z 15부터의 사이)
     pos, _ = accept_move(Position(21.5, 12), 0.6, 0.0, Position(21.9, 12), now=0.5)
-    assert pos == Position(21.6, 12)
+    assert pos == Position(18.6, 12)
 
 
 def test_pushed_out_of_tower():

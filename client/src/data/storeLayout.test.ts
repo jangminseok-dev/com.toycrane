@@ -76,7 +76,7 @@ test('coin counters face the camera', () => {
 // 줄 끝을 돌아가지 않으니 5m 안. 기계마다 장애물이 따로라 기계와 기계 사이(가운데)는 걸을 수 있는 바닥
 test('players can walk between neighbouring doll machines', () => {
   const rows = [...new Set(MACHINES.map((m) => m.row))].map((r) => MACHINES.filter((m) => m.row === r).sort((a, b) => a.z - b.z));
-  const inner = rows.filter((r) => r[0].x > -19); // 벽 쪽 줄(d1) 뒤는 벽이라 지나갈 곳이 없다
+  const inner = rows.filter((r) => r[0].x > -16); // 벽 쪽 줄(d1) 뒤는 벽이라 지나갈 곳이 없다
   expect(inner.length).toBe(2);
   for (const row of inner) {
     const x = row[0].x;

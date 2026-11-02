@@ -10,9 +10,9 @@ import { canvasTex, part, toon, toonWith } from './toon';
 
 // 피규어 기계 그림(9단계, 그래픽 설계 §3.5 모양 — 물리와 같은 치수, 설계 §8 큰 상자 두 종류): 인형 기계와 같은 몸통에 속만 다르다.
 // 기계 폭을 가로지르는 쇠막대 두 개를 양옆 흰 기둥 죔쇠가 잡고, 막대 아래는 상자가 떨어지는 구멍('GET!' 바닥), 앞은 낮은 투명판(테두리 없음),
-// 뒤는 받침 막대와 테두리 있는 투명 벽, 그 뒤 진열대에 같은 랜덤 상자를 세워 둔다. 상자 그림은 모두 같다(겉으로 캐릭터를 알 수 없게, 설계 §4)
+// 앞 막대 앞은 비어 있고(물리의 낮은 턱만), 뒤는 받침 막대와 테두리 있는 투명 벽, 그 뒤 진열대에 같은 랜덤 상자를 세워 둔다. 상자 그림은 모두 같다(겉으로 캐릭터를 알 수 없게, 설계 §4)
 const FONT = '"Jua", "Apple SD Gothic Neo", -apple-system, sans-serif';
-const FLOOR_Y = 0.86, FRONT_TOP = 0.07, WALL_TOP = 0.3; // 앞판·뒤 벽 윗변(막대 위, 물리 figureWorld와 같음)
+const FLOOR_Y = 0.86, WALL_TOP = 0.3; // 뒤 벽 윗변(막대 위, 물리 figureWorld와 같음)
 const once = <T>(make: () => T) => { let v: T | undefined; return () => (v ??= make()); };
 type V3 = [number, number, number];
 const flat = (geo: THREE.BufferGeometry, mat: THREE.Material, pos: V3, rot: V3 = [0, 0, 0]) => {
@@ -95,7 +95,7 @@ const G = once(() => ({
   clamp: new RoundedBoxGeometry(0.05, 0.052, 0.055, 1, 0.012),
   floor: new THREE.BoxGeometry(1.12, 0.02, 1),
   get: new THREE.PlaneGeometry(FIGURE.bars.half_len * 2, 1),
-  pane: new THREE.BoxGeometry(FIGURE.bars.half_len * 2, 1, 0.008), // 앞판·뒤 벽(높이는 scale)
+  pane: new THREE.BoxGeometry(FIGURE.bars.half_len * 2, 1, 0.008), // 뒤 벽(높이는 scale)
   edge: new THREE.BoxGeometry(1, 1, 0.012), // 뒤 벽 테두리
   tier: new RoundedBoxGeometry(1.0, 1, 0.14, 1, 0.012),
 }));
@@ -117,7 +117,7 @@ export function makeFigureMachineParts(spot: FigureSpot, index: number, color: n
   const plate = m.getObjectByName('plate') as THREE.Mesh;
   plate.geometry = plateCell(plate.geometry, index);
   const add = (o: THREE.Object3D) => { m.add(o); return o; };
-  const kind = spot.box, { box } = variantOf(kind), { y, half_len } = FIGURE.bars, { front, back_bar, back_wall } = FIGURE.guards;
+  const kind = spot.box, { box } = variantOf(kind), { y, half_len } = FIGURE.bars, { back_bar, back_wall } = FIGURE.guards;
   const bz = barZ(kind), white = toon(0xfafafc), floorMat = toon(0xffeef6);
   // 쇠막대: 앞·뒤 막대(사이가 GET 구멍)와 뒤 받침 막대(옅은 회색) — 양옆 흰 기둥(바닥에서 막대까지)과 죔쇠
   for (const [z, color] of [[bz, 0xe9c3d6], [-bz, 0xe9c3d6], [-(bz + back_bar), 0xd9dbe3]] as const) {
@@ -132,8 +132,8 @@ export function makeFigureMachineParts(spot: FigureSpot, index: number, color: n
     const edge = bz + 0.01, len = 0.49 - edge;
     add(part(g.floor, floorMat, [0, FLOOR_Y, side * (edge + len / 2)], [1, 1, len], [0, 0, 0], 0));
   }
-  // 앞판: 앞 막대 바로 앞 낮은 투명판(테두리 없음 — 막대처럼 보이지 않게). 뒤 벽: 받침 막대 뒤 투명판 + 흰 테두리(앞뒤가 막힌 줄 보이게)
-  add(flat(g.pane, machineAcryl(), [0, y + FRONT_TOP / 2 - 0.015, bz + front])).scale.y = FRONT_TOP + 0.03;
+  // 앞판(앞 막대 바로 앞 낮은 턱)은 그리지 않는다 — 진짜 기계엔 앞 유리판이 없다(사용자 2026-11-02 사진 244). 막는 턱은 물리(figureWorld)에만.
+  // 뒤 벽: 받침 막대 뒤 투명판 + 흰 테두리(뒤가 막힌 줄 보이게)
   const wz = -(bz + back_wall), wy = y + WALL_TOP / 2 - 0.015, wh = WALL_TOP + 0.03, ww = half_len * 2;
   add(flat(g.pane, machineAcryl(), [0, wy, wz])).scale.y = wh;
   for (const [dx, dy, sx, sy] of [[0, wh / 2, ww, 0.012], [0, -wh / 2, ww, 0.012], [ww / 2, 0, 0.012, wh], [-ww / 2, 0, 0.012, wh]]) {

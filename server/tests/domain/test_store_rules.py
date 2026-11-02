@@ -33,7 +33,7 @@ def test_spawn_on_ring():
 
 
 def test_clamp_to_floor_bounds_and_tower():
-    assert clamp_to_floor(Position(25.0, -30.0)) == Position(21.6, -21.6)
+    assert clamp_to_floor(Position(25.0, -30.0)) == Position(18.6, -18.6)
     assert clamp_to_floor(Position(0.5, 1.0)) == Position(0.5, TOWER_HALF)
 
 

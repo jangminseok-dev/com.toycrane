@@ -43,16 +43,16 @@ def test_machines_mix_the_sets_in_layout_order():
     ids = layout.MACHINE_IDS
     assert ids[0] == "A-1" and ids[13] == "C-1" and ids[-1] == "C-11"
     a1, c1 = layout.MACHINES["A-1"], layout.MACHINES["C-1"]
-    assert (a1.x, a1.z, a1.ry, a1.kind, a1.row) == (-20.2, -9.45, 1.570796, "bunny", "d1")  # 큰 홀: 서쪽 세 줄(d1·d2·d3), 광장을 봄
+    assert (a1.x, a1.z, a1.ry, a1.kind, a1.row) == (-17.2, -9.45, 1.570796, "bunny", "d1")  # 큰 홀(38m): 서쪽 세 줄(d1·d2·d3), 광장을 봄
     assert (c1.kind, c1.row) == ("owl", "d2")  # 14번째 → 13 % 4 = 1(숲), 숲의 네 번째
 
 
 def test_front_spot_is_in_front_of_the_machine():
     # 큰 홀(설계 2026-11-01): 인형 기계는 서쪽에서 동쪽(광장, ry=π/2)을 본다 — 앞자리는 기계에서 +x로 front만큼
     f = layout.front_spot(layout.MACHINES["A-1"])
-    assert (round(f.x, 2), round(f.z, 2)) == (-19.05, -9.45)
+    assert (round(f.x, 2), round(f.z, 2)) == (-16.05, -9.45)
     f = layout.front_spot(layout.MACHINES["C-1"])
-    assert (round(f.x, 2), round(f.z, 2)) == (-15.25, 4.05)
+    assert (round(f.x, 2), round(f.z, 2)) == (-12.25, 4.05)
 
 
 def test_four_small_counters_spread_out():
@@ -81,8 +81,8 @@ def test_figures_come_from_shared_layout():
 
     assert len(FIGURES) == 14
     f1 = FIGURES["F-1"]
-    assert (f1.x, f1.z, f1.ry, f1.row) == (13.2, -8.1, -1.570796, "f1")
+    assert (f1.x, f1.z, f1.ry, f1.row) == (10.2, -8.1, -1.570796, "f1")
     f = front_spot(f1)
-    assert (round(f.x, 2), round(f.z, 2)) == (12.05, -8.1)
+    assert (round(f.x, 2), round(f.z, 2)) == (9.05, -8.1)
     assert machine_spot("F-14") is FIGURES["F-14"]
     assert machine_spot("C-6") is not None and machine_spot("X-1") is None

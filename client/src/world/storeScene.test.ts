@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { afterEach, beforeAll, expect, test, vi } from 'vitest';
 import { drawnTexts, stubCanvas } from '../test/canvasStub';
-import { AD_TOWER } from './ads';
+import { AD_BOARDS } from '../data/storeLayout';
+import { AD_SLOTS, AD_TOWER } from './ads';
 import { adSignCell } from './signs';
 import { ROOM_HALF, ROOM_HEIGHT, TOWER_HALF } from './layout';
 import { buildStore } from './storeScene';
@@ -86,7 +87,19 @@ test('four plaza ad boards show slots 1 to 4', () => {
     if (Math.abs(uv.getX(f * 4) - c.u) < 1e-6 && Math.abs(Math.min(uv.getY(f * 4), uv.getY(f * 4 + 2)) - c.v) < 1e-6) used.add(slot);
   }
   expect([...used].sort()).toEqual([1, 2, 3, 4]);
-  for (const slot of [1, 2, 3, 4]) expect(drawnTexts).toContain(`광고문의${slot}`);
+  for (const s of AD_SLOTS) expect(drawnTexts).toContain(s.text);
+});
+
+// '광고 문의' 판은 눌러서 인스타그램으로 — 그 판 자리에만 보이지 않는 누르는 상자(링크를 단다)
+test('the inquiry board can be pressed to open its link', () => {
+  const scene = new THREE.Scene(); buildStore(scene);
+  const links = scene.getObjectByName('ad-links')!;
+  const linked = AD_SLOTS.filter((s) => s.link);
+  expect(links.children.map((c) => c.userData.link)).toEqual(linked.map((s) => s.link));
+  const board = AD_BOARDS.find((b) => b.slot === linked[0].id)!;
+  scene.updateMatrixWorld(true);
+  const ray = new THREE.Raycaster(new THREE.Vector3(board.x, 1.6, board.z + 5), new THREE.Vector3(0, 0, -1));
+  expect(ray.intersectObjects(links.children, false)[0]?.object.userData.link).toBe(linked[0].link);
 });
 
 // 진열탑 전광판(사용자 2026-11-01): 광고 다섯 자리(5~9)를 한 줄로 이어 오른쪽에서 왼쪽으로 계속 흘린다 — 한 번에 한 칸 너비만 보인다

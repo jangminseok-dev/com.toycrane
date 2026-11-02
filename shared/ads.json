@@ -1,16 +1,16 @@
 {
-  "_note": "광고 자리: 광장 광고판 4개(slots, 1~4)와 진열탑 전광판에 차례로 흐르는 5개(tower, 5~9). image에 같은 출처의 그림 경로(예: /ads/1.png)를 적으면 글 대신 그림",
+  "_note": "광고 자리: 광장 광고판 4개(slots, 1~4)와 진열탑 전광판에 차례로 흐르는 5개(tower, 5~9). image에 같은 출처의 그림 경로(예: /ads/1.png)를 적으면 글 대신 그림, sub는 큰 글 아래 작은 줄, link가 있으면 그 광장 광고판을 눌러 그 주소를 새 탭으로 연다. 오픈 때(2026-11-02)는 빈 광고 자리처럼 보이지 않게 우리 내용을 띄우고 '광고 문의'는 한 곳에만(인스타그램)",
   "slots": [
-    {"id": 1, "text": "광고문의1", "image": null},
-    {"id": 2, "text": "광고문의2", "image": null},
-    {"id": 3, "text": "광고문의3", "image": null},
-    {"id": 4, "text": "광고문의4", "image": null}
+    {"id": 1, "text": "어서 와요!", "image": null},
+    {"id": 2, "text": "레버로 옮기고 잡기", "image": null},
+    {"id": 3, "text": "희귀 인형을 찾아요", "image": null},
+    {"id": 4, "text": "광고 문의", "sub": "@onlinetoycrane", "link": "https://www.instagram.com/onlinetoycrane/", "image": null}
   ],
   "tower": [
-    {"id": 5, "text": "광고문의5", "image": null},
-    {"id": 6, "text": "광고문의6", "image": null},
-    {"id": 7, "text": "광고문의7", "image": null},
-    {"id": 8, "text": "광고문의8", "image": null},
-    {"id": 9, "text": "광고문의9", "image": null}
+    {"id": 5, "text": "toycrane 오픈!", "image": null},
+    {"id": 6, "text": "교환소에서 코인 받기", "image": null},
+    {"id": 7, "text": "친구랑 같이 뽑아요", "image": null},
+    {"id": 8, "text": "피규어는 열어 봐야 알아요", "image": null},
+    {"id": 9, "text": "광고 문의", "sub": "@onlinetoycrane", "image": null}
   ]
 }

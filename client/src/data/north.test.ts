@@ -33,13 +33,13 @@ test('ten ring machines R-1 to R-10 face the plaza in two rows', () => {
   expect(RINGS.map((r) => r.id)).toEqual(Array.from({ length: 10 }, (_, i) => `R-${i + 1}`));
   expect(RINGS.filter((r) => r.row === 'r1').map((r) => r.x)).toEqual([-10.88, -9.04, -7.2, -5.36, -3.52]);
   expect(RINGS.filter((r) => r.row === 'r2').map((r) => r.x)).toEqual([3.52, 5.36, 7.2, 9.04, 10.88]);
-  for (const r of RINGS) { expect(r.z).toBe(-21); expect(r.ry).toBe(0); }
+  for (const r of RINGS) { expect(r.z).toBe(-18); expect(r.ry).toBe(0); }
   expect(isRing('R-4')).toBe(true);
   expect(isRing('F-1')).toBe(false);
 });
 
 test('four pusher machines P-1 to P-4 face the plaza', () => {
-  expect(PUSHERS.map((p) => [p.id, p.x, p.z, p.ry])).toEqual([['P-1', -4.2, -16.6, 0], ['P-2', -1.4, -16.6, 0], ['P-3', 1.4, -16.6, 0], ['P-4', 4.2, -16.6, 0]]);
+  expect(PUSHERS.map((p) => [p.id, p.x, p.z, p.ry])).toEqual([['P-1', -4.2, -13.6, 0], ['P-2', -1.4, -13.6, 0], ['P-3', 1.4, -13.6, 0], ['P-4', 4.2, -13.6, 0]]);
   expect(isPusher('P-2')).toBe(true);
   expect(isPusher('R-2')).toBe(false);
 });

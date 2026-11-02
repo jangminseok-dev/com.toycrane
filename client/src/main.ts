@@ -47,7 +47,8 @@ import { onBagTap, setHud, setInfo, soundButton, toast } from './ui/hud';
 import { bagGroups, openBagSheet } from './ui/bagSheet';
 import { buildMinimap, mapSize } from './ui/minimap';
 import { eulReul, iGa } from './ui/josa';
-import { hidePlayControls, hideSeatControls, setTimer, showHint, showPlayControls, showRunPause, showSeatControls } from './ui/playControls';
+import { hidePlayControls, hideSeatControls, setRunBadge, showHint, showPlayControls, showRunPause, showSeatControls } from './ui/playControls';
+import { BOX_TIMER_AT, DOLL_TIMER_AT, buildMachineTimer, type MachineTimer } from './world/machineTimer';
 import { PlayRun, runSize } from './game/playRun';
 import { buildMachineControls, type MachineControls } from './world/machineControls';
 import { buildTopView, type TopView } from './world/topView';
@@ -126,7 +127,7 @@ let sampler = new InputSampler();
 
 const bigZone = buildBigZone(scene);
 const figureZone = buildFigureZone(scene); // 동쪽 피규어 기계 14대(9단계)
-const minimap = buildMinimap(document.body, mapSize(innerWidth, innerHeight)); // 오른쪽 위 매장 지도(설계 2026-11-02 §6)
+const minimap = buildMinimap(document.body, mapSize(innerWidth, innerHeight)); // 왼쪽 아래 매장 지도(설계 2026-11-02 §6, 사용자 2026-11-02 왼쪽 아래로)
 // 탑·기계 행·교환소가 내 캐릭터를 가리면 그것만 흐리게(머리·몸통 중 하나라도 가리면)
 const hookZone = buildHookZone(scene); // 북쪽 고리 걸기 10대(계획 12)
 const fader = new OcclusionFader([tower, ...bigZone.occluders, ...figureZone.occluders, ...hookZone.occluders, ...buildCoinCounters(scene), ...buildDecor(scene)]);
@@ -143,7 +144,6 @@ const walker = new AutoWalk(); // "코인이 없어요 · 교환소로": 가까�
 let session: PlaySession | null = null;
 let awaiting: string | null = null;
 let seated: string | null = null;
-let holdFrom = 0; // 서버가 내 자리를 잡아 둔 시각(내 결과를 받은 때 = 내린 때) — 판 사이 남은 시간은 여기서 센다
 // 미는 뽑기는 판이 다 밀 때까지 더 기다린다 — 서버 play_rules와 같은 종류별 여유
 const busy = new MachineBusy(MACHINE_SPEC.play_seconds, MACHINE_SPEC.hold_seconds, (id) => CLAW.cycle_seconds + (isPusher(id) ? PUSHER.settle.max : CLAW.settle_seconds));
 let dropped: PlaySession | null = null; // 내리고 결과를 기다리는 판 (8초 넘게 못 받으면 포기)
@@ -153,7 +153,7 @@ const spotOf = new Map<string, { x: number; z: number; ry: number }>([...MACHINE
 const figurePlay = new FigurePlay(scene, figureZone, {
   send: (msg) => socket?.send(msg),
   rapier: rapierNow,
-  onDrop: (id) => { awaiting = id; hidePlayControls(); },
+  onDrop: (id) => { awaiting = id; hidePlayControls(); hideMachineTimer(); },
   onOverdue: () => { endPlay(); toast('결과를 받지 못했어요'); },
 });
 // 버튼으로 하는 기계들 — 판 흐름(시작·누르기·결과 기다리기·그만하기·시점)은 같은 길로
@@ -161,7 +161,7 @@ const figurePlay = new FigurePlay(scene, figureZone, {
 const hookPlay = new FigurePlay(scene, hookZone, {
   send: (msg) => socket?.send(msg),
   rapier: rapierNow,
-  onDrop: (id) => { awaiting = id; hidePlayControls(); },
+  onDrop: (id) => { awaiting = id; hidePlayControls(); hideMachineTimer(); },
   onOverdue: () => { endPlay(); toast('결과를 받지 못했어요'); },
 }, HOOK_MACHINE);
 const boxPlays = [figurePlay, hookPlay]; // 상자 기계(상자 보고·구경·상자 까기)
@@ -332,7 +332,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
     case 'result': {
       busy.hold(m.m, m.id, now / 1000); // 서버가 그 사람이 이어서 할 수 있게 자리를 잡아 둔다
       stopPlateRun(m.m, now / 1000);
-      if (m.id === myId) { holdFrom = now / 1000; playFor(m.m)?.resulted(m.m); } // 보고한 때 = 서버가 자리를 잡아 둔 때
+      if (m.id === myId) playFor(m.m)?.resulted(m.m);
       const t: Ticket = { done: false, gen: genOf(m.m) };
       tickets.set(m.m, t);
       after(m.m, () => (boxPlayFor(m.m) ? showFigureResult(m, t) : showResult(m, t)));
@@ -431,6 +431,7 @@ function startPlay(machineId: string, limit: number, coins: number) {
   showPlayControls(); showHint();
   dropControls();
   controls = buildMachineControls(bigZone.worldOf(machineId)); controlsAt = machineId;
+  showMachineTimer(bigZone.worldOf(machineId), DOLL_TIMER_AT);
   bigZone.hideControls(machineId, true); // 기계 그림의 고정 레버·버튼은 숨긴다 — 남으면 기울일 때 잔상처럼 하나 더 보인다
   topView?.dispose(); // 뒷판 모니터: 위에서 본 기계 안 (설계 §3.9)
   const felt = spec.pusher ? pusherFelt(PUSHERS.findIndex((p) => p.id === machineId)) : FELT_COLORS[MACHINES.findIndex((m) => m.id === machineId) % FELT_COLORS.length];
@@ -465,6 +466,7 @@ function startButtonPlay(play: ButtonPlay, machineId: string, limit: number, coi
   setAction(null); setInfo(null);
   showPlayControls(); showHint(play.hint);
   play.start(machineId, limit, clock());
+  showMachineTimer(play.worldOf(machineId), BOX_TIMER_AT);
   if (myAvatar) {
     myAvatar.root.visible = false; // 정면 카메라를 가리지 않게 (다른 사람 화면에는 보임)
     playing.set(machineId, startPlaying(myAvatar.rig, tw, spotOf.get(machineId)!.ry + Math.PI, sfx.coin));
@@ -601,7 +603,7 @@ function sendDrop() {
     dropped.markDone(clock());
   }
   session = null;
-  hidePlayControls();
+  hidePlayControls(); hideMachineTimer();
 }
 
 function endPlay() {
@@ -616,9 +618,17 @@ function endPlay() {
   run.stop(); nextRunAt = null;
   dropControls(); letGoOfLever();
   topView?.dispose(); topView = null;
-  hidePlayControls(); hideSeatControls(); setInfo(null);
+  hidePlayControls(); hideMachineTimer(); hideSeatControls(); setInfo(null);
   if (myAvatar) myAvatar.root.visible = true;
 }
+
+// 남은 시간 표시판(사용자 2026-11-02 '타이머를 기계에'): 하는 기계 조작대 위 — 내리거나 판이 끝나면 치운다
+let machineTimer: MachineTimer | null = null;
+function showMachineTimer(anchor: THREE.Object3D, at: readonly [number, number, number]) {
+  machineTimer?.dispose();
+  machineTimer = buildMachineTimer(anchor, at);
+}
+function hideMachineTimer() { machineTimer?.dispose(); machineTimer = null; }
 
 // 기계 조작 (설계 §3.10, 3차): PC는 마우스로, 휴대폰은 손가락으로 기계에 그려진 레버를 잡고 끌면 집게가 그쪽으로 자유롭게 가고(놓으면 멈춤),
 // 하강 버튼을 누르면 내린다. 레버는 처음 누른 곳에서 60px 끌면 최고 속도
@@ -640,6 +650,7 @@ function letGoOfFigure() {
   if (figureHold) activePlay()?.release(figureHold.b, clock());
   figureHold = null;
 }
+const adLinks = scene.getObjectByName('ad-links');
 renderer.domElement.addEventListener('pointerdown', (e) => {
   ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   raycaster.setFromCamera(ndc, camera);
@@ -649,6 +660,11 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
     if (!b || figureHold) return;
     e.preventDefault();
     if (bp.press(b)) { figureHold = { id: e.pointerId, b }; navigator.vibrate?.(15); }
+    return;
+  }
+  if (!session && !awaiting && !seated) { // 걷는 중: 광고 문의 판을 누르면 그 주소(인스타그램)를 새 탭으로(사용자 2026-11-02)
+    const link = raycaster.intersectObjects(adLinks?.children ?? [], false)[0]?.object.userData.link as string | undefined;
+    if (link) window.open(link, '_blank', 'noopener');
     return;
   }
   if (!session || !controls) return;
@@ -1013,7 +1029,7 @@ function frame(now: number) {
       const playId = session.machineId;
       if (session.update(dt, leverInput, now / 1000) === 'drop') sendDrop();
       else if (session.phase === 'lever') {
-        setTimer(session.remaining, run.label());
+        machineTimer?.set(session.remaining); setRunBadge(run.label());
         controls?.update(now / 1000);
         controls?.setLever(leverInput.x, leverInput.z);
         const claw = bigZone.clawOf(session.machineId);
@@ -1030,7 +1046,7 @@ function frame(now: number) {
       me.drive({ x: 0, z: 0 }, dt);
     } else if (activePlay()?.session) {
       const bs = activePlay()!.session!;
-      setTimer(bs.remaining(now / 1000), run.label());
+      machineTimer?.set(bs.remaining(now / 1000)); setRunBadge(run.label());
       me.autoTarget = frontSpot(spotOf.get(bs.machineId)!);
       me.drive({ x: 0, z: 0 }, dt);
     } else if (showingMe || cycle?.runner || buttonPlays.some((p) => p.cycling())) {
@@ -1038,11 +1054,10 @@ function frame(now: number) {
     } else if (seated) {
       me.autoTarget = frontSpot(spotOf.get(seated)!); // 판 사이에도 기계 앞자리에 그대로
       me.drive({ x: 0, z: 0 }, dt);
-      const left = MACHINE_SPEC.hold_seconds - (now / 1000 - holdFrom);
       if (nextRunAt !== null) {
         setInfo(UI.nextRun(run.upcoming()));
         if (clock() >= nextRunAt) { nextRunAt = null; socket?.send(encodePlay(seated)); }
-      } else setInfo(left > 0 ? UI.continueIn(Math.ceil(left)) : null);
+      } else setInfo(null); // 'N초 안에 이어서 할 수 있어요'는 없앴다(사용자 2026-11-02 사진 239) — 자리는 그동안 잡아 둔다
     } else if (!awaiting) {
       if (Math.hypot(input.x, input.z) > 0) { walker.cancel(); if (myBegging) setMyBegging(false); } // 손으로 움직이면 저절로 걷기·조르기를 멈춘다 (서버도 끝낸다)
       me.autoTarget = walker.next(me.pos);

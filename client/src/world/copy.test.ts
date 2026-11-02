@@ -33,12 +33,12 @@ test('copy reads naturally', () => {
   expect(UI.playRun(5)).toBe('다섯 판 하기');
   expect(UI.againRun(3)).toBe('세 판 더');
   expect(UI.nextRun(2)).toBe('곧 두 번째 판이 시작돼요');
-  expect(UI.continueIn(12)).toBe('12초 안에 이어서 할 수 있어요');
+  expect('continueIn' in UI).toBe(false); // 판 사이 'N초 안에 이어서…' 안내는 없앴다(사용자 2026-11-02)
   expect(UI.begWait(5)).toBe('5분 뒤에 다시 와요');
   expect(UI.gaveYou('토끼', 3)).toBe('토끼 님이 코인 3개를 줬어요');
   expect(POP_CARDS).toEqual(['새로 왔어요', '잘 잡혀요', '오늘의 추천', '인기 1위', '한정판', '행운 기계']);
   expect(AD_SIGNS).toHaveLength(9);
-  expect(AD_SIGNS[0]).toBe('광고문의1');
+  expect(AD_SIGNS[0]).not.toMatch(/광고문의/); // 오픈 때는 우리 내용(사용자 2026-11-02)
 });
 
 // 직원 도움은 낀 상자를 반듯이 다시 올려놓는다(설계 §8 개정) — 상자가 가운데로 옮겨지니 안내도 그대로 말한다(최종 리뷰 I2)

@@ -9,9 +9,9 @@ const r = (v: { x: number; y: number; z: number }) => [+v.x.toFixed(2), +v.y.toF
 // 휴대폰 세로 화면에서도 유리 칸 전체가 들어오고, 집게는 간판 아래로 보인다. 기계가 돌아 있으면 같이 돈다
 test('camera faces the glass at eye level', () => {
   // 큰 홀: 기계는 광장(+x, ry π/2)을 본다 — 카메라는 기계 앞 2m, 눈높이 1.7
-  expect(r(at('A-1').pos)).toEqual([-18.2, 1.7, -9.45]);
-  expect(r(at('A-1').look)).toEqual([-20.2, 1.3, -9.45]);
-  expect(r(at('C-1').pos)).toEqual([-14.4, 1.7, 4.05]);
+  expect(r(at('A-1').pos)).toEqual([-15.2, 1.7, -9.45]);
+  expect(r(at('A-1').look)).toEqual([-17.2, 1.3, -9.45]);
+  expect(r(at('C-1').pos)).toEqual([-11.4, 1.7, 4.05]);
 });
 
 test('claw shows under the sign', () => {
@@ -23,9 +23,9 @@ test('claw shows under the sign', () => {
 
 // Review Focus 5 (교환소 개편 설계 §4.7.2): 내 카메라와 내 기계 사이에 선 사람만 가린다고 본다 — 옆 기계 앞, 카메라 뒤는 아니다
 test('someone between my camera and my machine blocks the view, the next machine does not', () => {
-  const m = MACHINES.find((x) => x.id === 'C-6')!; // 큰 홀: x −12.6, z −4.05, ry π/2(광장 쪽 +x를 봄)
-  expect(blocksView(m, { x: -11.45, z: -4.05 })).toBe(true); // 기계 앞자리
-  expect(blocksView(m, { x: -10.65, z: -4.35 })).toBe(true);
-  expect(blocksView(m, { x: -11.45, z: -1.35 })).toBe(false); // 옆 기계(C-7) 앞
-  expect(blocksView(m, { x: -9.95, z: -4.05 })).toBe(false); // 카메라 뒤
+  const m = MACHINES.find((x) => x.id === 'C-6')!; // 큰 홀(38m): x −9.6, z −4.05, ry π/2(광장 쪽 +x를 봄)
+  expect(blocksView(m, { x: -8.45, z: -4.05 })).toBe(true); // 기계 앞자리
+  expect(blocksView(m, { x: -7.65, z: -4.35 })).toBe(true);
+  expect(blocksView(m, { x: -8.45, z: -1.35 })).toBe(false); // 옆 기계(C-7) 앞
+  expect(blocksView(m, { x: -6.95, z: -4.05 })).toBe(false); // 카메라 뒤
 });

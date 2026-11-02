@@ -30,7 +30,7 @@ const near = (d: Float64Array, p: Vec2) => {
 
 test('fourteen figure machines F-1 to F-14 face the plaza in two rows', () => {
   expect(FIGURES.map((f) => f.id)).toEqual(Array.from({ length: 14 }, (_, i) => `F-${i + 1}`));
-  for (const [row, x] of [['f1', 13.2], ['f2', 18.4]] as const) {
+  for (const [row, x] of [['f1', 10.2], ['f2', 15.4]] as const) {
     const r = FIGURES.filter((f) => f.row === row);
     expect(r.map((f) => f.x)).toEqual(Array(7).fill(x));
     expect(r.map((f) => f.z)).toEqual([-8.1, -5.4, -2.7, 0, 2.7, 5.4, 8.1]);

@@ -46,7 +46,6 @@ export const UI = {
   begWait: (min: number) => `${min}분 뒤에 다시 와요`,
   someoneBegs: (nick: string) => `${nick} 님이 조르는 중`,
   watching: '다른 사람이 하고 있어요',
-  continueIn: (s: number) => `${s}초 안에 이어서 할 수 있어요`,
   nextRun: (k: number) => `곧 ${ORDINAL[k] ?? `${k}번째`} 판이 시작돼요`,
   hint: '레버로 집게를 옮기고 잡기 버튼을 눌러요',
   figureHint: '① 누르는 동안 오른쪽, ② 누르는 동안 안쪽으로 가요', // 피규어 기계(9단계)
@@ -74,4 +73,4 @@ export const UI = {
     full: '그 사람 코인이 가득 찼어요', self: '나에게는 줄 수 없어요', playing: '한 판이 끝나면 줄 수 있어요',
   } as Record<string, string>,
 };
-export const ALL_COPY = [...Object.values(MACHINE_SIGNS), ...POP_CARDS, STICKER, ...WALL_SIGN, PREP, COUNTER_SIGN, DROP_LABEL, ...AD_SIGNS, ...Object.values(RARE_TAG), FIGURE_SIGN, FIGURE_BOX, ...Object.values(FIGURE_REVEAL), FIGURE_WORD, ...FIGURE_BUTTONS, HOOK_SIGN, PUSHER_SIGN, PUSHER_WORD, '0123456789-ABCFPR?!GET'].join('');
+export const ALL_COPY = [...Object.values(MACHINE_SIGNS), ...POP_CARDS, STICKER, ...WALL_SIGN, PREP, COUNTER_SIGN, DROP_LABEL, ...AD_SIGNS, ...[...AD_SLOTS, ...AD_TOWER].map((s) => s.sub ?? ''), ...Object.values(RARE_TAG), FIGURE_SIGN, FIGURE_BOX, ...Object.values(FIGURE_REVEAL), FIGURE_WORD, ...FIGURE_BUTTONS, HOOK_SIGN, PUSHER_SIGN, PUSHER_WORD, '0123456789-ABCFPR?!GET'].join('');
