@@ -13,7 +13,7 @@ test('avatar exposes a rig for motions', () => {
 });
 
 // 조르는 사람 이름표 옆 꼬리표 '조르는 중' — 붙였다 떼면 GPU 자원도 돌려준다
-test('a tag can be added under the name and removed', () => {
+test('a tag can be added above the name and removed', () => {
   const a = makeAvatar(0, '토끼');
   a.setTag('조르는 중');
   expect(a.root.getObjectByName('tag')).toBeDefined();

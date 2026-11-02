@@ -28,7 +28,7 @@ export interface Avatar {
   setWalking(on: boolean): void;
   update(t: number): void;
   dispose(): void; // 장면에서 뺄 때 이 아바타만의 GPU 자원(이름표) 해제
-  setTag(text: string | null): void; // 이름표 아래 작은 꼬리표 ('조르는 중'), null이면 뗀다
+  setTag(text: string | null): void; // 이름표 위 작은 꼬리표 ('조르는 중' — 아래에 두면 머리에 가렸다, 사용자 2026-11-02 사진 266), null이면 뗀다
   setFade(opacity: number): void; // 한 판 중 내 화면을 가릴 때 흐리게, 0이면 숨김 (1이면 원래대로)
 }
 
@@ -143,7 +143,7 @@ export function makeAvatar(color: number, nickname: string): Avatar {
     setTag(text) {
       if (tag) { root.remove(tag); disposeLabel(tag); tag = null; }
       if (!text) return;
-      tag = makeLabel(text); tag.name = 'tag'; tag.position.set(0, 1.98, 0); tag.scale.set(0.8, 0.2, 1);
+      tag = makeLabel(text, 'pink'); tag.name = 'tag'; tag.position.set(0, 2.55, 0); tag.scale.set(0.9, 0.225, 1);
       root.add(tag);
     },
     setWalking(on) { walking = on; },
@@ -152,7 +152,8 @@ export function makeAvatar(color: number, nickname: string): Avatar {
       if (walking) {
         const w = t * 9 + phase;
         bob.position.y = Math.abs(Math.sin(w)) * 0.07;
-        hands.forEach((h, k) => h.position.set(k ? 0.52 : -0.52, 0.66, 0.1 + Math.sin(w + k * Math.PI) * 0.18));
+        // 팔 흔들기는 작게(앞뒤 ±7cm, 뒤로 갈 때 살짝 들림) — ±18cm는 위에서 보면 손을 앞으로 내지르는 것처럼 보였다(사용자 2026-11-02 사진 267)
+        hands.forEach((h, k) => { const a = Math.sin(w + k * Math.PI); h.position.set(k ? 0.52 : -0.52, 0.66 + Math.max(0, -a) * 0.04, 0.06 + a * 0.07); });
         feet.forEach((f, k) => { f.position.z = 0.06 + Math.sin(w + k * Math.PI) * 0.12; });
       } else {
         bob.position.y = -rig.crouch;

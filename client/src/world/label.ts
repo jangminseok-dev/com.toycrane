@@ -1,18 +1,22 @@
 import * as THREE from 'three';
 
-// 머리 위 이름표 (항상 카메라를 본다)
-export function makeLabel(text: string): THREE.Sprite {
+// 머리 위 이름표 (항상 카메라를 본다) — 카툰풍(사용자 2026-11-02 사진 265·266 '닉네임·조르는 중 잘 보이게'): 남색 테두리·납작 그림자·간판 글꼴,
+// 흰 알약(이름) 또는 분홍 알약('조르는 중' 꼬리표). 글자는 알약 폭에 맞춰 줄인다
+const INK = '#2c2470', FILL = { white: '#ffffff', pink: '#ff8fc8' } as const;
+export function makeLabel(text: string, fill: keyof typeof FILL = 'white'): THREE.Sprite {
   const c = document.createElement('canvas'); c.width = 512; c.height = 128;
   const g = c.getContext('2d')!;
-  g.fillStyle = 'rgba(255,255,255,.92)';
-  g.beginPath(); g.roundRect(10, 22, 492, 84, 42); g.fill();
-  g.fillStyle = '#3b2a5a';
-  g.font = 'bold 48px -apple-system, "Apple SD Gothic Neo", sans-serif';
+  g.fillStyle = INK; g.beginPath(); g.roundRect(12, 26, 488, 92, 46); g.fill(); // 납작 그림자(아래로 8px)
+  g.fillStyle = FILL[fill]; g.beginPath(); g.roundRect(12, 18, 488, 92, 46); g.fill();
+  g.lineWidth = 8; g.strokeStyle = INK; g.stroke();
+  g.fillStyle = INK;
+  g.font = '56px "Jua", "Apple SD Gothic Neo", -apple-system, sans-serif';
   g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText(text, 256, 66);
+  const w = g.measureText(text).width; if (w > 440) g.font = `${Math.floor((56 * 440) / w)}px "Jua", "Apple SD Gothic Neo", -apple-system, sans-serif`;
+  g.fillText(text, 256, 64);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthWrite: false }));
-  sp.scale.set(1.0, 0.25, 1);
+  sp.scale.set(1.15, 0.2875, 1);
   return sp;
 }
 

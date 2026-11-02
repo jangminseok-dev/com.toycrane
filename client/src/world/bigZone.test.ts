@@ -226,7 +226,8 @@ test('squirrels of every color share one striped material', () => {
   expect(count([0, 1, 2, 3, 4, 5])).toBe(count([0, 0, 0, 0, 0, 0]));
 });
 
-// 인형 겉모습마다 합쳐 둔 모양은 끝없이 쌓이지 않는다 — 오래 하면 휴대폰 메모리가 넘친다 (최종 리뷰 M7)
+// 인형 겉모습마다 합쳐 둔 모양은 끝없이 쌓이지 않는다 — 오래 하면 휴대폰 메모리가 넘친다 (최종 리뷰 M7).
+// 60바퀴 합치기라 5초 언저리 — 다른 시험·시뮬과 같이 돌면 기본 5초를 넘겨 헛되이 실패했다(2026-11-02) → 20초
 test('baked doll shapes are kept to a bounded number', () => {
   const scene = new THREE.Scene();
   const zone = buildBigZone(scene);
@@ -237,7 +238,7 @@ test('baked doll shapes are kept to a bounded number', () => {
   }
   expect(liteCacheSize()).toBeLessThanOrEqual(LITE_CACHE_MAX);
   expect(LITE_CACHE_MAX).toBeLessThan(500);
-});
+}, 20000);
 
 // 최종 리뷰 C1: 한 기계가 live 모드여도 같은 묶음의 다른 기계 인형은 그대로 그려지고, 묶음이 매 프레임 다시 합쳐지지 않는다
 test('live mode on one machine leaves the rest of its block drawn', () => {
