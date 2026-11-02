@@ -36,7 +36,11 @@ await send('Storage.clearDataForOrigin', { origin: new URL(base).origin, storage
 await send('Page.navigate', { url: base + '/' });
 await sleep(2500);
 await evaluate("(() => { const i = document.querySelector('input'); i.value = '폰 조이스틱'; i.form.requestSubmit(); })()");
-await sleep(2500);
+// 들어갈 때까지(관찰자가 join을 볼 때까지, 다른 e2e처럼 최대 10초) — 라이브는 손님 만들기·입장·접속에 2.5초 넘게 걸리기도 했다
+const t0 = Date.now();
+for (let i = 0; i < 100 && !seen.some((m) => m.t === 'join' && m.p.nick === '폰 조이스틱'); i++) await sleep(100);
+console.log('joined after', ((Date.now() - t0) / 1000).toFixed(1), 's');
+await sleep(1000);
 
 const view = await evaluate('({ w: innerWidth, h: innerHeight })');
 const rest = await stick();
