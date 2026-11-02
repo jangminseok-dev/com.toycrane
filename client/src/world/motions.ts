@@ -10,7 +10,6 @@ const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 const P = {
   coinL: V(-0.42, 0.64, 0.66), joyR: V(0.25, 1.02, 0.56),
   btnUpL: V(-0.25, 1.4, 0.42), btnL: V(-0.25, 0.99, 0.56),
-  chestL: V(-0.13, 0.8, 0.38), chestR: V(0.13, 0.8, 0.38),
   braceL: V(-0.45, 0.55, 0.3), reachR: V(0.36, 0.34, 0.68),
   holdL: V(-0.2, 0.86, 0.42), holdR: V(0.2, 0.86, 0.42),
   upL: V(-0.2, 2.25, 0.12), upR: V(0.2, 2.25, 0.12),
@@ -18,6 +17,7 @@ const P = {
   sadL: V(-0.42, 0.42, 0.06), sadR: V(0.42, 0.42, 0.06),
 };
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const LOOK_UP = -0.15; // 두근두근: 고개를 살짝 들어 집게를 본다(음수가 위)
 
 export type Outcome = 'win' | 'slip' | 'miss';
 // 결과 연출에 필요한 바깥 일들(집게·소리·기계 반짝임·카메라)은 부르는 쪽이 정한다
@@ -71,16 +71,17 @@ export async function playResult(rig: AvatarRig, tw: Tweens, o: Outcome, doll: T
   await pose(rig, tw, 0.1, P.btnL, null, undefined, ease.in);
   fx.bonk();
   await tw.tween(0.18, (k) => { rig.crouch = Math.sin(k * Math.PI) * 0.06; });
-  // 두근두근 (집게가 내려갔다 올라오는 동안): 두 손을 가슴 앞에 모으고 기계 쪽으로 살짝 기울여 지켜본다 — 몸을 흔들지 않는다
+  // 두근두근 (집게가 내려갔다 올라오는 동안): 두 손은 조작대(왼손 잡기 버튼, 오른손 레버)에 둔 채 고개만 살짝 들어 집게를 본다 —
+  // 두 손을 배 앞에 모으고 고개를 숙이니 이상한 자세로 보였고(사용자 2026-11-02 사진 229), 몸을 흔들면 춤추는 것처럼 보였다
   const claw = fx.claw(1.7);
-  await pose(rig, tw, 0.3, P.chestL, P.chestR, (k) => { rig.head.rotation.x = lerp(0, 0.12, k); });
+  await pose(rig, tw, 0.3, P.btnL, P.joyR, (k) => { rig.head.rotation.x = lerp(0, LOOK_UP, k); });
   await Promise.all([claw, tw.wait(1.4)]);
-  rig.head.rotation.x = 0.12;
+  rig.head.rotation.x = LOOK_UP;
   fx.afterClaw();
 
   if (o !== 'win' || !doll) {
     // 털썩: 기계 앞 그 자리에서 어깨 축 + 먹구름(돌아서지 않는다 — 사용자 2026-11-02)
-    await pose(rig, tw, 0.45, REST_L, REST_R, (k) => { rig.head.rotation.x = lerp(0.12, 0, k); });
+    await pose(rig, tw, 0.45, REST_L, REST_R, (k) => { rig.head.rotation.x = lerp(LOOK_UP, 0, k); });
     fx.fail();
     const cloud = makeCloud(); rig.head.add(cloud);
     const drops = cloud.userData.drops as THREE.Object3D[];
@@ -91,7 +92,7 @@ export async function playResult(rig: AvatarRig, tw: Tweens, o: Outcome, doll: T
     return;
   }
   // 꺼내기: 몸을 굽혀 상품 출구에서 꺼낸다
-  await pose(rig, tw, 0.4, P.braceL, P.reachR, (k) => { rig.crouch = lerp(0, 0.18, k); rig.head.rotation.x = lerp(0.12, 0, k); });
+  await pose(rig, tw, 0.4, P.braceL, P.reachR, (k) => { rig.crouch = lerp(0, 0.18, k); rig.head.rotation.x = lerp(LOOK_UP, 0, k); });
   doll.scale.setScalar(0.01); r.add(doll); rig.held = doll; rig.holdMode = 'right';
   fx.pop();
   await tw.tween(0.3, (k) => doll.scale.setScalar(lerp(0.01, 0.5, k)), ease.back);

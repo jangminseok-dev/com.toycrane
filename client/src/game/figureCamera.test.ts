@@ -66,12 +66,14 @@ test('the claw at rest height stays in view while the buttons move it', () => {
   }
 });
 
-// 옆에서 볼 때 집게가 상자를 잡는 곳이 유리 칸 크롬 기둥(machine.ts makeCabinetShell, 기계 좌표 (±0.57, ±0.5)) 뒤에 숨지 않게
-test('the side view sees the box past the cabinet pillars', () => {
+// 옆에서 볼 때 집게가 상자를 잡는 곳이 유리 칸 크롬 기둥(machine.ts makeCabinetShell, 기계 좌표 (±0.57, ±0.5)) 뒤에 숨지 않게.
+// 조작대 버튼 ①②도 — 앞 오른쪽 기둥 뒤에 반쯤 숨어 어디를 누를지 몰랐다(사용자 2026-11-02 사진 222)
+test('the side view sees the box and both buttons past the cabinet pillars', () => {
   const PILLARS = [[0.57, 0.5], [0.57, -0.5], [-0.57, 0.5], [-0.57, -0.5]];
-  for (const aspect of [1.6, 390 / 844]) {
+  for (const aspect of [1.6, 1.86, 390 / 844]) {
+    for (const b of [FIGURE_CONTROLS.one, FIGURE_CONTROLS.two]) expect(onScreen(1, aspect, toWorld(b)), `button ${b} ${aspect}`).toBe(true);
     const eye = figureCameraPose(spot, 1, aspect).pos.clone().sub(new THREE.Vector3(spot.x, 0, spot.z)).applyAxisAngle(new THREE.Vector3(0, 1, 0), -spot.ry);
-    for (const [tx, tz] of [[0, 0], [0, 0.11], [0, -0.11], [-0.2, 0], [0.2, 0]]) {
+    for (const [tx, tz] of [[0, 0], [0, 0.11], [0, -0.11], [-0.2, 0], [0.2, 0], [FIGURE_CONTROLS.one[0], FIGURE_CONTROLS.one[2]], [FIGURE_CONTROLS.two[0], FIGURE_CONTROLS.two[2]]]) {
       for (const [px, pz] of PILLARS) {
         const dx = tx - eye.x, dz = tz - eye.z, k = Math.max(0, Math.min(1, ((px - eye.x) * dx + (pz - eye.z) * dz) / (dx * dx + dz * dz)));
         expect(Math.hypot(eye.x + dx * k - px, eye.z + dz * k - pz), `${aspect} to ${tx},${tz} past ${px},${pz}`).toBeGreaterThan(0.075);

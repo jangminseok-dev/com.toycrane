@@ -80,3 +80,16 @@ test('a hooked box never flies or leaves the machine', () => {
 test('the same drop gives the same box', () => {
   expect(play('left', 0.0, -0.1).r.box).toEqual(play('left', 0.0, -0.1).r.box);
 });
+
+// 겨냥 표시(사용자 2026-11-02 '집게가 어디를 노리는지 알 수 있게'): 팔 끝 아래 처음 닿는 높이 — 상자 위면 상자 윗면, 밖이면 선반.
+// 세계는 한 걸음도 안 움직인다(판의 물리 결과가 겨누는 동안 바뀌면 안 된다)
+test('the surface under an arm tip is the box top or the shelf, without stepping the world', () => {
+  const start = hookStart(() => 0.5), w = new HookWorld(R, start, 'right');
+  const before = w.boxPose();
+  expect(w.surfaceBelow(start[0], start[2], 2)).toBeCloseTo(HOOK.shelf.y + HOOK.box.h, 2);
+  expect(w.surfaceBelow(start[0] + 0.3, start[2], 2)).toBeCloseTo(HOOK.shelf.y, 2);
+  expect(w.surfaceBelow(0, (HOOK.shelf.front_z + HOOK.exit.front_z) / 2, 2)).toBeCloseTo(HOOK.shelf.y - 0.12, 2); // 출구 위면 'GET!' 바닥 그림 높이(받는 바닥까지 뚫지 않게)
+  expect(w.time).toBe(0);
+  expect(w.boxPose()).toEqual(before);
+  w.dispose();
+});

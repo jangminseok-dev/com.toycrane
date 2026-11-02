@@ -101,6 +101,15 @@ const G = once(() => ({
 }));
 
 // 한 대: 몸통(줄 색) + 속. LED 도형은 따로 돌려준다(줄마다 한 덩어리)
+// 상자 기계 뒤 2단 진열 자리(피규어·고리 걸기, 사용자 2026-11-02): 단마다 같은 상자 3개 — 옆 상자 사이 SIDE_GAP, 아래 상자 윗면과
+// 위 선반 사이 TIER_GAP을 띄운다(사진 223: 정사각형 상자가 옆끼리 붙고 위 선반이 아래 상자에 얹혀 답답했다). 받침 높이 0.16, 선반 두께 0.02
+const SIDE_GAP = 0.05, TIER_GAP = 0.06;
+export function displaySlots(w: number, h: number, floorY: number): { shelfY: number; slots: { x: number; y: number; k: number; tier: number }[] } {
+  const step = Math.max(0.3, w + SIDE_GAP), low = floorY + 0.16, shelfY = low + h + TIER_GAP + 0.01, high = shelfY + 0.01;
+  const slots = [low, high].flatMap((base, tier) => [-step, 0, step].map((x, k) => ({ x, y: base + h / 2, k, tier })));
+  return { shelfY, slots };
+}
+
 export function makeFigureMachineParts(spot: FigureSpot, index: number, color: number): { statics: THREE.Group; ledGeo: THREE.BufferGeometry } {
   const g = G(), m = new THREE.Group();
   m.position.set(spot.x, 0, spot.z); m.rotation.y = spot.ry;
@@ -132,17 +141,15 @@ export function makeFigureMachineParts(spot: FigureSpot, index: number, color: n
   }
   // 구멍 아래 'GET!' 바닥(상자가 빠지면 여기로)
   add(flat(g.get, getMat(), [0, FLOOR_Y - 0.005, 0], [-Math.PI / 2, 0, 0])).scale.set(1, 2 * bz, 1); // 몸통 윗면 바로 위(상자는 몸통 속으로 빠진다)
-  // 뒤 벽 뒤 진열대: 같은 랜덤 상자를 세워 둔다(실제 기계의 재고 진열). 2단, 단마다 3개(사용자 2026-11-02) — 위 단은 아래 상자 위 얇은 선반
+  // 뒤 벽 뒤 진열대: 같은 랜덤 상자를 세워 둔다(실제 기계의 재고 진열). 2단, 단마다 3개 — 위 단은 띄운 얇은 선반 위
+  const { shelfY, slots } = displaySlots(box.w, box.h, FLOOR_Y);
   add(part(g.tier, floorMat, [0, FLOOR_Y + 0.08, -0.43], [1, 0.16, 1], [0, 0, 0], 1.03));
-  const shelfY = FLOOR_Y + 0.16 + box.h + 0.01;
-  add(part(g.tier, floorMat, [0, shelfY, -0.43], [1, 0.02, 1], [0, 0, 0], 1.03));
-  for (const [y0, twist] of [[FLOOR_Y + 0.16, 0.04], [shelfY + 0.01, -0.03]] as const) {
-    [-0.3, 0, 0.3].forEach((x, k) => {
-      const b = new THREE.Mesh(blindBoxGeo(kind), blindBoxMat(kind));
-      b.name = 'figure-display';
-      b.position.set(x, y0 + box.h / 2, -0.44); b.rotation.set(Math.PI / 2, 0, (k - 1) * twist); // 상자를 세우고 그림 면(+y)이 앞(+z)으로
-      m.add(b);
-    });
+  add(part(g.tier, floorMat, [0, shelfY, -0.43], [1, 0.02, 1], [0, 0, 0], 1.03)).name = 'figure-display-shelf';
+  for (const { x, y, k, tier } of slots) {
+    const b = new THREE.Mesh(blindBoxGeo(kind), blindBoxMat(kind));
+    b.name = 'figure-display';
+    b.position.set(x, y, -0.44); b.rotation.set(Math.PI / 2, 0, (k - 1) * (tier ? -0.03 : 0.04)); // 상자를 세우고 그림 면(+y)이 앞(+z)으로
+    m.add(b);
   }
   m.traverse((o) => { o.castShadow = false; });
   return { statics: m, ledGeo };

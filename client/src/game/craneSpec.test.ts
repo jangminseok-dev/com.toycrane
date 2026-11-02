@@ -18,7 +18,7 @@ test('pusher machines use mini dolls, start and drop on the ledge and wait for t
   expect(d.cycle).toEqual({});
   expect(p.floorAt(-0.34, 0)).toBeCloseTo(DOLL_FLOOR + PUSHER.ledge.h);
   expect(p.floorAt(-0.34, PUSHER.ledge.z0 - 1e-6)).toBeCloseTo(DOLL_FLOOR + PUSHER.ledge.h + PUSHER.plate.h + PUSHER.house.over); // 판 집 앞벽 위
-  expect(p.floorAt(-0.34, -0.3)).toBeGreaterThan(p.floorAt(-0.34, PUSHER.ledge.z0 - 0.01)); // 뒤로 갈수록 비탈만큼 높다
+  expect(p.floorAt(-0.34, PUSHER.ledge.z0 - 0.1)).toBeGreaterThan(p.floorAt(-0.34, PUSHER.ledge.z0 - 0.01)); // 뒤로 갈수록 비탈만큼 높다
   expect(p.floorAt(0.2, 0)).toBe(DOLL_FLOOR);
   expect(d.floorAt(-0.34, 0)).toBe(DOLL_FLOOR);
 });

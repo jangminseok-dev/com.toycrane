@@ -25,6 +25,20 @@ export function clawShape(k: number): ClawShape {
 }
 // 그림이 물리와 같은 모양이 되게 내보낸다(figureZone·figureMachine)
 export const clawShapeOf = (kind: BoxKind): ClawShape => clawShape(variantOf(kind).claw_scale);
+// 상자 기계 옆 기둥(±0.57, 굵기 6cm)의 안쪽 면 — 집게를 키우자 쉬는 자리에서 벌린 팔이 이 밖으로 나갔다(사용자 2026-11-02 사진 224)
+export const CABINET_INNER = 0.54;
+// 활짝 벌린 오른팔 끝의 자리(머리 가운데 기준 [x, y], 왼팔은 x 반대) — 경첩 기준 끝을 바깥으로 open만큼 돌린다(겨냥 표시)
+export function tipOffset(S: ClawShape): [number, number] {
+  const c = Math.cos(S.open), s = Math.sin(S.open), [tx, ty] = S.tip;
+  return [S.hinge[0] + tx * c - ty * s, S.hinge[1] + tx * s + ty * c];
+}
+// 활짝 벌린 팔이 머리 가운데에서 옆으로 가장 멀리 나가는 거리: 경첩 기준 마디(팔꿈치·끝)를 바깥으로 open만큼 돌린 것 중 먼 쪽 + 판 두께
+export function openReach(S: ClawShape): number {
+  const c = Math.cos(S.open), s = Math.sin(S.open), out = (p: [number, number]) => p[0] * c - p[1] * s;
+  return S.hinge[0] + Math.max(out(S.elbow), out(S.tip)) + S.plateT;
+}
+// 집게 머리가 갈 수 있는 반폭: 벌린 팔이 기둥 안쪽에 머무는 데까지(놀이 영역 반폭을 넘지 않음). 쉬는 자리는 그 왼쪽 끝
+export const clawHalfX = (S: ClawShape): number => Math.min(FIGURE.play_half[0], CABINET_INNER - openReach(S) - 0.01);
 const GROUP_CLAW = 0x0002;
 const clawGroups = ((GROUP_CLAW << 16) | (0xffff & ~GROUP_CLAW)) >>> 0; // 집게끼리는 안 부딪힘
 

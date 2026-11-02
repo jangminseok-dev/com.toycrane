@@ -12,8 +12,8 @@ const trials = Number(process.env.SIM_TRIALS ?? 300);
 const note = (...v: unknown[]) => { console.log(...v); if (process.env.SIM_OUT) appendFileSync(process.env.SIM_OUT, v.join(' ') + '\n'); };
 const between = (v: number, lo: number, hi: number) => { expect(v).toBeGreaterThanOrEqual(lo); expect(v).toBeLessThanOrEqual(hi); };
 
-// 사용자 2026-11-02 '하나도 안 뽑혀 재미없다' — 머리 겨냥 3~4/10 → 5/10쯤(사람 눈대중 겨냥은 시뮬보다 서툴다)
-test('head aim wins about half the time', () => { const r = aimRate(R, { trials }); note('head', r); between(r, 0.45, 0.62); });
+// 사용자 2026-11-02 '하나도 안 뽑혀 재미없다' — 머리 겨냥 3~4/10 → 5/10쯤(사람 눈대중 겨냥은 시뮬보다 서툴다). 53%는 너무 쉬워 46%쯤으로(같은 날)
+test('head aim wins about half the time', () => { const r = aimRate(R, { trials }); note('head', r); between(r, 0.4, 0.52); });
 // 몸통 겨냥 = 머리 중심에서 12cm 옆 (8cm는 아직 머리에 걸린다). 머리 확률이 우선이라 윗선을 0.26까지 (Task 8 ruling).
 // 2026-11-01 인형이 구르지 않게 감쇠를 올린 뒤(사용자 요청) 서 있는 인형이 손가락 쪽으로 기울어 들어오지 않아 7%로 내려갔다 — 아랫선 0.05 (머리 3~4/10·먼 쪽·희귀가 우선, 누운 인형 몸통 잡기는 장면 시뮬이 지킨다)
 test('body aim wins less often than the head', () => { const r = aimRate(R, { trials, aimOff: 0.12 }); note('body', r); between(r, 0.03, 0.26); }); // 150판에서는 4%(6판)까지 흔들린다
@@ -22,7 +22,7 @@ for (const kind of ['bear', 'penguin']) {
   test(`rare and gold ${kind} are harder`, () => {
     const rare = aimRate(R, { trials, kind, look: { rare: 'star' } }), gold = aimRate(R, { trials, kind, look: { rare: 'gold' } });
     note(kind, 'rare', rare, 'gold', gold);
-    between(rare, 0.25, 0.42); between(gold, 0.18, 0.32); // 보통(5/10)보다 어렵게 — 집게 힘 5.4에서
+    between(rare, 0.18, 0.36); between(gold, 0.1, 0.26); // 보통(46%쯤)보다 어렵게 — 집게 힘 4.9에서
   });
   test(`far ${kind} dolls win more than near ones`, () => {
     const near = aimRate(R, { trials, kind, where: 'near' }), far = aimRate(R, { trials, kind, where: 'far' });

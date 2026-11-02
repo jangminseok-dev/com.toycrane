@@ -16,7 +16,8 @@ import { openDolls, seededRandom, withPoses, type Rng } from './world';
 
 // 미는 뽑기 판수(설계 ring-hook §4): 영리한 사람(칸에서 위가 열린 미니 인형의 머리를 겨냥, 눈대중 오차 ±1.5cm)은 처음 기계에서
 // 50%선 4~6판, 아무 데나 누르는 사람은 그보다 오래. 겨누는 동안(aimSeconds)에도 판이 오가며 민다(진짜처럼). SIM_TRIALS(기본 40), SIM_OUT
-// 맞추기용: PUSHER_PATCH='{"ledge":{"z1":0.3}}'처럼 수치 일부를 바꿔 돌려 본다(shared/pusher.json은 그대로)
+// 맞추기용: PUSHER_PATCH='{"ledge":{"friction":1.2}}'처럼 수치 일부를 바꿔 돌려 본다(shared/pusher.json은 그대로). 집게 힘(grip)·놓는 자리(drop)·
+// 턱 바닥 높이는 craneSpec이 불러올 때 한 번 읽어 패치가 안 먹는다 — 그런 값은 json을 바꿔(또는 사본 폴더에서) 잰다(2026-11-02)
 if (process.env.PUSHER_PATCH) {
   const patch = JSON.parse(process.env.PUSHER_PATCH) as Record<string, unknown>;
   for (const [k, v] of Object.entries(patch)) Object.assign(PUSHER as Record<string, unknown>, { [k]: typeof v === 'object' && v ? { ...(PUSHER as Record<string, object>)[k], ...v } : v });

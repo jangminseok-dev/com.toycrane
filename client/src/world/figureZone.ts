@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { FIGURE, FIGURES, variantOf, type FigureSpot } from '../data/figures';
 import type { Occluder } from '../game/occlusion';
 import type { BoxWire } from '../net/protocol';
-import { clawShapeOf, type ClawShape } from '../physics/figureClaw';
+import { clawHalfX, clawShapeOf, type ClawShape } from '../physics/figureClaw';
 import { bakeByMaterial, fadeMaterials, materialCloner } from './bake';
 import { BUTTON_SCALE, FIGURE_CONTROLS, LABEL, LABEL_Y, labelMat, type ButtonLabels } from './figureControls';
 import { blindBoxGeo, blindBoxMat, clawGeos, clawMats, makeFigureMachineParts } from './figureMachine';
@@ -24,6 +24,7 @@ export type FigureZone = {
   worldOf(id: string): THREE.Object3D; // 기계 기준점(앞 +z) — 카메라·조작대가 붙는다
   setClaw(id: string, x: number, y: number, z: number, open: number): void; // 기계 좌표 머리 자리, 팔 벌림 0~1
   hideControls(id: string, hidden: boolean): void; // 하는 기계는 살아 있는 버튼(figureControls)이 덮는다
+  homeOf(id: string): { x: number; z: number }; // 그 기계 집게가 쉬는 자리(벌린 팔이 기계 안에 머무는 앞 왼쪽 끝)
   occluders: Occluder[];
 };
 
@@ -102,7 +103,7 @@ export function buildBoxZone(scene: THREE.Scene, look: BoxLook): FigureZone {
       anchor.position.set(f.x, 0, f.z); anchor.rotation.y = f.ry; anchor.name = `${look.name}-${f.id}`;
       root.add(anchor);
       anchor.updateMatrix();
-      const u: Unit = { row: r, slot, matrix: anchor.matrix.clone(), anchor, box: look.restBox(f), extra: null, claw: [FIGURE.claw.home[0], FIGURE.claw.rest_y, FIGURE.claw.home[1], 1], hidden: false };
+      const u: Unit = { row: r, slot, matrix: anchor.matrix.clone(), anchor, box: look.restBox(f), extra: null, claw: [-clawHalfX(look.claw(r).shape), FIGURE.claw.rest_y, FIGURE.claw.home[1], 1], hidden: false };
       units.set(f.id, u);
       const b = BODY_BOX.clone().applyMatrix4(u.matrix);
       boxes.push(b); body.union(b);
@@ -149,6 +150,7 @@ export function buildBoxZone(scene: THREE.Scene, look: BoxLook): FigureZone {
     worldOf: (id) => unit(id).anchor,
     setClaw(id, x, y, z, open) { const u = unit(id); u.claw = [x, y, z, open]; placeClaw(u); },
     hideControls(id, hidden) { const u = unit(id); u.hidden = hidden; placeButtons(u); },
+    homeOf(id) { return { x: -clawHalfX(look.claw(unit(id).row).shape), z: FIGURE.claw.home[1] }; },
     occluders,
   };
 }

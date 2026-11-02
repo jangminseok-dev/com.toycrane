@@ -13,7 +13,7 @@ import type { Rapier } from './rapier';
 // 평평한 선반 위에 세운 상자 하나, 윗면 가장자리에 고리 판(밖으로 접히는 날개에 네모 구멍) — 팔 끝이 구멍을 지나 내려가 걸린다.
 // 선반 앞 끝 ~ 앞 유리 사이가 출구(GET). 옆·뒤는 벽, 출구 아래 받는 바닥. 상자는 출구로만 떨어진다
 const MAX_STEPS = 4, SHELF_FRICTION = 0.5, BOX_FRICTION = 0.45, BOX_RESTITUTION = 0.04, MAX_SPEED = 2;
-const CATCH_DROP = 0.8, WALL_H = 0.6, RING_FRICTION = 1.2; // 종이 고리 판은 팔 끝이 잘 안 미끄러진다
+const CATCH_DROP = 0.8, WALL_H = 0.6, RING_FRICTION = 1.2, EXIT_FLOOR = 0.12; // EXIT_FLOOR: 선반 윗면에서 'GET!' 바닥 그림까지(hookMachine FLOOR_Y) // 종이 고리 판은 팔 끝이 잘 안 미끄러진다
 
 // 판 시작 상자: 선반 가운데 뒤쪽에 세움, 조금 흔들어 놓음(서버 hook.py start_box와 같은 규칙)
 export function hookStart(rand: () => number): BoxWire {
@@ -126,6 +126,15 @@ export class HookWorld implements BoxWorld {
   extraPose(): BoxWire {
     const p = this.flap.translation(), q = this.flap.rotation();
     return [p.x, p.y, p.z, q.x, q.y, q.z, q.w];
+  }
+
+  // 겨냥 표시: (x, z) 위 fromY에서 곧장 아래로 처음 닿는 것(상자·고리 날개·선반)의 높이. 조각마다 직접 쏴서 세계를 한 걸음도 안 움직인다
+  // (판이 시작되면 겨누는 동안 세계는 그대로여야 판 결과가 같다). 출구 위면 'GET!' 바닥 그림 높이(선반 블록 밑, 받는 바닥까지 뚫지 않게)
+  surfaceBelow(x: number, z: number, fromY: number): number {
+    const ray = new this.R.Ray({ x, y: fromY, z }, { x: 0, y: -1, z: 0 }), floor = HOOK.shelf.y - EXIT_FLOOR;
+    let best = Infinity;
+    this.world.colliders.forEach((c) => { const t = c.castRay(ray, fromY, true); if (t >= 0 && t < best) best = t; });
+    return Math.max(floor, Number.isFinite(best) ? fromY - best : floor);
   }
 
   // 출구로 빠졌나: 옆·뒤는 벽이라 선반 아래로 상자 키만큼 내려갔으면 출구로 떨어진 것

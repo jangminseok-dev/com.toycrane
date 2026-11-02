@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { beforeAll, expect, test } from 'vitest';
 import { stubCanvas } from '../test/canvasStub';
-import { CONTROLS } from './machine';
+import { CONTROLS, makeControlParts } from './machine';
 import { buildBigZone } from './bigZone';
 import { buildMachineControls } from './machineControls';
 
@@ -69,4 +69,34 @@ test('the drop label fits inside the button top', () => {
   label.geometry.computeBoundingBox();
   const size = label.geometry.boundingBox!.getSize(new THREE.Vector3());
   expect(Math.max(size.x, size.y)).toBeLessThanOrEqual(0.8 * 2 * 0.055 + 1e-9);
+});
+
+// 아무도 안 할 때(기계 그림의 버튼)도 윗면에 '잡기'가 늘 보인다 — 판이 끝나 움직이는 버튼을 거두면 글씨가 사라졌다(사용자 2026-11-02 사진 219·228)
+test('the drop button in the machine picture reads 잡기 too', () => {
+  const parts = makeControlParts();
+  const label = parts.getObjectByName('drop-label') as THREE.Mesh;
+  expect(label?.userData.text).toBe('잡기');
+  parts.updateMatrixWorld(true);
+  const at = label.getWorldPosition(new THREE.Vector3());
+  expect(at.x).toBeCloseTo(CONTROLS.drop[0]); expect(at.z).toBeCloseTo(CONTROLS.drop[2]);
+  expect(at.y).toBeGreaterThan(CONTROLS.drop[1] + 0.03); // 납작한 윗면(0.6배) 위
+  label.geometry.computeBoundingBox();
+  const size = label.geometry.boundingBox!.getSize(new THREE.Vector3()).multiply(label.scale);
+  expect(Math.max(size.x, size.y)).toBeLessThanOrEqual(0.8 * 2 * 0.055 * 1.45 + 1e-9); // 윗면 지름 안
+});
+
+// 인형 기계 잡기 버튼도 하는 동안 둘레로 고리가 퍼져 나가 '이걸 누른다'가 보인다(사용자 2026-11-02)
+test('the drop button sends out rings while aiming', () => {
+  const anchor = new THREE.Group();
+  const controls = buildMachineControls(anchor);
+  const cue = anchor.getObjectByName('press-cue-drop')!;
+  controls.update(0.2);
+  expect(cue.visible).toBe(true);
+  const a = cue.children[0].scale.x; controls.update(0.6);
+  expect(cue.children[0].scale.x).not.toBeCloseTo(a);
+  anchor.updateMatrixWorld(true);
+  const at = cue.getWorldPosition(new THREE.Vector3());
+  expect(at.x).toBeCloseTo(CONTROLS.drop[0]); expect(at.z).toBeCloseTo(CONTROLS.drop[2]);
+  controls.setPressed(true); controls.update(0.8);
+  expect(cue.visible).toBe(false);
 });

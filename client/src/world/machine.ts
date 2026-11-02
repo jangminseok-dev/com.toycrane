@@ -3,8 +3,8 @@ import { CLAW } from '../data/claw';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { MACHINE_SPEC, type MachineSpot } from '../data/storeLayout';
-import { MACHINE_SIGNS, POP_CARDS } from './copy';
-import { backArtTex, plateTex, popTex, signTex, stickerTex } from './signs';
+import { DROP_LABEL, MACHINE_SIGNS, POP_CARDS } from './copy';
+import { backArtTex, dropLabelTex, plateTex, popTex, signTex, stickerTex } from './signs';
 import { part, toon } from './toon';
 
 // 큰인형 기계 — 밝은 일본 게임센터 모양 (설계 2026-10-31-toycrane-graphics-a-design.md §4.1, 시제품 spike-look-a.html).
@@ -88,6 +88,11 @@ export function makeControlParts(): THREE.Group {
   m.add(part(g.stick, toon(CHROME), [lx, ly + 0.04, lz], [1, 1, 1], [0, 0, 0], 0));
   m.add(part(g.ball, toon(0xff3b5c), [lx, ly + 0.1, lz]));
   m.add(part(g.dome, toon(0xff3b5c), [dx, dy, dz], [1.45, 0.6, 1.45], [0, 0, 0], 1.04));
+  // 윗면 글씨 '잡기' + 아래 화살표 — 아무도 안 할 때도 무엇을 누르는지 보이게(하는 동안의 움직이는 버튼과 같은 글씨·크기)
+  const label = new THREE.Mesh(new THREE.PlaneGeometry(0.08, 0.08), new THREE.MeshBasicMaterial({ map: dropLabelTex(DROP_LABEL), transparent: true, depthWrite: false }));
+  label.name = 'drop-label'; label.userData.text = DROP_LABEL;
+  label.rotation.x = -Math.PI / 2; label.position.set(dx, dy + 0.055 * 0.6 + 0.002, dz); label.scale.set(1.45, 1.45, 1);
+  m.add(label);
   return m;
 }
 

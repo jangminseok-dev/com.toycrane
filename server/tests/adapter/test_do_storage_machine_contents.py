@@ -32,12 +32,12 @@ async def test_v4_contents_are_read_as_unsettled_v5():
     assert stocks["A-1"].next_at == 30.0 and stocks["A-1"].next_uid == 10
 
 
-async def test_save_writes_thirteen_fields_and_v5_wins_over_v4():
-    storage, owner = FakeStorage({"machines_v4": '{"A-1": {"d": [], "n": null, "u": 1}}'}), object()
+async def test_save_writes_thirteen_fields_and_v6_wins_over_older():
+    storage, owner = FakeStorage({"machines_v4": '{"A-1": {"d": [], "n": null, "u": 1}}', "machines_v5": '{"A-1": {"d": [], "n": null, "u": 2}}'}), object()
     stocks = stocks_with_empty("A-1", next_at=30.0)
     await DoStorageMachineContents(storage, "s-13", owner).save(stocks)
     import json
-    saved = json.loads(storage.data["machines_v5"])
+    saved = json.loads(storage.data["machines_v6"])
     assert all(len(d) == 13 for v in saved.values() for d in v["d"])
     assert await DoStorageMachineContents(storage, "s-13", owner).load() == stocks
 
@@ -71,3 +71,18 @@ async def test_a_store_rebuilt_elsewhere_rereads_its_due_time():
     storage.data["stock_due"] = "90.0"  # 다른 인스턴스가 그 사이 저장했다
     storage.gets = 0
     assert await DoStorageMachineContents(storage, "s-3", object()).due_at() == 90.0 and storage.gets == 1
+
+
+# 2026-11-02 미는 뽑기 턱을 뒤로 물리고 앞 끝을 당겼다(출구에 인형이 끼었다) — v5 미는 뽑기의 턱 위 인형(턱 오른쪽 끝보다 왼쪽)은
+# 새 턱 밖(출구 위)에 떠 있을 수 있어 안 앉은 인형으로 읽는다(첫 화면이 물리로 다시 앉힘 — 출구로 빠지면 칸에 다시 떨어뜨림).
+# 칸 무더기와 인형 기계는 그대로
+async def test_v5_pusher_ledge_dolls_are_read_as_unsettled():
+    v5 = (
+        '{"P-1": {"d": [["bear", -0.3, 0.99, 0.35, 0, 0, 0, 1, 1, "n", 0, "", 1], ["cat", 0.2, 0.9, 0.1, 0, 0.1, 0, 0.99, 2, "n", 0, "", 2]], "n": null, "u": 3},'
+        ' "A-1": {"d": [["bunny", -0.3, 0.95, 0.2, 0, 0, 0, 1, 2, "n", 1, "", 1]], "n": null, "u": 2}}'
+    )
+    stocks = await DoStorageMachineContents(FakeStorage({"machines_v5": v5}), "s-v5", object()).load()
+    ledge, pile = stocks["P-1"].dolls
+    assert (ledge.uid, ledge.x, ledge.z, ledge.y, ledge.q) == (1, -0.3, 0.35, None, (0, 0, 0, 1))
+    assert (pile.uid, pile.y, pile.q) == (2, 0.9, (0, 0.1, 0, 0.99))
+    assert stocks["A-1"].dolls[0].y == 0.95

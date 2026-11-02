@@ -46,3 +46,23 @@ test('each button reads what it does and sinks with the button', () => {
     expect(Math.max(size.x, size.y)).toBeLessThanOrEqual(0.8 * 2 * 0.055 + 1e-9);
   }
 });
+
+// 사용자 2026-11-02(사진 221·222) '반짝이는 걸 더 잘 보이게 — 저걸 눌러야 하는구나': 지금 누를 버튼 둘레로 버튼 색 고리가 퍼져 나간다.
+// 누르는 동안·집게가 도는 동안은 멈추고, 다른 버튼에는 없다. 반짝임도 한껏 밝아지는 때가 있다
+test('the button to press next sends out rings', () => {
+  const anchor = new THREE.Group();
+  const c = buildFigureControls(anchor);
+  const cue = (i: 1 | 2) => anchor.getObjectByName(`press-cue-${i}`)!;
+  c.setPhase('one');
+  c.update(0.3);
+  expect(cue(1).visible).toBe(true); expect(cue(2).visible).toBe(false);
+  const sizes = [0.1, 0.4, 0.7].map((t) => { c.update(t); return cue(1).children[0].scale.x; });
+  expect(new Set(sizes.map((s) => s.toFixed(2))).size).toBe(3); // 퍼진다
+  expect(Math.max(...[0, 0.05, 0.1, 0.15, 0.2, 0.25].map((t) => { c.update(t); return c.glow(1); }))).toBeGreaterThanOrEqual(1);
+  c.setPhase('moving-one'); c.update(1);
+  expect(cue(1).visible).toBe(false); // 누르는 동안은 멈춤
+  c.setPhase('two'); c.update(1.2);
+  expect(cue(2).visible).toBe(true); expect(cue(1).visible).toBe(false);
+  c.setPhase('cycle'); c.update(1.4);
+  expect(cue(2).visible).toBe(false);
+});

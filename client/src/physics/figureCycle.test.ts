@@ -140,3 +140,15 @@ test('a box pushed onto the back support can be dragged back', () => {
   expect(w.fallen() || best > z0 + 0.01).toBe(true);
   w.dispose();
 });
+
+// 판이 끝나 집게가 돌아가는 집도 벌린 팔이 기계 안에 머무는 앞 왼쪽 끝(clawHalfX) — json의 옛 집(−0.44)으로 가면 팔이 기둥 밖으로 나갔다(사진 224)
+test('after a play the claw goes home with its open arms inside the cabinet', async () => {
+  const { FigureCycleRunner } = await import('./figureCycle');
+  const { CABINET_INNER, clawHalfX, openReach } = await import('./figureClaw');
+  const w = new FigureWorld(R, lying('square'), 'square'), claw = new FigureClaw(R, w, 0, 0);
+  const r = new FigureCycleRunner(w, claw, 0.1, 0.05);
+  let minX = Infinity;
+  while (!r.advance(1 / 30)) minX = Math.min(minX, r.clawPose()[0]);
+  expect(r.clawPose()[0]).toBeCloseTo(-clawHalfX(w.clawShape), 5);
+  expect(minX - openReach(w.clawShape)).toBeGreaterThanOrEqual(-CABINET_INNER);
+}, 120_000);

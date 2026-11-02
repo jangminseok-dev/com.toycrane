@@ -47,7 +47,7 @@ export class PusherWorld extends MachineWorld {
     // 칸 바닥(턱 오른쪽 전체, 벽까지)
     this.fixed((right - ledge.x1) / 2, T, front, (right + ledge.x1) / 2, f, 0);
     // 턱: 윗면이 top인 덩어리, 오른쪽 끝에 낮은 턱
-    this.fixed(lw / 2, ledge.h / 2 + T, (ledge.z1 - ledge.z0) / 2, lx, DOLL_FLOOR + ledge.h / 2 - T, (ledge.z0 + ledge.z1) / 2);
+    this.fixed(lw / 2, ledge.h / 2 + T, (ledge.z1 - ledge.z0) / 2, lx, DOLL_FLOOR + ledge.h / 2 - T, (ledge.z0 + ledge.z1) / 2).setFriction(ledge.friction); // 턱 바닥 천의 마찰(밀린 인형이 미끄러지는 정도)
     this.fixed(0.006, ledge.lip / 2, (ledge.z1 - ledge.z0) / 2, ledge.x1 - 0.006, top + ledge.lip / 2, (ledge.z0 + ledge.z1) / 2);
     // 미는 판 집(턱 뒤): 판 윗면보다 over만큼 높다 — 판에 얹힌 인형은 판이 들어갈 때 앞벽에 걸려 턱 위로 떨어진다.
     // 윗면은 앞으로 기운 비탈(slope_deg)이라 집 위에 떨어진 인형도 앞으로 미끄러진다(설계 '판 위에 인형이 얹히지 않는 모양')
@@ -106,11 +106,12 @@ export class PusherWorld extends MachineWorld {
     return plateFront(t + this.phase);
   }
 
-  // 집게가 인형을 놓았다 — 판은 지금 왕복을 마치고(다음에 들어가는 때) 멈춘다
+  // 집게가 인형을 놓았다 — 판은 한 왕복이 지난 뒤 처음 들어가는 때 멈춘다(3~6초). 마지막 왕복이 늘 놓은 뒤에 시작해
+  // 떨어진 인형을 끝까지 민다 — 지금 왕복만 마치면 왕복 끝에 놓았을 때 인형이 닿기도 전에 멈췄다(사용자 2026-11-02)
   afterRelease(): void {
     if (!this.running || this.stopAt !== null) return;
     const period = PUSHER.plate.period, t = this.time + this.phase;
-    this.stopAt = Math.ceil(t / period - 1e-9) * period - this.phase;
+    this.stopAt = Math.ceil((t + period) / period - 1e-9) * period - this.phase;
   }
 
   plateMoving(): boolean {

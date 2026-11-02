@@ -29,7 +29,7 @@ export interface Avatar {
   update(t: number): void;
   dispose(): void; // 장면에서 뺄 때 이 아바타만의 GPU 자원(이름표) 해제
   setTag(text: string | null): void; // 이름표 아래 작은 꼬리표 ('조르는 중'), null이면 뗀다
-  setFade(opacity: number): void; // 한 판 중 내 화면을 가릴 때 거의 투명하게 (1이면 원래대로)
+  setFade(opacity: number): void; // 한 판 중 내 화면을 가릴 때 흐리게, 0이면 숨김 (1이면 원래대로)
 }
 
 const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
@@ -118,6 +118,7 @@ export function makeAvatar(color: number, nickname: string): Avatar {
     rig,
     dispose() { disposeLabel(label); if (tag) disposeLabel(tag); faded?.clones.forEach((m) => m.dispose()); },
     setFade(opacity) {
+      root.visible = opacity > 0; // 다 흐려지면 숨긴다 — 투명 부품이 겹쳐 쌓이지 않게
       if (opacity >= 1) {
         if (faded) for (const [m, mat] of faded.originals) m.material = mat;
         label.material.opacity = 1; if (tag) tag.material.opacity = 1;

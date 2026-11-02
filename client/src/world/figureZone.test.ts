@@ -96,7 +96,34 @@ test('the figure machine shows six display boxes in two tiers', async () => {
     statics.traverse((o) => { if (o.name === 'figure-display') shown.push(o); });
     expect(shown).toHaveLength(6);
     expect(new Set(shown.map((o) => o.position.y.toFixed(3))).size).toBe(2);
+    expectRoomy(shown, 'figure-display-shelf', statics);
   }
+});
+
+// 2단 진열은 답답하지 않게 띄운다(사용자 2026-11-02 사진 223: 정사각형 상자가 옆끼리 붙고 위 선반이 아래 상자에 얹혀 있었다) —
+// 옆 상자 사이 4cm 넘게, 아래 상자 윗면과 위 선반 사이 4cm 넘게, 바깥 상자도 기계 기둥 안쪽(±0.54) 안
+function expectRoomy(shown: THREE.Object3D[], shelfName: string, root: THREE.Object3D) {
+  root.position.set(0, 0, 0); root.rotation.set(0, 0, 0); root.updateMatrixWorld(true); // 기계 안 좌표로 잰다
+  const boxes = shown.map((o) => new THREE.Box3().setFromObject(o));
+  const rows = new Map<string, THREE.Box3[]>();
+  for (const b of boxes) { const k = b.min.y.toFixed(2); rows.set(k, [...(rows.get(k) ?? []), b]); }
+  for (const row of rows.values()) {
+    row.sort((a, b) => a.min.x - b.min.x);
+    for (let i = 1; i < row.length; i++) expect(row[i].min.x - row[i - 1].max.x).toBeGreaterThan(0.04);
+    expect(Math.max(-row[0].min.x, row[row.length - 1].max.x)).toBeLessThanOrEqual(0.54);
+  }
+  const lowTop = Math.min(...boxes.map((b) => b.max.y)), shelf = root.getObjectByName(shelfName)!;
+  expect(new THREE.Box3().setFromObject(shelf).min.y - lowTop).toBeGreaterThan(0.04);
+}
+
+test('the hook machine shows its display boxes in two roomy tiers', async () => {
+  const { makeHookMachineParts } = await import('./hookMachine');
+  const { RINGS } = await import('../data/rings');
+  const { statics } = makeHookMachineParts(RINGS[0], 0xff8a3d), shown: THREE.Object3D[] = [];
+  statics.traverse((o) => { if (o.name === 'hook-display') shown.push(o); });
+  expect(shown).toHaveLength(6);
+  expect(new Set(shown.map((o) => o.position.y.toFixed(3))).size).toBe(2);
+  expectRoomy(shown, 'hook-display-shelf', statics);
 });
 
 // 사용자 2026-11-02(사진 202): 연한 반투명 집게가 휴대폰에서 잘 안 보였다 — 집게 머리·팔은 진하고 불투명한 색(흰 선반·파스텔 상자·민트 몸통 위에서 또렷이)
@@ -111,4 +138,12 @@ test('box machine claws are bold and opaque so they show on a phone', () => {
     expect(hsl.l).toBeGreaterThan(0.3); expect(hsl.l).toBeLessThan(0.65);
   }
   expect((scene.getObjectByName('figure-claw-stickers') as THREE.InstancedMesh).material).toMatchObject({ userData: { text: '피규어' } });
+});
+
+// 쉬는 집게도 벌린 팔이 기계 안에 머무는 왼쪽 끝에 있다(정사각형 집게가 가장 넓다)
+test('resting claws wait where their open arms stay inside', async () => {
+  const { clawHalfX, clawShapeOf } = await import('../physics/figureClaw');
+  const zone = buildFigureZone(new THREE.Scene());
+  expect(zone.homeOf('F-1').x).toBeCloseTo(-clawHalfX(clawShapeOf('long')));
+  expect(zone.homeOf('F-8').x).toBeCloseTo(-clawHalfX(clawShapeOf('square')));
 });

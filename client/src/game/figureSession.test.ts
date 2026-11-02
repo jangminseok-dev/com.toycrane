@@ -70,3 +70,12 @@ test('waiting for the result counts from the report, not the drop', () => {
   expect(s.resultOverdue(19)).toBe(false);
   expect(s.resultOverdue(20.5)).toBe(true);
 });
+
+// 집게 종류마다 벌린 팔이 기계 안에 머무는 반폭(halfX) — 쉬는 자리도 그 왼쪽 끝, 오른쪽으로도 거기까지(사용자 2026-11-02 사진 224)
+test('the claw starts and stops where its open arms stay inside', () => {
+  const s = new FigureSession('F-8', 20, 0, 0.27);
+  expect(s.claw).toEqual({ x: -0.27, z: HOME_Z });
+  s.press(1);
+  for (let t = 0.1; t < 10; t += 0.1) s.update(0.1, t / 10);
+  expect(s.claw.x).toBeCloseTo(0.27);
+});

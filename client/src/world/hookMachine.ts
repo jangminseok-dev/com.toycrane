@@ -5,12 +5,12 @@ import { RINGS } from '../data/rings';
 import type { BoxWire } from '../net/protocol';
 import { flapPieces, gluedPiece, hingeOf, hookClawShape, type Piece } from '../physics/hookWorld';
 import { HOOK_SIGN } from './copy';
-import { blindBoxMat, clawGeosOf, getMat } from './figureMachine';
-import { machineAcryl, machinePopMat, machineSignMat, makeCabinetShell } from './machine';
+import { blindBoxMat, clawGeosOf, displaySlots, getMat } from './figureMachine';
+import { machinePopMat, machineSignMat, makeCabinetShell } from './machine';
 import { canvasTex, part, toon } from './toon';
 
 // 고리 걸기 기계 그림(설계 2026-11-02 ring-hook §3, 사진 180·181·186): 피규어 기계와 같은 몸통에 속만 다르다 — 흰 육각 무늬 선반 위 세운 '?' 상자,
-// 상자 윗면 가장자리에 형광 연두 고리 판(밖으로 접히는 날개에 네모 구멍), 선반 앞 끝 아래 'GET!' 출구, 낮은 앞 투명판, 투명 옆·뒤 벽, 뒤에 진열 상자.
+// 상자 윗면 가장자리에 형광 연두 고리 판(밖으로 접히는 날개에 네모 구멍), 선반 앞 끝 아래 'GET!' 출구, 뒤에 2단 진열 상자. 선반이 기계 옆벽·진열대까지 닿아 둘레 투명판은 없다(물리 벽은 기계 유리·진열 상자 자리).
 // 치수는 물리(hookWorld)와 같다
 const FONT = '"Jua", "Apple SD Gothic Neo", -apple-system, sans-serif';
 const FLOOR_Y = 0.86;
@@ -64,7 +64,6 @@ export const hookClawGeos = once(() => clawGeosOf(hookClawShape()));
 const G = once(() => ({
   shelf: new THREE.BoxGeometry(HOOK.shelf.half_x * 2, 1, HOOK.shelf.front_z - HOOK.shelf.back_z),
   get: new THREE.PlaneGeometry(HOOK.shelf.half_x * 2, HOOK.exit.front_z - HOOK.shelf.front_z),
-  pane: new THREE.BoxGeometry(1, 1, 0.008),
   tier: new THREE.BoxGeometry(1.0, 0.16, 0.14),
 }));
 
@@ -80,14 +79,11 @@ export function makeHookMachineParts(spot: { id: string; x: number; z: number; r
   shelfMat.map = hexTex();
   add(part(g.shelf, shelfMat, [0, FLOOR_Y + shelfH / 2, (shelf.front_z + shelf.back_z) / 2], [1, shelfH, 1], [0, 0, 0], 1.02));
   const get = add(new THREE.Mesh(g.get, getMat())); get.rotation.x = -Math.PI / 2; get.position.set(0, FLOOR_Y + 0.002, (shelf.front_z + exit.front_z) / 2); // 출구
-  // 투명판: 앞(낮게), 옆, 뒤 — 물리 벽 자리
-  const pane = (w: number, h: number, at: [number, number, number], ry = 0) => { const p = add(new THREE.Mesh(g.pane, machineAcryl())); p.scale.set(w, h, 1); p.position.set(...at); p.rotation.y = ry; };
-  pane(shelf.half_x * 2, 0.22, [0, FLOOR_Y + 0.11, exit.front_z]);
-  pane(shelf.half_x * 2, 0.4, [0, shelf.y + 0.2, shelf.back_z]);
-  for (const s of [-1, 1]) pane(exit.front_z - shelf.back_z, 0.4, [s * shelf.half_x, shelf.y + 0.2, (exit.front_z + shelf.back_z) / 2], Math.PI / 2);
-  // 뒤 진열: 같은 '?' 상자 셋
-  add(part(g.tier, toon(0xffeef6), [0, FLOOR_Y + 0.08, -0.43], [1, 1, 1], [0, 0, 0], 1.03));
-  [-0.3, 0, 0.3].forEach((x, k) => { const b = add(new THREE.Mesh(hookBoxGeo(), hookBoxMat())); b.name = 'hook-display'; b.position.set(x, FLOOR_Y + 0.16 + box.h / 2, -0.44); b.rotation.y = (k - 1) * 0.06; });
+  // 뒤 진열: 같은 '?' 상자 2단, 단마다 셋(피규어 기계와 같은 간격, 사용자 2026-11-02)
+  const { shelfY, slots } = displaySlots(box.w, box.h, FLOOR_Y), tierMat = toon(0xffeef6);
+  add(part(g.tier, tierMat, [0, FLOOR_Y + 0.08, -0.43], [1, 1, 1], [0, 0, 0], 1.03));
+  add(part(g.tier, tierMat, [0, shelfY, -0.43], [1, 0.02 / 0.16, 1], [0, 0, 0], 1.03)).name = 'hook-display-shelf';
+  for (const { x, y, k, tier } of slots) { const b = add(new THREE.Mesh(hookBoxGeo(), hookBoxMat())); b.name = 'hook-display'; b.position.set(x, y, -0.44); b.rotation.y = (k - 1) * (tier ? -0.05 : 0.06); }
   m.traverse((o) => { o.castShadow = false; });
   return { statics: m, ledGeo };
 }

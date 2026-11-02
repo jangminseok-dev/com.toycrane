@@ -1,6 +1,6 @@
 import { FIGURE } from '../data/figures';
 import type { BoxWire, ClawPose } from '../net/protocol';
-import type { FigureClaw } from './figureClaw';
+import { clawHalfX, type FigureClaw } from './figureClaw';
 import type { BoxWorld } from './boxWorld';
 import { FIG_STEP } from './figureWorld';
 
@@ -73,7 +73,8 @@ export class FigureCycleRunner {
         if (t >= RELEASE_SECONDS) this.go(w.carryHome ? 'settle' : 'home');
         break;
       case 'home': {
-        const [hx, hz] = C.home, dx = hx - this.x, dz = hz - this.z, d = Math.hypot(dx, dz), s = C.speed * FIG_STEP;
+        // 집: 벌린 팔이 기계 안에 머무는 앞 왼쪽 끝(clawHalfX — json의 home x로 가면 큰 집게 팔이 기둥 밖으로 나갔다, 사진 224)
+        const hx = -clawHalfX(w.clawShape), hz = C.home[1], dx = hx - this.x, dz = hz - this.z, d = Math.hypot(dx, dz), s = C.speed * FIG_STEP;
         if (d <= s) { this.x = hx; this.z = hz; this.go(w.carryHome ? 'release' : 'settle'); } else { this.x += (dx / d) * s; this.z += (dz / d) * s; }
         c.setRail(this.x, this.z);
         break;

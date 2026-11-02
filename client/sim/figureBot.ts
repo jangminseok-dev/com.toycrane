@@ -1,6 +1,6 @@
 import { FIGURE, variantOf, type BoxKind } from '../src/data/figures';
 import type { BoxWire } from '../src/net/protocol';
-import { FigureClaw } from '../src/physics/figureClaw';
+import { FigureClaw, clawHalfX, clawShapeOf } from '../src/physics/figureClaw';
 import { runFigureCycle } from '../src/physics/figureCycle';
 import { FigureWorld } from '../src/physics/figureWorld';
 import type { Rapier } from '../src/physics/rapier';
@@ -14,7 +14,7 @@ export type Strategy = 'smart' | 'vertical' | 'rotate' | 'flip' | 'drag' | 'mash
 export const TECHNIQUES: Record<BoxKind, [Strategy, Strategy]> = { long: ['vertical', 'rotate'], square: ['flip', 'drag'] };
 const AIM_ERR = 0.015, TILT = 0.015, STALL_MOVE = 0.005, STALL_TURN = 0.05, STALL_PLAYS = 2; // m, m, m, rad, 판
 export type BotMemo = { stall: number; corners: boolean };
-const [HALF_X, HALF_Z] = FIGURE.play_half;
+const HALF_Z = FIGURE.play_half[1]; // 가로는 집게마다(벌린 팔이 기계 안에 머무는 데까지, clawHalfX)
 
 type Look = { cx: number; cz: number; yaw: number; ends: { x: number; z: number; y: number; sign: number }[] };
 
@@ -35,7 +35,7 @@ const toward = (l: Look, e: Look['ends'][number], inward: number) => {
 
 export function botPlay(b: BoxWire, rng: Rng, strategy: Strategy, memo: BotMemo = { stall: 0, corners: false }, kind: BoxKind = 'long'): { x: number; z: number } {
   let t: { x: number; z: number };
-  const box = variantOf(kind).box, [first, second] = TECHNIQUES[kind];
+  const box = variantOf(kind).box, [first, second] = TECHNIQUES[kind], HALF_X = clawHalfX(clawShapeOf(kind));
   const tactic = strategy === 'smart' ? (memo.corners ? second : first) : strategy;
   if (strategy === 'masher') t = { x: (rng() * 2 - 1) * HALF_X, z: (rng() * 2 - 1) * HALF_Z };
   else {

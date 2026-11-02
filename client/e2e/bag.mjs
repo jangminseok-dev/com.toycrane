@@ -1,5 +1,5 @@
 // 가방 보기 e2e (설계 2026-11-02 §5): 새 게스트가 가방 칸을 누르면 '아직 뽑은 게 없어요' → 코인 15개를 받아 미는 뽑기 P-1에서
-// 레버로 칸의 위가 열린 미니 인형 위에 가 잡기(턱 위에 쌓여 밀려 떨어질 때까지, 15판까지) → 가방 칸을 누르면 '미는 뽑기' 구역에 뽑은 인형 이름이 보인다.
+// 레버로 칸의 위가 열린 미니 인형 위에 가 잡기(턱 위에 쌓여 밀려 떨어질 때까지, 15판마다 코인을 다시 받아 45판까지) → 가방 칸을 누르면 '미는 뽑기' 구역에 뽑은 인형 이름이 보인다.
 // 가방 API(GET /api/bag/{guestId})도 같은 것을 준다. 콘솔 오류 0
 // 사용: `node client/e2e/bag.mjs <port> <url> [P-1 …]`
 import { readFileSync } from 'node:fs';
@@ -43,16 +43,21 @@ const closeBag = () => click('닫기');
 for (let i = 0; i < 100 && !(await ev("!!document.querySelector('.hud-bag')")); i++) await sleep(100);
 const empty = await openBag(); await closeBag();
 console.log('empty bag', JSON.stringify(empty));
-// 2) 코인 15개 → 기계 앞
-await walk(key, posOf, { x: LAYOUT.counters[0].window[0], z: LAYOUT.counters[0].window[1] }); await sleep(500);
-for (let k = 0; k < 3; k++) { await click('코인 받기'); await sleep(2600); }
-await walk(key, posOf, frontOf(ID)); await sleep(500);
-let ready = false;
-for (let i = 0; i < 100 && !ready; i++) { const b = await buttons(); ready = b.some((x) => x.includes('한 판 하기')) && !(await ev("document.body.innerText.includes('준비 중')")); if (!ready) await sleep(300); }
+// 2) 코인 15개 → 기계 앞 (코인 받기는 15개까지라 15판마다 다시 채운다)
+const fill = async (seated) => {
+  if (seated) { for (let i = 0; i < 100 && !(await click('그만하기')); i++) await sleep(300); await sleep(800); } // 기계에서 일어나야 걷는다
+  await walk(key, posOf, { x: LAYOUT.counters[0].window[0], z: LAYOUT.counters[0].window[1] }); await sleep(500);
+  for (let k = 0; k < 3; k++) { await click('코인 받기'); await sleep(2600); }
+  await walk(key, posOf, frontOf(ID)); await sleep(500);
+  let ready = false;
+  for (let i = 0; i < 100 && !ready; i++) { const b = await buttons(); ready = b.some((x) => x.includes('한 판 하기')) && !(await ev("document.body.innerText.includes('준비 중')")); if (!ready) await sleep(300); }
+};
+await fill();
 // 3) 뽑힐 때까지: 칸의 위가 열린 미니 인형 위로 레버 → 잡기 (집게가 턱 위에 놓고, 판이 밀어 앞 끝으로 떨어지면 당첨)
 const io = { send, ev, sleep };
 let won = null, plays = 0;
-for (; plays < 15 && !won; plays++) {
+for (; plays < 45 && !won; plays++) {
+  if (plays > 0 && plays % 15 === 0) await fill(true);
   const n0 = seen.length;
   let pressed = false;
   for (let i = 0; i < 40 && !pressed; i++) { pressed = (await click('한 판 더')) || (await click('한 판 하기')); if (!pressed) await sleep(250); }

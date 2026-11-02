@@ -1,4 +1,5 @@
 import { beforeAll, expect, test } from 'vitest';
+import { DOLLS } from '../data/catalog';
 import { PUSHER, plateFront } from '../data/pushers';
 import type { DollSpot } from '../net/protocol';
 import { MACHINE_SPEC } from '../data/storeLayout';
@@ -15,10 +16,12 @@ const spot = (uid: number, x: number, y: number | null, z: number): DollSpot => 
 const run = (w: PusherWorld, s: number) => { for (let t = 0; t < s; t += 1 / 60) w.step(1 / 60); };
 const dropped = (n: number) => Array.from({ length: n }, (_, i) => spot(i + 1, drop[0] + ((i % 3) - 1) * 0.04, null, drop[1]));
 
-test('the plate pushes only a third of the ledge', () => {
+// 사용자: '끝까지 밀어 주는 게 아니라 1/3 정도만' — 턱 깊이의 30~34%
+test('the plate pushes only about a third of the ledge', () => {
   const zs = Array.from({ length: 300 }, (_, i) => plateFront((i / 300) * plate.period));
   expect(Math.min(...zs)).toBeCloseTo(ledge.z0, 4);
-  expect(Math.max(...zs) - ledge.z0).toBeCloseTo((ledge.z1 - ledge.z0) / 3, 2);
+  const share = (Math.max(...zs) - ledge.z0) / (ledge.z1 - ledge.z0);
+  expect(share).toBeGreaterThanOrEqual(0.3); expect(share).toBeLessThanOrEqual(0.34);
 });
 
 test('dolls dropped on the ledge are pushed off the front edge as they pile up', () => {
@@ -30,8 +33,10 @@ test('dolls dropped on the ledge are pushed off the front edge as they pile up',
   expect(many.fallen().length).toBeGreaterThan(0);
 }, 120_000);
 
+// 판이 미는 자리(들어간 판 앞 16cm)에서 턱 오른쪽 끝에 걸친 인형 — 판에 밀려 깨어 옆으로 떨어진다(판이 안 닿는 자리의 걸친 인형은
+// 저장된 무더기처럼 잠들어 그대로 있다)
 test('a doll that rolls off the ledge side lands in the pile and is not won', () => {
-  const w = new PusherWorld(R, [spot(1, ledge.x1 + 0.03, TOP + 0.02, 0)], true);
+  const w = new PusherWorld(R, [spot(1, ledge.x1 + 0.03, TOP + 0.02, ledge.z0 + 0.16)], true);
   w.setHoleOpen(true); run(w, 3);
   const [p] = w.poses();
   expect(w.fallen()).toEqual([]);
@@ -135,7 +140,7 @@ test('a fresh pusher machine settles at rest with nobody on the plate housing', 
   }
 }, 120_000);
 
-// 사용자 2026-11-02: 놓은 뒤 결과까지 너무 길어 지루하다 — 판은 놓은 뒤 지금 왕복을 마치고(3초 안) 멈추고, 그 뒤 잠깐 그대로면 끝
+// 사용자 2026-11-02: 놓은 뒤 결과까지 너무 길어 지루하다 — 판은 놓은 뒤 한 번 끝까지 밀고(3~6초) 멈추고, 그 뒤 잠깐 그대로면 끝
 test('a pusher play ends within a few seconds of letting go', async () => {
   const { ClawBody } = await import('./clawBody');
   const { runCycle } = await import('./clawCycle');
@@ -150,10 +155,11 @@ test('a pusher play ends within a few seconds of letting go', async () => {
     waits.push(w.time - settleFrom);
     w.dispose();
   }
-  expect(Math.max(...waits), JSON.stringify(waits)).toBeLessThan(plate.period + PUSHER.settle.still + 1);
+  expect(Math.max(...waits), JSON.stringify(waits)).toBeLessThan(2 * plate.period + PUSHER.settle.still + 1);
 }, 240_000);
 
-// 사용자 2026-11-02: 코인을 넣지 않으면 판은 멈춰 있고(들어가 있음), 넣으면 들어가 있던 자리부터 앞뒤로 — 놓은 뒤 다음에 들어갈 때 멈춘다
+// 사용자 2026-11-02: 코인을 넣지 않으면 판은 멈춰 있고(들어가 있음), 넣으면 들어가 있던 자리부터 앞뒤로 — 놓은 뒤 한 왕복이 지나고
+// 처음 들어갈 때 멈춘다. 마지막 왕복은 늘 놓은 뒤에 시작해 떨어진 인형을 끝까지 민다(왕복 끝에 놓으면 인형이 닿기 전에 멈췄다, 사진 217)
 test('the plate moves only during a play and stops in after the release', () => {
   const idle = new PusherWorld(R, []);
   run(idle, 2);
@@ -164,14 +170,26 @@ test('the plate moves only during a play and stops in after the release', () => 
   expect(w.plateZ()).toBeCloseTo(ledge.z0, 4); // 들어가 있던 자리부터
   run(w, 1);
   expect(w.plateZ()).toBeGreaterThan(ledge.z0 + 0.05);
-  w.afterRelease(); // 1초에 놓음 → 3초(다음에 들어가는 때)에 멈춤
-  run(w, 1.8);
+  w.afterRelease(); // 1초에 놓음 → 4초 뒤 처음 들어가는 6초에 멈춤
+  run(w, 4.8);
   expect(w.plateMoving()).toBe(true);
   run(w, 0.4);
   expect(w.plateMoving()).toBe(false);
   expect(w.plateZ()).toBeCloseTo(ledge.z0, 3);
   run(w, 2);
   expect(w.plateZ()).toBeCloseTo(ledge.z0, 4);
+  w.dispose();
+});
+
+test('after the release the plate still makes one full push', () => {
+  const w = new PusherWorld(R, [], true);
+  run(w, plate.period - 0.05); // 왕복이 막 끝나 갈 때 놓는다
+  const from = w.time;
+  w.afterRelease();
+  let reach = 0;
+  while (w.plateMoving()) { w.step(1 / 60); if (w.time > from + 0.5) reach = Math.max(reach, w.plateZ() - ledge.z0); }
+  expect(reach).toBeCloseTo(plate.stroke, 2); // 인형이 내려앉은 뒤(0.5초)에도 끝까지 민다
+  expect(w.time - from).toBeLessThanOrEqual(2 * plate.period + 0.02);
   w.dispose();
 });
 
@@ -266,3 +284,19 @@ test('a disturbed pile goes back to sleep instead of creeping', async () => {
   }
   expect(Math.max(...worst), JSON.stringify(worst)).toBeLessThan(0.003);
 }, 240_000);
+
+// 턱 앞 끝을 넘은 인형은 출구로 빠진다(무게 중심이 덜 넘어 턱 위로 되돌아가는 것은 괜찮다) — 턱을 앞으로 늘려 출구(턱 앞 끝 ~ 앞 벽)가 14cm로 좁아지자 미니 인형이 턱과 앞 벽 사이에
+// 끼어 안 나왔다(사용자 2026-11-02 사진 218). 24종 × 선 채·엎드림·옆으로 누움, 몸 가운데가 앞 끝을 막 넘은 자리
+test('no doll gets wedged between the ledge front and the front wall', () => {
+  const s2 = Math.SQRT1_2, poses: [number, number, number, number][] = [[0, 0, 0, 1], [s2, 0, 0, s2], [0, 0, s2, s2]];
+  const stuck: string[] = [];
+  Object.keys(DOLLS).forEach((kind, k) => poses.forEach((q, j) => {
+    const at: DollSpot = [kind, (ledge.x0 + ledge.x1) / 2, TOP + 0.06, ledge.z1 + 0.03, ...q, k % 6, 'n', 0, '', 1];
+    const w = new PusherWorld(R, [at], true);
+    w.setHoleOpen(true); run(w, 3);
+    const [p] = w.poses(), onLedge = p.p[2] < ledge.z1 && p.p[1] > TOP;
+    if (w.fallen().length !== 1 && !onLedge) stuck.push(`${kind}#${j} ${p.p.map((v) => v.toFixed(2))}`); // 턱 위로 되돌아갔거나 빠졌거나, 그 사이에 끼면 안 된다
+    w.dispose();
+  }));
+  expect(stuck).toEqual([]);
+}, 120_000);

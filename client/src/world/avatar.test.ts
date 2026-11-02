@@ -32,6 +32,10 @@ test('fading one avatar leaves the others alone and comes back', () => {
   expect((body(b).material as THREE.Material).opacity).toBe(1);
   a.setFade(1);
   expect(body(a).material).toBe(original);
+  a.setFade(0);
+  expect(a.root.visible).toBe(false);
+  a.setFade(1);
+  expect(a.root.visible).toBe(true);
 });
 
 // 사용자 2026-11-02(사진 214): 캐릭터를 카툰식으로 더 귀엽게 — 색마다 머리 모양이 다르고(단발·양갈래 똥머리·포니테일·바보털),

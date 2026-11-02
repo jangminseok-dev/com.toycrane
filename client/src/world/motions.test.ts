@@ -69,3 +69,18 @@ test('playing and its results keep facing the machine without swaying', async ()
     expect(sway, `${outcome} sway`).toBeLessThan(0.03);
   }
 }, 60_000);
+
+// 집게가 오르내리는 동안(두근두근) 두 손은 조작대에 둔 채 고개만 살짝 들어 집게를 본다 — 두 손을 배 앞에 모으고 고개를 숙이니
+// 다른 사람 화면에서 이상한 자세로 보였다(사용자 2026-11-02 사진 229)
+test('while the claw moves the player keeps both hands on the controls and looks up', async () => {
+  const { playResult } = await import('./motions');
+  const tw = new Tweens(), r = makeAvatar(0, 'x').rig;
+  let clawDone: () => void = () => {};
+  const fx = { bonk() {}, claw: () => new Promise<void>((res) => { clawDone = res; }), afterClaw() {}, pop() {}, win: () => 0.5, fail() {} };
+  void playResult(r, tw, 'miss', null, fx, 0);
+  for (let i = 0; i < 45; i++) { tw.update(1 / 30); for (let k = 0; k < 4; k++) await Promise.resolve(); } // 쾅 → 두근두근 자세
+  expect(r.handL.z).toBeGreaterThan(0.5); expect(r.handR.z).toBeGreaterThan(0.5); // 조작대(앞 0.56)에 손
+  expect(Math.abs(r.handL.x - r.handR.x)).toBeGreaterThan(0.4); // 버튼·레버에 하나씩 — 가운데로 모으지 않는다
+  expect(r.head.rotation.x).toBeLessThan(0); // 위(집게)를 본다
+  clawDone();
+});

@@ -1005,7 +1005,7 @@ function frame(now: number) {
     bigZone.setFocus(me.pos.x, me.pos.z); // 먼 묶음은 인형 외곽선을 끈다 (큰 홀 설계 §6)
     minimap.frame({ me: { x: me.pos.x, z: me.pos.z, heading: myAvatar.root.rotation.y }, others: remotes.positions(), atMachine: !!atMachine }, now / 1000); // 기계 앞에선 숨김
     const myMachine = atMachine ? spotOf.get(atMachine) : undefined;
-    remotes.fade(myMachine ? (p) => blocksView(myMachine, p) : null, dt); // 한 판 중 내 카메라를 가리는 사람은 거의 투명하게
+    remotes.fade(myMachine ? (p) => blocksView(myMachine, p) : null, dt); // 한 판 중 내 카메라를 가리는 사람은 흐려지다 사라진다
     if (session) {
       // 기계 레버가 집게를 움직이고 캐릭터는 기계 앞에 서 있다.
       // 시간이 다 되면 여기서 내리고(sendDrop이 session을 비운다) — 그 뒤엔 session을 읽지 않는다 (읽으면 그리기 고리가 멈춘다)

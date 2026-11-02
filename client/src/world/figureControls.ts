@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import type { FigurePhase } from '../game/figureSession';
 import { FIGURE_BUTTONS } from './copy';
+import { makePressCue } from './pressCue';
 import { buttonLabelTex } from './signs';
 import { part, toonWith } from './toon';
 
 // 피규어 기계 조작대의 진짜 버튼 ①(빨강)·②(파랑) (9단계 설계 §3.3, 예전 버튼판 fde3f11과 같은 자리·모양): 기계 좌표 (x, y, z).
-// 지금 누를 버튼은 두근두근 빛나고, 누르는 동안 1.2cm 들어간다. 누르는 범위(보이지 않는 상자)는 휴대폰 손가락을 위해 그림보다 넉넉하다(26cm).
+// 지금 누를 버튼은 두근두근 빛나며 둘레로 고리가 퍼지고, 누르는 동안 1.2cm 들어간다. 누르는 범위(보이지 않는 상자)는 휴대폰 손가락을 위해 그림보다 넉넉하다(26cm).
 // 윗면에는 인형 기계 '잡기'처럼 하는 일('오른쪽' ▶, '안쪽' ▲)을 적는다(사용자 2026-11-02)
 export const FIGURE_CONTROLS = { one: [0.12, 0.925, 0.66], two: [0.32, 0.925, 0.66] } as const;
 const DOME = new THREE.SphereGeometry(0.055, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2);
@@ -22,7 +23,7 @@ export const labelMat = (i: number, labels: ButtonLabels = FIGURE_BUTTONS): THRE
   if (!m) labelMats.set(key, (m = new THREE.MeshBasicMaterial({ map: buttonLabelTex(labels[i], LOOK[i].arrow, LOOK[i].ink), transparent: true, depthWrite: false })));
   return m;
 };
-const PRESS_DEPTH = 0.012, GLOW = 0.75;
+const PRESS_DEPTH = 0.012, GLOW = 1.1; // 반짝임 꼭대기 — 누를 버튼이 한눈에 보이게(사용자 2026-11-02)
 
 export type FigureControls = {
   pick(ray: THREE.Raycaster): 1 | 2 | null;
@@ -45,12 +46,13 @@ export function buildFigureControls(anchor: THREE.Object3D, labels: ButtonLabels
     label.name = `figure-label-${i + 1}`; label.userData.text = labels[i]; label.rotation.x = -Math.PI / 2; label.position.y = LABEL_Y;
     dome.add(label);
     const hit = new THREE.Mesh(HIT, hitMat); hit.position.set(x, y + 0.04, z); hit.userData.button = (i + 1) as 1 | 2;
-    group.add(dome, hit);
-    return { dome, hit, mat, restY: y };
+    const cue = makePressCue(`press-cue-${i + 1}`, c, 0.055 * BUTTON_SCALE[0] + 0.01, [x, y, z]); // 누를 버튼 둘레로 퍼지는 고리
+    group.add(dome, hit, cue.group);
+    return { dome, hit, mat, restY: y, cue };
   });
   group.traverse((o) => { o.castShadow = false; });
   anchor.add(group);
-  let active: 1 | 2 | null = 1;
+  let active: 1 | 2 | null = 1, waiting = true; // waiting: 누르기를 기다리는 중(누르는 동안·집게가 도는 동안은 고리를 멈춘다)
   return {
     pick(ray) {
       const hits = ray.intersectObjects(buttons.map((b) => b.hit), false);
@@ -58,14 +60,15 @@ export function buildFigureControls(anchor: THREE.Object3D, labels: ButtonLabels
     },
     setPhase(phase) {
       active = phase === 'one' || phase === 'moving-one' ? 1 : phase === 'two' || phase === 'moving-two' ? 2 : null;
+      waiting = phase === 'one' || phase === 'two';
       buttons.forEach((b, i) => { b.mat.emissiveIntensity = active === i + 1 ? GLOW : 0; });
     },
     setPressed(button) {
       buttons.forEach((b, i) => { b.dome.position.y = b.restY - (button === i + 1 ? PRESS_DEPTH : 0); });
     },
     update(t) {
-      const pulse = 0.55 + 0.45 * Math.sin(t * 7); // 지금 누를 버튼이 두근두근
-      buttons.forEach((b, i) => { b.mat.emissiveIntensity = active === i + 1 ? GLOW * pulse : 0; });
+      const pulse = 0.65 + 0.35 * Math.sin(t * 7); // 지금 누를 버튼이 두근두근
+      buttons.forEach((b, i) => { b.mat.emissiveIntensity = active === i + 1 ? GLOW * pulse : 0; b.cue.update(t, waiting && active === i + 1); });
     },
     glow: (button) => buttons[button - 1].mat.emissiveIntensity,
     domeY: (button) => buttons[button - 1].dome.position.y,

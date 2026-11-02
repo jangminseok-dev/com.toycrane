@@ -18,4 +18,5 @@ export const HOOK_MACHINE: BoxMachine = {
   makeWorld: (R, box, id) => new HookWorld(R, box, ringSideOf(id)),
   hint: UI.hookHint,
   camera: HOOK_POSES,
+  aimGuide: true, // 팔 끝이 내려갈 자리(사용자 2026-11-02 '어디를 노리는지 알 수 있게')
 };

@@ -7,7 +7,7 @@ import type { Tweens } from './tween';
 import { extrapolate, isMoving, type RemoteState } from './remote';
 
 type Remote = { avatar: Avatar; state: RemoteState; shown: THREE.Vector2; nick: string; room: number | null; begging: { stop(): Promise<void> } | null; fade: number };
-const FADE_TO = 0.08, FADE_SECONDS = 0.2; // 내 카메라를 가리는 사람 (교환소 개편 설계 §4.7.2)
+const FADE_TO = 0, FADE_SECONDS = 0.2; // 내 카메라를 가리는 사람은 사라진다 (교환소 개편 설계 §4.7.2 — 8%는 카툰 부품이 겹쳐 유령처럼 보였다)
 const SMOOTH = 0.2; // 매 프레임 추정 위치로 20%씩 다가간다
 
 // 같은 매장의 다른 사람들: 받은 위치에서 추정한 곳으로 부드럽게 따라 움직인다
@@ -64,7 +64,7 @@ export class RemotePlayers {
     else if (room === null && r.begging) { void r.begging.stop(); r.begging = null; }
   }
 
-  // 한 판 중 내 카메라와 기계 사이에 선 사람(blocking이 참)을 거의 투명하게, 벗어나면 원래대로 (blocking이 null이면 모두 원래대로)
+  // 한 판 중 내 카메라와 기계 사이에 선 사람(blocking이 참)을 흐리다가 숨기고, 벗어나면 원래대로 (blocking이 null이면 모두 원래대로)
   fade(blocking: ((p: { x: number; z: number }) => boolean) | null, dt: number): void {
     const step = (1 - FADE_TO) * Math.min(1, dt / FADE_SECONDS);
     for (const r of this.remotes.values()) {

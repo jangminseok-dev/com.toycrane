@@ -38,3 +38,28 @@ test('ending my play without a figure message restores the saved box', () => {
   play.end();
   expect(zone.boxOf(F1.id)).toEqual(SAVED);
 });
+
+// 고리 걸기는 판 동안 두 팔 끝이 내려갈 자리를 보여 준다(사용자 2026-11-02 '집게가 어디를 노리는지 알 수 있게 조금 더 쉽게') —
+// 팔 끝마다 아래로 가는 줄과 닿을 곳의 고리 표시. 집게가 내려가면 사라진다. 피규어 기계에는 없다
+test('a hook play shows where the arm tips come down', async () => {
+  const { loadRapier } = await import('../physics/rapier');
+  const { HOOK_MACHINE, RING_SPOTS } = await import('./hookPlay');
+  const { buildHookZone } = await import('../world/hookZone');
+  const { tipOffset } = await import('../physics/figureClaw');
+  const { hookClawShape } = await import('../physics/hookWorld');
+  const R = await loadRapier(), zone = buildHookZone(new THREE.Scene()), id = [...RING_SPOTS.keys()][0];
+  const play = new FigurePlay(new THREE.Scene(), zone, { send: () => {}, rapier: () => R, onDrop: () => {}, onOverdue: () => {} }, HOOK_MACHINE);
+  play.start(id, 20, 0);
+  play.frame(1 / 60, 0.1);
+  const guide = zone.worldOf(id).getObjectByName('aim-guide')!;
+  expect(guide.visible).toBe(true);
+  const marks = [0, 1].map((i) => guide.getObjectByName(`aim-mark-${i}`)!);
+  const claw = play.session!.claw, [tx] = tipOffset(hookClawShape());
+  expect(marks.map((m) => m.position.x).sort((a, b) => a - b)).toEqual([expect.closeTo(claw.x - tx, 5), expect.closeTo(claw.x + tx, 5)]);
+  for (const m of marks) expect(m.position.z).toBeCloseTo(claw.z, 5);
+  play.press(1); play.frame(1 / 60, 0.2); play.release(1, 0.3); play.press(2); play.release(2, 0.4);
+  expect(zone.worldOf(id).getObjectByName('aim-guide')).toBeUndefined();
+  const fig = make();
+  fig.play.start(F1.id, 20, 0); fig.play.frame(1 / 60, 0.1);
+  expect(fig.zone.worldOf(F1.id).getObjectByName('aim-guide')).toBeUndefined();
+});

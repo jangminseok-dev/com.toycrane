@@ -37,3 +37,24 @@ test('the hook claw sticker says ring, not figure', () => {
   expect((scene.getObjectByName('hook-claw-stickers') as THREE.InstancedMesh).material).toMatchObject({ userData: { text: '고리' } });
   expect(((scene.getObjectByName('hook-claw-arms') as THREE.InstancedMesh).material as THREE.MeshToonMaterial).transparent).toBe(false);
 });
+
+// 선반을 둘러싼 투명판(앞·옆·뒤)은 없앤다(사용자 2026-11-02 사진 226 '저 유리가 어떤 기능을 해?') — 선반이 기계 옆벽·뒤 진열대까지
+// 닿아 옆·뒤로 떨어질 곳이 없고, 막는 물리 벽은 기계 유리·진열 상자 자리에 있다. 선반 위 공간에 투명한 것이 서 있지 않다
+test('no glass panes stand around the hook shelf', async () => {
+  const { makeHookMachineParts } = await import('./hookMachine');
+  const { CABINET_INNER } = await import('../physics/figureClaw');
+  const { shelf, exit } = HOOK;
+  expect(shelf.half_x).toBeGreaterThanOrEqual(CABINET_INNER - 0.03);
+  expect(shelf.back_z).toBeLessThanOrEqual(-0.36); // 진열대 앞면까지
+  expect(exit.front_z).toBeGreaterThanOrEqual(0.45); // 기계 앞 유리 바로 안쪽까지
+  const { statics } = makeHookMachineParts(RINGS[0], 0xff8a3d);
+  statics.position.set(0, 0, 0); statics.rotation.set(0, 0, 0); statics.updateMatrixWorld(true);
+  const above = new THREE.Box3(new THREE.Vector3(-shelf.half_x + 0.01, shelf.y + 0.02, shelf.back_z + 0.01), new THREE.Vector3(shelf.half_x - 0.01, shelf.y + 0.4, exit.front_z - 0.01));
+  const glass: string[] = [];
+  statics.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (m.name === 'glass') return; // 몸통 유리(기계 가장자리 — 경계 상자는 몸통 전체라 빼고 본다)
+    if (m.isMesh && (m.material as THREE.Material).transparent && new THREE.Box3().setFromObject(m).intersectsBox(above)) glass.push(m.name || m.geometry.type);
+  });
+  expect(glass).toEqual([]);
+});

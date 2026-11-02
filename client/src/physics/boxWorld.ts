@@ -22,6 +22,7 @@ export interface BoxWorld {
   step(dt: number): void;
   boxPose(): BoxWire;
   extraPose?(): BoxWire; // 상자에 딸린 움직이는 부분(고리 걸기의 접히는 날개) — 그림·중계
+  surfaceBelow?(x: number, z: number, fromY: number): number; // (x, z) 위 fromY에서 곧장 아래로 처음 닿는 높이 — 겨냥 표시(세계는 안 움직인다)
   fallen(): boolean;
   still(): boolean;
   dispose(): void;
