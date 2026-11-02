@@ -12,7 +12,7 @@ import { canvasTex, part, toon, toonWith } from './toon';
 // 기계 폭을 가로지르는 쇠막대 두 개를 양옆 흰 기둥 죔쇠가 잡고, 막대 아래는 상자가 떨어지는 구멍('GET!' 바닥), 앞은 낮은 투명판(테두리 없음),
 // 앞 막대 앞은 비어 있고(물리의 낮은 턱만), 뒤는 받침 막대와 테두리 있는 투명 벽, 그 뒤 진열대에 같은 랜덤 상자를 세워 둔다. 상자 그림은 모두 같다(겉으로 캐릭터를 알 수 없게, 설계 §4)
 const FONT = '"Jua", "Apple SD Gothic Neo", -apple-system, sans-serif';
-const FLOOR_Y = 0.86, WALL_TOP = 0.3; // 뒤 벽 윗변(막대 위, 물리 figureWorld와 같음)
+const FLOOR_Y = 0.86, WALL_TOP = 0.16; // 앞뒤 판 윗변(막대 위, 물리 figureWorld와 같음) — 상자 두께(13.8~15cm)보다 조금 높게
 const once = <T>(make: () => T) => { let v: T | undefined; return () => (v ??= make()); };
 type V3 = [number, number, number];
 const flat = (geo: THREE.BufferGeometry, mat: THREE.Material, pos: V3, rot: V3 = [0, 0, 0]) => {
@@ -95,8 +95,7 @@ const G = once(() => ({
   clamp: new RoundedBoxGeometry(0.05, 0.052, 0.055, 1, 0.012),
   floor: new THREE.BoxGeometry(1.12, 0.02, 1),
   get: new THREE.PlaneGeometry(FIGURE.bars.half_len * 2, 1),
-  pane: new THREE.BoxGeometry(FIGURE.bars.half_len * 2, 1, 0.008), // 뒤 벽(높이는 scale)
-  edge: new THREE.BoxGeometry(1, 1, 0.012), // 뒤 벽 테두리
+  pane: new THREE.BoxGeometry(FIGURE.bars.half_len * 2, 1, 0.008), // 앞뒤 판(높이는 scale)
   tier: new RoundedBoxGeometry(1.0, 1, 0.14, 1, 0.012),
 }));
 
@@ -132,14 +131,10 @@ export function makeFigureMachineParts(spot: FigureSpot, index: number, color: n
     const edge = bz + 0.01, len = 0.49 - edge;
     add(part(g.floor, floorMat, [0, FLOOR_Y, side * (edge + len / 2)], [1, 1, len], [0, 0, 0], 0));
   }
-  // 앞뒤 벽: 받침 막대 바깥 투명판 + 흰 테두리(막힌 줄 보이게) — 앞도 뒤처럼(사용자 2026-11-02 사진 245: 앞 막대 바로 앞 낮은 판 대신)
-  const wy = y + WALL_TOP / 2 - 0.015, wh = WALL_TOP + 0.03, ww = half_len * 2;
-  for (const wz of [bz + front_wall, -(bz + back_wall)]) {
-    add(flat(g.pane, machineAcryl(), [0, wy, wz])).scale.y = wh;
-    for (const [dx, dy, sx, sy] of [[0, wh / 2, ww, 0.012], [0, -wh / 2, ww, 0.012], [ww / 2, 0, 0.012, wh], [-ww / 2, 0, 0.012, wh]]) {
-      add(part(g.edge, white, [dx, wy + dy, wz], [sx, sy, 1], [0, 0, 0], 1.08));
-    }
-  }
+  // 앞뒤 판: 받침 막대 바깥의 틀 없는 낮은 투명판 — 앞도 뒤처럼(사용자 2026-11-02 사진 245: 앞 막대 바로 앞 낮은 판 대신). 높은 틀 유리(30cm, 흰 기둥·윗막대)는
+  // 울타리처럼 보이고 긴 상자 앞 모서리를 가려서(사진 254) 뺐다 — 진짜 기계 공략에도 앞 벽 설명은 없다
+  const wy = y + WALL_TOP / 2 - 0.015, wh = WALL_TOP + 0.03;
+  for (const wz of [bz + front_wall, -(bz + back_wall)]) add(flat(g.pane, machineAcryl(), [0, wy, wz])).scale.y = wh;
   // 구멍 아래 'GET!' 바닥(상자가 빠지면 여기로)
   add(flat(g.get, getMat(), [0, FLOOR_Y - 0.005, 0], [-Math.PI / 2, 0, 0])).scale.set(1, 2 * bz, 1); // 몸통 윗면 바로 위(상자는 몸통 속으로 빠진다)
   // 뒤 벽 뒤 진열대: 같은 랜덤 상자를 세워 둔다(실제 기계의 재고 진열). 2단, 단마다 3개 — 위 단은 띄운 얇은 선반 위

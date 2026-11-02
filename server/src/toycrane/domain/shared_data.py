@@ -372,9 +372,9 @@ LAYOUT = {'hall': {'room_half': 19, 'map_half': 18.6, 'tower_half': 1.3, 'spawn_
            {'kind': 'shelf', 'rect': [-20.0, 14.0, -17.6, 18.5], 'ry': 1.570796},
            {'kind': 'shelf', 'rect': [17.6, 14.0, 20.0, 18.5], 'ry': -1.570796}]}
 
-CLAW = {'base_force': 5.15,
+CLAW = {'base_force': 4.4,
  'spread': 0.4,
- 'quality': {'three': 1.0, 'two': 0.5},
+ 'quality': {'three': 1.0, 'two': 0.75},
  'carry_relax': 0.6,
  'rare': {'rare': 0.79, 'gold': 0.72},
  'hole': {'size': 0.38, 'lip': 0.12},
@@ -382,35 +382,38 @@ CLAW = {'base_force': 5.15,
  'max_wins': 3,
  'cycle_seconds': 12,
  'settle_seconds': 3,
- 'kind': {'cat': 1.5,
-          'panda': 0.97,
-          'hamster': 1.22,
-          'fox': 1.15,
-          'raccoon': 1.09,
-          'squirrel': 1.47,
-          'owl': 1.34,
-          'deer': 0.97,
-          'hedgehog': 1.31,
-          'penguin': 1.15,
-          'frog': 1.07,
-          'duck': 1.16,
-          'seal': 1.07,
-          'octopus': 1.0,
-          'whale': 1.08,
-          'chick': 1.06,
+ 'kind': {'cat': 1.22,
+          'panda': 0.94,
+          'hamster': 1.04,
+          'fox': 1.0,
+          'raccoon': 1.0,
+          'squirrel': 1.2,
+          'owl': 1.1,
+          'deer': 0.95,
+          'hedgehog': 1.07,
+          'penguin': 1.01,
+          'frog': 1.05,
+          'duck': 1.0,
+          'seal': 1.0,
+          'octopus': 1.02,
+          'whale': 1.02,
+          'chick': 0.97,
           'pig': 0.95,
-          'cow': 0.92,
-          'dino': 1.33,
-          'unicorn': 1.33,
-          'bunny': 1.04,
-          'bear': 0.95}}
+          'cow': 0.96,
+          'dino': 1.14,
+          'unicorn': 1.05,
+          'bunny': 0.96,
+          'bear': 0.95,
+          'sheep': 0.97,
+          'dog': 0.95}}
 
 FIGURE = {'_note': '피규어 뽑기 기계 수치(9단계, 설계 2026-11-01-toycrane-figure-machine-design.md §8 개정). 기계 좌표: 앞 +z, 오른쪽 +x. 막대 두 개는 x를 '
           '따라, 상자는 처음에 긴 변(h)이 z를 따라 그림 면 위로 눕혀(두께 d가 위아래) 두 막대에 걸친다. 상자 종류(variants)마다 상자 치수·무게, 막대 틈(gap, 막대 겉면 사이), '
           '집게 크기(claw_scale, 9단계 집게의 배율 — 정사각형은 상자가 넓어 더 크게)·힘(power). guards는 막대 중심 z에서 바깥으로 받침 막대·유리 벽까지 거리 — 앞도 뒤처럼 '
           '받침 막대 + 유리 벽(사용자 2026-11-02, 앞 막대 바로 앞의 낮은 판 대신)이라 상자는 두 막대 사이로만 빠진다. 뒤(guards)는 두 종류 같고 '
           '앞(variants.guards)은 상자 종류마다: 긴 상자는 유리가 17cm면 앞으로 미끄러져 2판 만에 빠져 4·7cm로, 정사각형은 7cm면 뒤 끝을 걸어 끌어오기가 막혀(30판 안 '
-          '38%) 9·17cm 그대로(그 대신 들림 한계 0.052 → 0.046 — 10%선 2판이던 것을 5판으로). 길이 m, 질량 kg, 힘 N·m',
+          '38%) 9·17cm 그대로(그 대신 들림 한계 0.052 → 0.046 — 10%선 2판이던 것을 5판으로). 유리 벽은 틀 없는 낮은 투명판(막대 위 16cm, 물리·그림 '
+          'WALL_TOP). 길이 m, 질량 kg, 힘 N·m',
  'bars': {'y': 0.98, 'radius': 0.014, 'half_len': 0.47},
  'claw': {'home': [-0.44, 0.34], 'speed': 0.3, 'rest_y': 1.9, 'descend': 0.35},
  'guards': {'back_bar': 0.09, 'back_wall': 0.17},
@@ -433,7 +436,9 @@ FIGURE = {'_note': '피규어 뽑기 기계 수치(9단계, 설계 2026-11-01-to
 HOOK = {'_note': '고리 걸기 기계 수치(설계 2026-11-02 ring-hook §3). 기계 좌표: 앞 +z, 오른쪽 +x, 길이 m. 평평한 선반(뒤 back_z ~ 앞 front_z, 윗면 y) 위에 '
           '세운 상자 하나, 선반 앞 끝 ~ exit.front_z가 출구. 선반은 기계 옆벽(half_x)·뒤 진열대(back_z)까지, 출구는 앞 유리 바로 안쪽까지 닿아 둘레에 투명판이 없다(사용자 '
           '2026-11-02). 상자 윗면 가장자리에 고리 판(두께 t, 폭 d)이 glued만큼 붙고, 가장자리 밖으로 접히는 날개(안쪽 테 inner, 네모 구멍 hole, 바깥 테 outer)가 '
-          '튀어나온다 — 날개는 위로 fold_max까지 접힌다. 집게는 피규어와 같은 팔 두 개(claw_scale 배), 고리에 걸린 채 집으로 돌아와 놓는다',
+          '튀어나온다 — 날개는 위로 fold_max까지 접히고, 접는 선의 약한 되돌림 스프링(spring N·m/rad, spring_damp)이 건드리지 않으면 다시 펴 둔다(사용자 '
+          "2026-11-02 '닿지도 않았는데 접혀 있다' — 한 번 튕긴 날개가 그대로 서 있었다). 고리에 걸려 끌릴 때는 상자 무게가 훨씬 세다. 집게는 피규어와 같은 팔 두 "
+          '개(claw_scale 배), 고리에 걸린 채 집으로 돌아와 놓는다',
  'shelf': {'y': 0.98, 'half_x': 0.52, 'back_z': -0.36, 'front_z': 0.12},
  'exit': {'front_z': 0.46},
  'box': {'w': 0.18, 'd': 0.14, 'h': 0.24, 'mass': 0.35},
@@ -444,7 +449,9 @@ HOOK = {'_note': '고리 걸기 기계 수치(설계 2026-11-02 ring-hook §3). 
           'hole': 0.03,
           'outer': 0.03,
           'flap_mass': 0.01,
-          'fold_max': 1.4},
+          'fold_max': 1.4,
+          'spring': 0.01,
+          'spring_damp': 0.0005},
  'claw': {'scale': 1.5, 'arm_w': 0.006, 'close': -0.12},
  'power': {'grip': 1.0, 'lift': 1.0, 'carry': 0.6, 'max_lift': 1, 'max_clear': 1},
  'hold': {'base': 0.055, 'span': 0.265},
@@ -459,15 +466,15 @@ PUSHER = {'_note': '미는 뽑기 기계 수치(설계 2026-11-02 ring-hook §4)
           '박자로 이어 움직이고, 집게가 놓은 뒤 한 왕복이 지나 처음 들어갈 때 멈춘다 — 떨어진 인형을 늘 한 번은 끝까지 민다(그 뒤 settle.still초 그대로면 판 끝, 길어도 '
           'settle.max초). 턱 앞 끝 ~ 앞 벽 출구는 미니 인형이 끼지 않게 22cm(20cm는 끼었다), 판 집은 판(앞판 + 오가는 거리)이 들어갈 만큼, ledge.friction은 턱 '
           '바닥 천의 마찰. 잡은 인형은 늘 drop 자리(턱 위)로 옮겨 놓는다. 미니 인형 크기 doll_scale(인형 기계 0.3), 잡기 힘 배율 grip(인형 기계 base_force에 곱한다 '
-          '— 인형 기계에 12cm 뽑기통 가드를 달며 base_force를 4.9에서 5.15로 올릴 때 미는 뽑기 힘 2.94N은 그대로 두게 0.6에서 0.571로), 한 판 최대 당첨 '
-          'max_wins, 기계당 인형 count(처음)~cap, 처음 턱 위 on_ledge개. 같은 손님이 pity판 연달아 못 뽑으면 그 판 끝에 직원이 하나 꺼내 준다(15판 보장)',
+          '— 인형 기계 힘이 바뀔 때마다 미는 뽑기 힘 2.94N은 그대로 두게 — 4.9×0.6, 5.15×0.571, 4.4×0.668), 한 판 최대 당첨 max_wins, 기계당 인형 '
+          'count(처음)~cap, 처음 턱 위 on_ledge개. 같은 손님이 pity판 연달아 못 뽑으면 그 판 끝에 직원이 하나 꺼내 준다(15판 보장)',
  'doll_scale': 0.18,
  'count': 26,
  'cap': 32,
  'on_ledge': 0,
  'pity': 15,
  'max_wins': 8,
- 'grip': 0.571,
+ 'grip': 0.668,
  'ledge': {'x0': -0.58, 'x1': -0.12, 'z0': -0.29, 'z1': 0.3, 'h': 0.1, 'lip': 0.025, 'friction': 0.8},
  'plate': {'h': 0.07, 'depth': 0.03, 'stroke': 0.18, 'period': 3.0},
  'house': {'over': 0.05, 'slope_deg': 35},

@@ -13,7 +13,7 @@ test('claw strength grows from the hole edge to the far corner', () => {
 });
 
 test('claw table carries the spec numbers', () => {
-  expect(CLAW.quality).toEqual({ three: 1, two: 0.5 });
+  expect(CLAW.quality).toEqual({ three: 1, two: 0.75 }); // 손가락 둘만 닿은 쥠도 3/4 힘 — 0.5일 땐 머리 가운데서 3cm만 빗나가도 46% → 12%로 뚝 떨어져 '너무 안 뽑힌다'(사용자 2026-11-02), 0.75면 34%
   expect(CLAW.rare).toEqual({ rare: 0.79, gold: 0.72 }); // 곰·펭귄 1000판 기준에 맞춘 값(구멍 38cm·집게 힘 4.4 뒤 다시 맞춤, 2026-11-02)
   expect(CLAW.hole).toEqual({ size: 0.38, lip: 0.12 }); // 34cm에선 긴 다리 인형이 테두리에 걸렸다(사용자 2026-11-02). 가드는 인형 키 반쯤 12cm — 잘못 내려도 밀려 빠지던 것(친구 피드백 2026-11-02)
   expect(CLAW.help).toEqual({ plays: 10, force: 1.4 }); // 10판 연달아 못 뽑으면 센 집게(머리 겨냥 70%쯤, 사용자 2026-11-02 '오기 생기게')

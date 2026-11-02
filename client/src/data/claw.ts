@@ -6,7 +6,7 @@ import { MACHINE_SPEC } from './storeLayout';
 export type ClawTable = {
   base_force: number; // N — 보통 인형 머리를 노리면 10판에 3~4번 되게 시뮬레이션으로 맞춘 값
   spread: number; // 거리 배율이 평균에서 ±이만큼
-  quality: { three: number; two: number }; // 손가락 셋이 깊이 닿음 / 둘만
+  quality: { three: number; two: number }; // 손가락 셋이 깊이 닿음 / 둘만 — 둘의 비율이 '조금 빗나간 겨냥'의 성공률을 정한다(0.5: 3cm 빗나가면 12%, 0.75: 34%)
   carry_relax: number; // 구멍으로 옮기는 동안 쥠의 힘이 이 비율만큼 서서히 풀린다 (끝에서 1−carry_relax) — 간신히 든 인형은 가는 길에 떨어진다
   rare: { rare: number; gold: number };
   hole: { size: number; lip: number }; // 구멍 네모 한 변, 턱 높이 (m)

@@ -19,31 +19,51 @@ function grid(): Uint8Array {
   return blocked;
 }
 
+// 기계 사이 좁은 틈처럼 여유 때문에 막힌 칸에서 출발하면(사람은 지나간다) 길을 못 찾아 직진하다 벽에 막혔다(사용자 2026-11-02 '계속 제자리걸음'):
+// 장애물 몸통은 피해 가장 가까운 트인 칸을 찾는다 — 그 칸이 첫 꺾이는 점. 2m 안에 없으면 그대로
+const STEP_OUT = Math.round(2 / CELL), DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+const solid = (i: number, j: number) => OBSTACLES.some(([x0, z0, x1, z1]) => at(i) > x0 && at(i) < x1 && at(j) > z0 && at(j) < z1);
+function nearestFree(g: Uint8Array, start: number): number {
+  const seen = new Set([start]), queue = [start];
+  for (let q = 0; q < queue.length; q++) {
+    const c = queue[q], ci = Math.floor(c / N), cj = c % N;
+    if (!g[c]) return c;
+    if (Math.abs(ci - Math.floor(start / N)) >= STEP_OUT || Math.abs(cj - (start % N)) >= STEP_OUT) continue;
+    for (const [di, dj] of DIRS) {
+      const i = ci + di, j = cj + dj, n = i * N + j;
+      if (i < 0 || j < 0 || i >= N || j >= N || seen.has(n) || solid(i, j)) continue;
+      seen.add(n); queue.push(n);
+    }
+  }
+  return start;
+}
+
 // from에서 to까지 꺾이는 점들 (마지막은 to 그대로). 길이 없으면 [to]
 export function routeTo(from: Vec2, to: Vec2): Vec2[] {
-  const g = grid(), start = cellOf(from.x) * N + cellOf(from.z), goal = cellOf(to.x) * N + cellOf(to.z);
+  const g = grid(), goal = cellOf(to.x) * N + cellOf(to.z), first = cellOf(from.x) * N + cellOf(from.z);
+  const start = g[first] ? nearestFree(g, first) : first;
+  const out: Vec2[] = start !== first ? [{ x: at(Math.floor(start / N)), z: at(start % N) }] : [];
   const prev = new Int32Array(N * N).fill(-2);
   prev[start] = -1;
   const queue = [start];
   for (let q = 0; q < queue.length && prev[goal] === -2; q++) {
     const c = queue[q], ci = Math.floor(c / N), cj = c % N;
-    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+    for (const [di, dj] of DIRS) {
       const i = ci + di, j = cj + dj, n = i * N + j;
       if (i < 0 || j < 0 || i >= N || j >= N || prev[n] !== -2 || (g[n] && n !== goal)) continue;
       if (di && dj && (g[ci * N + j] || g[i * N + cj])) continue; // 모서리를 비스듬히 스치지 않게
       prev[n] = c; queue.push(n);
     }
   }
-  if (prev[goal] === -2) return [to];
+  if (prev[goal] === -2) return [...out, to];
   const cells: number[] = [];
   for (let c = goal; c !== -1; c = prev[c]) cells.unshift(c);
   const dirOf = (a: number, b: number) => `${Math.floor(b / N) - Math.floor(a / N)},${(b % N) - (a % N)}`;
-  const pts: Vec2[] = [];
   for (let k = 1; k < cells.length - 1; k++) {
-    if (dirOf(cells[k - 1], cells[k]) !== dirOf(cells[k], cells[k + 1])) pts.push({ x: at(Math.floor(cells[k] / N)), z: at(cells[k] % N) });
+    if (dirOf(cells[k - 1], cells[k]) !== dirOf(cells[k], cells[k + 1])) out.push({ x: at(Math.floor(cells[k] / N)), z: at(cells[k] % N) });
   }
-  pts.push(to);
-  return pts;
+  out.push(to);
+  return out;
 }
 
 // 꺾이는 점을 하나씩 내준다. 손으로 움직이면(cancel) 멈춘다

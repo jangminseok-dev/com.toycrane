@@ -93,3 +93,18 @@ test('the surface under an arm tip is the box top or the shelf, without stepping
   expect(w.boxPose()).toEqual(before);
   w.dispose();
 });
+
+// 날개는 건드리지 않으면 저절로 펴진다(사용자 2026-11-02 사진 258 '닿지도 않았는데 접혀 있다'): 접는 선에 약한 되돌림 스프링 — 손으로 접었다 놓으면
+// 1초 안에 다시 펴지고, 고리에 걸려 끌릴 때는 상자 무게가 스프링보다 훨씬 세서 그대로 접힌다(판수 시뮬 sim/hook이 지킨다)
+test('a folded flap springs back flat when nothing holds it', () => {
+  const w = new HookWorld(R, START, 'right');
+  for (let t = 0; t < 1; t += 1 / 60) w.step(1 / 60);
+  expect(w.flapAngle()).toBeLessThan(0.05);
+  w.flap.applyTorqueImpulse({ x: 0, y: 0, z: 0.002 }, true); // 접히는 축으로 한 번 튕김(flap_mass 0.01kg·관성 1e-5)
+  let folded = 0;
+  for (let t = 0; t < 0.3; t += 1 / 60) { w.step(1 / 60); folded = Math.max(folded, w.flapAngle()); }
+  expect(folded).toBeGreaterThan(0.3); // 분명히 접혔다가
+  for (let t = 0; t < 1; t += 1 / 60) w.step(1 / 60);
+  expect(w.flapAngle()).toBeLessThan(0.05); // 다시 펴진다
+  w.dispose();
+});

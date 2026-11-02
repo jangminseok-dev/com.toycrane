@@ -2,9 +2,9 @@
 // 이어 할 때만 작은 '2/5판', 판이 시작할 때 3초만 그 아래 조작 안내.
 // 집게는 기계에 그려진 레버와 하강 버튼으로 움직인다(설계 2026-10-31 §3.10, 3차). 문구는 copy.ts(가운데 점 없이).
 // 판 사이에는 오른쪽 아래에 "한 판 더 🪙1"(스페이스), 그 위 "다섯 판 더 🪙5", 그 위 "그만하기"(Esc) — 걷기 버튼과 같은 알약. 여러 판을 이어 하는 중에는 "그만하기"만
+import { CARTOON_FONT, cartoonPill } from './cartoon';
 import { UI } from '../world/copy';
 import { paintButton, pillButton, placeButton } from './actionButton';
-import { backdropBlur } from './glass';
 
 let runEl: HTMLDivElement | null = null, hintEl: HTMLDivElement | null = null;
 let hintTimer = 0;
@@ -12,22 +12,18 @@ let playing = false;
 
 
 function build() {
-  const pill = (top: string, font: string) => {
+  const pill = (top: string, font: string, fill: 'white' | 'pink') => { // 카툰 알약(ui/cartoon) — 기계 위 밝은 틀 위에서도 남색 테두리로 읽힌다(사용자 2026-11-02 사진 259·260)
     const el = document.createElement('div');
     Object.assign(el.style, {
-      position: 'fixed', zIndex: '20', top, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap',
-      padding: '8px 18px', borderRadius: '999px', color: '#2a0f1f', font,
-      background: 'rgba(255,255,255,.62)', border: '1px solid rgba(255,255,255,.8)', pointerEvents: 'none',
-      boxShadow: 'inset 0 1px 1px rgba(255,255,255,.8), 0 8px 24px rgba(60,20,80,.18)',
+      position: 'fixed', zIndex: '20', top, left: '50%', transform: 'translateX(-50%)', padding: '7px 18px', font, pointerEvents: 'none', ...cartoonPill(fill),
     });
-    backdropBlur(el, 'blur(16px) saturate(180%)');
     document.body.appendChild(el);
     return el;
   };
   // 여러 판 진행만 작은 알약에 — 안내는 판이 시작할 때 3초만 그 아래에 (계속 두면 뒷판 모니터를 가린다)
-  runEl = pill('calc(env(safe-area-inset-top) + 60px)', '800 14px -apple-system, "Apple SD Gothic Neo", sans-serif');
+  runEl = pill('calc(env(safe-area-inset-top) + 60px)', `400 15px ${CARTOON_FONT}`, 'pink');
   runEl.style.display = 'none';
-  hintEl = pill('calc(env(safe-area-inset-top) + 104px)', '700 13px -apple-system, "Apple SD Gothic Neo", sans-serif');
+  hintEl = pill('calc(env(safe-area-inset-top) + 106px)', `400 15px ${CARTOON_FONT}`, 'white');
   hintEl.textContent = UI.hint;
   hintEl.style.transition = 'opacity .4s';
 }

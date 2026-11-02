@@ -1,6 +1,6 @@
 import { beforeAll, expect, test } from 'vitest';
-import { stubCanvas } from '../test/canvasStub';
-import { buildMinimap, mapPoint, mapSize, zoneName, zoneRects } from './minimap';
+import { drawnTexts, stubCanvas } from '../test/canvasStub';
+import { buildMinimap, mapPoint, mapSize, zoneRects } from './minimap';
 
 beforeAll(stubCanvas);
 
@@ -39,20 +39,12 @@ test('the map sits bottom-left, above the joystick on a phone', () => {
 });
 
 // 지도 위에 지금 내가 있는 구역 이름(사용자 2026-11-02 '맵에서 내 위치가 어떤 존인지')
-test('the map names the zone I am in', () => {
-  expect(zoneName(-12, 0)).toBe('인형 뽑기');
-  expect(zoneName(12.5, 0)).toBe('피규어 뽑기');
-  expect(zoneName(0, -12)).toBe('미는 뽑기');
-  expect(zoneName(-9, -16)).toBe('고리 걸기');
-  expect(zoneName(0, 3)).toBe('광장');
-  expect(zoneName(14.5, 14.5)).toBe('쉼터');
-  expect(zoneName(-7, -10.2)).toBe('교환소');
-  expect(zoneName(0, 17.5)).toBe('입구');
-  const labels: HTMLElement[] = [], map = buildMinimap({ appendChild: (el) => { labels.push(el); } }, 160);
+// 구역 이름은 지도 위 알약이 아니라 색 덩어리 위에 바로(사용자 친구 피드백 2026-11-02 사진 257 '저기 지금 어딘지가 왜 써져 있어' — 덩어리마다 이름):
+// 인형 뽑기(분홍)·피규어 뽑기(보라)는 두 줄, 고리 걸기(민트)·미는 뽑기(노랑)는 한 줄. 지도 위 알약은 없다
+test('the map writes each zone name on its block, not above the map', () => {
+  const added: HTMLElement[] = [], map = buildMinimap({ appendChild: (el) => { added.push(el); } }, 160);
+  expect(added.map((el) => el.className)).toEqual(['minimap']);
+  drawnTexts.length = 0;
   map.frame({ me: { x: -12, z: 0, heading: 0 }, others: [], atMachine: false }, 0);
-  const label = labels.find((el) => el.className === 'minimap-zone')!;
-  expect(label.textContent).toBe('인형 뽑기');
-  expect(label.style.display).toBe('block');
-  map.frame({ me: { x: -12, z: 0, heading: 0 }, others: [], atMachine: true }, 1);
-  expect(label.style.display).toBe('none');
+  expect(drawnTexts).toEqual(['인형', '뽑기', '피규어', '뽑기', '고리 걸기', '미는 뽑기']);
 });

@@ -174,3 +174,28 @@ test('the front glass stands at the front wall line, not at the bar', async () =
     expect(glassAtWall, spot.id).toBe(true);
   }
 });
+
+// 앞뒤 판은 틀 없는 낮은 투명판(사용자 2026-11-02 사진 254: 높은 틀 유리가 울타리처럼 상자를 가렸다) — 막대 위 16cm, 흰 기둥·윗막대 없음(막대 끝 기둥은 막대 자리에만)
+test('the front and back plates are low and frameless', async () => {
+  const { makeFigureMachineParts } = await import('./figureMachine');
+  const { barZ } = await import('../physics/figureWorld');
+  for (const spot of [FIGURES[0], FIGURES[7]]) {
+    const { statics } = makeFigureMachineParts(spot, 0, 0x3b6cff);
+    statics.position.set(0, 0, 0); statics.rotation.set(0, 0, 0); statics.updateMatrixWorld(true);
+    const bz = barZ(spot.box), { front_wall, back_wall } = guardsOf(spot.box), y = FIGURE.bars.y;
+    for (const wz of [bz + front_wall, -(bz + back_wall)]) {
+      const line = new THREE.Box3(new THREE.Vector3(-0.5, y + 0.03, wz - 0.006), new THREE.Vector3(0.5, y + 0.6, wz + 0.006)); // 판(8mm)만 — 뒤 진열 상자는 뒤 판 뒤 1mm에서 시작
+      let top = -Infinity; const opaque: string[] = [];
+      statics.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh || m.name === 'glass') return;
+        const b = new THREE.Box3().setFromObject(m);
+        if (!b.intersectsBox(line)) return;
+        if ((m.material as THREE.Material).transparent) top = Math.max(top, b.max.y); else opaque.push(m.geometry.type);
+      });
+      expect(opaque, `${spot.id} ${wz.toFixed(2)}`).toEqual([]); // 틀 없음
+      expect(top, `${spot.id} ${wz.toFixed(2)}`).toBeGreaterThan(y + 0.14); // 상자 두께(13.8~15cm)보다 높고
+      expect(top, `${spot.id} ${wz.toFixed(2)}`).toBeLessThan(y + 0.18); // 낮다
+    }
+  }
+});

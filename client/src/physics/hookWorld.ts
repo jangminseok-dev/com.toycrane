@@ -101,6 +101,9 @@ export class HookWorld implements BoxWorld {
     this.fold = this.world.createImpulseJoint(R.JointData.revolute({ x: h.at[0], y: h.at[1], z: h.at[2] }, { x: 0, y: 0, z: 0 }, { x: h.axis[0], y: h.axis[1], z: h.axis[2] }), this.box, this.flap, true) as RAPIER.RevoluteImpulseJoint;
     this.fold.setContactsEnabled(false);
     this.fold.setLimits(...h.limits);
+    // 되돌림 스프링(힘 기준 N·m/rad): 건드리지 않은 날개는 늘 평평, 걸려 끌릴 때는 상자 무게(0.2N·m쯤)가 훨씬 세다
+    this.fold.configureMotorModel(R.MotorModel.ForceBased);
+    this.fold.configureMotorPosition(0, HOOK.ring.spring, HOOK.ring.spring_damp);
   }
 
   tick(): void {

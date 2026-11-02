@@ -16,7 +16,7 @@ for (const kind of kinds) {
     const r = aimRate(R, { trials, kind });
     console.log('kind', kind, r);
     if (process.env.SIM_OUT) appendFileSync(process.env.SIM_OUT, `${kind} ${trials} ${r.toFixed(3)}\n`); // vitest가 지나가는 시험의 콘솔을 삼킬 때를 위해 파일로도
-    expect(r, kind).toBeGreaterThanOrEqual(0.38); // 사용자 2026-11-02 '하나도 안 뽑혀 재미없다' — 머리 겨냥 3~4/10 → 46%쯤(같은 날 '46%가 좋겠다')
-    expect(r, kind).toBeLessThanOrEqual(0.54);
+    expect(r, kind).toBeGreaterThanOrEqual(0.44); // 사용자 2026-11-02 '하나도 안 뽑혀 재미없다' → 46%쯤 → 같은 날 '너무 안 뽑힌다'(빗나간 겨냥이 12%) → 둘 쥠 0.75로 머리 53%쯤
+    expect(r, kind).toBeLessThanOrEqual(0.62);
   }, 3_600_000);
 }

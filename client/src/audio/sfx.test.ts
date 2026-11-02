@@ -15,7 +15,7 @@ test('muted sound effects make no sound', () => {
     createOscillator() { made++; return { type: '', frequency: { value: 0 }, connect: (x: unknown) => x, start() {}, stop() {} }; }
   };
   unlockAudio();
-  handlers.pointerdown();
+  handlers.pointerup();
   sfx.pop();
   expect(made).toBe(1);
   setSfxMuted(true);

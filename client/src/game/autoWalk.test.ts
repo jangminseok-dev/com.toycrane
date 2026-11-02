@@ -59,3 +59,13 @@ test('the nearest counter by walking is chosen', () => {
     expect(nearestCounter(from).counter).toBe(c.id);
   }
 });
+
+// 기계 사이 좁은 틈(사람은 지나가지만 0.25m 격자는 여유 0.35m 때문에 다 막힌 곳)에서 출발하면 길을 못 찾아 창구로 직진하다 교환소 뒤에 막혀
+// 제자리걸음(사용자 2026-11-02 '벽에 막혀서 계속 제자리 걸음'; 4577곳 중 10곳). 먼저 가장 가까운 트인 칸으로 나온 뒤 길을 찾는다
+test('a walk starting in a narrow gap between machines first steps out to open floor', () => {
+  for (const from of [{ x: -8.1, z: -18.1 }, { x: 9.9, z: -17.6 }, { x: -12.6, z: 0.9 }]) {
+    const { route } = nearestCounter(from);
+    expect(route.length, `${from.x},${from.z}`).toBeGreaterThan(1); // 꺾이는 점이 있는 진짜 길
+    expect(Math.hypot(route[0].x - from.x, route[0].z - from.z), `${from.x},${from.z}`).toBeLessThan(1.5); // 첫 점은 바로 옆 트인 칸
+  }
+});

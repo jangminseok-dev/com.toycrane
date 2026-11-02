@@ -11,8 +11,9 @@ import type { Rapier } from './rapier';
 export const FIG_STEP = 1 / 120;
 const MAX_STEPS = 4;
 const BAR_FRICTION = 0.22, BOX_FRICTION = 0.5, BOX_RESTITUTION = 0.04;
-// 앞뒤 벽은 미끄럽다(마찰 0) — 높고 거친 판은 선반처럼 상자 끝을 받쳐 기운 채 갇혔다(9단계 판수 시뮬 꼬리)
-const WALL_TOP = 0.3, PLATE_HALF_H = 0.15;
+// 앞뒤 판은 미끄럽다(마찰 0) — 높고 거친 판은 선반처럼 상자 끝을 받쳐 기운 채 갇혔다(9단계 판수 시뮬 꼬리). 윗변은 막대 위 16cm(상자 두께보다
+// 조금 높게 — 30cm 틀 유리는 울타리처럼 보여 뺐다, 사용자 2026-11-02), 아래는 막대 밑까지 이어져 틈이 없다(world/figureMachine과 같은 높이)
+const WALL_TOP = 0.16, PLATE_HALF_H = 0.15;
 const CROSS_MARGIN = 0.03; // 빠짐 판정: 막대 아래로 내려간 곳이 막대 중심에서 이만큼 바깥까지는 두 막대 사이로 친다(기울어 빠질 때의 여유)
 const CATCH_DROP = 0.8; // 막대 아래 받는 바닥 깊이 — 세운 채 떨어진 긴 상자(34cm)도 가운데가 빠짐 기준(막대 − 길이) 아래에 오게
 

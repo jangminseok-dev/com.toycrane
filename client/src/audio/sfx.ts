@@ -4,12 +4,22 @@ let ac: AudioContext | null = null, muted = false;
 // 소리 끄기(🔇) — 배경음과 함께 효과음도 멈춘다
 export function setSfxMuted(m: boolean): void { muted = m; }
 
+// 브라우저는 '사용자 조작' 뒤에만 소리를 연다 — 손가락 터치는 pointerdown이 조작으로 안 쳐져(마우스만) 휴대폰에서 영영 조용했다(사용자 2026-11-02):
+// 떼는 순간(pointerup·touchend)과 글쇠에 열고, 정말 돌 때(running)까지 계속 듣는다. 열리면 한 번만 onOpen
+const OPEN_EVENTS = ['pointerup', 'touchend', 'keydown'] as const;
 export function unlockAudio(onOpen?: (ac: AudioContext) => void): void {
   const open = () => {
-    try { ac ??= new AudioContext(); void ac.resume(); onOpen?.(ac); } catch { /* 소리 없이 진행 */ }
-    removeEventListener('pointerdown', open); removeEventListener('keydown', open);
+    try {
+      ac ??= new AudioContext();
+      const ctx = ac;
+      void ctx.resume().then(() => {
+        if (ctx.state !== 'running') return; // 아직 — 다음 터치에 다시
+        for (const e of OPEN_EVENTS) removeEventListener(e, open);
+        onOpen?.(ctx);
+      });
+    } catch { /* 소리 없이 진행 */ }
   };
-  addEventListener('pointerdown', open); addEventListener('keydown', open);
+  for (const e of OPEN_EVENTS) addEventListener(e, open);
 }
 
 function tone(f: number, at: number, dur: number, type: OscillatorType = 'triangle', vol = 0.14) {
