@@ -23,7 +23,7 @@ for (const kind of ['bear', 'penguin']) {
   test(`rare and gold ${kind} are harder`, () => {
     const rare = aimRate(R, { trials, kind, look: { rare: 'star' } }), gold = aimRate(R, { trials, kind, look: { rare: 'gold' } });
     note(kind, 'rare', rare, 'gold', gold);
-    between(rare, 0.16, 0.36); between(gold, 0.08, 0.26); // 보통(53%쯤)보다 어렵게 — 둘 쥠 0.75·힘 4.4에서 곰 희귀 0.22·황금 0.13
+    between(rare, 0.16, 0.36); between(gold, 0.14, 0.3); // 보통(53%쯤)보다 어렵게 — 둘 쥠 0.75·힘 4.4에서 곰 희귀 0.23·황금 0.21(0.78배, 사용자 '황금 좀 더 올려')
   });
   test(`far ${kind} dolls win more than near ones`, () => {
     const near = aimRate(R, { trials, kind, where: 'near' }), far = aimRate(R, { trials, kind, where: 'far' });

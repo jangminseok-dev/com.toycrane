@@ -3,7 +3,7 @@
   "spread": 0.4,
   "quality": {"three": 1.0, "two": 0.75},
   "carry_relax": 0.6,
-  "rare": {"rare": 0.79, "gold": 0.72},
+  "rare": {"rare": 0.79, "gold": 0.78},
   "hole": {"size": 0.38, "lip": 0.12},
   "help": {"plays": 10, "force": 1.4},
   "max_wins": 3,
