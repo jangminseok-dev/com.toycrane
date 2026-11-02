@@ -1,7 +1,8 @@
-// 당첨 카드(본인만, 설계 §5.4): 가운데 유리 카드, 2.2초 뒤 저절로·누르면 바로 닫힘. 희귀는 분홍 빛, 황금(매우 희귀)은 진한 금빛 (인형 채우기 설계 §4.6).
+// 당첨 카드(본인만, 설계 §5.4): 가운데 카툰 카드(ui/cartoon — 남색 테두리·납작 그림자·간판 글꼴, 사용자 2026-11-02 사진 263 '이팩트도 카툰'),
+// 2.2초 뒤 저절로·누르면 바로 닫힘. 보통은 흰색, 희귀는 분홍, 황금(매우 희귀)은 금빛 (인형 채우기 설계 §4.6).
 // 한 판에 여러 개면 모두 — 첫 인형은 크게, 나머지는 아래 한 줄씩(사용자 2026-11-02 '여러 개 뽑았는데 하나만 나온다'), 하나 더할 때마다 조금 더 오래
 import { GOLD } from '../data/catalog';
-import { backdropBlur } from './glass';
+import { CARTOON_FONT, FILL, INK } from './cartoon';
 
 let card: HTMLDivElement | null = null, timer = 0;
 
@@ -18,28 +19,27 @@ export function winCardText(names: string[], tier: Tier): { head: string; title:
 export function winTier(rares: string[]): Tier {
   return rares.includes(GOLD.id) ? 'gold' : rares.some((r) => r) ? 'rare' : '';
 }
+// 등급별 채움색과 첫 줄 색(보통 '짠!'은 분홍 글자, 희귀·황금은 남색 글자에 흰 채움 띠 없이)
 const LOOK = {
-  '': { bg: 'linear-gradient(160deg, rgba(255,255,255,.2), rgba(255,255,255,.06))', border: 'rgba(255,255,255,.35)', glow: 'rgba(255,95,220,.25)', head: '#ff9fe8' },
-  rare: { bg: 'linear-gradient(160deg, rgba(255,160,220,.4), rgba(255,110,190,.16))', border: 'rgba(255,170,225,.85)', glow: 'rgba(255,120,210,.45)', head: '#ffc4ec' },
-  gold: { bg: 'linear-gradient(160deg, rgba(255,214,90,.6), rgba(214,140,20,.3))', border: 'rgba(255,214,107,.95)', glow: 'rgba(255,200,70,.7)', head: '#ffe28a' },
+  '': { bg: FILL.white, head: '#ff4fa3', glow: 'rgba(255,120,200,.35)' },
+  rare: { bg: FILL.pink, head: INK, glow: 'rgba(255,100,190,.55)' },
+  gold: { bg: FILL.gold, head: INK, glow: 'rgba(255,190,60,.7)' },
 };
 
 export function showWinCard(names: string[], setName: string, tier: Tier, bag: number): void {
   if (!card) {
     card = document.createElement('div');
     Object.assign(card.style, {
-      position: 'fixed', zIndex: '25', left: '50%', top: '42%', transform: 'translate(-50%, -50%)', minWidth: '230px', padding: '22px 26px',
-      borderRadius: '28px', textAlign: 'center', color: '#fff', font: '700 15px -apple-system, "Apple SD Gothic Neo", sans-serif',
+      position: 'fixed', zIndex: '25', left: '50%', top: '42%', transform: 'translate(-50%, -50%)', minWidth: '230px', padding: '20px 28px',
+      borderRadius: '26px', textAlign: 'center', color: INK, font: `400 16px ${CARTOON_FONT}`, border: `3px solid ${INK}`,
       transition: 'opacity .25s, transform .25s', cursor: 'pointer',
     });
-    backdropBlur(card, 'blur(22px) saturate(180%)');
     card.addEventListener('click', () => hide());
     document.body.appendChild(card);
   }
   Object.assign(card.style, {
     background: LOOK[tier].bg,
-    border: `1px solid ${LOOK[tier].border}`,
-    boxShadow: `inset 0 1px 1px rgba(255,255,255,.55), 0 20px 50px rgba(0,0,0,.4), 0 0 46px ${LOOK[tier].glow}`,
+    boxShadow: `0 6px 0 ${INK}, 0 0 46px ${LOOK[tier].glow}`,
     display: 'block', opacity: '1', transform: 'translate(-50%, -50%) scale(1)',
   });
   card.innerHTML = '';
@@ -47,11 +47,11 @@ export function showWinCard(names: string[], setName: string, tier: Tier, bag: n
     const el = document.createElement('div'); el.textContent = text; Object.assign(el.style, style); card!.appendChild(el);
   };
   const text = winCardText(names, tier);
-  line(text.head, { font: '900 20px -apple-system, "Apple SD Gothic Neo", sans-serif', color: LOOK[tier].head });
-  line(text.title, { font: '900 28px -apple-system, "Apple SD Gothic Neo", sans-serif', margin: '6px 0 4px' });
-  for (const more of text.more) line(more, { font: '800 17px -apple-system, "Apple SD Gothic Neo", sans-serif', margin: '2px 0' });
-  line(setName, { color: 'rgba(255,255,255,.75)', marginTop: text.more.length ? '6px' : '0' });
-  line(`가방 ${bag}개째`, { marginTop: '10px', color: 'rgba(255,255,255,.85)' });
+  line(text.head, { font: `400 21px ${CARTOON_FONT}`, color: LOOK[tier].head });
+  line(text.title, { font: `400 30px ${CARTOON_FONT}`, margin: '4px 0 2px' });
+  for (const more of text.more) line(more, { font: `400 18px ${CARTOON_FONT}`, margin: '2px 0' });
+  line(setName, { opacity: '.75', marginTop: text.more.length ? '6px' : '0' });
+  line(`가방 ${bag}개째`, { marginTop: '10px', opacity: '.85' });
   clearTimeout(timer);
   timer = window.setTimeout(hide, Math.min(4000, 2200 + 600 * (names.length - 1)));
 }

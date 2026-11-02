@@ -46,5 +46,5 @@ test('the map writes each zone name on its block, not above the map', () => {
   expect(added.map((el) => el.className)).toEqual(['minimap']);
   drawnTexts.length = 0;
   map.frame({ me: { x: -12, z: 0, heading: 0 }, others: [], atMachine: false }, 0);
-  expect(drawnTexts).toEqual(['인형', '뽑기', '피규어', '뽑기', '고리 걸기', '미는 뽑기']);
+  expect(drawnTexts).toEqual(['인형', '뽑기', '피규어', '뽑기', '고리 걸기', '미는 뽑기', '코인', '코인', '코인', '코인']); // 교환소 점 4개 아래에도 '코인'(사용자 2026-11-02)
 });

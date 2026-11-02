@@ -74,6 +74,11 @@ export function buildMinimap(parent: { appendChild(el: HTMLElement): void }, siz
       g.fillStyle = '#f5c542'; g.strokeStyle = '#a87a00'; g.lineWidth = 1;
       g.beginPath(); g.arc(cx, cz, size * 0.025, 0, Math.PI * 2); g.fill(); g.stroke(); // 교환소
     }
+    g.lineWidth = 3; g.strokeStyle = 'rgba(255,255,255,.9)'; g.fillStyle = '#2c2470'; g.font = `800 ${fontPx - 1}px -apple-system, "Apple SD Gothic Neo", sans-serif`;
+    for (const c of layout.counters) { // 교환소 점 아래 '코인'(사용자 2026-11-02)
+      const [cx, cz] = P(c.x, c.z), y = cz + size * 0.025 + fontPx * 0.6;
+      g.strokeText('코인', cx, y); g.fillText('코인', cx, y);
+    }
   }
 
   function draw(s: MapState) {
