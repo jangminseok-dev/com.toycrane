@@ -51,11 +51,11 @@ export function startPlaying(rig: AvatarRig, tw: Tweens, face: number, coin?: ()
     await pose(rig, tw, 0.3, P.coinL, null);
     coin?.();
     await pose(rig, tw, 0.25, REST_L, P.joyR);
+    // 레버를 잡은 손만 움직인다 — 몸을 좌우로 흔들면 다른 사람 화면에서 춤추는 것처럼 보였다(사용자 2026-11-02)
     while (!stopped) {
       await tw.tween(0.37, (k) => {
         const w = Math.sin(k * Math.PI * 2);
         rig.handR.set(P.joyR.x + w * 0.06, P.joyR.y, P.joyR.z + Math.cos(k * Math.PI * 2) * 0.04);
-        rig.bob.rotation.z = w * 0.1;
       }, ease.lin);
     }
     rig.bob.rotation.z = 0;
@@ -71,16 +71,16 @@ export async function playResult(rig: AvatarRig, tw: Tweens, o: Outcome, doll: T
   await pose(rig, tw, 0.1, P.btnL, null, undefined, ease.in);
   fx.bonk();
   await tw.tween(0.18, (k) => { rig.crouch = Math.sin(k * Math.PI) * 0.06; });
-  // 두근두근 (집게가 내려갔다 올라오는 동안)
+  // 두근두근 (집게가 내려갔다 올라오는 동안): 두 손을 가슴 앞에 모으고 기계 쪽으로 살짝 기울여 지켜본다 — 몸을 흔들지 않는다
   const claw = fx.claw(1.7);
-  await pose(rig, tw, 0.3, P.chestL, P.chestR);
-  await Promise.all([claw, tw.tween(1.4, (k) => { rig.bob.rotation.z = Math.sin(k * Math.PI * 6) * 0.07; }, ease.lin)]);
-  rig.bob.rotation.z = 0;
+  await pose(rig, tw, 0.3, P.chestL, P.chestR, (k) => { rig.head.rotation.x = lerp(0, 0.12, k); });
+  await Promise.all([claw, tw.wait(1.4)]);
+  rig.head.rotation.x = 0.12;
   fx.afterClaw();
 
   if (o !== 'win' || !doll) {
-    // 털썩: 돌아서서 어깨 축 + 먹구름
-    await pose(rig, tw, 0.45, REST_L, REST_R, (k) => { r.rotation.y = lerp(face, face + Math.PI, k); });
+    // 털썩: 기계 앞 그 자리에서 어깨 축 + 먹구름(돌아서지 않는다 — 사용자 2026-11-02)
+    await pose(rig, tw, 0.45, REST_L, REST_R, (k) => { rig.head.rotation.x = lerp(0.12, 0, k); });
     fx.fail();
     const cloud = makeCloud(); rig.head.add(cloud);
     const drops = cloud.userData.drops as THREE.Object3D[];
@@ -91,28 +91,28 @@ export async function playResult(rig: AvatarRig, tw: Tweens, o: Outcome, doll: T
     return;
   }
   // 꺼내기: 몸을 굽혀 상품 출구에서 꺼낸다
-  await pose(rig, tw, 0.4, P.braceL, P.reachR, (k) => { rig.crouch = lerp(0, 0.18, k); });
+  await pose(rig, tw, 0.4, P.braceL, P.reachR, (k) => { rig.crouch = lerp(0, 0.18, k); rig.head.rotation.x = lerp(0.12, 0, k); });
   doll.scale.setScalar(0.01); r.add(doll); rig.held = doll; rig.holdMode = 'right';
   fx.pop();
   await tw.tween(0.3, (k) => doll.scale.setScalar(lerp(0.01, 0.5, k)), ease.back);
-  // 뒤돌아 두 손으로 보여 주기
+  // 두 손으로 들어 보여 주기 — 기계 앞에 선 채로(돌아서지 않는다)
   await pose(rig, tw, 0.45, P.holdL, P.holdR, (k) => {
-    rig.crouch = lerp(0.18, 0, k); r.rotation.y = lerp(face, face + Math.PI, k); if (k > 0.5) rig.holdMode = 'both';
+    rig.crouch = lerp(0.18, 0, k); if (k > 0.5) rig.holdMode = 'both';
   });
   // 번쩍!
   await pose(rig, tw, 0.28, P.upL, P.upR, (k) => { r.position.y = Math.sin(k * Math.PI) * 0.24; doll.scale.setScalar(lerp(0.5, 0.65, k)); }, ease.out);
   r.position.y = 0;
   await tw.wait(fx.win());
-  // 가방에 쏙: 등을 보이며 등 가방에 넣는다
+  // 가방에 쏙: 어깨 너머로 등 가방에 넣는다(제자리)
   rig.holdMode = 'right';
-  await pose(rig, tw, 0.4, REST_L, P.shoulderR, (k) => { r.rotation.y = lerp(face + Math.PI, face + Math.PI * 1.78, k); });
+  await pose(rig, tw, 0.4, REST_L, P.shoulderR);
   rig.holdMode = 'free';
   const from = doll.position.clone(), s0 = doll.scale.x;
   await tw.tween(0.3, (k) => { doll.position.lerpVectors(from, P.bag, k); doll.scale.setScalar(lerp(s0, 0.001, k)); }, ease.in);
   r.remove(doll); rig.held = null; rig.holdMode = 'none';
   fx.pop();
   await tw.tween(0.3, (k) => { const s = Math.sin(k * Math.PI); rig.backpack.scale.set(1 + s * 0.25, 1 - s * 0.18, 1 + s * 0.25); });
-  await pose(rig, tw, 0.4, REST_L, REST_R, (k) => { r.rotation.y = lerp(face + Math.PI * 1.78, face + Math.PI, k); });
+  await pose(rig, tw, 0.4, REST_L, REST_R);
 }
 
 // ---- 조르기·주기·기쁨·시무룩 (교환소 개편 설계 §4.8) — 끝나면 손·고개·웅크림이 쉬는 자리로 돌아온다 ----

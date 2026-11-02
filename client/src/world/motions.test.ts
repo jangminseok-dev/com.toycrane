@@ -45,3 +45,27 @@ test('give, happy and sulk finish back at rest', async () => {
     expect(rig.crouch).toBeCloseTo(0);
   }
 });
+
+// 사용자 2026-11-02 '인형 뽑을 때 왜 캐릭터들이 뒤돌아보고 춤추는 거야': 하는 동안·결과 때 기계를 계속 보고(돌아서지 않음), 몸을 좌우로 흔들지 않는다
+test('playing and its results keep facing the machine without swaying', async () => {
+  const { playResult, startPlaying } = await import('./motions');
+  const THREE = await import('three');
+  const face = 1.2;
+  for (const outcome of ['miss', 'win'] as const) {
+    const tw = new Tweens(), a = makeAvatar(0, 'x'), r = a.rig;
+    let turned = 0, sway = 0;
+    const watch = () => { turned = Math.max(turned, Math.abs(r.root.rotation.y - face)); sway = Math.max(sway, Math.abs(r.bob.rotation.z)); };
+    const playing = startPlaying(r, tw, face);
+    for (let t = 0; t < 2; t += 1 / 30) { tw.update(1 / 30); watch(); for (let k = 0; k < 4; k++) await Promise.resolve(); }
+    const stopped = playing.stop();
+    for (let i = 0; i < 30; i++) { tw.update(1 / 30); for (let k = 0; k < 4; k++) await Promise.resolve(); }
+    await stopped;
+    const fx = { bonk() {}, claw: async () => {}, afterClaw() {}, pop() {}, win: () => 0.5, fail() {} };
+    let done = false;
+    void playResult(r, tw, outcome, outcome === 'win' ? new THREE.Group() : null, fx, face).then(() => { done = true; });
+    for (let i = 0; i < 30 * 12 && !done; i++) { tw.update(1 / 30); watch(); for (let k = 0; k < 4; k++) await Promise.resolve(); }
+    expect(done, outcome).toBe(true);
+    expect(turned, `${outcome} turn`).toBeLessThan(0.01);
+    expect(sway, `${outcome} sway`).toBeLessThan(0.03);
+  }
+}, 60_000);

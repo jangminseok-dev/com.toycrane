@@ -224,6 +224,10 @@ export class MachineWorld {
     return this.time - from;
   }
 
+  // 집게가 인형을 놓은 뒤(미는 뽑기는 판을 멈추러 간다) / 아직 기계 속에서 움직이는 장치가 있나(미는 판) — 인형 기계는 없음
+  afterRelease(): void {}
+  plateMoving(): boolean { return false; }
+
   // 앉히기가 아직 덜 끝났나: 엔진의 잠듦(참된 멈춤) — 중계용 속도 문턱(still)으로 끊으면 기어가는 중에 앉힌 자리가 적힌다.
   // 미는 뽑기는 판이 계속 건드려 잠들지 않으니 덮어써 '한 주기 동안 3mm 안'으로 본다
   protected settleBusy(): boolean {

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { MACHINES } from '../data/storeLayout';
-import { PUSHERS, plateFront } from '../data/pushers';
+import { PUSHER, PUSHERS } from '../data/pushers';
 import { craneSpec } from '../game/craneSpec';
 import type { Occluder } from '../game/occlusion';
 import { bakeByMaterial, fadeMaterials, materialCloner, mergeBuckets } from './bake';
@@ -37,7 +37,7 @@ export interface BigZone {
   pending(): number; // 아직 다시 합치지 못한 묶음 수
   setFocus(x: number, z: number): void; // 내 자리 — 먼 묶음은 인형 외곽선을 끈다
   hideRowsBehind(machineId: string | null): void; // 기계 앞 화면: 그 기계보다 뒤에 있는 줄을 숨긴다(null이면 모두 보임) — 휴대폰 그리기 호출 (큰 홀 설계 §6)
-  plateAt(machineId: string, z: number | null): void; // 미는 뽑기 판 앞면 z(기계 안 좌표)를 그 화면의 물리에 맞춘다 — null이면 벽시계로 오간다(판 사이)
+  plateAt(machineId: string, z: number | null): void; // 미는 뽑기 판 앞면 z(기계 안 좌표) — 한 판 중엔 물리·구경에 맞추고, null이면 들어가 멈춤(판 사이)
   occluders: Occluder[]; // 행 2개: 벽 줄, 섬
 }
 
@@ -190,7 +190,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     return { row, meshes };
   });
   const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
-  // 미는 판: 미는 뽑기 줄마다 InstancedMesh 하나 — 판 사이에도 벽시계로 오간다(모든 화면이 같은 박자). 판이 닿는 곳엔 멈춘 인형이 없어 그림만이다
+  // 미는 판: 미는 뽑기 줄마다 InstancedMesh 하나 — 판 사이엔 들어가 멈추고, 한 판 중엔 plateAt으로 옮긴다
   const plateRows = rows.filter((row) => row.spots[0].pusher).map((row) => {
     const mesh = new THREE.InstancedMesh(pusherPlateGeo(), row.cloner.remap(pusherPlateMat()), row.spots.length);
     mesh.name = `pusher-plates-${row.group.name}`; mesh.castShadow = false;
@@ -436,10 +436,9 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
       const until = performance.now() + BUILD_MS;
       for (const block of blocks) if (block.dirty && performance.now() < until && warm(block, until)) rebuild(block); // 합치기도 시간이 남을 때만 — 한 프레임에 묶음 하나쯤
       for (const u of units.values()) refreshLive(u);
-      const wall = Date.now() / 1000;
       for (const { row, mesh } of plateRows) {
         row.spots.forEach((spot, j) => {
-          const z = units.get(spot.id)!.plateZ ?? plateFront(wall);
+          const z = units.get(spot.id)!.plateZ ?? PUSHER.ledge.z0; // 아무도 안 하면 들어가 멈춰 있다
           mesh.setMatrixAt(j, plateM.multiplyMatrices(machineAt(spot), plateShift.makeTranslation(0, 0, z)));
         });
         mesh.instanceMatrix.needsUpdate = true;

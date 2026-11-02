@@ -13,7 +13,7 @@ export type ClawFrame = { x: number; y: number; z: number; open: number };
 export type CycleOptions = {
   baseForce?: number; // 시뮬레이션에서 힘을 바꿔 볼 때 (기본 CLAW.base_force)
   carryTo?: { x: number; z: number }; // 옮겨 놓는 자리(기본 구멍 위, 미는 뽑기는 턱 위)
-  settle?: { still: number; max: number }; // 놓은 뒤 멈춤 기다리기: still초 동안 모든 인형이 3mm 안에서만 움직였으면 끝, 길어도 max초(미는 뽑기 — 판이 한 주기 밀어도 그대로일 때)
+  settle?: { still: number; max: number }; // 놓은 뒤 멈춤 기다리기: 움직이는 판이 멈추고 still초 동안 모든 인형이 3mm 안에서만 움직였으면 끝, 길어도 max초(미는 뽑기)
   floor?(x: number, z: number): number; // 그 자리 바닥 높이(미는 뽑기 턱·판 집 위는 높다) — 손가락 끝이 여기서 멈춘다(기본 펠트)
   frame?(claw: ClawFrame, moving: DollPose[], phase: CyclePhase): void;
   phase?(name: CyclePhase): void;
@@ -121,13 +121,13 @@ export class CycleRunner {
       case 'release': {
         const k = Math.min(1, this.clock / RELEASE_SECONDS);
         c.setPose(c.x, c.y, c.z, c.open + (1 - c.open) * k);
-        if (this.clock >= RELEASE_SECONDS + AFTER_RELEASE) { c.openHands(); this.go('settle'); }
+        if (this.clock >= RELEASE_SECONDS + AFTER_RELEASE) { c.openHands(); this.world.afterRelease(); this.go('settle'); }
         break;
       }
       case 'settle': {
         const st = this.opts.settle;
         if (!st || !this.quiet) { const still = this.world.movingPoses().length === 0; if (this.clock >= CLAW.settle_seconds || (still && this.clock > 0.5)) this.finish(); break; } // 인형 기계: 예전 그대로
-        if (this.clock >= st.max || this.quiet.check(this.clock, this.world.poses())) this.finish(); // 미는 뽑기: 판이 한 주기 밀어도 그대로면(최종 리뷰 I2)
+        if (this.clock >= st.max || (!this.world.plateMoving() && this.quiet.check(this.clock, this.world.poses()))) this.finish(); // 미는 뽑기: 판이 멈추고 still초 동안 그대로면
         break;
       }
       case 'done': return;

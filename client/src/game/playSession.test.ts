@@ -67,3 +67,20 @@ test('a pusher play starts above the drop spot', () => {
   const s = new PlaySession('P-1', 20, 0, { x: -0.34, z: -0.08 });
   expect(s.claw).toEqual({ x: -0.34, z: -0.08 });
 });
+
+// 사용자 2026-11-02(사진 205·206): 미는 뽑기 집게는 미는 쪽(턱 위)으로는 레버로 못 간다 — 놓을 때만 간다. 판을 시작하면 턱 위 쉬는 자리에서 칸으로
+// 저절로 미끄러져 나가고(그동안 잡기는 안 먹음), 그 뒤로는 레버로 칸 안에서만 움직인다
+test('a pusher claw glides off the ledge and stays over the pile', () => {
+  const range = { x: [-0.06, 0.39] as [number, number], z: [-0.33, 0.33] as [number, number] };
+  const s = new PlaySession('P-1', 20, 0, { x: -0.34, z: -0.08 }, range);
+  expect(s.requestDrop(0)).toBeNull(); // 아직 턱 위
+  s.update(0.5, { x: -1, z: 0 }, 0.5); // 왼쪽(턱 쪽)으로 밀어도 칸 쪽으로 나간다
+  expect(s.claw.x).toBeGreaterThan(-0.34);
+  s.update(1, { x: -1, z: 0 }, 1.5);
+  expect(s.claw.x).toBeCloseTo(-0.06);
+  s.update(1, { x: -1, z: 0 }, 2.5);
+  expect(s.claw.x).toBeCloseTo(-0.06); // 턱 쪽으로 돌아가지 않는다
+  s.update(1, { x: 1, z: 1 }, 3.5);
+  expect(s.claw.z).toBeLessThanOrEqual(0.33);
+  expect(s.requestDrop(3.5)).toBe('drop');
+});

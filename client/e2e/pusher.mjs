@@ -1,5 +1,6 @@
 // 미는 뽑기 한 판 e2e (설계 2026-11-02 ring-hook §4, 계획 12 Task 10): 화면(헤드리스 크롬)이 코인을 받고 P-1 앞에서 한 판 —
-// 집게는 턱 위에서 시작하고, 레버로 칸의 미니 인형 위로 옮겨 잡기를 누르면 브라우저 물리가 집어 턱 위에 놓고 판이 다 밀 때까지 기다린 뒤
+// 집게는 턱 위에서 칸으로 저절로 나가고 레버로 턱 쪽으로 끌어도 칸을 벗어나지 않는다(사용자 2026-11-02). 칸의 미니 인형 위로 옮겨
+// 잡기를 누르면 브라우저 물리가 집어 턱 위에 놓고 판이 멈출 때까지 기다린 뒤
 // done을 보낸다. 관찰자(웹소켓)는 겨누는 동안의 중계(pose), result, machine(뽑힌 만큼 줄어든 미니 인형, 모두 앉은 자리)을 본다.
 // 화면이 아는 칸 = 서버 machine, 콘솔 오류 0. 사용: `node client/e2e/pusher.mjs <port> <url> [out-prefix] [P-1]`
 import fs from 'node:fs';
@@ -44,6 +45,7 @@ console.log('ready', ready, 'dolls', before.length, 'kinds', new Set(before.map(
 // 2) 한 판: 집게는 턱 위에서 시작 → 칸의 위가 열린 인형 위로 → 잡기
 const n0 = seen.length;
 console.log('press', await click('한 판 하기')); await sleep(1500);
+await leverTo(io, { x: -0.45, z: 0 }); // 턱 쪽으로 끌어 본다
 const start = JSON.parse(await ev('JSON.stringify(window.__toycrane.claw())'));
 await shot('play');
 const goal = pileTarget(await contents(), PUSHER.ledge.x1);
@@ -56,8 +58,8 @@ await sleep(1500); await shot('after');
 // 3) 확인: 줄어든 만큼 = 당첨, 모두 앉음, 화면이 아는 칸 = 서버
 const screen = await contents();
 const same = !!machine && screen.length === machine.dolls.length && machine.dolls.every((d, k) => d[12] === screen[k][12] && Math.abs(d[1] - screen[k][1]) < 1e-6 && d[2] === screen[k][2]);
-const startOk = !!start && Math.abs(start.x - PUSHER.drop[0]) < 1e-6 && Math.abs(start.z - PUSHER.drop[1]) < 1e-6;
-console.log('result', JSON.stringify(result && result.won), 'machine', machine?.dolls.length, 'settled', machine?.dolls.filter((d) => d[2] !== null).length, 'aim poses', aimPoses, 'screen=server', same, 'start on ledge', startOk);
+const startOk = !!start && start.x >= PUSHER.ledge.x1 + 0.06 - 1e-6; // 레버로는 턱 위로 못 간다
+console.log('result', JSON.stringify(result && result.won), 'machine', machine?.dolls.length, 'settled', machine?.dolls.filter((d) => d[2] !== null).length, 'aim poses', aimPoses, 'screen=server', same, 'claw kept off the ledge', startOk, JSON.stringify(start));
 console.log('errors', errors.slice(0, 3).join(' | ') || '-');
 const ok = ready && startOk && !!result && !!machine && machine.dolls.length === before.length - result.won.length && machine.dolls.every((d) => d[2] !== null) && same && aimPoses > 0 && errors.length === 0;
 console.log(ok ? 'PASS pusher' : 'FAIL pusher');

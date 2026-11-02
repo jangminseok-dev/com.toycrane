@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { beforeAll, expect, test, vi } from 'vitest';
 import { DOLLS } from '../data/catalog';
 import { MACHINES } from '../data/storeLayout';
-import { PUSHER, PUSHERS, plateFront } from '../data/pushers';
+import { PUSHER, PUSHERS } from '../data/pushers';
 import { uidOf } from '../net/protocol';
 import { stubCanvas } from '../test/canvasStub';
 import { LITE_CACHE_MAX, buildBigZone, liteCacheSize } from './bigZone';
@@ -418,23 +418,21 @@ test('four pusher machines draw within the phone budget', () => {
   expect(tris('big-p1')).toBeLessThanOrEqual(tris('big-d1'));
 }, 120_000);
 
-// 미는 판은 판 사이에도 벽시계(모든 화면이 같은 박자)로 턱 깊이의 3분의 1을 오가고, 한 판 중엔 그 화면의 물리 판 자리를 따른다
-test('pusher plates slide with the clock and follow the world while playing', () => {
+// 미는 판은 아무도 안 할 때 들어가 멈춰 있고(사용자 2026-11-02 '코인 안 넣으면 멈춤'), 한 판 중엔 그 화면의 물리 판 자리를 따른다
+test('pusher plates rest in until a play moves them', () => {
   vi.useFakeTimers();
   try {
     const scene = new THREE.Scene(), zone = buildBigZone(scene);
     const plates = scene.getObjectByName('pusher-plates-big-p1') as THREE.InstancedMesh;
     const m = new THREE.Matrix4(), at = new THREE.Vector3();
     const front = (i: number) => { plates.getMatrixAt(i, m); at.setFromMatrixPosition(m); return at.z - PUSHERS[i].z; }; // 판 도형은 앞면이 원점(미는 뽑기는 ry 0)
-    vi.setSystemTime(0); zone.update(0);
-    expect(front(0)).toBeCloseTo(plateFront(0), 3);
     vi.setSystemTime(1500); zone.update(1.5);
-    expect(front(0)).toBeCloseTo(plateFront(1.5), 3);
+    expect(front(0)).toBeCloseTo(PUSHER.ledge.z0, 3);
     zone.plateAt('P-2', -0.1); zone.update(1.6);
     expect(front(1)).toBeCloseTo(-0.1, 3);
-    expect(front(0)).toBeCloseTo(plateFront(1.5), 3);
+    expect(front(0)).toBeCloseTo(PUSHER.ledge.z0, 3);
     zone.plateAt('P-2', null); zone.update(1.7);
-    expect(front(1)).toBeCloseTo(plateFront(1.5), 3);
+    expect(front(1)).toBeCloseTo(PUSHER.ledge.z0, 3);
   } finally { vi.useRealTimers(); }
 });
 

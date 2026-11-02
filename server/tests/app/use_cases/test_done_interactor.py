@@ -9,6 +9,7 @@ from toycrane.app.use_cases.play_start_interactor import PlayStartInteractor
 from toycrane.domain.layout import MACHINE_IDS, MACHINES, PUSHERS, front_spot
 from toycrane.domain.pusher_crane import generate_mixed_stock
 from toycrane.domain.report import DollPose, Report
+from toycrane.domain.shared_data import PUSHER
 from toycrane.domain.stock import generate_stock
 from toycrane.domain.value_objects.position import Position
 from fakes import FakeWallet
@@ -133,11 +134,11 @@ async def test_pusher_win_goes_to_the_bag_in_zone_pusher():
     assert (None, result("P-1", "p2", [(d.kind, d.color, d.rare, d.uid) for d in won])) in conns.broadcasts
 
 
-# 미는 뽑기는 놓은 뒤 판이 다 밀 때까지(settle max 15초) 기다린다 — 겨누기 20초를 다 써도 보고가 늦었다고 버리지 않는다
+# 미는 뽑기는 놓은 뒤 판이 멈출 때까지(settle max) 기다린다 — 겨누기 20초를 다 써도 보고가 늦었다고 버리지 않는다
 async def test_a_slow_pusher_report_is_still_taken():
     reg, locks, conns, bag, contents, _ = setup()
     contents.stored["P-1"] = generate_mixed_stock(random.Random(3))
     locks.lock("c-2", "P-1", 10.0)
     it = DoneInteractor(reg, locks, contents, bag, conns)
-    await it.done(DoneCommand("c-2", "P-1", report(contents.stored["P-1"]), now=10.0 + 20 + 12 + 15 + 2))
+    await it.done(DoneCommand("c-2", "P-1", report(contents.stored["P-1"]), now=10.0 + 20 + 12 + PUSHER["settle"]["max"] + 2))
     assert contents.saves == 1 and (None, free("P-1")) not in conns.broadcasts

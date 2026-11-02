@@ -6,7 +6,7 @@ from toycrane.domain.figure import FigureState
 
 # v2(큰 상자 두 종류, 설계 §8 — v1의 작은 상자는 읽지 않는다): 기계 id → {"b": 상자 자리 [x, y, z, qx, qy, qz, qw](기계 좌표),
 # "s": 거의 안 움직인 판 수} — 경품은 뽑힌 순간 정하므로 없다
-KEY = "figures_v2"
+KEY = "figures_v3"  # v3: 상자·막대 틈·집게를 15% 키움(사용자 2026-11-02) — 옛 자리는 새 막대에 끼므로 읽지 않고 새로 올린다
 HOOK_KEY = "hooks_v1"  # 고리 걸기 상자(계획 12) — 같은 형식, 다른 키
 
 

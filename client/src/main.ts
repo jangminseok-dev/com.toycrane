@@ -10,7 +10,7 @@ import { FIGURE_SPOTS, FigurePlay } from './game/figurePlay';
 import { watchKind } from './game/watchRoute';
 import { HOOK_MACHINE } from './game/hookPlay';
 import { RINGS, nearestRing } from './data/rings';
-import { PUSHER, PUSHERS, isPusher, nearestPusher } from './data/pushers';
+import { PUSHER, PUSHERS, isPusher, nearestPusher, plateFront } from './data/pushers';
 import { craneSpec } from './game/craneSpec';
 import { craneWorld } from './physics/craneWorld';
 import { PusherWorld } from './physics/pusherWorld';
@@ -294,6 +294,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       myNick = guest.nickname;
       playing.clear(); showing.clear(); tickets.clear(); chains.clear(); showingMe = false;
       for (const id of [...watches.keys()]) stopWatch(id); playGen.clear(); // 다시 들어오면 구경도 처음부터 (최종 리뷰 I6)
+      for (const id of plateRuns.keys()) bigZone.plateAt(id, null); plateRuns.clear(); // 남의 미는 판 그림도 멈춘 채로
       busy.reset();
       for (const [id, who] of Object.entries(m.plays)) busy.set(id, who, now / 1000);
       endPlay();
@@ -304,6 +305,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       if (m.id !== myId) { // 남의 판: 그 기계의 인형(피규어는 상자)을 따로 그리고 중계(pose)를 기다린다
         const kind = watchKind(m.m); // 기계 종류에 맞는 구경(인형 구경을 다른 기계에 걸면 예외로 멈췄다)
         if (kind === 'doll' || kind === 'pusher') startWatch(m.m); // 미는 뽑기도 인형 구경과 같은 길(무더기 + 중계)
+        if (kind === 'pusher') plateRuns.set(m.m, { from: now / 1000, stopAt: null }); // 남의 판: 미는 판도 그 판 시작부터 움직인다
         else if (kind === 'box' && me) boxPlayFor(m.m)?.watch(m.m, me.pos);
       }
       else if (cycle?.machineId === m.m) cycle.gen = genOf(m.m); // 내 판의 물리는 play_ok에서 먼저 만들어졌다
@@ -321,6 +323,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       break;
     case 'free':
       busy.clear(m.m);
+      if (plateRuns.delete(m.m)) bigZone.plateAt(m.m, null);
       stopWatch(m.m); for (const p of boxPlays) p.stopWatch(m.m);
       void playing.get(m.m)?.stop(); playing.delete(m.m);
       if (session?.machineId === m.m || activePlay()?.session?.machineId === m.m || awaiting === m.m) { endPlay(); toast('시간이 지나 기계가 풀렸어요'); }
@@ -328,6 +331,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       break;
     case 'result': {
       busy.hold(m.m, m.id, now / 1000); // 서버가 그 사람이 이어서 할 수 있게 자리를 잡아 둔다
+      stopPlateRun(m.m, now / 1000);
       if (m.id === myId) { holdFrom = now / 1000; playFor(m.m)?.resulted(m.m); } // 보고한 때 = 서버가 자리를 잡아 둔 때
       const t: Ticket = { done: false, gen: genOf(m.m) };
       tickets.set(m.m, t);
@@ -419,7 +423,7 @@ function startPlay(machineId: string, limit: number, coins: number) {
   setHud(wallet.coins, wallet.bag);
   busy.set(machineId, myId, clock());
   const spec = craneSpec(machineId);
-  session = new PlaySession(machineId, limit, clock(), spec.start);
+  session = new PlaySession(machineId, limit, clock(), spec.start, spec.range);
   run.began();
   seated = null; nextRunAt = null; hideSeatControls();
   if (run.current() >= 2) showRunPause(quitRun); // 이어 하는 둘째 판부터는 그만하기가 내내 보인다 — 누르면 바로 일어난다 (사용자 2026-11-01)
@@ -442,8 +446,8 @@ function startPlay(machineId: string, limit: number, coins: number) {
   if (R) {
     settleMachine(machineId);
     dropCycle(); stopWatch(machineId);
-    // 미는 뽑기는 판 시작부터 세계가 돌며 판이 민다(겨누는 동안에도, 설계 ring-hook §4) — 판 시각은 벽시계(그림과 끊기지 않게), 출구는 열린 채
-    const world = craneWorld(R, machineId, bigZone.contentsOf(machineId), spec.pusher ? (Date.now() / 1000) % PUSHER.plate.period : 0);
+    // 미는 뽑기는 코인을 넣은 판 시작부터 세계가 돌며 판이 들어가 있던 자리부터 민다(겨누는 동안에도, 사용자 2026-11-02), 출구는 열린 채
+    const world = craneWorld(R, machineId, bigZone.contentsOf(machineId), spec.pusher);
     if (spec.pusher) world.setHoleOpen(true);
     cycle = { machineId, gen: genOf(machineId), world, runner: null, claw: null, live: bigZone.live(machineId), before: bigZone.contentsOf(machineId), reported: false, look: new HoldLook(), wasHolding: false };
   }
@@ -839,6 +843,20 @@ function stopWatch(id: string) {
   if (rig) { rig.setCable(CABLE_TOP); rig.setOpen(0.35); }
   if (!showing.has(id)) bigZone.releaseClaw(id);
 }
+// 남이 하는 미는 뽑기의 판(그림만): 'play'를 받은 때부터 들어가 있던 자리에서 오가고, 결과를 받으면 지금 왕복을 마치고 멈춘다 —
+// 하는 화면의 물리 판(놓은 뒤 다음에 들어갈 때 멈춤)과 같은 박자
+const plateRuns = new Map<string, { from: number; stopAt: number | null }>();
+function stopPlateRun(id: string, nowSec: number) {
+  const r = plateRuns.get(id), period = PUSHER.plate.period;
+  if (r && r.stopAt === null) r.stopAt = r.from + Math.ceil((nowSec - r.from) / period) * period;
+}
+function updatePlateRuns(nowSec: number) {
+  for (const [id, r] of plateRuns) {
+    if (cycle?.machineId === id) continue; // 내 판은 물리가 그린다
+    if (r.stopAt !== null && nowSec >= r.stopAt) { plateRuns.delete(id); bigZone.plateAt(id, null); continue; }
+    bigZone.plateAt(id, plateFront(nowSec - r.from));
+  }
+}
 function updateWatches(nowSec: number) {
   for (const [id, w] of watches) {
     const { claw, dolls } = w.receiver.sample(nowSec);
@@ -1058,6 +1076,7 @@ function frame(now: number) {
   for (const sp of spinners) sp.obj.rotation.y += dt * sp.speed;
   remotes.update(now);
   updateWatches(now / 1000);
+  updatePlateRuns(now / 1000);
   bigZone.update(now / 1000);
   tower.update(now / 1000); // 진열탑 전광판 광고 띠
   renderer.render(scene, camera);

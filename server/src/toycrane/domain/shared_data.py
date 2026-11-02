@@ -372,7 +372,7 @@ LAYOUT = {'hall': {'room_half': 22, 'map_half': 21.6, 'tower_half': 2.2, 'spawn_
            {'kind': 'shelf', 'rect': [-23, 17, -20.6, 21.5], 'ry': 1.570796},
            {'kind': 'shelf', 'rect': [20.6, 17, 23, 21.5], 'ry': -1.570796}]}
 
-CLAW = {'base_force': 4.4,
+CLAW = {'base_force': 5.4,
  'spread': 0.4,
  'quality': {'three': 1.0, 'two': 0.5},
  'carry_relax': 0.6,
@@ -397,10 +397,10 @@ CLAW = {'base_force': 4.4,
           'octopus': 1.0,
           'whale': 1.08,
           'chick': 1.06,
-          'pig': 0.89,
+          'pig': 0.95,
           'cow': 0.92,
           'dino': 1.33,
-          'unicorn': 1.35,
+          'unicorn': 1.25,
           'bunny': 1.04,
           'bear': 0.95}}
 
@@ -408,18 +408,18 @@ FIGURE = {'_note': '피규어 뽑기 기계 수치(9단계, 설계 2026-11-01-to
           '따라, 상자는 처음에 긴 변(h)이 z를 따라 그림 면 위로 눕혀(두께 d가 위아래) 두 막대에 걸친다. 상자 종류(variants)마다 상자 치수·무게, 막대 틈(gap, 막대 겉면 사이), '
           '집게 크기(claw_scale, 9단계 집게의 배율 — 정사각형은 상자가 넓어 더 크게)·힘(power). guards는 막대 중심 z에서 바깥으로 앞판·받침 막대·뒤 벽까지 거리. 길이 m, '
           '질량 kg, 힘 N·m',
- 'bars': {'y': 0.98, 'radius': 0.014, 'half_len': 0.43},
- 'claw': {'home': [-0.4, 0.3], 'speed': 0.3, 'rest_y': 1.9, 'descend': 0.35},
+ 'bars': {'y': 0.98, 'radius': 0.014, 'half_len': 0.47},
+ 'claw': {'home': [-0.44, 0.34], 'speed': 0.3, 'rest_y': 1.9, 'descend': 0.35},
  'guards': {'front': 0.06, 'back_bar': 0.09, 'back_wall': 0.17},
- 'variants': {'long': {'box': {'w': 0.17, 'd': 0.12, 'h': 0.34, 'mass': 0.4, 'com': -0.15},
-                       'gap': 0.285,
-                       'claw_scale': 1.5,
-                       'power': {'grip': 1.02, 'lift': 1.0, 'carry': 0.4, 'max_lift': 0.06, 'max_clear': 0.012}},
-              'square': {'box': {'w': 0.26, 'd': 0.13, 'h': 0.26, 'mass': 0.5, 'com': 0},
-                         'gap': 0.21,
-                         'claw_scale': 2.0,
-                         'power': {'grip': 1.2, 'lift': 1.0, 'carry': 0.5, 'max_lift': 0.04, 'max_clear': 0.008}}},
- 'play_half': [0.4, 0.3],
+ 'variants': {'long': {'box': {'w': 0.195, 'd': 0.138, 'h': 0.39, 'mass': 0.4, 'com': -0.15},
+                       'gap': 0.328,
+                       'claw_scale': 1.72,
+                       'power': {'grip': 1.12, 'lift': 1.15, 'carry': 0.4, 'max_lift': 0.09, 'max_clear': 0.014}},
+              'square': {'box': {'w': 0.3, 'd': 0.15, 'h': 0.3, 'mass': 0.5, 'com': 0},
+                         'gap': 0.24,
+                         'claw_scale': 2.3,
+                         'power': {'grip': 1.32, 'lift': 1.0, 'carry': 0.5, 'max_lift': 0.052, 'max_clear': 0.009}}},
+ 'play_half': [0.44, 0.34],
  'odds': {'rare': 0.03, 'gold': 0.005},
  'stuck': {'plays': 8, 'move': 0.004, 'turn': 0.035},
  'nudge': {'shift': [0.003, 0.006], 'twist_deg': [3, 7]},
@@ -450,18 +450,19 @@ HOOK = {'_note': '고리 걸기 기계 수치(설계 2026-11-02 ring-hook §3). 
 PUSHER = {'_note': '미는 뽑기 기계 수치(설계 2026-11-02 ring-hook §4). 인형 기계와 같은 몸통·집게·조작(레버+잡기), 좌표는 인형 기계와 같은 기계 좌표(앞 +z, 바닥 = '
           'DOLL_FLOOR). 왼쪽 앞에 한 단 높은 턱(ledge, x0~x1·z0~z1, 높이 h), 턱 뒤(z0보다 뒤)는 미는 판이 숨는 집(판 윗면보다 over만큼 높아 판에 얹힌 인형을 '
           '들어갈 때 긁어 떨어뜨리고, 윗면은 slope_deg로 앞으로 기울어 아무것도 못 얹힌다), 턱 앞(z1보다 앞)은 출구. 미는 판은 턱 깊이의 3분의 1(stroke)만 period초마다 '
-          '앞뒤로 오간다. 잡은 인형은 늘 drop 자리(턱 위)로 옮겨 놓는다. 미니 인형 크기 doll_scale(인형 기계 0.3), 잡기 힘 배율 grip, 한 판 최대 당첨 max_wins, '
-          '기계당 인형 count(처음)~cap, 처음 턱 위 on_ledge개',
+          '앞뒤로 오간다 — 코인을 넣은 판에서만 움직이고, 집게가 놓은 뒤 지금 왕복을 마치면 멈춘다(그 뒤 settle.still초 그대로면 판 끝, 길어도 settle.max초). 잡은 인형은 늘 '
+          'drop 자리(턱 위)로 옮겨 놓는다. 미니 인형 크기 doll_scale(인형 기계 0.3), 잡기 힘 배율 grip, 한 판 최대 당첨 max_wins, 기계당 인형 '
+          'count(처음)~cap, 처음 턱 위 on_ledge개',
  'doll_scale': 0.18,
  'count': 26,
  'cap': 32,
  'on_ledge': 0,
  'max_wins': 8,
- 'grip': 1.07,
- 'ledge': {'x0': -0.58, 'x1': -0.12, 'z0': -0.16, 'z1': 0.28, 'h': 0.1, 'lip': 0.025},
- 'plate': {'h': 0.07, 'depth': 0.03, 'stroke': 0.147, 'period': 3.0},
+ 'grip': 0.73,
+ 'ledge': {'x0': -0.58, 'x1': -0.12, 'z0': -0.16, 'z1': 0.38, 'h': 0.1, 'lip': 0.025},
+ 'plate': {'h': 0.07, 'depth': 0.03, 'stroke': 0.18, 'period': 3.0},
  'house': {'over': 0.05, 'slope_deg': 35},
  'chute': {'h': 0.25},
  'drop': [-0.34, -0.08],
- 'settle': {'still': 3.2, 'max': 15},
+ 'settle': {'still': 0.8, 'max': 8},
  'odds': {'rare': 0.03, 'gold': 0.005}}

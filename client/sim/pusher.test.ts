@@ -52,7 +52,7 @@ function playsToWin(player: Player, seed: number): number {
   const rng = seededRandom(seed);
   let spots = freshMachine(rng);
   for (let n = 1; n <= CAP; n++) {
-    const w = new PusherWorld(R, spots);
+    const w = new PusherWorld(R, spots, true); // 코인을 넣은 판 — 판이 들어가 있던 자리부터 움직인다
     w.setHoleOpen(true);
     for (let t = 0; t < AIM_SECONDS; t += 1 / 60) w.step(1 / 60); // 겨누는 동안에도 판이 오간다
     const early = w.fallen().length;
@@ -67,13 +67,14 @@ function playsToWin(player: Player, seed: number): number {
 
 const pct = (xs: number[], p: number) => [...xs].sort((a, b) => a - b)[Math.min(xs.length - 1, Math.floor(xs.length * p))];
 
-test('a careful player wins a mini doll in about four to six plays', () => {
+// 사용자 2026-11-02 '너무 잘 뽑혀 — 집게 조금 약하게, 인형이 더 쌓여야 뽑히게': 영리하게 50%선 7~9판
+test('a careful player wins a mini doll in about seven to nine plays', () => {
   const smartPlays = Array.from({ length: trials }, (_, i) => playsToWin(smart, 11 + i));
   const randomPlays = Array.from({ length: Math.max(15, trials / 3) }, (_, i) => playsToWin(random, 901 + i));
   const line = `${process.env.PUSHER_PATCH ?? ''} pusher smart p10 ${pct(smartPlays, 0.1)} p50 ${pct(smartPlays, 0.5)} p90 ${pct(smartPlays, 0.9)} random p50 ${pct(randomPlays, 0.5)}`;
   console.log(line);
   if (process.env.SIM_OUT) appendFileSync(process.env.SIM_OUT, `${line}\n`);
-  expect(pct(smartPlays, 0.5)).toBeGreaterThanOrEqual(4);
-  expect(pct(smartPlays, 0.5)).toBeLessThanOrEqual(6);
+  expect(pct(smartPlays, 0.5)).toBeGreaterThanOrEqual(7);
+  expect(pct(smartPlays, 0.5)).toBeLessThanOrEqual(9);
   expect(pct(randomPlays, 0.5)).toBeGreaterThan(pct(smartPlays, 0.5)); // 칸이 빽빽해 아무 데나 내려도 뭔가 잡힌다(미니 인형 기계의 성격, 사용자 '좀 더 잘 잡히게') — 그래도 잘 집는 쪽이 빠르다
 });

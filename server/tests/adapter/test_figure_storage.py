@@ -46,13 +46,14 @@ async def test_existing_boxes_are_kept():
 
 
 async def test_old_small_boxes_are_not_read():
-    """옛 작은 상자(figures_v1)는 읽지 않는다 — 14대 모두 종류에 맞는 새 큰 상자(누운 높이)를 받는다 (설계 §8.4)."""
+    """옛 상자(figures_v1 작은 상자, figures_v2 15% 키우기 전)는 읽지 않는다 — 14대 모두 종류에 맞는 새 상자(누운 높이)를 받는다 (설계 §8.4, 사용자 2026-11-02)."""
     from toycrane.domain.shared_data import FIGURE
 
     storage = FakeStorage()
     storage.data["figures_v1"] = json.dumps({m: {"b": [0, 1.032, 0, 0, 0, 0, 1], "s": 3} for m in FIGURES})
+    storage.data["figures_v2"] = json.dumps({m: {"b": [0, 1.04, 0, 0, 0, 0, 1], "s": 3} for m in FIGURES})
     states = await ensure_figures(DoStorageFigureBoxes(storage), random.Random(1))
-    assert KEY == "figures_v2" and set(states) == set(FIGURES)
+    assert KEY == "figures_v3" and set(states) == set(FIGURES)
     bars = FIGURE["bars"]
     for m, s in states.items():
         d = FIGURE["variants"][FIGURES[m].box]["box"]["d"]

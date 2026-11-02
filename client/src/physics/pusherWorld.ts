@@ -8,23 +8,26 @@ import type { Rapier } from './rapier';
 
 // 미는 뽑기 기계 속 물리 세계(설계 2026-11-02 ring-hook §4, 사진 187·188): 인형 기계 세계에 바닥만 다르다.
 // 오른쪽 넓은 칸 = 미니 인형이 수북한 바닥, 왼쪽 앞 = 한 단 높은 턱(오른쪽 끝은 낮은 턱이라 쌓인 인형이 칸으로 굴러떨어질 수 있다),
-// 턱 뒤 = 미는 판이 숨는 집, 턱 앞 = 출구(바닥 없음 — 칸과는 투명 벽으로 막힘). 미는 판은 시각에 따라 턱 깊이의 3분의 1만 오간다.
+// 턱 뒤 = 미는 판이 숨는 집, 턱 앞 = 출구(바닥 없음 — 칸과는 투명 벽으로 막힘). 미는 판은 턱 깊이의 3분의 1만 오간다 —
+// 코인을 넣은 판(running)에서만 들어가 있던 자리부터 움직이고, 집게가 인형을 놓은 뒤 지금 왕복을 마치고(3초 안) 들어가 멈춘다(사용자 2026-11-02).
+// 아무도 안 할 때(앉히기·판 사이)는 들어가 멈춰 있다.
 // 출구로 떨어진 인형만 당첨(fallen). 시각은 세계 시각(time) — 같은 입력이면 같은 결과
 // 판 오른쪽 끝은 낮은 턱 안쪽까지만 — 턱 너머 칸 무더기에 기댄 인형을 건드려 무더기를 깨우지 않게
 export const PLATE_INSET = 0.02;
 export const plateDepth = (): number => PUSHER.plate.depth + PUSHER.plate.stroke + 0.01;
-const T = 0.05, PILE_GAP = 0.06;
+const T = 0.05, PILE_GAP = 0.06, SETTLE_MAX = 15;
 // 재워도 되는 자리: 칸(낮은 턱에 기댄 인형 포함) — 턱 위 인형은 판이 밀어야 한다(움직이는 판은 잠든 인형을 깨우지 못한다)
 const restable = (p: { x: number; z: number }) => p.x >= PUSHER.ledge.x1 - 0.01; // 칸 자리는 턱 오른쪽 끝에서 이만큼(서버 pusher_crane PILE_GAP과 같다)
 
 export class PusherWorld extends MachineWorld {
   declare plate: RAPIER.RigidBody; // 부모 생성자의 buildBox에서 만든다(필드 초기화로 덮이지 않게 declare)
 
-  // phase: 판의 시각을 이만큼(초) 앞선 데서 시작 — 판을 하는 화면은 벽시계에 맞춰(그림과 끊기지 않게), 앉히기는 0(모든 화면이 같은 결과)
-  constructor(R: Rapier, spots: DollSpot[], readonly phase = 0) {
+  // running: 코인을 넣은 판 — 판이 움직인다(앉히기 세계는 멈춤). phase: 판의 시각을 이만큼(초) 앞선 데서 시작(시험용, 판은 0 = 들어가 있음)
+  private stopAt: number | null = null;
+  constructor(R: Rapier, spots: DollSpot[], readonly running = false, readonly phase = 0) {
     super(R, spots, { dollScale: PUSHER.doll_scale });
     const p = this.plate.translation();
-    this.plate.setTranslation({ x: p.x, y: p.y, z: plateFront(phase) - plateDepth() / 2 }, true); // 첫 걸음에 순간이동하지 않게
+    this.plate.setTranslation({ x: p.x, y: p.y, z: this.front(0) - plateDepth() / 2 }, true); // 첫 걸음에 순간이동하지 않게
     this.saved = spots.filter((s) => s[2] !== null && restable({ x: s[1], z: s[3] })).map((s) => s[12]); // 칸 무더기만 — 턱 위 인형은 판이 밀어야 한다
   }
 
@@ -65,12 +68,14 @@ export class PusherWorld extends MachineWorld {
     this.world.createCollider(R.ColliderDesc.cuboid(lw / 2 - 0.005 - PLATE_INSET / 2, plate.h / 2, deep / 2).setFriction(0.3).setRestitution(0), this.plate);
   }
 
-  // 앉히기(채우기·처음 기계): 판이 한 주기(settle.still) 동안 아무것도 3mm 넘게 못 밀 때까지, 마지막 떨어뜨림 뒤 길어도 settle.max초 —
+  // 앉히기(채우기·처음 기계): 한 주기 동안 아무것도 3mm 넘게 안 움직일 때까지, 마지막 떨어뜨림 뒤 길어도 settle.max초 —
   // 인형 기계 기준(잠듦, 3초)으로는 판에 밀리는 중에 끝나 공중에 굳었다(최종 리뷰 I1). 상품 구멍이 없으니 '구멍 위 걸침'도 없다
-  private quiet = new QuietWindow(PUSHER.settle.still);
+  // 창은 판 한 주기(3초), 한도는 마지막 떨어뜨림 뒤 15초 — 놓은 뒤 기다리는 짧은 창·한도(settle.still 0.8초·max 8초)로는
+  // 미니 인형 26개 무더기가 다 앉기 전에 기는 채로 저장했다(아무도 안 기다리는 앉히기라 길어도 된다)
+  private quiet = new QuietWindow(PUSHER.plate.period);
   *settling(maxSeconds?: number): Generator<void, number, void> {
-    this.quiet = new QuietWindow(PUSHER.settle.still);
-    return yield* super.settling(Math.max(maxSeconds ?? 0, PUSHER.settle.max));
+    this.quiet = new QuietWindow(PUSHER.plate.period);
+    return yield* super.settling(Math.max(maxSeconds ?? 0, SETTLE_MAX));
   }
 
   protected settleBusy(): boolean {
@@ -92,7 +97,24 @@ export class PusherWorld extends MachineWorld {
   protected beforeStep(): void {
     this.sleepSaved();
     const p = this.plate.translation();
-    this.plate.setNextKinematicTranslation({ x: p.x, y: p.y, z: plateFront(this.time + this.phase) - plateDepth() / 2 });
+    this.plate.setNextKinematicTranslation({ x: p.x, y: p.y, z: this.front(this.time) - plateDepth() / 2 });
+  }
+
+  // 시각 t의 판 앞면: 움직이는 판이면 plateFront, 멈춘 뒤(stopAt)·안 움직이는 세계는 들어가 있음(z0)
+  private front(t: number): number {
+    if (!this.running || (this.stopAt !== null && t >= this.stopAt)) return PUSHER.ledge.z0;
+    return plateFront(t + this.phase);
+  }
+
+  // 집게가 인형을 놓았다 — 판은 지금 왕복을 마치고(다음에 들어가는 때) 멈춘다
+  afterRelease(): void {
+    if (!this.running || this.stopAt !== null) return;
+    const period = PUSHER.plate.period, t = this.time + this.phase;
+    this.stopAt = Math.ceil(t / period - 1e-9) * period - this.phase;
+  }
+
+  plateMoving(): boolean {
+    return this.running && (this.stopAt === null || this.time < this.stopAt);
   }
 
   // 미는 판 앞면 z — 그림
