@@ -117,6 +117,12 @@ Object.assign(window, { __toycrane: {
   hookBox: (id: string) => hookZone.boxOf(id),
   hookSide: () => hookPlay.side.value(clock()),
   figureSide: () => figurePlay.side.value(clock()),
+  demoReveal: (id: string, kind: string, rare = '') => { // 상자 까기 확인용(사진 찍기) — 결과 없이 그 기계 앞에서 까기만
+    const bp = boxPlayFor(id), spot = spotOf.get(id);
+    if (!bp || !spot) return false;
+    bp.reveal(kind, rare, figureCameraPose(spot, 0, camera.aspect, bp.machine.camera), () => {}, FIGURE_SPOTS.get(id)?.box ?? 'long');
+    return true;
+  },
 } });
 await loadFonts(ALL_COPY); // 간판 글꼴(2.5초 안에 못 오면 시스템 글꼴)
 const scene = new THREE.Scene();

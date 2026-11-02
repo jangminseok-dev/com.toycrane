@@ -61,3 +61,22 @@ test('the box waits and shakes before it opens, then the figure rises', () => {
   expect(openedAt).toBeGreaterThan(1.4);
   expect(finished).toBeGreaterThan(4.5);
 });
+
+// 사용자 2026-11-02 사진 264 '인형이 이상하게 튀어나온다': 상자가 줄어드는 동안 피규어가 올라와 상자를 뚫고 머리만 보였다 — 상자가 톡 터져
+// 사라진 뒤에야 피규어가 통통 튀며(살짝 커졌다 제자리) 나타난다. 피규어가 보이는 동안 상자는 없다
+test('the figure appears with a bounce only after the box has burst away', () => {
+  const scene = new THREE.Scene();
+  let t = 0;
+  const r = playReveal(scene, new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 1.4, 1.5), 'bunny', '', () => {}, 'long');
+  const box = () => scene.getObjectByName('reveal-box')!, fig = () => scene.children[0].children.find((c) => c.name !== 'reveal-box' && c.name !== 'figure-effect')!;
+  let peak = 0, boxWhileFigure = 0, lastScale = 0, settled = 0;
+  while (r.update(0.02)) {
+    t += 0.02;
+    if (fig().visible && box().visible) boxWhileFigure = Math.max(boxWhileFigure, box().scale.x);
+    if (fig().visible) { peak = Math.max(peak, fig().scale.x); lastScale = fig().scale.x; }
+    if (t > 3.5 && t < 4.0) { if (!settled) settled = fig().scale.x; expect(fig().scale.x).toBeCloseTo(settled, 3); } // 자리 잡은 뒤엔 크기 그대로
+  }
+  expect(boxWhileFigure).toBeLessThan(0.01); // 피규어가 보일 때 상자는 이미 없다
+  expect(peak).toBeGreaterThan(lastScale * 1.08); // 살짝 커졌다가
+  expect(lastScale).toBeGreaterThan(0.1); // 제 크기로
+});
