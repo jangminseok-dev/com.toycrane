@@ -137,8 +137,8 @@ class FakeConnections:
     def broadcast_pose(self, except_conn, player_id, machine_id, c, d) -> None:
         self.broadcasts.append((except_conn, server_messages.pose(player_id, machine_id, c, d)))
 
-    def broadcast_result(self, machine_id, player_id, won) -> None:
-        self.broadcasts.append((None, server_messages.result(machine_id, player_id, won)))
+    def broadcast_result(self, machine_id, player_id, won, staff=False) -> None:
+        self.broadcasts.append((None, server_messages.result(machine_id, player_id, won, staff)))
 
     def broadcast_machine(self, machine_id, spots) -> None:
         self.broadcasts.append((None, server_messages.machine(machine_id, spots)))

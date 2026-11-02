@@ -101,9 +101,10 @@ def play(machine_id: str, player_id: str) -> dict:
     return {"t": "play", "m": machine_id, "id": player_id}
 
 
-def result(machine_id: str, player_id: str, won: list[tuple[str, int, str, int]]) -> dict:
-    """한 판 결과: 구멍에 빠진 인형들 [캐릭터, 색, 희귀, 번호] (판을 한 화면이 보고, 서버는 확인해 중계)."""
-    return {"t": "result", "m": machine_id, "id": player_id, "won": [list(w) for w in won]}
+def result(machine_id: str, player_id: str, won: list[tuple[str, int, str, int]], staff: bool = False) -> dict:
+    """한 판 결과: 구멍에 빠진 인형들 [캐릭터, 색, 희귀, 번호] (판을 한 화면이 보고, 서버는 확인해 중계).
+    staff: 미는 뽑기 15판 보장으로 직원이 꺼내 준 인형이 든 결과(있을 때만 실음)."""
+    return {"t": "result", "m": machine_id, "id": player_id, "won": [list(w) for w in won]} | ({"staff": True} if staff else {})
 
 
 def done_no(machine_id: str, why: str) -> dict:

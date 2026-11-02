@@ -2,7 +2,9 @@ import random
 
 from toycrane.domain.catalog import DOLLS
 from toycrane.domain.layout import MACHINE_SPEC
-from toycrane.domain.pusher_crane import FULL, generate_mixed_stock, refill_mixed
+from dataclasses import replace
+
+from toycrane.domain.pusher_crane import FULL, PITY_PLAYS, after_pusher_play, generate_mixed_stock, refill_mixed
 from toycrane.domain.shared_data import PUSHER
 from toycrane.domain.stock import on_taken
 
@@ -56,3 +58,38 @@ def test_a_held_pusher_is_not_refilled():
     s = on_taken(generate_mixed_stock(random.Random(1)), [1], now=0.0)
     held, added = refill_mixed(s, 60.0, True, 0, random.Random(2))
     assert added == [] and held.next_at == 90.0 and len(held.dolls) == FULL - 1
+
+
+# 15판 보장(사용자 2026-11-02 '미는 뽑기 15판 안에 뽑게'): 같은 기계에서 한 사람이 연달아 못 뽑은 판을 세고, 15판째도 못 뽑으면
+# 직원이 턱 위에서 출구에 가장 가까운(앞, z가 큰) 인형을 꺼내 준다. 뽑으면 0부터, 사람마다 따로
+def test_the_fifteenth_miss_in_a_row_gets_the_front_ledge_doll():
+    stock = generate_mixed_stock(random.Random(5))
+    back = replace(stock.dolls[0], x=-0.35, y=0.99, z=LEDGE["z0"] + 0.1, uid=998)  # 턱 위 뒤쪽
+    front = replace(stock.dolls[1], x=-0.3, y=0.99, z=LEDGE["z1"] - 0.02, uid=999)  # 턱 위 앞 끝 — 꺼내 줄 인형
+    stock = replace(stock, dolls=[*stock.dolls, back, front])
+    for n in range(1, PITY_PLAYS):
+        stock, gift = after_pusher_play(stock, "g-1", won=False)
+        assert gift is None and stock.misses["g-1"] == n
+    stock, other = after_pusher_play(stock, "g-2", won=False)
+    assert other is None and stock.misses["g-2"] == 1
+    stock, gift = after_pusher_play(stock, "g-1", won=False)
+    assert gift == 999 and "g-1" not in stock.misses and stock.misses["g-2"] == 1
+
+
+def test_a_win_starts_the_count_again():
+    stock = generate_mixed_stock(random.Random(5))
+    for _ in range(PITY_PLAYS - 1):
+        stock, _gift = after_pusher_play(stock, "g-1", won=False)
+    stock, gift = after_pusher_play(stock, "g-1", won=True)
+    assert gift is None and "g-1" not in stock.misses
+    stock, gift = after_pusher_play(stock, "g-1", won=False)
+    assert gift is None and stock.misses["g-1"] == 1
+
+
+# 턱이 비었으면 칸에서 가장 앞 인형을 꺼내 준다(직원 손이 닿는 쪽)
+def test_with_an_empty_ledge_the_front_pile_doll_is_given():
+    stock = generate_mixed_stock(random.Random(5))
+    pile = [d for d in stock.dolls if d.x >= LEDGE["x1"]]
+    stock = replace(stock, dolls=pile, misses={"g-1": PITY_PLAYS - 1})
+    stock, gift = after_pusher_play(stock, "g-1", won=False)
+    assert gift == max(pile, key=lambda d: d.z).uid

@@ -74,7 +74,7 @@ def check_report(stock: MachineStock, report: Report, now: float, limits: CraneL
                 z=_clamp(poses[s.uid].z, -d - BOX_MARGIN, d + BOX_MARGIN), q=_unit(poses[s.uid].q))
         for s in after.dolls
     ]
-    return MachineStock(dolls, after.next_at, after.next_uid)
+    return replace(after, dolls=dolls)
 
 
 def won_views(stock: MachineStock, won: tuple[int, ...]) -> list[tuple[str, int, str, int]]:

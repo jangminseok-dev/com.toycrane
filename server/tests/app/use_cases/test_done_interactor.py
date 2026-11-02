@@ -7,7 +7,9 @@ from toycrane.app.dtos.play_dto import PlayStartCommand
 from toycrane.app.use_cases.done_interactor import DoneInteractor
 from toycrane.app.use_cases.play_start_interactor import PlayStartInteractor
 from toycrane.domain.layout import MACHINE_IDS, MACHINES, PUSHERS, front_spot
-from toycrane.domain.pusher_crane import generate_mixed_stock
+from dataclasses import replace
+
+from toycrane.domain.pusher_crane import PITY_PLAYS, generate_mixed_stock
 from toycrane.domain.report import DollPose, Report
 from toycrane.domain.shared_data import PUSHER
 from toycrane.domain.stock import generate_stock
@@ -142,3 +144,27 @@ async def test_a_slow_pusher_report_is_still_taken():
     it = DoneInteractor(reg, locks, contents, bag, conns)
     await it.done(DoneCommand("c-2", "P-1", report(contents.stored["P-1"]), now=10.0 + 20 + 12 + PUSHER["settle"]["max"] + 2))
     assert contents.saves == 1 and (None, free("P-1")) not in conns.broadcasts
+
+
+# 15판 보장: 14판 연달아 못 뽑은 사람이 15판째도 못 뽑으면 직원이 턱 맨 앞 인형을 꺼내 준다 — 당첨처럼 가방(pusher)·결과(staff 표시)·
+# 기계에서 빠지고, 세던 판 수는 지운다
+async def test_the_fifteenth_pusher_miss_gets_a_staff_gift():
+    reg, locks, conns, bag, contents, _ = setup()
+    stock = generate_mixed_stock(random.Random(3))
+    gift = replace(stock.dolls[0], x=-0.3, y=0.99, z=PUSHER["ledge"]["z1"] - 0.02, uid=stock.next_uid)  # 턱 위 앞 끝
+    contents.stored["P-1"] = replace(stock, dolls=[*stock.dolls, gift], next_uid=stock.next_uid + 1, misses={"g-2": PITY_PLAYS - 1})
+    locks.lock("c-2", "P-1", 10.0)
+    it = DoneInteractor(reg, locks, contents, bag, conns)
+    await it.done(DoneCommand("c-2", "P-1", report(contents.stored["P-1"]), now=20.0))
+    assert bag.added == [("g-2", gift.kind, gift.color, gift.rare, "pusher")]
+    after = contents.stored["P-1"]
+    assert gift.uid not in {d.uid for d in after.dolls} and "g-2" not in after.misses and after.next_at == 50.0
+    assert (None, result("P-1", "p2", [(gift.kind, gift.color, gift.rare, gift.uid)], staff=True)) in conns.broadcasts
+
+
+async def test_a_pusher_miss_is_counted():
+    reg, locks, conns, bag, contents, _ = setup()
+    locks.lock("c-2", "P-1", 10.0)
+    it = DoneInteractor(reg, locks, contents, bag, conns)
+    await it.done(DoneCommand("c-2", "P-1", report(contents.stored["P-1"]), now=20.0))
+    assert contents.stored["P-1"].misses == {"g-2": 1} and bag.added == []

@@ -4,6 +4,7 @@ sim/pusher.test.ts freshMachine)과 같은 수치(shared/pusher.json). 한 기�
 자리는 인형 기계처럼 (x, z)만 찍고 안 앉은 채(y None) 둔다. 색·희귀·황금은 인형 기계와 같다(stock.new_doll)."""
 
 import random
+from dataclasses import replace
 
 from toycrane.domain.catalog import DOLLS
 from toycrane.domain.crane import DollSpot
@@ -26,6 +27,33 @@ def pile_spot(rng: random.Random) -> tuple[float, float]:
 def ledge_spot(rng: random.Random) -> tuple[float, float]:
     """턱 뒤쪽 미는 판 바로 앞 — 판이 다 밀어도 끝까지 가지 않는 자리(처음부터 저절로 떨어지지 않게, 계획 12 Task 8 판정)."""
     return round(rng.uniform(_LEDGE["x0"] + 0.08, _LEDGE["x1"] - 0.06), 3), round(rng.uniform(_LEDGE["z0"] + 0.04, _LEDGE["z0"] + 0.12), 3)
+
+
+# 15판 보장(사용자 2026-11-02 '미는 뽑기 15판 안에 뽑게'): 같은 기계에서 한 손님이 이만큼 연달아 못 뽑으면 그 판 끝에 직원이 인형 하나를
+# 꺼내 준다 — 어려움(잘 집는 사람 50%선 7판)은 그대로, 대충 하는 사람도 15판을 넘기지 않는다. 기계마다 최근 손님 MISS_KEEP명만 기억
+PITY_PLAYS, MISS_KEEP = 15, 40
+
+
+def staff_pick(dolls: list[DollSpot]) -> int | None:
+    """직원이 꺼내 줄 인형 번호: 턱 위(턱 오른쪽 끝보다 왼쪽) 앉은 인형 중 출구에 가장 가까운(앞, z가 큰) 것, 턱이 비었으면 칸에서 가장 앞."""
+    ledge = [d for d in dolls if d.x < _LEDGE["x1"] and d.y is not None]
+    pool = ledge or dolls
+    return max(pool, key=lambda d: d.z).uid if pool else None
+
+
+def after_pusher_play(stock: MachineStock, guest: str, won: bool) -> tuple[MachineStock, int | None]:
+    """미는 뽑기 한 판 뒤: 그 손님의 연달아 못 뽑은 판 수를 세고(뽑으면 지움), PITY_PLAYS판째도 못 뽑았으면 직원이 꺼내 줄 인형 번호
+    (그 인형은 아직 기계에 있다 — 부르는 쪽이 당첨처럼 뺀다)와 지운 판 수를 돌려준다."""
+    misses = {g: n for g, n in stock.misses.items() if g != guest}  # 이 손님은 맨 뒤(가장 최근)로 다시 넣는다
+    if won:
+        return replace(stock, misses=misses), None
+    n = stock.misses.get(guest, 0) + 1
+    gift = staff_pick(stock.dolls) if n >= PITY_PLAYS else None
+    if gift is None:
+        misses[guest] = n
+        while len(misses) > MISS_KEEP:
+            del misses[next(iter(misses))]
+    return replace(stock, misses=misses), gift
 
 
 def generate_mixed_stock(rng: random.Random) -> MachineStock:

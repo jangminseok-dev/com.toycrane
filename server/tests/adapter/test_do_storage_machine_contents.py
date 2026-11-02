@@ -86,3 +86,13 @@ async def test_v5_pusher_ledge_dolls_are_read_as_unsettled():
     assert (ledge.uid, ledge.x, ledge.z, ledge.y, ledge.q) == (1, -0.3, 0.35, None, (0, 0, 0, 1))
     assert (pile.uid, pile.y, pile.q) == (2, 0.9, (0, 0.1, 0, 0.99))
     assert stocks["A-1"].dolls[0].y == 0.95
+
+
+# 15판 보장의 판 수(사람별)도 같은 저장에 — 다시 읽으면 그대로
+async def test_pusher_miss_counts_round_trip():
+    from dataclasses import replace
+    storage, owner = FakeStorage({}), object()
+    stocks = stocks_with_empty("A-1", next_at=30.0)
+    stocks["A-1"] = replace(stocks["A-1"], misses={"g-1": 3, "g-2": 14})
+    await DoStorageMachineContents(storage, "s-m", owner).save(stocks)
+    assert (await DoStorageMachineContents(storage, "s-m", owner).load())["A-1"].misses == {"g-1": 3, "g-2": 14}

@@ -6,7 +6,7 @@ const fx = fixtures as Record<string, unknown>;
 
 test('decodes every server fixture', () => {
   for (const k of ['server_welcome', 'server_join', 'server_move', 'server_correct', 'server_leave', 'server_coins',
-    'server_play_ok', 'server_play_no', 'server_play', 'server_result', 'server_machine', 'server_free', 'server_bag', 'server_spawn', 'server_stock',
+    'server_play_ok', 'server_play_no', 'server_play', 'server_result', 'server_result_staff', 'server_machine', 'server_free', 'server_bag', 'server_spawn', 'server_stock',
     'server_take_no', 'server_cbeg', 'server_cbeg_no', 'server_beg', 'server_gave', 'server_give_no', 'server_done_no', 'server_pose', 'server_figure'])
     expect(decode(JSON.stringify(fx[k]))).toEqual(fx[k]);
 });
@@ -83,3 +83,11 @@ test('figure messages carry no prize', () => {
   expect(decode(JSON.stringify({ ...w, figures: { 'F-1': [0, 1, 0] } }))).toBeNull();
 });
 
+
+// 미는 뽑기 15판 보장: 직원이 꺼내 준 인형이 든 결과는 staff로 알 수 있다(내 화면에 안내)
+test('a staff gift result says so', () => {
+  const r = decode(JSON.stringify(fx.server_result_staff));
+  expect(r?.t === 'result' && r.staff).toBe(true);
+  const plain = decode(JSON.stringify(fx.server_result));
+  expect(plain?.t === 'result' && plain.staff).toBeFalsy();
+});

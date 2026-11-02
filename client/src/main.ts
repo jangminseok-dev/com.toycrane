@@ -754,7 +754,8 @@ async function showResult(m: Result, t: Ticket) {
         tower.showMessage(tier === 'gold' ? '★★ 매우 희귀! ★★' : '★ 희귀 뽑기! ★', `${nick} 님이 ${name}${eulReul(name)} 뽑았어요`, true, tier === 'gold' ? 8 : 6);
       }
       if (mine && info) showWinCard(name, SETS.find((x) => x.id === info.set)?.name ?? '', tier, wallet.bag);
-      if (mine && m.won.length > 1) toast(UI.wonMore(m.won.length - 1)); // 탑이 무너져 여럿이 빠지면 모두 내 것 (물리 뽑기 설계 §9.1)
+      if (mine && m.staff) toast(UI.staffGift); // 미는 뽑기 15판 보장: 직원이 턱 맨 앞 인형을 꺼내 줬다
+      else if (mine && m.won.length > 1) toast(UI.wonMore(m.won.length - 1)); // 탑이 무너져 여럿이 빠지면 모두 내 것 (물리 뽑기 설계 §9.1)
       return rare ? 1.7 : 1.0;
     },
     fail: () => { if (mine) sfx.fail(); },

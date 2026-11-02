@@ -1,4 +1,5 @@
 import { beforeAll, expect, test } from 'vitest';
+import { CLAW } from '../src/data/claw';
 import { MACHINE_SPEC } from '../src/data/storeLayout';
 import type { DollSpot } from '../src/net/protocol';
 import { ClawBody } from '../src/physics/clawBody';
@@ -61,10 +62,12 @@ test('grabbing the lower body of a doll lying beside the hole tips it in', () =>
   expect(r.won).toEqual([1]);
 });
 
+// 힘은 게임 집게 힘(base_force) 둘레에서 찾는다 — 숫자로 1.8~4를 박아 두었더니 구멍 38cm·기계 5% 키움(90896e9) 뒤로는 그 힘이 다
+// 들어 올리다 놓쳐 이 장면이 안 나왔다(2026-11-02 사용자 '실패하면 안 되는 것 아닌가')
 test('a far doll dropped mid-carry lands near the hole and stays in the box', () => {
   const far = { x: 0.4, z: -0.3 };
   let found: { force: number; pose: [number, number, number] } | null = null;
-  for (const force of [1.8, 2, 2.2, 2.4, 2.6, 2.8, 3, 3.3, 3.6, 4]) {
+  for (const force of [0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 1, 1.05, 1.1, 1.2, 1.3].map((k) => k * CLAW.base_force)) {
     const world = new MachineWorld(R, [standing(1, far.x, far.z)]);
     const head = headAt(standing(1, far.x, far.z));
     let dropPhase: CyclePhase | null = null, was = false;

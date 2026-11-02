@@ -7,7 +7,7 @@
 import math
 import random
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 
 from toycrane.domain.catalog import EFFECTS, GOLD
 from toycrane.domain.crane import DollSpot, spawn_spot
@@ -25,6 +25,7 @@ class MachineStock:
     dolls: list[DollSpot]
     next_at: float | None  # 다음 빈 자리를 채울 시각 (가득 차 있으면 None)
     next_uid: int  # 다음에 들어올 인형의 번호
+    misses: dict[str, int] = field(default_factory=dict)  # 미는 뽑기 15판 보장: 손님마다 이 기계에서 연달아 못 뽑은 판 수(pusher_crane)
 
 
 def new_doll(kind: str, rng: random.Random, x: float, z: float, uid: int, *, rare_ok: bool, gold_ok: bool) -> DollSpot:
@@ -51,7 +52,7 @@ def on_taken(stock: MachineStock, uids: list[int], now: float) -> MachineStock:
     gone = set(uids)
     if not gone:
         return stock
-    return MachineStock([d for d in stock.dolls if d.uid not in gone], stock.next_at if stock.next_at is not None else now + REFILL_SECONDS, stock.next_uid)
+    return replace(stock, dolls=[d for d in stock.dolls if d.uid not in gone], next_at=stock.next_at if stock.next_at is not None else now + REFILL_SECONDS)
 
 
 def refill(stock: MachineStock, kind: str, now: float, held: bool, gold_in_store: int, rng: random.Random) -> tuple[MachineStock, list[DollSpot]]:
@@ -68,7 +69,7 @@ def fill_up(
     if stock.next_at is None or stock.next_at > now:
         return stock, []
     if held:
-        return MachineStock(stock.dolls, now + REFILL_SECONDS, stock.next_uid), []
+        return replace(stock, next_at=now + REFILL_SECONDS), []
     dolls, next_at, uid, added = list(stock.dolls), stock.next_at, stock.next_uid, []
     while next_at is not None and next_at <= now and len(dolls) < full:
         kind, x, z = place(dolls)
@@ -79,7 +80,7 @@ def fill_up(
         added.append(doll)
         uid += 1
         next_at = next_at + REFILL_SECONDS if len(dolls) < full else None
-    return MachineStock(dolls, next_at, uid), added
+    return replace(stock, dolls=dolls, next_at=next_at, next_uid=uid), added
 
 
 def due(stocks: dict[str, MachineStock]) -> float | None:

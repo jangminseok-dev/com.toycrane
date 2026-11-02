@@ -55,6 +55,7 @@ export const UI = {
   physicsLoading: '준비 중', // 물리 모듈(Rapier)을 아직 받는 중
   saveFailed: '결과를 저장하지 못했어요', // 서버가 판 보고를 거절(물리 뽑기 설계 §9.7)
   wonMore: (n: number) => `인형 ${n}개가 더 들어왔어요`,
+  staffGift: '15판 동안 못 뽑아서 직원이 하나 꺼내 줬어요', // 미는 뽑기 15판 보장
   gotCoins: (n: number) => `코인 ${n}개를 받았어요!`,
   gaveYou: (nick: string, n: number) => `${nick} 님이 코인 ${n}개를 줬어요`,
   youGave: (n: number) => `코인 ${n}개를 줬어요`,

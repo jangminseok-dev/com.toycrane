@@ -34,6 +34,7 @@
   "server_play_no": { "t": "play_no", "m": "A-3", "why": "busy" },
   "server_play": { "t": "play", "m": "A-3", "id": "p1" },
   "server_result": { "t": "result", "m": "A-3", "id": "p1", "won": [["bunny", 2, "", 7]] },
+  "server_result_staff": { "t": "result", "m": "P-1", "id": "p1", "won": [["bunny", 2, "", 7]], "staff": true },
   "server_done_no": { "t": "done_no", "m": "A-3", "why": "count" },
   "server_figure": { "t": "figure", "m": "F-1", "box": [0.004, 1.032, -0.003, 0, 0.012, 0, 1], "nudged": false },
   "server_pose": { "t": "pose", "m": "A-3", "id": "p1", "c": [0.1, 1.6, 0.2, 0.4], "d": [[7, 0.2, 1.3, 0.1, 0, 0, 0, 1]] },

@@ -33,7 +33,7 @@ export type PlayNo = { t: 'play_no'; m: string; why: 'busy' | 'coins' | 'far' | 
 export type Play = { t: 'play'; m: string; id: string };
 // 한 판 결과: 구멍에 빠진 인형들 [캐릭터, 색, 희귀, 번호] (비어 있으면 못 뽑음) — 결과는 판을 한 화면의 물리가 정하고 서버는 기록·중계
 export type WonDoll = [kind: string, color: number, rare: string, uid: number];
-export type Result = { t: 'result'; m: string; id: string; won: WonDoll[] };
+export type Result = { t: 'result'; m: string; id: string; won: WonDoll[]; staff?: boolean }; // staff: 미는 뽑기 15판 보장으로 직원이 꺼내 준 인형
 export type DoneNo = { t: 'done_no'; m: string; why: string }; // 서버가 판 보고를 거절(치명 규칙) — 기계는 판 시작 전으로
 export type ClawPose = [x: number, y: number, z: number, open: number];
 export type PoseWire = [uid: number, x: number, y: number, z: number, qx: number, qy: number, qz: number, qw: number];
