@@ -456,19 +456,8 @@ test('pusher blocks drop their mini doll outlines sooner', () => {
   expect(outlines().every((m) => !m.visible)).toBe(true);
 });
 
-// 집게 위치 표시(친구 피드백 2026-11-02 '위치 파악이 안 된다'): 겨냥 고리에서 집게까지 올라가는 가는 빛줄기 — 고리와 함께 보이고, 고리가
-// 인형 머리 위로 올라가면 줄도 짧아진다(aimLine으로 길이를 맞춘다)
-test('the aim ring has a light line up to the claw', async () => {
-  const { aimLine } = await import('./bigZone');
+// 고리에서 집게까지 올라가는 빛줄기는 넣었다가 뺐다(사용자 2026-11-02 '빨간 선이 너무 과하다') — 겨냥 고리에는 자식이 없다
+test('the aim ring has no light line up to the claw', () => {
   const zone = buildBigZone(new THREE.Scene()), claw = zone.clawOf('C-6');
-  const aim = claw.getObjectByName('aim')!, line = aim.getObjectByName('aim-line')!;
-  expect(line).toBeDefined();
-  zone.showAim('C-6', true);
-  claw.updateMatrixWorld(true);
-  aim.position.y = -0.9; aimLine(aim); claw.updateMatrixWorld(true);
-  const box = new THREE.Box3().setFromObject(line), clawY = claw.getWorldPosition(new THREE.Vector3()).y;
-  expect(box.min.y).toBeCloseTo(clawY - 0.9, 2); // 고리에서
-  expect(box.max.y).toBeGreaterThan(clawY - 0.2); // 집게 바로 아래까지
-  aim.position.y = -0.5; aimLine(aim); claw.updateMatrixWorld(true);
-  expect(new THREE.Box3().setFromObject(line).max.y).toBeLessThan(clawY); // 집게 위로 뚫지 않는다
+  expect(claw.getObjectByName('aim')!.children).toHaveLength(0);
 });

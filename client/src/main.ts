@@ -59,7 +59,7 @@ import { makeAvatar, type Avatar } from './world/avatar';
 import { DOLLS, GOLD, SETS, dollName } from './data/catalog';
 import { COUNTERS, MACHINES, MACHINE_SPEC, frontSpot, nearestMachine } from './data/storeLayout';
 import { FIGURES, isFigure, nearestFigure } from './data/figures';
-import { aimLine, buildBigZone, type LiveDolls } from './world/bigZone';
+import { buildBigZone, type LiveDolls } from './world/bigZone';
 import { takeButton } from './game/counter';
 import { buildFigureZone } from './world/figureZone';
 import { pumpThumbnails } from './world/thumbs';
@@ -1060,7 +1060,6 @@ function frame(now: number) {
         runAimFrame(dt, session.claw);
         aim.position.y = aimHeight(bigZone.contentsOf(session.machineId), session.claw.x, session.claw.z, spec.dollScale, spec.floorAt(session.claw.x, session.claw.z)) - CLAW_REST.y;
         aim.visible = spec.pusher || aimVisible(session.claw); // 인형 기계는 상품 구멍 위(시작 자리)에서 숨긴다
-        aimLine(aim); // 고리에서 집게까지 빛줄기
       }
       me.autoTarget = frontSpot(spotOf.get(playId)!); // 기계 앞자리 가운데로 (카메라 구도가 늘 같게)
       me.drive({ x: 0, z: 0 }, dt);

@@ -46,15 +46,7 @@ const aimGeo = new THREE.RingGeometry(0.035, 0.06, 28);
 // 고리를 덮는다 — 반투명이면 맨 마지막에 그려져 집게가 앞쪽에 있을 때 레버 공 위에 겹쳐 보였다
 export const AIM_ORDER = 10;
 const aimMat = new THREE.MeshBasicMaterial({ color: 0xff3b8f, depthWrite: false, depthTest: false });
-// 겨냥 고리에서 집게 바로 아래까지 올라가는 가는 빛줄기(친구 피드백 2026-11-02 '위치 파악이 안 된다') — 고리의 자식이라 고리(눕힌 원판)의
-// 앞(+z)이 위쪽. 길이는 aimLine이 고리 높이에 맞춘다. 고리처럼 깊이를 무시해 인형에 가려도 보인다
-const aimLineGeo = new THREE.CylinderGeometry(0.0035, 0.0035, 1, 8).rotateX(Math.PI / 2).translate(0, 0, 0.5);
-const aimLineMat = new THREE.MeshBasicMaterial({ color: 0xff3b8f, transparent: true, opacity: 0.55, depthWrite: false, depthTest: false });
-const CLAW_BOTTOM = -0.16; // 집게 기준점에서 손가락 끝(닫힌 채)쯤 — 빛줄기 윗끝
-export function aimLine(aim: THREE.Object3D): void {
-  const line = aim.getObjectByName('aim-line');
-  if (line) line.scale.z = Math.max(0.01, CLAW_BOTTOM - aim.position.y);
-}
+// 고리에서 집게까지 올라가는 빛줄기는 넣었다가 뺐다(사용자 2026-11-02 '빨간 선이 너무 과하다') — 위치 표시는 바닥 고리와 위에서 본 그림만
 // 기계 속 인형은 행 안에서 기계 4~6대씩 묶어 합친다 — 한 기계가 바뀌면 그 묶음만 다시 합친다(행 전체는 휴대폰에서 멈칫함)
 const BLOCK_MAX = 6;
 // 미는 뽑기는 기계마다 미니 인형 28개라 두 대씩 묶는다(한 묶음 다시 합치기가 인형 기계 묶음과 비슷하게)
@@ -165,8 +157,6 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     // 겨냥 고리: 집게를 따라 펠트 바닥에 비친다(실제 크레인 게임의 집게 그림자처럼)
     const aim = new THREE.Mesh(aimGeo, aimMat);
     aim.name = 'aim'; aim.visible = false; aim.renderOrder = AIM_ORDER; aim.rotation.x = -Math.PI / 2; aim.position.y = DOLL_FLOOR + 0.012 - CLAW_REST.y;
-    const line = new THREE.Mesh(aimLineGeo, aimLineMat); line.name = 'aim-line'; line.renderOrder = AIM_ORDER;
-    aim.add(line); aimLine(aim);
     claw.add(aim);
     anchor.add(led, claw);
     row.group.add(anchor);
