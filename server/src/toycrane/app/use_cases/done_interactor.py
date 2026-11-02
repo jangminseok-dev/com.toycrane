@@ -12,7 +12,7 @@ from toycrane.app.use_cases.report_lock import take_report
 from toycrane.domain.layout import PUSHERS
 from toycrane.domain.pusher_crane import after_pusher_play
 from toycrane.domain.report import check_report, limits_of, won_dolls, won_views
-from toycrane.domain.stock import due, on_taken
+from toycrane.domain.stock import count_miss, due, on_taken
 
 ZONE, PUSHER_ZONE = "big", "pusher"  # 가방 구역: 큰 인형 기계 · 미는 뽑기(설계 ring-hook §4, 섞인 미니 인형)
 
@@ -54,6 +54,8 @@ class DoneInteractor(DoneUseCase):
             after, gift = after_pusher_play(after, me.guest_id, bool(won))
             if gift is not None:
                 after, won = on_taken(after, [gift], cmd.now), (*won, gift)
+        else:  # 인형 기계: 연달아 못 뽑은 판을 센다 — help.plays판째부터 화면이 센 집게로 한다
+            after = count_miss(after, me.guest_id, bool(won))
         stocks[machine_id] = after
         await self._contents.save(stocks)
         when = due(stocks)
@@ -63,5 +65,5 @@ class DoneInteractor(DoneUseCase):
             total = await self._bag.add(me.guest_id, doll.kind, doll.color, doll.rare, PUSHER_ZONE if machine_id in PUSHERS else ZONE, cmd.now)
         if total is not None:
             self._connections.send_bag(cmd.conn_id, total)
-        self._connections.broadcast_result(machine_id, me.player_id, won_views(before, won), staff=gift is not None)
+        self._connections.broadcast_result(machine_id, me.player_id, won_views(before, won), staff=gift is not None, miss=after.misses.get(me.guest_id, 0))
         self._connections.broadcast_machine(machine_id, after.dolls)

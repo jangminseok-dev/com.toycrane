@@ -25,7 +25,7 @@ class MachineStock:
     dolls: list[DollSpot]
     next_at: float | None  # 다음 빈 자리를 채울 시각 (가득 차 있으면 None)
     next_uid: int  # 다음에 들어올 인형의 번호
-    misses: dict[str, int] = field(default_factory=dict)  # 미는 뽑기 15판 보장: 손님마다 이 기계에서 연달아 못 뽑은 판 수(pusher_crane)
+    misses: dict[str, int] = field(default_factory=dict)  # 손님마다 이 기계에서 연달아 못 뽑은 판 수(count_miss)
 
 
 def new_doll(kind: str, rng: random.Random, x: float, z: float, uid: int, *, rare_ok: bool, gold_ok: bool) -> DollSpot:
@@ -45,6 +45,21 @@ def generate_stock(kind: str, rng: random.Random) -> MachineStock:
         x, z = spawn_spot(dolls, rng)
         dolls.append(new_doll(kind, rng, x, z, uid, rare_ok=not any(d.rare for d in dolls), gold_ok=False))
     return MachineStock(dolls, None, DOLLS_PER_MACHINE + 1)
+
+
+# 연달아 못 뽑은 판(사용자 2026-11-02 '오기 생기게'): 인형 기계는 claw.json help.plays판째부터 뽑을 때까지 집게가 세지고(화면이 센 힘으로 한다),
+# 미는 뽑기는 pusher.json pity판째에 직원이 하나 꺼내 준다(pusher_crane). 기계마다 최근 손님 MISS_KEEP명만 기억
+MISS_KEEP = 40
+
+
+def count_miss(stock: MachineStock, guest: str, won: bool) -> MachineStock:
+    """한 판 뒤 그 손님의 연달아 못 뽑은 판 수: 못 뽑으면 하나 더(맨 뒤 = 가장 최근으로), 뽑으면 지운다."""
+    misses = {g: n for g, n in stock.misses.items() if g != guest}
+    if not won:
+        misses[guest] = stock.misses.get(guest, 0) + 1
+        while len(misses) > MISS_KEEP:
+            del misses[next(iter(misses))]
+    return replace(stock, misses=misses)
 
 
 def on_taken(stock: MachineStock, uids: list[int], now: float) -> MachineStock:

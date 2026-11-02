@@ -5,7 +5,7 @@ import pytest
 
 from toycrane.domain.layout import MACHINE_SPEC
 from toycrane.domain.shared_data import CLAW
-from toycrane.domain.stock import MachineStock, due, generate_stock, new_doll, on_taken, refill
+from toycrane.domain.stock import MISS_KEEP, MachineStock, count_miss, due, generate_stock, new_doll, on_taken, refill
 
 
 # 새 인형 (설계 2026-10-31 인형 채우기 §4.2·§4.4): 황금 0.5%·희귀 3%(효과 8가지), 체형 50/25/25, 표정 5, 색 6
@@ -138,3 +138,22 @@ def test_due_is_the_earliest_refill_time():
     full = generate_stock("bear", random.Random(1))
     assert due({"A-1": full}) is None
     assert due({"A-1": full, "A-2": MachineStock(full.dolls[1:], 50.0, 10), "A-3": MachineStock(full.dolls[2:], 40.0, 10)}) == 40.0
+
+
+# 연달아 못 뽑은 판 세기(사용자 2026-11-02 '오기 생기게': 인형 기계는 help.plays판째부터 집게가 세지고, 미는 뽑기는 pity판째에 직원이 꺼내 준다) —
+# 손님마다 따로, 뽑으면 지움
+def test_misses_are_counted_per_guest_and_a_win_clears_them():
+    stock = generate_stock("cat", random.Random(1))
+    for n in (1, 2, 3):
+        stock = count_miss(stock, "g-1", won=False)
+        assert stock.misses["g-1"] == n
+    stock = count_miss(count_miss(stock, "g-2", won=False), "g-1", won=True)
+    assert stock.misses == {"g-2": 1}
+
+
+# 기계마다 최근 손님 MISS_KEEP명만 기억(저장 크기)
+def test_only_the_latest_guests_are_remembered():
+    stock = generate_stock("cat", random.Random(1))
+    for i in range(MISS_KEEP + 5):
+        stock = count_miss(stock, f"g-{i}", won=False)
+    assert len(stock.misses) == MISS_KEEP and "g-0" not in stock.misses and f"g-{MISS_KEEP + 4}" in stock.misses

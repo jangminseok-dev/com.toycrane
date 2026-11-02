@@ -8,10 +8,15 @@ from toycrane.domain.catalog import DOLLS, EFFECTS
 from toycrane.domain.figure import FigureState, after_play, check_report, roll_prize, start_box
 from toycrane.domain.shared_data import FIGURE
 
-BARS, VARIANTS, GUARDS = FIGURE["bars"], FIGURE["variants"], FIGURE["guards"]
+BARS, VARIANTS = FIGURE["bars"], FIGURE["variants"]
 KINDS = ("long", "square")  # 큰 상자 두 종류(설계 §8)
 BOX = VARIANTS["long"]["box"]
 LYING_Y = BARS["y"] + BARS["radius"] + BOX["d"] / 2
+
+
+def guards(kind: str) -> dict:
+    """앞뒤 막힘: 뒤는 두 종류 같고 앞(받침 막대·유리 벽)은 상자 종류마다(figure.json variants.guards)."""
+    return {**FIGURE["guards"], **VARIANTS[kind]["guards"]}
 
 
 def lying_y(kind: str) -> float:
@@ -67,11 +72,11 @@ def test_check_report_clamps_inside_machine():
     # 실제로 갈 수 있는 곳 안으로(최종 리뷰 M5): 옆은 막대 끝, 앞은 앞판, 뒤는 뒤 벽, 안 빠진 상자는 막대 위 상자 길이까지
     for kind in KINDS:
         box, won = check_report((3.0, 5.0, -3.0, 0, 0, 0, 2), False, kind)
-        assert (box[0], box[2]) == (BARS["half_len"], -(bar_z(kind) + GUARDS["back_wall"]))
+        assert (box[0], box[2]) == (BARS["half_len"], -(bar_z(kind) + guards(kind)["back_wall"]))
         assert box[1] == BARS["y"] + VARIANTS[kind]["box"]["h"] and won is False
         assert math.isclose(math.hypot(*box[3:]), 1.0)
         box, _ = check_report((-3.0, 1.0, 3.0, 0, 0, 0, 1), False, kind)
-        assert (box[0], box[2]) == (-BARS["half_len"], bar_z(kind) + GUARDS["front"])
+        assert (box[0], box[2]) == (-BARS["half_len"], bar_z(kind) + guards(kind)["front_wall"])  # 앞도 뒤처럼 유리 벽까지(2026-11-02, 앞은 상자 종류마다)
 
 
 def test_check_report_needs_box_below_bars_for_a_win():

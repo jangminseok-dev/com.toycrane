@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { beforeAll, expect, test, vi } from 'vitest';
 import { DOLLS } from '../data/catalog';
 import { MACHINES } from '../data/storeLayout';
-import { PUSHER, PUSHERS } from '../data/pushers';
+import { PUSHER, PUSHERS, plateFront } from '../data/pushers';
 import { uidOf } from '../net/protocol';
 import { stubCanvas } from '../test/canvasStub';
 import { LITE_CACHE_MAX, buildBigZone, liteCacheSize } from './bigZone';
@@ -419,20 +419,25 @@ test('four pusher machines draw within the phone budget', () => {
 }, 120_000);
 
 // 미는 판은 아무도 안 할 때 들어가 멈춰 있고(사용자 2026-11-02 '코인 안 넣으면 멈춤'), 한 판 중엔 그 화면의 물리 판 자리를 따른다
-test('pusher plates rest in until a play moves them', () => {
+// 진짜 가게처럼 미는 판은 아무도 안 해도 늘 오간다(사용자 2026-11-02 친구 피드백 '코인 안 넣어도 계속 밀린다') — 모든 화면이 실제 시각(Date.now)에
+// 맞춰 같은 박자로. 한 판 중에는 plateAt(물리 판)이 덮고, null이면 다시 시각을 따른다
+test('pusher plates keep moving with the wall clock unless a play drives them', () => {
   vi.useFakeTimers();
   try {
     const scene = new THREE.Scene(), zone = buildBigZone(scene);
     const plates = scene.getObjectByName('pusher-plates-big-p1') as THREE.InstancedMesh;
     const m = new THREE.Matrix4(), at = new THREE.Vector3();
     const front = (i: number) => { plates.getMatrixAt(i, m); at.setFromMatrixPosition(m); return at.z - PUSHERS[i].z; }; // 판 도형은 앞면이 원점(미는 뽑기는 ry 0)
-    vi.setSystemTime(1500); zone.update(1.5);
-    expect(front(0)).toBeCloseTo(PUSHER.ledge.z0, 3);
-    zone.plateAt('P-2', -0.1); zone.update(1.6);
+    const P = PUSHER.plate.period;
+    vi.setSystemTime(1000 * P * 1000); zone.update(1.5); // 왕복의 시작: 들어가 있다
+    expect(front(0)).toBeCloseTo(plateFront(0), 3);
+    vi.setSystemTime(1000 * (P * 1000 + P / 2)); zone.update(1.6); // 반 왕복: 가장 나와 있다
+    expect(front(0)).toBeCloseTo(plateFront(P / 2), 3);
+    expect(front(0) - PUSHER.ledge.z0).toBeGreaterThan(PUSHER.plate.stroke * 0.9);
+    zone.plateAt('P-2', -0.1); zone.update(1.7);
     expect(front(1)).toBeCloseTo(-0.1, 3);
-    expect(front(0)).toBeCloseTo(PUSHER.ledge.z0, 3);
-    zone.plateAt('P-2', null); zone.update(1.7);
-    expect(front(1)).toBeCloseTo(PUSHER.ledge.z0, 3);
+    zone.plateAt('P-2', null); vi.setSystemTime(1000 * (P * 1000 + P / 4)); zone.update(1.8);
+    expect(front(1)).toBeCloseTo(plateFront(P / 4), 3);
   } finally { vi.useRealTimers(); }
 });
 
@@ -449,4 +454,21 @@ test('pusher blocks drop their mini doll outlines sooner', () => {
   expect(outlines().every((m) => m.visible)).toBe(true);
   zone.setFocus(cx, p.z + 13); // 인형 기계라면 아직 그리는 거리
   expect(outlines().every((m) => !m.visible)).toBe(true);
+});
+
+// 집게 위치 표시(친구 피드백 2026-11-02 '위치 파악이 안 된다'): 겨냥 고리에서 집게까지 올라가는 가는 빛줄기 — 고리와 함께 보이고, 고리가
+// 인형 머리 위로 올라가면 줄도 짧아진다(aimLine으로 길이를 맞춘다)
+test('the aim ring has a light line up to the claw', async () => {
+  const { aimLine } = await import('./bigZone');
+  const zone = buildBigZone(new THREE.Scene()), claw = zone.clawOf('C-6');
+  const aim = claw.getObjectByName('aim')!, line = aim.getObjectByName('aim-line')!;
+  expect(line).toBeDefined();
+  zone.showAim('C-6', true);
+  claw.updateMatrixWorld(true);
+  aim.position.y = -0.9; aimLine(aim); claw.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(line), clawY = claw.getWorldPosition(new THREE.Vector3()).y;
+  expect(box.min.y).toBeCloseTo(clawY - 0.9, 2); // 고리에서
+  expect(box.max.y).toBeGreaterThan(clawY - 0.2); // 집게 바로 아래까지
+  aim.position.y = -0.5; aimLine(aim); claw.updateMatrixWorld(true);
+  expect(new THREE.Box3().setFromObject(line).max.y).toBeLessThan(clawY); // 집게 위로 뚫지 않는다
 });

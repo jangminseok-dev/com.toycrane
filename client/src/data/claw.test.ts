@@ -15,7 +15,8 @@ test('claw strength grows from the hole edge to the far corner', () => {
 test('claw table carries the spec numbers', () => {
   expect(CLAW.quality).toEqual({ three: 1, two: 0.5 });
   expect(CLAW.rare).toEqual({ rare: 0.79, gold: 0.72 }); // 곰·펭귄 1000판 기준에 맞춘 값(구멍 38cm·집게 힘 4.4 뒤 다시 맞춤, 2026-11-02)
-  expect(CLAW.hole).toEqual({ size: 0.38, lip: 0.06 }); // 34cm에선 긴 다리 인형이 테두리에 걸렸다(사용자 2026-11-02)
+  expect(CLAW.hole).toEqual({ size: 0.38, lip: 0.12 }); // 34cm에선 긴 다리 인형이 테두리에 걸렸다(사용자 2026-11-02). 가드는 인형 키 반쯤 12cm — 잘못 내려도 밀려 빠지던 것(친구 피드백 2026-11-02)
+  expect(CLAW.help).toEqual({ plays: 10, force: 1.4 }); // 10판 연달아 못 뽑으면 센 집게(머리 겨냥 70%쯤, 사용자 2026-11-02 '오기 생기게')
   expect(CLAW.max_wins).toBe(3);
   expect(CLAW.carry_relax).toBeGreaterThan(0);
   expect(CLAW.base_force).toBeGreaterThan(0);

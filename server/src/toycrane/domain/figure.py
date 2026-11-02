@@ -14,7 +14,7 @@ from toycrane.domain.shared_data import FIGURE
 
 BoxPose = tuple[float, float, float, float, float, float, float]
 
-_BARS, _VARIANTS, _GUARDS = FIGURE["bars"], FIGURE["variants"], FIGURE["guards"]
+_BARS, _VARIANTS = FIGURE["bars"], FIGURE["variants"]
 
 
 def _box(kind: str) -> dict:
@@ -67,7 +67,7 @@ def roll_prize(rng: random.Random) -> tuple[str, str]:
 
 def check_report(box: tuple[float, ...], won: bool, kind: str) -> tuple[BoxPose, bool] | str:
     """화면이 보고한 판 끝 상자 자리를 상식선에서 확인한다 — 이상하면 거절 이유("bad"·"won"), 아니면 상자가 실제로 갈 수 있는 곳
-    (옆은 막대 끝, 앞은 앞판, 뒤는 뒤 벽, 위는 막대 위 상자 길이) 안으로 자른 자리."""
+    (옆은 막대 끝, 앞뒤는 유리 벽, 위는 막대 위 상자 길이) 안으로 자른 자리."""
     if len(box) != 7 or not all(math.isfinite(v) for v in box):
         return "bad"
     norm = math.hypot(*box[3:])
@@ -76,7 +76,8 @@ def check_report(box: tuple[float, ...], won: bool, kind: str) -> tuple[BoxPose,
     h, bz, half = _box(kind)["h"], _bar_z(kind), _BARS["half_len"]
     x = max(-half, min(half, box[0]))
     y = max(0.3, min(_BARS["y"] + h, box[1]))
-    z = max(-(bz + _GUARDS["back_wall"]), min(bz + _GUARDS["front"], box[2]))
+    guards = {**FIGURE["guards"], **_VARIANTS[kind]["guards"]}  # 뒤는 두 종류 같고 앞은 상자 종류마다
+    z = max(-(bz + guards["back_wall"]), min(bz + guards["front_wall"], box[2]))
     clamped: BoxPose = (x, y, z, *(v / norm for v in box[3:]))
     if won and y > _BARS["y"] - h / 2:
         return "won"

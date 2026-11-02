@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from 'vitest';
-import { FIGURE, variantOf, type BoxKind } from '../data/figures';
+import { FIGURE, variantOf, type BoxKind, guardsOf } from '../data/figures';
 import type { BoxWire } from '../net/protocol';
 import { FigureClaw } from './figureClaw';
 import { runFigureCycle } from './figureCycle';
@@ -11,7 +11,7 @@ import { loadRapier, type Rapier } from './rapier';
 let R: Rapier;
 beforeAll(async () => { R = await loadRapier(); });
 
-const { bars, guards } = FIGURE;
+const { bars } = FIGURE;
 const lying = (k: BoxKind, z = 0, yawDeg = 0): BoxWire => {
   const a = (yawDeg * Math.PI) / 360;
   return [0, bars.y + bars.radius + variantOf(k).box.d / 2, z, 0, Math.sin(a), 0, Math.cos(a)];
@@ -91,18 +91,18 @@ describe.each(['long', 'square'] as const)('%s box', (kind) => {
       let crossZ: number | null = null;
       settle(w, 3, () => { const p = w.boxPose(); if (crossZ === null && p[1] < bars.y - B.d) crossZ = p[2]; });
       if (crossZ !== null) expect(Math.abs(crossZ), `push ${v} fell at`).toBeLessThan(barZ(kind));
-      else expect(Math.abs(w.boxPose()[2]), `push ${v} stays inside`).toBeLessThan(barZ(kind) + guards.back_wall);
+      else expect(Math.abs(w.boxPose()[2]), `push ${v} stays inside`).toBeLessThan(barZ(kind) + guardsOf(kind).back_wall);
       w.dispose();
     }
   });
 });
 
-// 앞판을 넘어 기계 밖으로 날아간 상자는 당첨이 아니다(설계 §8.2 'GET 쪽으로만', 최종 리뷰 I1) — 지금 집게로는 이만한 속도가 안 나지만(시뮬 최고 1.34m/s)
+// 앞 유리를 넘어 기계 밖으로 날아간 상자는 당첨이 아니다(설계 §8.2 'GET 쪽으로만', 최종 리뷰 I1) — 지금 집게로는 이만한 속도가 안 나지만(시뮬 최고 1.34m/s)
 // 막대 아래로 내려가는 곳이 두 막대 사이가 아니면 빠진 것으로 세지 않는다
-test('a box thrown over the front plate is not a win', () => {
+test('a box thrown over the front wall is not a win', () => {
   for (const kind of ['long', 'square'] as const) {
     const B = variantOf(kind).box, start = lying(kind);
-    start[1] = bars.y + 0.12; start[2] = barZ(kind) + guards.front + B.h / 2 + 0.02; // 앞판 바로 바깥 위
+    start[1] = bars.y + 0.12; start[2] = barZ(kind) + guardsOf(kind).front_wall + B.h / 2 + 0.02; // 앞 유리 바로 바깥 위
     const w = new FigureWorld(R, start, kind);
     w.box.setLinvel({ x: 0, y: 0, z: 0.5 }, true);
     settle(w, 3);
@@ -124,7 +124,7 @@ test('a lying square box stays on the bars at any turn', () => {
 
 // 뒤로 밀린 상자는 뒤 막대와 받침 막대에 얹혀 남고(뒤 벽에 닿기 직전), 앞 끝을 걸어 다시 끌어올 수 있다 — 영상의 '살려오기'
 test('a box pushed onto the back support can be dragged back', () => {
-  const B = variantOf('long').box, back = -(barZ('long') + guards.back_wall) + B.h / 2 + 0.01;
+  const B = variantOf('long').box, back = -(barZ('long') + guardsOf('long').back_wall) + B.h / 2 + 0.01;
   const w = new FigureWorld(R, lying('long', back), 'long');
   settle(w, 2);
   expect(w.fallen()).toBe(false);
@@ -152,3 +152,18 @@ test('after a play the claw goes home with its open arms inside the cabinet', as
   expect(r.clawPose()[0]).toBeCloseTo(-clawHalfX(w.clawShape), 5);
   expect(minX - openReach(w.clawShape)).toBeGreaterThanOrEqual(-CABINET_INNER);
 }, 120_000);
+
+// 앞도 뒤처럼 받침 막대 + 유리 벽(상자 종류마다 — 긴 상자 4·7cm, 정사각형 9·17cm 앞) — 앞쪽 끝까지 밀린 상자는 앞으로는 못 나가고, 떨어지면 두 막대 사이(GET)로만
+// 떨어진다(사용자 2026-11-02 사진 245·247 '최대한 GET 방향에')
+test('a box pushed to the front never leaves over the front, only into the gap', () => {
+  for (const kind of ['long', 'square'] as const) for (const v of [0.3, 0.8]) {
+    const B = variantOf(kind).box, front = barZ(kind) + guardsOf(kind).front_wall - B.h / 2 - 0.01;
+    const w = new FigureWorld(R, lying(kind, front), kind);
+    w.box.setLinvel({ x: 0, y: 0, z: v }, true);
+    let crossZ: number | null = null, maxZ = -Infinity;
+    settle(w, 3, () => { const p = w.boxPose(); maxZ = Math.max(maxZ, p[2]); if (crossZ === null && p[1] < bars.y - B.d) crossZ = p[2]; });
+    expect(maxZ, `${kind} ${v}`).toBeLessThan(barZ(kind) + guardsOf(kind).front_wall);
+    if (crossZ !== null) expect(Math.abs(crossZ), `${kind} ${v} fell at`).toBeLessThan(barZ(kind) + 0.03);
+    w.dispose();
+  }
+});

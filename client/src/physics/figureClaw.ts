@@ -1,6 +1,6 @@
 import type RAPIER from '@dimforge/rapier3d-deterministic-compat';
 import * as THREE from 'three';
-import { FIGURE, variantOf, type BoxKind } from '../data/figures';
+import { FIGURE, guardsOf, variantOf, type BoxKind } from '../data/figures';
 import type { BoxWorld } from './boxWorld';
 import type { Rapier } from './rapier';
 
@@ -39,6 +39,12 @@ export function openReach(S: ClawShape): number {
 }
 // 집게 머리가 갈 수 있는 반폭: 벌린 팔이 기둥 안쪽에 머무는 데까지(놀이 영역 반폭을 넘지 않음). 쉬는 자리는 그 왼쪽 끝
 export const clawHalfX = (S: ClawShape): number => Math.min(FIGURE.play_half[0], CABINET_INNER - openReach(S) - 0.01);
+// 집게 머리가 갈 수 있는 앞뒤 반폭: 팔 판이 앞뒤 유리 벽(막대에서 front_wall)에서 2cm 안쪽에 머무는 데까지 — 앞 유리를 세우자 처음 자리(z 0.34)의
+// 팔이 유리에 걸렸다(사용자 2026-11-02 사진 245). 처음 자리는 그 앞 끝
+export function clawHalfZ(kind: BoxKind): number {
+  const bz = variantOf(kind).gap / 2 + FIGURE.bars.radius;
+  return Math.min(FIGURE.play_half[1], bz + guardsOf(kind).front_wall - clawShapeOf(kind).plateW / 2 - 0.02);
+}
 const GROUP_CLAW = 0x0002;
 const clawGroups = ((GROUP_CLAW << 16) | (0xffff & ~GROUP_CLAW)) >>> 0; // 집게끼리는 안 부딪힘
 

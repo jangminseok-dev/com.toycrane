@@ -79,3 +79,12 @@ test('the claw starts and stops where its open arms stay inside', () => {
   for (let t = 0.1; t < 10; t += 0.1) s.update(0.1, t / 10);
   expect(s.claw.x).toBeCloseTo(0.27);
 });
+
+// 앞뒤 범위(halfZ)도 집게마다 — 처음 자리는 그 앞 끝, ②로 안쪽은 그 뒤 끝까지
+test('the claw starts at the front edge of its range and stops at the back edge', () => {
+  const s = new FigureSession('F-8', 20, 0, 0.27, 0.26);
+  expect(s.claw).toEqual({ x: -0.27, z: 0.26 });
+  s.press(1); s.update(0.1, 0.1); s.release(1, 0.2); s.press(2);
+  for (let t = 0.3; t < 10; t += 0.1) s.update(0.1, t);
+  expect(s.claw.z).toBeCloseTo(-0.26);
+});

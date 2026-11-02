@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { FIGURE, FIGURES, variantOf, type FigureSpot } from '../data/figures';
 import type { Occluder } from '../game/occlusion';
 import type { BoxWire } from '../net/protocol';
-import { clawHalfX, clawShapeOf, type ClawShape } from '../physics/figureClaw';
+import { clawHalfX, clawHalfZ, clawShapeOf, type ClawShape } from '../physics/figureClaw';
 import { bakeByMaterial, fadeMaterials, materialCloner } from './bake';
 import { BUTTON_SCALE, FIGURE_CONTROLS, LABEL, LABEL_Y, labelMat, type ButtonLabels } from './figureControls';
 import { blindBoxGeo, blindBoxMat, clawGeos, clawMats, makeFigureMachineParts } from './figureMachine';
@@ -40,6 +40,7 @@ export type BoxLook = {
   boxMat(row: number): THREE.Material;
   claw(row: number): { shape: ClawShape; geos: ReturnType<typeof clawGeos> };
   restBox(spot: Spot): BoxWire;
+  homeZ?(row: number): number; // 집게가 쉬는 앞뒤 자리(피규어는 앞 유리 안쪽) — 없으면 claw.home
   labels?: ButtonLabels;
   sticker?: string; // 집게 앞 스티커 글씨(기본 '피규어')
   extra?: { geo(row: number): THREE.BufferGeometry; glued(row: number): THREE.BufferGeometry; mat: THREE.Material; rest(row: number, box: BoxWire): BoxWire };
@@ -53,6 +54,7 @@ const FIGURE_LOOK: BoxLook = {
   boxMat: (row) => blindBoxMat(row === 0 ? 'long' : 'square'),
   // 줄마다 한 종류(설계 §8.3: F-1~F-7 긴 상자, F-8~F-14 정사각형) — 집게도 그 종류 크기
   claw: (row) => ({ shape: clawShapeOf(row === 0 ? 'long' : 'square'), geos: clawGeos(row === 0 ? 'long' : 'square') }),
+  homeZ: (row) => clawHalfZ(row === 0 ? 'long' : 'square'),
   restBox: (spot) => [0, lyingY(spot as FigureSpot), 0, 0, 0, 0, 1],
 };
 
@@ -103,7 +105,7 @@ export function buildBoxZone(scene: THREE.Scene, look: BoxLook): FigureZone {
       anchor.position.set(f.x, 0, f.z); anchor.rotation.y = f.ry; anchor.name = `${look.name}-${f.id}`;
       root.add(anchor);
       anchor.updateMatrix();
-      const u: Unit = { row: r, slot, matrix: anchor.matrix.clone(), anchor, box: look.restBox(f), extra: null, claw: [-clawHalfX(look.claw(r).shape), FIGURE.claw.rest_y, FIGURE.claw.home[1], 1], hidden: false };
+      const u: Unit = { row: r, slot, matrix: anchor.matrix.clone(), anchor, box: look.restBox(f), extra: null, claw: [-clawHalfX(look.claw(r).shape), FIGURE.claw.rest_y, look.homeZ?.(r) ?? FIGURE.claw.home[1], 1], hidden: false };
       units.set(f.id, u);
       const b = BODY_BOX.clone().applyMatrix4(u.matrix);
       boxes.push(b); body.union(b);
@@ -150,7 +152,7 @@ export function buildBoxZone(scene: THREE.Scene, look: BoxLook): FigureZone {
     worldOf: (id) => unit(id).anchor,
     setClaw(id, x, y, z, open) { const u = unit(id); u.claw = [x, y, z, open]; placeClaw(u); },
     hideControls(id, hidden) { const u = unit(id); u.hidden = hidden; placeButtons(u); },
-    homeOf(id) { return { x: -clawHalfX(look.claw(unit(id).row).shape), z: FIGURE.claw.home[1] }; },
+    homeOf(id) { const r = unit(id).row; return { x: -clawHalfX(look.claw(r).shape), z: look.homeZ?.(r) ?? FIGURE.claw.home[1] }; },
     occluders,
   };
 }

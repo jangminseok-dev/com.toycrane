@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import type { Vec2 } from '../game/movement';
 import { MAP_HALF, SPAWN_RADIUS } from '../world/layout';
-import { FIGURE, FIGURES, boxKindOf, isFigure, nearestFigure, variantOf, type BoxKind } from './figures';
+import { FIGURE, FIGURES, boxKindOf, isFigure, nearestFigure, variantOf, type BoxKind, guardsOf } from './figures';
 import { MACHINE_SPEC, OBSTACLES, frontSpot } from './storeLayout';
 
 // 9단계 피규어 뽑기(설계 2026-11-01-toycrane-figure-machine-design.md §3.1): 동쪽 구역 14대 전부 진짜 기계, 광장 쪽(−x)을 본다
@@ -77,13 +77,17 @@ test('each box is longer than its bar gap but stands through it', () => {
   expect(square.box.d + 0.016).toBeLessThan(square.gap);
 });
 
-// 앞뒤 막힘(설계 §8.3): 앞 막대와 앞판, 뒤 막대와 받침 막대, 받침 막대와 뒤 벽 사이 틈이 모두 상자 두께보다 좁다 — 앞뒤로는 빠질 곳이 없다
+// 앞뒤 막힘(설계 §8.3, 사용자 2026-11-02 앞도 뒤처럼): 막대와 받침 막대, 받침 막대와 유리 벽 사이 틈이 앞뒤 모두 상자 두께보다 좁다 — 앞뒤로는 빠질 곳이 없다.
+// 앞은 상자 종류마다: 긴 상자는 유리가 가까워야(7cm) 앞으로 미끄러져 바로 빠지지 않고, 정사각형은 멀어야(17cm) 뒤 끝을 걸어 끌어오기가 된다(판수 시뮬)
 test('the guards close the front and back', () => {
-  const r = FIGURE.bars.radius, { front, back_bar, back_wall } = FIGURE.guards;
+  const r = FIGURE.bars.radius;
+  expect(guardsOf('long')).toEqual({ front_bar: 0.04, front_wall: 0.07, back_bar: 0.09, back_wall: 0.17 });
+  expect(guardsOf('square')).toEqual({ front_bar: 0.09, front_wall: 0.17, back_bar: 0.09, back_wall: 0.17 });
   for (const k of ['long', 'square'] as const) {
-    const d = variantOf(k).box.d;
-    expect(front - r, `${k} front`).toBeLessThan(d);
-    expect(back_bar - 2 * r, `${k} support`).toBeLessThan(d);
-    expect(back_wall - back_bar - r, `${k} wall`).toBeLessThan(d);
+    const d = variantOf(k).box.d, { front_bar, front_wall, back_bar, back_wall } = guardsOf(k);
+    for (const [bar, wall, side] of [[front_bar, front_wall, 'front'], [back_bar, back_wall, 'back']] as const) {
+      expect(bar - 2 * r, `${k} ${side} support`).toBeLessThan(d);
+      expect(wall - bar - r, `${k} ${side} wall`).toBeLessThan(d);
+    }
   }
 });

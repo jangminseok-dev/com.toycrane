@@ -1,12 +1,13 @@
 {
-  "base_force": 4.9,
+  "base_force": 5.15,
   "spread": 0.4,
   "quality": {"three": 1.0, "two": 0.5},
   "carry_relax": 0.6,
   "rare": {"rare": 0.79, "gold": 0.72},
-  "hole": {"size": 0.38, "lip": 0.06},
+  "hole": {"size": 0.38, "lip": 0.12},
+  "help": {"plays": 10, "force": 1.4},
   "max_wins": 3,
   "cycle_seconds": 12,
   "settle_seconds": 3,
-  "kind": {"cat": 1.5, "panda": 0.97, "hamster": 1.22, "fox": 1.15, "raccoon": 1.09, "squirrel": 1.47, "owl": 1.34, "deer": 0.97, "hedgehog": 1.38, "penguin": 1.15, "frog": 1.07, "duck": 1.16, "seal": 1.07, "octopus": 1.0, "whale": 1.08, "chick": 1.06, "pig": 0.95, "cow": 0.92, "dino": 1.33, "unicorn": 1.33, "bunny": 1.04, "bear": 0.95}
+  "kind": {"cat": 1.5, "panda": 0.97, "hamster": 1.22, "fox": 1.15, "raccoon": 1.09, "squirrel": 1.47, "owl": 1.34, "deer": 0.97, "hedgehog": 1.31, "penguin": 1.15, "frog": 1.07, "duck": 1.16, "seal": 1.07, "octopus": 1.0, "whale": 1.08, "chick": 1.06, "pig": 0.95, "cow": 0.92, "dino": 1.33, "unicorn": 1.33, "bunny": 1.04, "bear": 0.95}
 }

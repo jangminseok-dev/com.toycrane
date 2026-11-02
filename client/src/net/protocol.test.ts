@@ -6,7 +6,7 @@ const fx = fixtures as Record<string, unknown>;
 
 test('decodes every server fixture', () => {
   for (const k of ['server_welcome', 'server_join', 'server_move', 'server_correct', 'server_leave', 'server_coins',
-    'server_play_ok', 'server_play_no', 'server_play', 'server_result', 'server_result_staff', 'server_machine', 'server_free', 'server_bag', 'server_spawn', 'server_stock',
+    'server_play_ok', 'server_play_no', 'server_play', 'server_result', 'server_result_staff', 'server_result_miss', 'server_machine', 'server_free', 'server_bag', 'server_spawn', 'server_stock',
     'server_take_no', 'server_cbeg', 'server_cbeg_no', 'server_beg', 'server_gave', 'server_give_no', 'server_done_no', 'server_pose', 'server_figure'])
     expect(decode(JSON.stringify(fx[k]))).toEqual(fx[k]);
 });
@@ -30,7 +30,7 @@ test('counter, begging and giving messages match client fixtures', () => {
 test('the old queue and drop-result messages are gone', () => {
   expect(decode('{"t":"queue","c":0,"ids":[]}')).toBeNull();
   expect(decode('{"t":"result","m":"A-3","id":"p1","x":0.1,"z":0,"o":"win","part":"head","k":"bunny"}')).toBeNull();
-  expect(PROTOCOL).toBe(13); // 고리 걸기·미는 뽑기 다시 만들기: act·ring·pusher와 welcome rings·pushers를 없앰 — 옛 화면은 새로 고친다
+  expect(PROTOCOL).toBe(14); // 매장 38m·진열탑 줄임·피규어 앞 벽(배치가 바뀜, 2026-11-02) — 옛 배치를 든 화면은 새로 고친다
 });
 
 test('play messages match client fixtures', () => {
@@ -90,4 +90,12 @@ test('a staff gift result says so', () => {
   expect(r?.t === 'result' && r.staff).toBe(true);
   const plain = decode(JSON.stringify(fx.server_result));
   expect(plain?.t === 'result' && plain.staff).toBeFalsy();
+});
+
+// 연달아 못 뽑은 판 수(인형 기계·미는 뽑기): 있을 때만 miss로 온다 — 없으면 0(뽑았거나 처음)
+test('a result carries the miss count when there is one', () => {
+  const r = decode(JSON.stringify(fx.server_result_miss));
+  expect(r?.t === 'result' && r.miss).toBe(3);
+  const plain = decode(JSON.stringify(fx.server_result));
+  expect(plain?.t === 'result' && (plain.miss ?? 0)).toBe(0);
 });

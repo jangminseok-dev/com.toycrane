@@ -43,3 +43,21 @@ test('the reveal box matches the machine box', () => {
   expect([size.x, size.y, size.z].map((v) => +v.toFixed(6))).toEqual([b.w, b.d, b.h]);
   while (r.update(0.1));
 });
+
+// 사용자 2026-11-02 '결과가 너무 빨리 나와 — 상자 열리는 효과가 나오면서 결과가': 상자가 나타나 한동안 들썩이며 뜸을 들이고(피규어는 아직
+// 안 보임), 열리는 순간 한 번 알리고(onOpen — 터지는 효과·소리), 그 뒤 피규어가 올라온다. 끝(done)은 4.5초 넘어서 — 그다음에 결과 카드
+test('the box waits and shakes before it opens, then the figure rises', () => {
+  const scene = new THREE.Scene();
+  let finished = 0, opened = 0, openedAt = -1, t = 0;
+  const r = playReveal(scene, new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 1.4, 1.5), 'bunny', '', () => { finished = t; }, 'long', () => { opened++; openedAt = t; });
+  const box = () => scene.getObjectByName('reveal-box')!, fig = () => scene.children[0].children.find((c) => c.name !== 'reveal-box' && c.name !== 'figure-effect')!;
+  const wobble: number[] = [];
+  for (; t < 1.4; t += 0.05) { r.update(0.05); wobble.push(Math.abs(box().rotation.z)); }
+  expect(fig().visible).toBe(false); // 아직 안 열렸다
+  expect(opened).toBe(0);
+  expect(Math.max(...wobble)).toBeGreaterThan(0.05); // 들썩인다
+  while (r.update(0.05)) { t += 0.05; if (opened && t < openedAt + 1) expect(t).toBeGreaterThan(1.4); }
+  expect(opened).toBe(1);
+  expect(openedAt).toBeGreaterThan(1.4);
+  expect(finished).toBeGreaterThan(4.5);
+});

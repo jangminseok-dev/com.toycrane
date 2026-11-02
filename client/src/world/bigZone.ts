@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { MACHINES } from '../data/storeLayout';
-import { PUSHER, PUSHERS } from '../data/pushers';
+import { PUSHER, PUSHERS, plateFront } from '../data/pushers';
 import { craneSpec } from '../game/craneSpec';
 import type { Occluder } from '../game/occlusion';
 import { bakeByMaterial, fadeMaterials, materialCloner, mergeBuckets } from './bake';
@@ -37,7 +37,7 @@ export interface BigZone {
   pending(): number; // 아직 다시 합치지 못한 묶음 수
   setFocus(x: number, z: number): void; // 내 자리 — 먼 묶음은 인형 외곽선을 끈다
   hideRowsBehind(machineId: string | null): void; // 기계 앞 화면: 그 기계보다 뒤에 있는 줄을 숨긴다(null이면 모두 보임) — 휴대폰 그리기 호출 (큰 홀 설계 §6)
-  plateAt(machineId: string, z: number | null): void; // 미는 뽑기 판 앞면 z(기계 안 좌표) — 한 판 중엔 물리·구경에 맞추고, null이면 들어가 멈춤(판 사이)
+  plateAt(machineId: string, z: number | null): void; // 미는 뽑기 판 앞면 z(기계 안 좌표) — 한 판 중엔 물리에 맞추고, null이면 실제 시각에 맞춰 늘 오감
   occluders: Occluder[]; // 행 2개: 벽 줄, 섬
 }
 
@@ -46,6 +46,15 @@ const aimGeo = new THREE.RingGeometry(0.035, 0.06, 28);
 // 고리를 덮는다 — 반투명이면 맨 마지막에 그려져 집게가 앞쪽에 있을 때 레버 공 위에 겹쳐 보였다
 export const AIM_ORDER = 10;
 const aimMat = new THREE.MeshBasicMaterial({ color: 0xff3b8f, depthWrite: false, depthTest: false });
+// 겨냥 고리에서 집게 바로 아래까지 올라가는 가는 빛줄기(친구 피드백 2026-11-02 '위치 파악이 안 된다') — 고리의 자식이라 고리(눕힌 원판)의
+// 앞(+z)이 위쪽. 길이는 aimLine이 고리 높이에 맞춘다. 고리처럼 깊이를 무시해 인형에 가려도 보인다
+const aimLineGeo = new THREE.CylinderGeometry(0.0035, 0.0035, 1, 8).rotateX(Math.PI / 2).translate(0, 0, 0.5);
+const aimLineMat = new THREE.MeshBasicMaterial({ color: 0xff3b8f, transparent: true, opacity: 0.55, depthWrite: false, depthTest: false });
+const CLAW_BOTTOM = -0.16; // 집게 기준점에서 손가락 끝(닫힌 채)쯤 — 빛줄기 윗끝
+export function aimLine(aim: THREE.Object3D): void {
+  const line = aim.getObjectByName('aim-line');
+  if (line) line.scale.z = Math.max(0.01, CLAW_BOTTOM - aim.position.y);
+}
 // 기계 속 인형은 행 안에서 기계 4~6대씩 묶어 합친다 — 한 기계가 바뀌면 그 묶음만 다시 합친다(행 전체는 휴대폰에서 멈칫함)
 const BLOCK_MAX = 6;
 // 미는 뽑기는 기계마다 미니 인형 28개라 두 대씩 묶는다(한 묶음 다시 합치기가 인형 기계 묶음과 비슷하게)
@@ -156,6 +165,8 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     // 겨냥 고리: 집게를 따라 펠트 바닥에 비친다(실제 크레인 게임의 집게 그림자처럼)
     const aim = new THREE.Mesh(aimGeo, aimMat);
     aim.name = 'aim'; aim.visible = false; aim.renderOrder = AIM_ORDER; aim.rotation.x = -Math.PI / 2; aim.position.y = DOLL_FLOOR + 0.012 - CLAW_REST.y;
+    const line = new THREE.Mesh(aimLineGeo, aimLineMat); line.name = 'aim-line'; line.renderOrder = AIM_ORDER;
+    aim.add(line); aimLine(aim);
     claw.add(aim);
     anchor.add(led, claw);
     row.group.add(anchor);
@@ -190,7 +201,7 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
     return { row, meshes };
   });
   const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
-  // 미는 판: 미는 뽑기 줄마다 InstancedMesh 하나 — 판 사이엔 들어가 멈추고, 한 판 중엔 plateAt으로 옮긴다
+  // 미는 판: 미는 뽑기 줄마다 InstancedMesh 하나 — 늘 실제 시각에 맞춰 오가고, 내 한 판 중엔 plateAt(물리 판)으로 옮긴다
   const plateRows = rows.filter((row) => row.spots[0].pusher).map((row) => {
     const mesh = new THREE.InstancedMesh(pusherPlateGeo(), row.cloner.remap(pusherPlateMat()), row.spots.length);
     mesh.name = `pusher-plates-${row.group.name}`; mesh.castShadow = false;
@@ -436,9 +447,10 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
       const until = performance.now() + BUILD_MS;
       for (const block of blocks) if (block.dirty && performance.now() < until && warm(block, until)) rebuild(block); // 합치기도 시간이 남을 때만 — 한 프레임에 묶음 하나쯤
       for (const u of units.values()) refreshLive(u);
+      const wall = plateFront(Date.now() / 1000); // 아무도 안 해도 늘 오간다 — 모든 화면이 실제 시각에 맞춰 같은 박자(사용자 2026-11-02)
       for (const { row, mesh } of plateRows) {
         row.spots.forEach((spot, j) => {
-          const z = units.get(spot.id)!.plateZ ?? PUSHER.ledge.z0; // 아무도 안 하면 들어가 멈춰 있다
+          const z = units.get(spot.id)!.plateZ ?? wall;
           mesh.setMatrixAt(j, plateM.multiplyMatrices(machineAt(spot), plateShift.makeTranslation(0, 0, z)));
         });
         mesh.instanceMatrix.needsUpdate = true;

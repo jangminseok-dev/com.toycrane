@@ -50,12 +50,13 @@ test('one machine stays light in triangles', () => {
 
 // 물리 뽑기 설계 §9.3: 둘레는 6cm 낮은 턱 (20cm 가림막은 '조금 들어서 넘기기'를 막았다). 구멍은 38cm 네모 —
 // 34cm에선 문어 다리·공룡 꼬리가 테두리에 걸렸다(사용자 2026-11-02, 사진 201)
-test('the prize hole has a low lip', () => {
-  expect(HOLE).toEqual({ size: 0.38, lip: 0.06 });
+// 가드는 인형 키 반쯤(12cm) — 6cm일 땐 집게를 잘못 내려도 인형이 밀려 빠졌다(친구 피드백 2026-11-02, 조사: 진짜 기계 가드는 인형 반 높이)
+test('the prize hole has a guard about half a doll high', () => {
+  expect(HOLE).toEqual({ size: 0.38, lip: 0.12 });
   const statics = makeMachineParts(MACHINES[0], 0).statics;
   let lip: THREE.Mesh | undefined;
   statics.traverse((o) => { const g = (o as THREE.Mesh).geometry as THREE.BoxGeometry | undefined; if (g?.type === 'BoxGeometry' && g.parameters.width === 0.38 && g.parameters.depth === 0.38) lip = o as THREE.Mesh; });
-  expect((lip!.geometry as THREE.BoxGeometry).parameters.height).toBeCloseTo(0.06);
+  expect((lip!.geometry as THREE.BoxGeometry).parameters.height).toBeCloseTo(0.12);
 });
 
 

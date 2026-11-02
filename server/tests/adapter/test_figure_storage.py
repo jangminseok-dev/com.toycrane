@@ -52,8 +52,9 @@ async def test_old_small_boxes_are_not_read():
     storage = FakeStorage()
     storage.data["figures_v1"] = json.dumps({m: {"b": [0, 1.032, 0, 0, 0, 0, 1], "s": 3} for m in FIGURES})
     storage.data["figures_v2"] = json.dumps({m: {"b": [0, 1.04, 0, 0, 0, 0, 1], "s": 3} for m in FIGURES})
+    storage.data["figures_v3"] = json.dumps({m: {"b": [0, 1.05, 0.2, 0, 0, 0, 1], "s": 3} for m in FIGURES})
     states = await ensure_figures(DoStorageFigureBoxes(storage), random.Random(1))
-    assert KEY == "figures_v3" and set(states) == set(FIGURES)
+    assert KEY == "figures_v4" and set(states) == set(FIGURES)  # v4: 앞 받침 막대·유리 벽(상자 종류마다) — 옛 낮은 앞판 자리는 새 유리에 낄 수 있다
     bars = FIGURE["bars"]
     for m, s in states.items():
         d = FIGURE["variants"][FIGURES[m].box]["box"]["d"]

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { FIGURE, FIGURES, variantOf, type BoxKind, type FigureSpot } from '../data/figures';
+import { FIGURE, guardsOf, FIGURES, variantOf, type BoxKind, type FigureSpot } from '../data/figures';
 import { clawShapeOf, type ClawShape } from '../physics/figureClaw';
 import { barZ } from '../physics/figureWorld';
 import { FIGURE_BOX, FIGURE_SIGN } from './copy';
@@ -117,10 +117,10 @@ export function makeFigureMachineParts(spot: FigureSpot, index: number, color: n
   const plate = m.getObjectByName('plate') as THREE.Mesh;
   plate.geometry = plateCell(plate.geometry, index);
   const add = (o: THREE.Object3D) => { m.add(o); return o; };
-  const kind = spot.box, { box } = variantOf(kind), { y, half_len } = FIGURE.bars, { back_bar, back_wall } = FIGURE.guards;
+  const kind = spot.box, { box } = variantOf(kind), { y, half_len } = FIGURE.bars, { front_bar, front_wall, back_bar, back_wall } = guardsOf(kind);
   const bz = barZ(kind), white = toon(0xfafafc), floorMat = toon(0xffeef6);
-  // 쇠막대: 앞·뒤 막대(사이가 GET 구멍)와 뒤 받침 막대(옅은 회색) — 양옆 흰 기둥(바닥에서 막대까지)과 죔쇠
-  for (const [z, color] of [[bz, 0xe9c3d6], [-bz, 0xe9c3d6], [-(bz + back_bar), 0xd9dbe3]] as const) {
+  // 쇠막대: 앞·뒤 막대(사이가 GET 구멍)와 앞·뒤 받침 막대(옅은 회색) — 양옆 흰 기둥(바닥에서 막대까지)과 죔쇠
+  for (const [z, color] of [[bz, 0xe9c3d6], [-bz, 0xe9c3d6], [bz + front_bar, 0xd9dbe3], [-(bz + back_bar), 0xd9dbe3]] as const) {
     add(part(g.bar, toon(color), [0, y, z], [1, 1, 1], [0, 0, 0], 1.25));
     for (const sx of [-1, 1]) {
       add(part(g.post, white, [sx * (half_len + 0.006), (FLOOR_Y + y) / 2, z], [1, y - FLOOR_Y, 1], [0, 0, 0], 1.08));
@@ -132,12 +132,13 @@ export function makeFigureMachineParts(spot: FigureSpot, index: number, color: n
     const edge = bz + 0.01, len = 0.49 - edge;
     add(part(g.floor, floorMat, [0, FLOOR_Y, side * (edge + len / 2)], [1, 1, len], [0, 0, 0], 0));
   }
-  // 앞판(앞 막대 바로 앞 낮은 턱)은 그리지 않는다 — 진짜 기계엔 앞 유리판이 없다(사용자 2026-11-02 사진 244). 막는 턱은 물리(figureWorld)에만.
-  // 뒤 벽: 받침 막대 뒤 투명판 + 흰 테두리(뒤가 막힌 줄 보이게)
-  const wz = -(bz + back_wall), wy = y + WALL_TOP / 2 - 0.015, wh = WALL_TOP + 0.03, ww = half_len * 2;
-  add(flat(g.pane, machineAcryl(), [0, wy, wz])).scale.y = wh;
-  for (const [dx, dy, sx, sy] of [[0, wh / 2, ww, 0.012], [0, -wh / 2, ww, 0.012], [ww / 2, 0, 0.012, wh], [-ww / 2, 0, 0.012, wh]]) {
-    add(part(g.edge, white, [dx, wy + dy, wz], [sx, sy, 1], [0, 0, 0], 1.08));
+  // 앞뒤 벽: 받침 막대 바깥 투명판 + 흰 테두리(막힌 줄 보이게) — 앞도 뒤처럼(사용자 2026-11-02 사진 245: 앞 막대 바로 앞 낮은 판 대신)
+  const wy = y + WALL_TOP / 2 - 0.015, wh = WALL_TOP + 0.03, ww = half_len * 2;
+  for (const wz of [bz + front_wall, -(bz + back_wall)]) {
+    add(flat(g.pane, machineAcryl(), [0, wy, wz])).scale.y = wh;
+    for (const [dx, dy, sx, sy] of [[0, wh / 2, ww, 0.012], [0, -wh / 2, ww, 0.012], [ww / 2, 0, 0.012, wh], [-ww / 2, 0, 0.012, wh]]) {
+      add(part(g.edge, white, [dx, wy + dy, wz], [sx, sy, 1], [0, 0, 0], 1.08));
+    }
   }
   // 구멍 아래 'GET!' 바닥(상자가 빠지면 여기로)
   add(flat(g.get, getMat(), [0, FLOOR_Y - 0.005, 0], [-Math.PI / 2, 0, 0])).scale.set(1, 2 * bz, 1); // 몸통 윗면 바로 위(상자는 몸통 속으로 빠진다)

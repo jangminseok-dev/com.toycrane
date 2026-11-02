@@ -74,7 +74,7 @@ export class FigureCycleRunner {
         break;
       case 'home': {
         // 집: 벌린 팔이 기계 안에 머무는 앞 왼쪽 끝(clawHalfX — json의 home x로 가면 큰 집게 팔이 기둥 밖으로 나갔다, 사진 224)
-        const hx = -clawHalfX(w.clawShape), hz = C.home[1], dx = hx - this.x, dz = hz - this.z, d = Math.hypot(dx, dz), s = C.speed * FIG_STEP;
+        const hx = -clawHalfX(w.clawShape), hz = w.clawHomeZ ?? C.home[1], dx = hx - this.x, dz = hz - this.z, d = Math.hypot(dx, dz), s = C.speed * FIG_STEP;
         if (d <= s) { this.x = hx; this.z = hz; this.go(w.carryHome ? 'release' : 'settle'); } else { this.x += (dx / d) * s; this.z += (dz / d) * s; }
         c.setRail(this.x, this.z);
         break;

@@ -3,7 +3,7 @@ import type { Vec2 } from '../game/movement';
 
 export type PlayerView = { id: string; nick: string; color: number; x: number; z: number; dx: number; dz: number; beg?: number | null }; // beg: 조르는 중이면 더 받을 수 있는 코인 수
 // 메시지 형식 버전 — 서버 welcome의 v와 다르면(배포로 형식이 바뀜) 화면을 새로고침한다
-export const PROTOCOL = 13;
+export const PROTOCOL = 14;
 export type Body = 'n' | 'c' | 's'; // 보통 · 뚱뚱 · 마른
 // 기계 속 인형 한 칸 [캐릭터, x, y, z, qx, qy, qz, qw, 색, 체형, 표정, 희귀, 번호] (기계 안 좌표·돌림 쿼터니언 — 물리 뽑기 설계 §4.5).
 // y가 null이면 서버가 (x, z) 위 천장에서 떨어뜨린 아직 안 앉은 인형(돌림은 0,0,0,1) — 화면들이 같은 물리로 앉힌다.
@@ -33,7 +33,8 @@ export type PlayNo = { t: 'play_no'; m: string; why: 'busy' | 'coins' | 'far' | 
 export type Play = { t: 'play'; m: string; id: string };
 // 한 판 결과: 구멍에 빠진 인형들 [캐릭터, 색, 희귀, 번호] (비어 있으면 못 뽑음) — 결과는 판을 한 화면의 물리가 정하고 서버는 기록·중계
 export type WonDoll = [kind: string, color: number, rare: string, uid: number];
-export type Result = { t: 'result'; m: string; id: string; won: WonDoll[]; staff?: boolean }; // staff: 미는 뽑기 15판 보장으로 직원이 꺼내 준 인형
+// staff: 미는 뽑기 15판 보장으로 직원이 꺼내 준 인형, miss: 그 사람이 이 기계에서 연달아 못 뽑은 판 수(인형 기계·미는 뽑기, 0이면 없음 — game/help.ts)
+export type Result = { t: 'result'; m: string; id: string; won: WonDoll[]; staff?: boolean; miss?: number };
 export type DoneNo = { t: 'done_no'; m: string; why: string }; // 서버가 판 보고를 거절(치명 규칙) — 기계는 판 시작 전으로
 export type ClawPose = [x: number, y: number, z: number, open: number];
 export type PoseWire = [uid: number, x: number, y: number, z: number, qx: number, qy: number, qz: number, qw: number];

@@ -49,13 +49,13 @@ test('the display tower stands in the plaza with the four-sided board on top', (
   const display = scene.getObjectByName('display-tower')!;
   expect(display).toBeDefined();
   const box = new THREE.Box3().setFromObject(display);
-  expect(box.max.y).toBeLessThanOrEqual(6.2);
-  expect(box.max.x - box.min.x).toBeGreaterThanOrEqual(4.3);
+  expect(box.max.y).toBeLessThanOrEqual(3.8); // 걷기 카메라(6.1m)를 당긴 뒤 '너무 커서 다 안 보여'(2026-11-02) — 꼭대기가 카메라보다 한참 아래
+  expect(box.max.x - box.min.x).toBeGreaterThanOrEqual(TOWER_HALF * 2 - 0.1);
   expect(Math.max(Math.abs(box.min.x), Math.abs(box.max.x), Math.abs(box.min.z), Math.abs(box.max.z))).toBeLessThanOrEqual(TOWER_HALF + 0.05);
   const screens: THREE.Object3D[] = [];
   scene.traverse((o) => { if (o.name === 'tower-screen') screens.push(o); });
   expect(screens).toHaveLength(4);
-  for (const sc of screens) expect(new THREE.Vector3().setFromMatrixPosition(sc.matrixWorld).y).toBeGreaterThanOrEqual(4);
+  for (const sc of screens) expect(new THREE.Vector3().setFromMatrixPosition(sc.matrixWorld).y).toBeGreaterThanOrEqual(2.4); // 진열대 위
   expect(tower.box.min.x).toBeCloseTo(-TOWER_HALF); expect(tower.box.max.z).toBeCloseTo(TOWER_HALF);
   expect(tower.box.max.y).toBeCloseTo(box.max.y, 1);
   let dolls = 0; display.traverse((o) => { if (o.name.startsWith('tower-doll')) dolls++; });

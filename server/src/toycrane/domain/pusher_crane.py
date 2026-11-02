@@ -10,7 +10,7 @@ from toycrane.domain.catalog import DOLLS
 from toycrane.domain.crane import DollSpot
 from toycrane.domain.layout import MACHINE_SPEC
 from toycrane.domain.shared_data import PUSHER
-from toycrane.domain.stock import MachineStock, fill_up, new_doll
+from toycrane.domain.stock import MachineStock, count_miss, fill_up, new_doll
 
 KINDS: tuple[str, ...] = tuple(DOLLS)
 FULL = PUSHER["count"] + PUSHER["on_ledge"]  # 가득 찬 기계의 미니 인형 수(처음 배치와 같다)
@@ -30,8 +30,8 @@ def ledge_spot(rng: random.Random) -> tuple[float, float]:
 
 
 # 15판 보장(사용자 2026-11-02 '미는 뽑기 15판 안에 뽑게'): 같은 기계에서 한 손님이 이만큼 연달아 못 뽑으면 그 판 끝에 직원이 인형 하나를
-# 꺼내 준다 — 어려움(잘 집는 사람 50%선 7판)은 그대로, 대충 하는 사람도 15판을 넘기지 않는다. 기계마다 최근 손님 MISS_KEEP명만 기억
-PITY_PLAYS, MISS_KEEP = 15, 40
+# 꺼내 준다 — 어려움(잘 집는 사람 50%선 7판)은 그대로, 대충 하는 사람도 15판을 넘기지 않는다. 판 수 세기는 stock.count_miss
+PITY_PLAYS: int = PUSHER["pity"]
 
 
 def staff_pick(dolls: list[DollSpot]) -> int | None:
@@ -44,16 +44,11 @@ def staff_pick(dolls: list[DollSpot]) -> int | None:
 def after_pusher_play(stock: MachineStock, guest: str, won: bool) -> tuple[MachineStock, int | None]:
     """미는 뽑기 한 판 뒤: 그 손님의 연달아 못 뽑은 판 수를 세고(뽑으면 지움), PITY_PLAYS판째도 못 뽑았으면 직원이 꺼내 줄 인형 번호
     (그 인형은 아직 기계에 있다 — 부르는 쪽이 당첨처럼 뺀다)와 지운 판 수를 돌려준다."""
-    misses = {g: n for g, n in stock.misses.items() if g != guest}  # 이 손님은 맨 뒤(가장 최근)로 다시 넣는다
-    if won:
-        return replace(stock, misses=misses), None
-    n = stock.misses.get(guest, 0) + 1
-    gift = staff_pick(stock.dolls) if n >= PITY_PLAYS else None
-    if gift is None:
-        misses[guest] = n
-        while len(misses) > MISS_KEEP:
-            del misses[next(iter(misses))]
-    return replace(stock, misses=misses), gift
+    after = count_miss(stock, guest, won)
+    gift = staff_pick(stock.dolls) if after.misses.get(guest, 0) >= PITY_PLAYS else None
+    if gift is not None:
+        after = replace(after, misses={g: n for g, n in after.misses.items() if g != guest})
+    return after, gift
 
 
 def generate_mixed_stock(rng: random.Random) -> MachineStock:

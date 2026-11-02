@@ -17,6 +17,12 @@ export function variantOf(kind: BoxKind): Variant {
   return FIGURE.variants[kind];
 }
 
+// 막대 중심에서 바깥으로 받침 막대·유리 벽까지(앞뒤): 뒤는 두 종류 같고, 앞은 상자 종류마다(figure.json의 _note)
+export type Guards = { front_bar: number; front_wall: number; back_bar: number; back_wall: number };
+export function guardsOf(kind: BoxKind): Guards {
+  return { ...FIGURE.guards, ...variantOf(kind).guards };
+}
+
 export function boxKindOf(id: string): BoxKind {
   const k = KINDS.get(id);
   if (!k) throw new Error(`no figure machine ${id}`);

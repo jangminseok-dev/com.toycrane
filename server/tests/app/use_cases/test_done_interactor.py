@@ -55,7 +55,8 @@ async def test_done_without_a_win_saves_and_tells_everyone():
     reg, locks, conns, bag, contents, it = setup()
     await it.done(DoneCommand("c-1", "A-1", report(contents.stored["A-1"], tilt=True), now=20.0))
     assert contents.saves == 1 and bag.added == [] and contents.stored["A-1"].next_at is None
-    assert (None, result("A-1", "p1", [])) in conns.broadcasts
+    assert contents.stored["A-1"].misses == {"g-1": 1}  # 인형 기계도 연달아 못 뽑은 판을 센다(help.plays판째부터 집게가 세짐)
+    assert (None, result("A-1", "p1", [], miss=1)) in conns.broadcasts
     assert abs(contents.stored["A-1"].dolls[0].q[1] - 0.70711) < 1e-4  # 돌림은 길이 1로 맞춰 저장
 
 
@@ -168,3 +169,15 @@ async def test_a_pusher_miss_is_counted():
     it = DoneInteractor(reg, locks, contents, bag, conns)
     await it.done(DoneCommand("c-2", "P-1", report(contents.stored["P-1"]), now=20.0))
     assert contents.stored["P-1"].misses == {"g-2": 1} and bag.added == []
+    assert (None, result("P-1", "p2", [], miss=1)) in conns.broadcasts  # 화면이 '직원 도움까지 N판'을 알린다
+
+
+# 인형 기계에서 뽑으면 그 손님의 판 수만 지운다(결과에는 miss 없음)
+async def test_a_doll_machine_win_clears_the_miss_count():
+    reg, locks, conns, bag, contents, it = setup()
+    contents.stored["A-1"] = replace(contents.stored["A-1"], misses={"g-1": 9, "g-2": 4})
+    stock = contents.stored["A-1"]
+    await it.done(DoneCommand("c-1", "A-1", report(stock, won=(7,)), now=20.0))
+    assert contents.stored["A-1"].misses == {"g-2": 4}
+    won = [d for d in stock.dolls if d.uid == 7][0]
+    assert (None, result("A-1", "p1", [(MACHINES["A-1"].kind, won.color, won.rare, 7)])) in conns.broadcasts

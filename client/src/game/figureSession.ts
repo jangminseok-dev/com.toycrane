@@ -15,9 +15,9 @@ export class FigureSession {
   private droppedAt: number | null = null;
   private doneAt: number | null = null;
 
-  // halfX: 그 집게가 갈 수 있는 반폭(벌린 팔이 기계 안에 머무는 데까지, figureClaw clawHalfX) — 쉬는 자리는 그 왼쪽 끝
-  constructor(readonly machineId: string, private limit: number, private startedAt: number, readonly halfX = FIGURE.play_half[0]) {
-    this.claw = { x: -halfX, z: FIGURE.claw.home[1] };
+  // halfX·halfZ: 그 집게가 갈 수 있는 반폭(벌린 팔이 기계 안에, 피규어는 팔이 앞뒤 유리 안에 머무는 데까지, figureClaw) — 쉬는 자리는 왼쪽 앞 끝
+  constructor(readonly machineId: string, private limit: number, private startedAt: number, readonly halfX = FIGURE.play_half[0], readonly halfZ = FIGURE.claw.home[1]) {
+    this.claw = { x: -halfX, z: halfZ };
   }
 
   // 지금 누를 수 있는 버튼이면 누른다(받아들였나)
@@ -36,7 +36,7 @@ export class FigureSession {
 
   update(dt: number, now: number): 'drop' | null {
     if (this.droppedAt !== null) return null;
-    const d = FIGURE.play_half[1], v = FIGURE.claw.speed * dt;
+    const d = this.halfZ, v = FIGURE.claw.speed * dt;
     if (this.phase === 'moving-one') this.claw = { x: Math.min(this.claw.x + v, this.halfX), z: this.claw.z };
     if (this.phase === 'moving-two') this.claw = { x: this.claw.x, z: Math.max(this.claw.z - v, -d) };
     return this.remaining(now) <= 0 ? this.requestDrop(now) : null;

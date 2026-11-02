@@ -38,6 +38,8 @@ export const UI = {
   noCoins: '코인이 없어요',
   goCounter: '교환소 가기',
   takeCoins: '코인 받기',
+  takeFull: '15개까지만 받아요', // 코인 받기는 15개까지(그 이상은 조르기)
+  taking: '받는 중이에요',
   beg: '조르기',
   stopBeg: '그만 조르기',
   give: '주기',
@@ -53,8 +55,11 @@ export const UI = {
   figureNudged: '직원이 상자를 다시 올려놓아 줬어요', // 오래 꽉 낀 상자를 서버가 반듯이 다시 올려놓았다(설계 §8 개정)
   physicsLoading: '준비 중', // 물리 모듈(Rapier)을 아직 받는 중
   saveFailed: '결과를 저장하지 못했어요', // 서버가 판 보고를 거절(물리 뽑기 설계 §9.7)
-  wonMore: (n: number) => `인형 ${n}개가 더 들어왔어요`,
   staffGift: '15판 동안 못 뽑아서 직원이 하나 꺼내 줬어요', // 미는 뽑기 15판 보장
+  strongIn: (n: number) => `집게가 세지기까지 ${n}판`, // 인형 기계: 연달아 못 뽑으면 집게가 세진다(game/help.ts)
+  strongClaw: '집게 힘이 세졌어요',
+  nearMiss: '아까워요!', // 인형을 들어 옮기다 놓친 판
+  staffIn: (n: number) => `직원 도움까지 ${n}판`, // 미는 뽑기 15판 보장까지
   gotCoins: (n: number) => `코인 ${n}개를 받았어요!`,
   gaveYou: (nick: string, n: number) => `${nick} 님이 코인 ${n}개를 줬어요`,
   youGave: (n: number) => `코인 ${n}개를 줬어요`,

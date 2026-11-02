@@ -10,6 +10,7 @@ export type ClawTable = {
   carry_relax: number; // 구멍으로 옮기는 동안 쥠의 힘이 이 비율만큼 서서히 풀린다 (끝에서 1−carry_relax) — 간신히 든 인형은 가는 길에 떨어진다
   rare: { rare: number; gold: number };
   hole: { size: number; lip: number }; // 구멍 네모 한 변, 턱 높이 (m)
+  help: { plays: number; force: number }; // 같은 기계에서 plays판 연달아 못 뽑으면 그다음 판부터 뽑을 때까지 힘 × force (game/help.ts)
   max_wins: number; // 한 판에 서버가 받아 주는 당첨 수
   cycle_seconds: number; // 집게 한 바퀴
   settle_seconds: number; // 놓은 뒤 멈춤 대기

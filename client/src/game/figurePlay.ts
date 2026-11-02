@@ -81,7 +81,8 @@ export class FigurePlay implements ButtonPlay {
     this.playId = id;
     this.stopWatch(id);
     this.restoreBox(id);
-    this.session = new FigureSession(id, limit, now, -this.zone.homeOf(id).x); // 벌린 팔이 기계 안에 머무는 데까지
+    const home = this.zone.homeOf(id);
+    this.session = new FigureSession(id, limit, now, -home.x, home.z); // 벌린 팔이 기계 안에(피규어는 앞뒤 유리 안에) 머무는 데까지
     this.controls = buildFigureControls(this.zone.worldOf(id), this.machine.labels);
     this.controls.setPhase('one');
     this.zone.hideControls(id, true); // 기계 그림의 고정 버튼은 숨긴다(살아 있는 버튼이 덮는다)
@@ -206,10 +207,11 @@ export class FigurePlay implements ButtonPlay {
   }
 
   // 상자 까기: 판이 끝나 돌아가는 정면 시점(eye → look)에서 0.9m 앞, 조금 아래 (미리보기에서 확인한 자리)
-  reveal(kind: string, rare: string, view: { pos: THREE.Vector3; look: THREE.Vector3 }, done: () => void, box: BoxKind = 'long'): void {
+  // onOpen(at): 상자가 열리는 순간(터지는 효과·소리를 그 자리에)
+  reveal(kind: string, rare: string, view: { pos: THREE.Vector3; look: THREE.Vector3 }, done: () => void, box: BoxKind = 'long', onOpen?: (at: THREE.Vector3) => void): void {
     const dir = view.look.clone().sub(view.pos).normalize();
     const at = view.pos.clone().addScaledVector(dir, 0.9).add(new THREE.Vector3(0, -0.15, 0));
-    this.reveals.push(playReveal(this.scene, at, view.pos.clone(), kind, rare, done, box));
+    this.reveals.push(playReveal(this.scene, at, view.pos.clone(), kind, rare, done, box, () => onOpen?.(at.clone().add(new THREE.Vector3(0, 0.2, 0)))));
   }
 
   // 판을 그만두거나 끝냄(정리): 살아 있는 버튼·물리를 치우고 집게는 제자리, 시점은 바로 정면

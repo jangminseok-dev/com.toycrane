@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { beforeAll, expect, test } from 'vitest';
 import { DOLLS } from '../data/catalog';
-import { FIGURE, FIGURES, variantOf } from '../data/figures';
+import { FIGURE, FIGURES, variantOf, guardsOf } from '../data/figures';
 import { CAMERA_OFFSETS } from '../game/followCamera';
 import { OcclusionFader, type Occluder } from '../game/occlusion';
 import type { BoxWire } from '../net/protocol';
@@ -146,23 +146,31 @@ test('resting claws wait where their open arms stay inside', async () => {
   const zone = buildFigureZone(new THREE.Scene());
   expect(zone.homeOf('F-1').x).toBeCloseTo(-clawHalfX(clawShapeOf('long')));
   expect(zone.homeOf('F-8').x).toBeCloseTo(-clawHalfX(clawShapeOf('square')));
+  const { clawHalfZ } = await import('../physics/figureClaw');
+  expect(zone.homeOf('F-1').z).toBeCloseTo(clawHalfZ('long')); // 앞 유리 안쪽
+  expect(zone.homeOf('F-8').z).toBeCloseTo(clawHalfZ('square'));
 });
 
-// 피규어 기계 앞 막대 앞에 세운 낮은 투명판은 그리지 않는다(사용자 2026-11-02 사진 244 '원래 저런 건 없는데') — 상자가 앞으로 미끄러져
-// 떨어지지 않게 막는 낮은 턱은 물리에만(앞 막대 6cm 앞, 막대 위 7cm). 막대 앞에서 기계 앞 유리 사이에 투명한 것이 서 있지 않다
-test('no glass pane stands in front of the figure bars', async () => {
+// 앞 막대 바로 앞의 낮은 투명판(사진 244 '원래 저런 건 없는데')은 없애고, 앞도 뒤처럼 받침 막대 + 그 앞 유리 벽(사진 245 — 앞 막대 17cm 앞)
+// 앞 막대와 받침 막대 사이에는 투명한 것이 없고, 유리는 앞 벽 자리에만
+test('the front glass stands at the front wall line, not at the bar', async () => {
   const { makeFigureMachineParts } = await import('./figureMachine');
   const { barZ } = await import('../physics/figureWorld');
   for (const spot of [FIGURES[0], FIGURES[7]]) {
     const { statics } = makeFigureMachineParts(spot, 0, 0x3b6cff);
     statics.position.set(0, 0, 0); statics.rotation.set(0, 0, 0); statics.updateMatrixWorld(true);
-    const bz = barZ(spot.box), front = new THREE.Box3(new THREE.Vector3(-0.4, FIGURE.bars.y + 0.01, bz + 0.03), new THREE.Vector3(0.4, FIGURE.bars.y + 0.2, 0.45));
+    const bz = barZ(spot.box), { front_bar, front_wall } = guardsOf(spot.box);
+    const front = new THREE.Box3(new THREE.Vector3(-0.4, FIGURE.bars.y + 0.01, bz + Math.min(0.03, front_bar / 2)), new THREE.Vector3(0.4, FIGURE.bars.y + 0.2, bz + front_wall - 0.02));
+    const wall = new THREE.Box3(new THREE.Vector3(-0.4, FIGURE.bars.y + 0.05, bz + front_wall - 0.01), new THREE.Vector3(0.4, FIGURE.bars.y + 0.2, bz + front_wall + 0.01));
+    let glassAtWall = false;
     const glass: string[] = [];
     statics.traverse((o) => {
       const m = o as THREE.Mesh;
       if (!m.isMesh || m.name === 'glass' || !(m.material as THREE.Material).transparent) return; // 몸통 유리(기계 가장자리)는 빼고
       if (new THREE.Box3().setFromObject(m).intersectsBox(front)) glass.push(m.geometry.type);
+      if (new THREE.Box3().setFromObject(m).intersectsBox(wall)) glassAtWall = true;
     });
     expect(glass, spot.id).toEqual([]);
+    expect(glassAtWall, spot.id).toBe(true);
   }
 });

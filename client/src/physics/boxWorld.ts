@@ -15,7 +15,8 @@ export interface BoxWorld {
   readonly clawShape: ClawShape; // 집게 모양(피규어는 상자 종류별 크기, 고리 걸기는 가는 팔 — 구멍에 들어가게)
   readonly floorY: number; // 아무것도 안 닿아도 집게가 이 아래로는 안 내려간다
   readonly slipRule: 'corners' | 'none'; // corners: 상자가 들림 한계를 넘으면 미끄러져 놓음(피규어), none: 걸림은 모양으로만(고리 걸기)
-  readonly carryHome: boolean; // true면 쥔(걸린) 채 집으로 돌아와 놓는다(고리 걸기 — 걸린 상자가 출구 쪽으로 끌려옴), false면 위에서 놓고 돌아옴(피규어)
+  readonly carryHome: boolean;
+  readonly clawHomeZ?: number; // 집게가 쉬는 앞뒤 자리(피규어는 앞 유리 안쪽) — 없으면 놀이 칸 앞 끝(claw.home) // true면 쥔(걸린) 채 집으로 돌아와 놓는다(고리 걸기 — 걸린 상자가 출구 쪽으로 끌려옴), false면 위에서 놓고 돌아옴(피규어)
   time: number;
   cycle?(phase: FigurePhase, claw: FigureClaw, x: number, z: number): void; // 걸음마다(세계 한 걸음 전) — 고리 걸기의 걸림 판정
   tick(): void;
