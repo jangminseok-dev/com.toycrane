@@ -31,7 +31,7 @@ class Figure:
 
 @dataclass(frozen=True)
 class Ring:
-    """고리 뽑기 기계(설계 2026-11-02 §3): 구멍판 걸이에 경품 카드 — 갈고리가 걸리는지는 서버가 정한다."""
+    """고리 걸기 기계(설계 2026-11-02 ring-hook §3): 선반 위 세운 상자의 고리 판 구멍에 집게 팔 끝을 걸어 출구로 — 화면 물리가 하고 서버는 판 보고를 확인한다(domain/hook.py)."""
 
     id: str
     x: float
@@ -42,7 +42,7 @@ class Ring:
 
 @dataclass(frozen=True)
 class Pusher:
-    """미는 뽑기 기계(설계 2026-11-02 §4): 선반 위 미니 인형을 미는 판으로 — 밀린 결과는 서버가 계산한다."""
+    """미는 뽑기 기계(설계 2026-11-02 ring-hook §4): 인형 기계 조작으로 미니 인형을 턱 위에 올리면 미는 판이 앞 끝으로 — 화면 물리가 하고 서버는 판 보고를 확인한다(domain/pusher_crane.py)."""
 
     id: str
     x: float

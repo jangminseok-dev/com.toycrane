@@ -13,7 +13,9 @@ import type { Rapier } from './rapier';
 // 판 오른쪽 끝은 낮은 턱 안쪽까지만 — 턱 너머 칸 무더기에 기댄 인형을 건드려 무더기를 깨우지 않게
 export const PLATE_INSET = 0.02;
 export const plateDepth = (): number => PUSHER.plate.depth + PUSHER.plate.stroke + 0.01;
-const T = 0.05, PILE_GAP = 0.06; // 칸 자리는 턱 오른쪽 끝에서 이만큼(서버 pusher_crane PILE_GAP과 같다)
+const T = 0.05, PILE_GAP = 0.06;
+// 재워도 되는 자리: 칸(낮은 턱에 기댄 인형 포함) — 턱 위 인형은 판이 밀어야 한다(움직이는 판은 잠든 인형을 깨우지 못한다)
+const restable = (p: { x: number; z: number }) => p.x >= PUSHER.ledge.x1 - 0.01; // 칸 자리는 턱 오른쪽 끝에서 이만큼(서버 pusher_crane PILE_GAP과 같다)
 
 export class PusherWorld extends MachineWorld {
   declare plate: RAPIER.RigidBody; // 부모 생성자의 buildBox에서 만든다(필드 초기화로 덮이지 않게 declare)
@@ -23,7 +25,7 @@ export class PusherWorld extends MachineWorld {
     super(R, spots, { dollScale: PUSHER.doll_scale });
     const p = this.plate.translation();
     this.plate.setTranslation({ x: p.x, y: p.y, z: plateFront(phase) - plateDepth() / 2 }, true); // 첫 걸음에 순간이동하지 않게
-    this.saved = spots.filter((s) => s[2] !== null && s[1] > PUSHER.ledge.x1 - 0.01).map((s) => s[12]); // 칸 무더기(낮은 턱에 기댄 인형 포함)만 — 턱 위 인형은 판이 밀어야 한다
+    this.saved = spots.filter((s) => s[2] !== null && restable({ x: s[1], z: s[3] })).map((s) => s[12]); // 칸 무더기만 — 턱 위 인형은 판이 밀어야 한다
   }
 
   // 앉은(저장된) 인형은 첫 걸음 뒤 재운다 — 칸 무더기 27개가 깨어 있으면 서로 조금씩 기며 휴대폰에서 겨누는 동안 40fps로 떨어졌다(라이브 점검).

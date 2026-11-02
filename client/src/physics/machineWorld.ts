@@ -299,12 +299,19 @@ export class MachineWorld {
   }
 
   // 노린 인형은 손가락 끝에 밀리지 않는다 (손가락 끝 콜라이더의 필터가 GROUP_TARGET을 뺀다) — 내려가다 쳐서 넘어뜨리지 않게. 허브는 민다
+  // 충돌 묶음을 바꾸면 엔진이 그 인형을 깨우므로 바뀌는 인형(새로 노린 인형·앞서 노린 인형)만 다시 쓴다 — 다 다시 쓰면 잠든 미는 뽑기 무더기가
+  // 한꺼번에 깨어 휴대폰에서 잡기 순간 한 프레임이 100ms였다
+  private marked = new Set<number>();
   markTarget(uid: number | null): void {
     this.target = uid;
-    for (const [id, b] of this.bodies) {
+    const changed = new Set([...this.marked, ...(uid === null ? [] : [uid])]);
+    for (const id of changed) {
+      const b = this.bodies.get(id);
+      if (!b) continue;
       const g = groups(id === uid ? GROUP_TARGET : GROUP_DOLL, ALL);
       for (let i = 0; i < b.numColliders(); i++) b.collider(i).setCollisionGroups(g);
     }
+    this.marked = new Set(uid === null ? [] : [uid]);
   }
 
   bodyOf(uid: number): Body | undefined {

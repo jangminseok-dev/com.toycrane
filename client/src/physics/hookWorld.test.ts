@@ -64,16 +64,18 @@ test('the box only wins through the front exit', () => {
   expect(back.fallen()).toBe(false); // 옆·뒤는 벽
 });
 
+// 계획 Review Focus 1은 200판 — 평소 시험은 30판, HOOK_TRIALS=200으로 다 돌린다(최종 리뷰 M7)
 test('a hooked box never flies or leaves the machine', () => {
   let seed = 7;
   const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  for (let i = 0; i < 30; i++) {
+  const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env;
+  for (let i = 0; i < Number(env?.HOOK_TRIALS ?? 30); i++) {
     const side = (['right', 'left'] as const)[i % 2], x = (rand() * 2 - 1) * 0.4, z = (rand() * 2 - 1) * 0.3;
     const p = play(side, x, z, hookStart(rand));
     expect(p.speed, `${side} ${x.toFixed(2)},${z.toFixed(2)}`).toBeLessThanOrEqual(2.05);
     expect(p.outside).toBe(false);
   }
-}, 120_000);
+}, 1_800_000);
 
 test('the same drop gives the same box', () => {
   expect(play('left', 0.0, -0.1).r.box).toEqual(play('left', 0.0, -0.1).r.box);

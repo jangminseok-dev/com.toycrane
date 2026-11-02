@@ -10,7 +10,7 @@ import { FIGURE_SPOTS, FigurePlay } from './game/figurePlay';
 import { watchKind } from './game/watchRoute';
 import { HOOK_MACHINE } from './game/hookPlay';
 import { RINGS, nearestRing } from './data/rings';
-import { PUSHER, PUSHERS, nearestPusher } from './data/pushers';
+import { PUSHER, PUSHERS, isPusher, nearestPusher } from './data/pushers';
 import { craneSpec } from './game/craneSpec';
 import { craneWorld } from './physics/craneWorld';
 import { PusherWorld } from './physics/pusherWorld';
@@ -100,7 +100,7 @@ Object.assign(window, { __toycrane: {
   physicsMs: () => (physicsMs.length ? physicsMs.reduce((a, b) => a + b, 0) / physicsMs.length : 0),
   settledIds: () => [...settledHere],
   claw: () => session?.claw ?? null, // 지금 판의 집게 자리(기계 안 좌표) — e2e가 레버로 겨눌 때 맞춰 본다
-  watching: (id: string) => watches.has(id),
+  watching: (id: string) => watches.has(id) || !!boxPlayFor(id)?.watching(id), // 인형·미는 뽑기는 무더기 구경, 피규어·고리 걸기는 그 기계 판 객체
   controlAt: (part: 'lever' | 'drop') => {
     if (!session) return null;
     const [x, y, z] = CONTROLS[part];
@@ -144,7 +144,8 @@ let session: PlaySession | null = null;
 let awaiting: string | null = null;
 let seated: string | null = null;
 let holdFrom = 0; // 서버가 내 자리를 잡아 둔 시각(내 결과를 받은 때 = 내린 때) — 판 사이 남은 시간은 여기서 센다
-const busy = new MachineBusy(MACHINE_SPEC.play_seconds, MACHINE_SPEC.hold_seconds, CLAW.cycle_seconds + Math.max(CLAW.settle_seconds, PUSHER.settle.max)); // 미는 뽑기는 판이 다 밀 때까지 더 기다린다(서버 play_rules와 같은 여유)
+// 미는 뽑기는 판이 다 밀 때까지 더 기다린다 — 서버 play_rules와 같은 종류별 여유
+const busy = new MachineBusy(MACHINE_SPEC.play_seconds, MACHINE_SPEC.hold_seconds, (id) => CLAW.cycle_seconds + (isPusher(id) ? PUSHER.settle.max : CLAW.settle_seconds));
 let dropped: PlaySession | null = null; // 내리고 결과를 기다리는 판 (8초 넘게 못 받으면 포기)
 const clock = () => performance.now() / 1000;
 const spotOf = new Map<string, { x: number; z: number; ry: number }>([...MACHINES, ...PUSHERS, ...FIGURES, ...RINGS].map((m) => [m.id, m])); // 인형·미는 뽑기·피규어·고리 걸기 기계

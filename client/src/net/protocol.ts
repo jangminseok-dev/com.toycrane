@@ -22,7 +22,6 @@ export type BoxWire = [x: number, y: number, z: number, qx: number, qy: number, 
 export type Welcome = {
   t: 'welcome'; v: number; store: number; you: PlayerView; players: PlayerView[];
   coins: number; bag: number; machines: Record<string, DollSpot[]>; plays: Record<string, string>; figures: Record<string, BoxWire>;
- 
 };
 export type Join = { t: 'join'; p: PlayerView };
 export type Move = { t: 'move'; id: string; x: number; z: number; dx: number; dz: number };

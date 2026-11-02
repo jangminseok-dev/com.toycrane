@@ -279,6 +279,11 @@ test('live meshes are frustum culled and unchanged poses are not re-uploaded', (
   live.set(uid, [obj!.position.x, obj!.position.y, obj!.position.z], [obj!.quaternion.x, obj!.quaternion.y, obj!.quaternion.z, obj!.quaternion.w]);
   zone.update(0.2);
   expect(version()).toEqual(before);
+  // 눈에 안 보이는 떨림(0.3mm·아주 작은 돌림)도 다시 쓰지 않는다 — 깬 미는 뽑기 무더기 26개가 매 프레임 꼭짓점을 다시 써 휴대폰에서 멈칫했다
+  const tiny = new THREE.Quaternion(obj!.quaternion.x, obj!.quaternion.y, obj!.quaternion.z, obj!.quaternion.w).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), 0.002));
+  live.set(uid, [obj!.position.x + 0.0003, obj!.position.y, obj!.position.z], [tiny.x, tiny.y, tiny.z, tiny.w]);
+  zone.update(0.25);
+  expect(version()).toEqual(before);
   live.set(uid, [obj!.position.x, obj!.position.y + 0.1, obj!.position.z], [obj!.quaternion.x, obj!.quaternion.y, obj!.quaternion.z, obj!.quaternion.w]);
   zone.update(0.3);
   expect(version()).not.toEqual(before);

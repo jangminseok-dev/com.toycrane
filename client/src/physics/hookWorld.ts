@@ -107,7 +107,7 @@ export class HookWorld implements BoxWorld {
     this.world.step();
     this.time += FIG_STEP;
     // 고리에 걸려 출렁여도 날아가지 않게(풀이가 한순간 크게 미는 일) 속도 상한
-    const v = this.box.linvel(), s = Math.hypot(v.x, v.y, v.z);
+    const v = this.box.linvel(), s = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z); // Math.hypot은 엔진마다 끝자리가 다를 수 있다 — 결정성
     if (s > MAX_SPEED) this.box.setLinvel({ x: (v.x / s) * MAX_SPEED, y: (v.y / s) * MAX_SPEED, z: (v.z / s) * MAX_SPEED }, true);
   }
 
@@ -143,7 +143,8 @@ export class HookWorld implements BoxWorld {
     if (phase === 'lift' && !this.hook && !this.tried) this.tryHook(claw);
     if (!this.hook) return;
     if (phase === 'home') {
-      this.hook.moved += Math.hypot(x - this.hook.at[0], z - this.hook.at[1]);
+      const dx = x - this.hook.at[0], dz = z - this.hook.at[1];
+      this.hook.moved += Math.sqrt(dx * dx + dz * dz);
       this.hook.at = [x, z];
       if (this.hook.moved > this.hook.hold) this.unhook();
     } else if (phase === 'release' || phase === 'settle') this.unhook();

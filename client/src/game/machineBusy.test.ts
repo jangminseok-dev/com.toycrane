@@ -33,3 +33,12 @@ test('a machine stays busy through the claw cycle and settle time', () => {
   expect(b.who('A-1', 20 + 15 + 2)).toBe('p1');
   expect(b.who('A-1', 20 + 15 + 4)).toBeNull();
 });
+
+// 미는 뽑기는 놓은 뒤 판이 다 밀 때까지 더 기다린다(서버 play_rules와 같은 종류별 여유) — 인형 기계는 짧은 여유 그대로
+test('each machine keeps its own claw cycle time', () => {
+  const busy = new MachineBusy(20, 20, (id) => (id.startsWith('P-') ? 27 : 15));
+  busy.set('A-1', 'p1', 0); busy.set('P-1', 'p2', 0);
+  expect(busy.who('A-1', 38.5)).toBeNull();
+  expect(busy.who('P-1', 38.5)).toBe('p2');
+  expect(busy.who('P-1', 50.5)).toBeNull();
+});

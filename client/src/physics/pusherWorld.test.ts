@@ -101,7 +101,7 @@ test('a doll dropped on the plate or its housing ends in front of the plate', ()
     const w = new PusherWorld(R, [spot(1, drop[0], null, z)], phase);
     w.setHoleOpen(true); run(w, 20);
     const p = w.poses()[0];
-    expect(w.fallen().length === 1 || p.p[2] > ledge.z0).toBe(true);
+    expect(w.fallen().length === 1 || p.p[2] > ledge.z0 + plate.stroke, `z ${p.p[2].toFixed(3)}`).toBe(true); // 판이 가장 나온 앞면보다 앞(최종 리뷰 M5 — z0만 넘으면 판 앞 어디든 참이었다)
     w.dispose();
   }
 });
@@ -216,3 +216,30 @@ test('nothing can fall behind the plate', () => {
   expect(back).toBeLessThan(ledge.z0);
   w.dispose();
 });
+
+// 최종 리뷰 M4: 턱·판 집이 왼쪽 벽까지 — 벽과 턱 사이 2cm 바닥 없는 홈이 있었다(빠지면 당첨으로 셈)
+test('the ledge and the plate housing reach the left wall', async () => {
+  const { WALL_MARGIN } = await import('./machineWorld');
+  expect(ledge.x0).toBeLessThanOrEqual(-(MACHINE_SPEC.play_half[0] + WALL_MARGIN) + 1e-9);
+});
+
+// 남겨 둔 것 고침: 집게가 건드려 깬 칸 무더기는 조용해지면 다시 잠든다 — 부드러운 맞닿음 때문에 가벼운 미니 인형이 1~3cm씩 계속 기었다
+test('a disturbed pile goes back to sleep instead of creeping', async () => {
+  const { ClawBody } = await import('./clawBody');
+  const { runCycle } = await import('./clawCycle');
+  const { craneSpec } = await import('../game/craneSpec');
+  const worst: number[] = [];
+  for (const seed of [8, 9, 10]) {
+    const w = new PusherWorld(R, serverFresh(seed));
+    w.settle(3);
+    const target = w.poses().filter((p) => p.p[0] > ledge.x1 + 0.1).sort((a, b) => b.p[1] - a.p[1])[0];
+    runCycle(w, new ClawBody(R, w), target.p[0], target.p[2], craneSpec('P-1').cycle);
+    const pile = () => w.poses().filter((p) => p.p[0] > ledge.x1 + 0.04 && p.p[1] > DOLL_FLOOR - 0.1);
+    run(w, 1); // 판이 끝난 직후 내려앉는 것은 빼고, 그 뒤 계속 기는지 본다
+    const a = pile();
+    run(w, 3);
+    worst.push(furthest(pile(), a));
+    w.dispose();
+  }
+  expect(Math.max(...worst), JSON.stringify(worst)).toBeLessThan(0.003);
+}, 240_000);

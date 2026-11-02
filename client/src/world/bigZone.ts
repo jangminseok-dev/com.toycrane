@@ -63,6 +63,8 @@ type Block = { row: Row; group: THREE.Group; spots: ZoneSpot[]; dirty: boolean; 
 // 경계에서 깜빡이지 않게 1m 여유
 // 미는 뽑기 미니 인형은 10m — 작아서 1픽셀도 안 되는데 외곽선이 그 줄 삼각형의 절반이다
 const FAR_DIST = 18, PUSHER_FAR_DIST = 10, FAR_SLACK = 1;
+// live 모드에서 다시 그리지 않는 떨림: 0.5mm, 돌림 약 0.3°(쿼터니언 내적 cos(0.15°))
+const JIGGLE_MOVE = 0.0005, JIGGLE_DOT = Math.cos(0.0026);
 // live 모드: 인형 하나하나를 따로 그리는 메시 (set으로 자세를 입히고, 없어진 번호는 지운다)
 export type LiveDolls = { set(uid: number, p: [number, number, number], q: [number, number, number, number]): void; remove(uid: number): void; dispose(): void };
 type Unit = {
@@ -367,7 +369,12 @@ export function buildBigZone(scene: THREE.Scene): BigZone {
       return {
         set(uid, p, q) {
           const o = live.poses.get(uid);
-          if (!o || (o.position.x === p[0] && o.position.y === p[1] && o.position.z === p[2] && o.quaternion.x === q[0] && o.quaternion.y === q[1] && o.quaternion.z === q[2] && o.quaternion.w === q[3])) return; // 그대로면 꼭짓점을 다시 쓰지 않는다 (최종 리뷰 I6)
+          if (!o) return;
+          // 그대로이거나 눈에 안 보이게 떨기만 하면(그린 자세에서 0.5mm·약 0.3° 안) 꼭짓점을 다시 쓰지 않는다 (최종 리뷰 I6) —
+          // 깬 미는 뽑기 무더기 26개가 매 프레임 떨며 다 다시 써 휴대폰에서 잡기 순간 멈칫했다. 쌓이면 문턱을 넘어 다시 그린다
+          const dx = o.position.x - p[0], dy = o.position.y - p[1], dz = o.position.z - p[2];
+          const dot = Math.abs(o.quaternion.x * q[0] + o.quaternion.y * q[1] + o.quaternion.z * q[2] + o.quaternion.w * q[3]);
+          if (dx * dx + dy * dy + dz * dz < JIGGLE_MOVE * JIGGLE_MOVE && dot > JIGGLE_DOT) return;
           o.position.set(p[0], p[1], p[2]); o.quaternion.set(q[0], q[1], q[2], q[3]); live.dirty.add(uid);
         },
         remove(uid) { const o = live.poses.get(uid); if (o) { o.visible = false; live.dirty.add(uid); } },
