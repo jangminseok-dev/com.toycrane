@@ -9,8 +9,9 @@ import type { BoxMachine } from './figurePlay';
 // 시점: 정면은 피규어와 같고, 옆은 옆 기계(1.84m 간격) 앞쪽 빈 곳에서 비스듬히 — 고리 구멍의 앞뒤 자리를 본다
 export const RING_SPOTS = new Map(RINGS.map((r) => [r.id, r]));
 const HOOK_POSES: CameraPoses = {
-  wide: { front: [[0, 1.6, 2.0], [0, 1.35, 0]], side: [[0.85, 1.75, 1.3], [0, 1.25, -0.05]] },
-  tall: { front: [[0, 1.6, 2.2], [0, 1.4, 0]], side: [[0.7, 1.85, 1.9], [0, 1.2, -0.05]] },
+  // 옆은 오른쪽 앞 비스듬히 눈높이에서 — 상자 고리 판·쉬는 집게·조작대 버튼이 함께 보이게(사진 208: 위에서 내려다봐 버튼이 화면 아래로 잘렸다)
+  wide: { front: [[0, 1.6, 2.0], [0, 1.35, 0]], side: [[1.1, 1.5, 1.55], [0, 1.3, 0.2]] },
+  tall: { front: [[0, 1.6, 2.2], [0, 1.4, 0]], side: [[0.85, 1.6, 1.25], [0, 1.25, 0.2]] },
 };
 export const HOOK_MACHINE: BoxMachine = {
   spots: RING_SPOTS,
