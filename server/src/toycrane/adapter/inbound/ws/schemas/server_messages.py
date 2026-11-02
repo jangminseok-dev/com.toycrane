@@ -8,7 +8,7 @@ from toycrane.app.dtos.player_view import PlayerView
 from toycrane.app.dtos.store_snapshot import StoreSnapshot
 from toycrane.domain.crane import DollSpot
 
-PROTOCOL = 14  # 메시지 형식 버전 — 화면(net/protocol.ts PROTOCOL)과 다르면 화면이 새로고침한다
+PROTOCOL = 15  # 메시지 형식 버전 — 화면(net/protocol.ts PROTOCOL)과 다르면 화면이 새로고침한다
 
 
 def _player(p: PlayerView) -> dict:
@@ -112,9 +112,9 @@ def done_no(machine_id: str, why: str) -> dict:
     return {"t": "done_no", "m": machine_id, "why": why}
 
 
-def pose(player_id: str, machine_id: str, c: list, d: list) -> dict:
-    """판을 하는 사람의 집게·움직이는 인형 중계 — 받은 그대로 뿌린다."""
-    return {"t": "pose", "m": machine_id, "id": player_id, "c": list(c), "d": [list(x) for x in d]}
+def pose(player_id: str, machine_id: str, f: list) -> dict:
+    """판을 하는 사람의 집게·움직이는 인형 중계 묶음 f = [[나이, 집게, 인형들], …] — 받은 그대로 뿌린다."""
+    return {"t": "pose", "m": machine_id, "id": player_id, "f": [[age, list(c), [list(x) for x in d]] for age, c, d in f]}
 
 
 def machine(machine_id: str, spots: list[DollSpot]) -> dict:

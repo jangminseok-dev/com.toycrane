@@ -3,7 +3,7 @@ import type { Vec2 } from '../game/movement';
 
 export type PlayerView = { id: string; nick: string; color: number; x: number; z: number; dx: number; dz: number; beg?: number | null }; // beg: 조르는 중이면 더 받을 수 있는 코인 수
 // 메시지 형식 버전 — 서버 welcome의 v와 다르면(배포로 형식이 바뀜) 화면을 새로고침한다
-export const PROTOCOL = 14;
+export const PROTOCOL = 15;
 export type Body = 'n' | 'c' | 's'; // 보통 · 뚱뚱 · 마른
 // 기계 속 인형 한 칸 [캐릭터, x, y, z, qx, qy, qz, qw, 색, 체형, 표정, 희귀, 번호] (기계 안 좌표·돌림 쿼터니언 — 물리 뽑기 설계 §4.5).
 // y가 null이면 서버가 (x, z) 위 천장에서 떨어뜨린 아직 안 앉은 인형(돌림은 0,0,0,1) — 화면들이 같은 물리로 앉힌다.
@@ -38,7 +38,9 @@ export type Result = { t: 'result'; m: string; id: string; won: WonDoll[]; staff
 export type DoneNo = { t: 'done_no'; m: string; why: string }; // 서버가 판 보고를 거절(치명 규칙) — 기계는 판 시작 전으로
 export type ClawPose = [x: number, y: number, z: number, open: number];
 export type PoseWire = [uid: number, x: number, y: number, z: number, qx: number, qy: number, qz: number, qw: number];
-export type Pose = { t: 'pose'; m: string; id: string; c: ClawPose; d: PoseWire[] }; // 판을 하는 사람의 집게·움직이는 인형 중계
+// 판을 하는 사람의 집게·움직이는 인형 중계 — 0.4초마다 한 묶음(f), 묶음 속 자리는 [나이(초, 가장 새것이 0), 집게, 인형들] (무료 한도, 2026-11-02)
+export type PoseFrame = [age: number, c: ClawPose, d: PoseWire[]];
+export type Pose = { t: 'pose'; m: string; id: string; f: PoseFrame[] };
 export type MachineMsg = { t: 'machine'; m: string; dolls: DollSpot[] };
 export type Free = { t: 'free'; m: string };
 export type Bag = { t: 'bag'; n: number };
@@ -73,6 +75,7 @@ const isSpot = (v: unknown) => Array.isArray(v) && v.length === 13 && str(v[0]) 
 const isWon = (v: unknown) => Array.isArray(v) && v.length === 4 && str(v[0]) && num(v[1]) && str(v[2]) && num(v[3]);
 const isPoseWire = (v: unknown) => Array.isArray(v) && v.length === 8 && v.every(num);
 const isClawPose = (v: unknown) => Array.isArray(v) && v.length === 4 && v.every(num);
+const isPoseFrame = (v: unknown) => Array.isArray(v) && v.length === 3 && num(v[0]) && isClawPose(v[1]) && Array.isArray(v[2]) && v[2].every(isPoseWire);
 const isBox = (v: unknown): v is BoxWire => Array.isArray(v) && v.length === 7 && v.every(num);
 const isFigures = (v: unknown) => !!v && typeof v === 'object' && Object.values(v).every(isBox);
 const isMachines = (v: unknown) => !!v && typeof v === 'object' && Object.values(v).every((spots) => Array.isArray(spots) && spots.every(isSpot));
@@ -94,7 +97,7 @@ export function decode(raw: string): ServerMsg | null {
     case 'play': return str(m.m) && str(m.id) ? (m as Play) : null;
     case 'result': return str(m.m) && str(m.id) && Array.isArray(m.won) && m.won.every(isWon) ? (m as Result) : null;
     case 'done_no': return str(m.m) && str(m.why) ? (m as DoneNo) : null;
-    case 'pose': return str(m.m) && str(m.id) && isClawPose(m.c) && Array.isArray(m.d) && m.d.every(isPoseWire) ? (m as Pose) : null;
+    case 'pose': return str(m.m) && str(m.id) && Array.isArray(m.f) && m.f.every(isPoseFrame) ? (m as Pose) : null;
     case 'machine': return str(m.m) && Array.isArray(m.dolls) && m.dolls.every(isSpot) ? (m as MachineMsg) : null;
     case 'free': return str(m.m) ? (m as Free) : null;
     case 'bag': return num(m.n) ? (m as Bag) : null;
@@ -125,9 +128,9 @@ export const encodePlay = (m: string) => JSON.stringify({ t: 'play', m });
 const wire = (d: DollPose, digits: number): PoseWire => [d.uid, ...d.p.map((v) => round(v, digits)), ...d.q.map((v) => round(v, digits))] as PoseWire;
 // 판 보고: 구멍에 빠진 인형 번호들과 멈춘 인형 전부의 자리·돌림 (소수 3자리)
 export const encodeDone = (m: string, won: number[], dolls: DollPose[]) => JSON.stringify({ t: 'done', m, won, dolls: dolls.map((d) => wire(d, 3)) });
-// 중계: 집게 자리·벌림과 움직이는 인형들만 (소수 2자리)
-export const encodePose = (m: string, c: ClawPose, d: DollPose[]) =>
-  JSON.stringify({ t: 'pose', m, c: c.map((v) => round(v, 2)), d: d.map((x) => wire(x, 2)) });
+// 중계: 묶음 속 자리마다 나이·집게 자리·벌림과 움직이는 인형들만 (소수 2자리)
+export const encodePose = (m: string, frames: { age: number; c: ClawPose; d: DollPose[] }[]) =>
+  JSON.stringify({ t: 'pose', m, f: frames.map((fr) => [round(fr.age, 2), fr.c.map((v) => round(v, 2)), fr.d.map((x) => wire(x, 2))]) });
 export const encodeStand = () => JSON.stringify({ t: 'stand' }); // 판 사이에 "그만하기"
 export const encodeTick = () => JSON.stringify({ t: 'tick' }); // 다음 채울 시각이 지났다 — 아무도 움직이지 않아도 서버가 채우게
 

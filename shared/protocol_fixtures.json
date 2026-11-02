@@ -1,7 +1,7 @@
 {
   "client_move": { "t": "move", "x": 1.5, "z": -2.0, "dx": 0.707, "dz": -0.707 },
   "server_welcome": {
-    "t": "welcome", "v": 14,
+    "t": "welcome", "v": 15,
     "store": 1,
     "you": { "id": "p1", "nick": "말랑 토끼", "color": 3, "x": 2.4, "z": 0.0, "dx": 0, "dz": 0, "beg": null },
     "players": [{ "id": "p2", "nick": "곰돌이", "color": 5, "x": -1.2, "z": 2.08, "dx": 1, "dz": 0, "beg": 94 }],
@@ -28,7 +28,7 @@
   "server_give_no": { "t": "give_no", "why": "stopped" },
   "client_play": { "t": "play", "m": "A-3" },
   "client_done": { "t": "done", "m": "A-3", "won": [7], "dolls": [[8, 0.2, 0.87, 0.1, 0, 0, 0, 1]] },
-  "client_pose": { "t": "pose", "m": "A-3", "c": [0.1, 1.6, 0.2, 0.4], "d": [[7, 0.2, 1.3, 0.1, 0, 0, 0, 1]] },
+  "client_pose": { "t": "pose", "m": "A-3", "f": [[0.1, [0.1, 1.6, 0.2, 0.4], [[7, 0.2, 1.3, 0.1, 0, 0, 0, 1]]], [0, [0.1, 1.5, 0.2, 0.4], []]] },
   "client_stand": { "t": "stand" },
   "server_play_ok": { "t": "play_ok", "m": "A-3", "coins": 9, "limit": 20 },
   "server_play_no": { "t": "play_no", "m": "A-3", "why": "busy" },
@@ -38,7 +38,7 @@
   "server_result_miss": { "t": "result", "m": "A-3", "id": "p1", "won": [], "miss": 3 },
   "server_done_no": { "t": "done_no", "m": "A-3", "why": "count" },
   "server_figure": { "t": "figure", "m": "F-1", "box": [0.004, 1.032, -0.003, 0, 0.012, 0, 1], "nudged": false },
-  "server_pose": { "t": "pose", "m": "A-3", "id": "p1", "c": [0.1, 1.6, 0.2, 0.4], "d": [[7, 0.2, 1.3, 0.1, 0, 0, 0, 1]] },
+  "server_pose": { "t": "pose", "m": "A-3", "id": "p1", "f": [[0.1, [0.1, 1.6, 0.2, 0.4], [[7, 0.2, 1.3, 0.1, 0, 0, 0, 1]]], [0, [0.1, 1.5, 0.2, 0.4], []]] },
   "server_machine": { "t": "machine", "m": "A-3", "dolls": [["bear", 0.2, 0.87, 0.1, 0, 0, 0, 1, 3, "s", 4, "", 7], ["bear", -0.1, null, 0.3, 0, 0, 0, 1, 1, "n", 0, "", 8]] },
   "server_spawn": { "t": "spawn", "m": "B-3", "k": "bear", "rv": "gold" },
   "server_stock": { "t": "stock", "in": 12.5 },

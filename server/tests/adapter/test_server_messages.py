@@ -72,7 +72,7 @@ def test_machine_message_rounds_pose_and_sends_unsettled_as_null():
 def test_done_no_pose_free_and_bag_match_fixtures():
     assert done_no("A-3", "count") == FX["server_done_no"]
     fx = FX["server_pose"]
-    assert pose("p1", "A-3", fx["c"], fx["d"]) == fx
+    assert pose("p1", "A-3", fx["f"]) == fx  # 0.4초 묶음(2026-11-02)
     assert result("A-3", "p1", []) == {"t": "result", "m": "A-3", "id": "p1", "won": []}
     assert free("A-3") == FX["server_free"] and bag(3) == FX["server_bag"]
 
@@ -110,4 +110,4 @@ def test_protocol_is_thirteen():
     """고리 걸기·미는 뽑기 다시 만들기(설계 2026-11-02 ring-hook): act·ring·pusher 메시지와 welcome rings·pushers를 없애 옛 화면은 새로 고친다 — 화면(net/protocol.ts)과 같은 수."""
     from toycrane.adapter.inbound.ws.schemas.server_messages import PROTOCOL
 
-    assert PROTOCOL == 14  # 매장 38m·진열탑·피규어 앞 벽 — 배치가 바뀌면 옛 화면이 새로 고치게(2026-11-02)
+    assert PROTOCOL == 15  # 중계 0.4초 묶음(2026-11-02)  # 매장 38m·진열탑·피규어 앞 벽 — 배치가 바뀌면 옛 화면이 새로 고치게(2026-11-02)

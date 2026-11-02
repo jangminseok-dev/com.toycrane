@@ -68,7 +68,7 @@ class ConnectionsPort(ABC):
         """판 보고 거절(치명 규칙) — 기계는 판 시작 전 그대로."""
 
     @abstractmethod
-    def broadcast_pose(self, except_conn: str, player_id: str, machine_id: str, c: list, d: list) -> None:
+    def broadcast_pose(self, except_conn: str, player_id: str, machine_id: str, f: list) -> None:
         """판을 하는 사람의 집게·인형 자리 중계 — 본인 빼고 모두에게."""
 
     @abstractmethod

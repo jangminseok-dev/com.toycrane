@@ -162,6 +162,7 @@ const spotOf = new Map<string, { x: number; z: number; ry: number }>([...MACHINE
 const figurePlay = new FigurePlay(scene, figureZone, {
   send: (msg) => socket?.send(msg),
   rapier: rapierNow,
+  watched: watchedBy,
   onDrop: (id) => { awaiting = id; hidePlayControls(); hideMachineTimer(); },
   onOverdue: () => { endPlay(); toast('결과를 받지 못했어요'); },
 });
@@ -170,6 +171,7 @@ const figurePlay = new FigurePlay(scene, figureZone, {
 const hookPlay = new FigurePlay(scene, hookZone, {
   send: (msg) => socket?.send(msg),
   rapier: rapierNow,
+  watched: watchedBy,
   onDrop: (id) => { awaiting = id; hidePlayControls(); hideMachineTimer(); },
   onOverdue: () => { endPlay(); toast('결과를 받지 못했어요'); },
 }, HOOK_MACHINE);
@@ -503,7 +505,7 @@ function runAimFrame(dt: number, claw: { x: number; z: number }) {
   physicsMs.push(performance.now() - t0); if (physicsMs.length > 120) physicsMs.shift();
   for (const p of world.poses()) live.set(p.uid, p.p, p.q);
   bigZone.plateAt(machineId, world.plateZ());
-  poseSender.frame(machineId, { x: claw.x, y: CLAW_REST.y, z: claw.z, open: 0.35 }, world.movingPoses(), clock());
+  poseSender.frame(machineId, { x: claw.x, y: CLAW_REST.y, z: claw.z, open: 0.35 }, world.movingPoses(), clock(), watchedBy(machineId));
 }
 const physicsMs: number[] = []; // 최근 프레임의 물리 계산 시간(ms) — e2e perf가 읽는다
 function runCycleFrame(dt: number) {
@@ -526,11 +528,12 @@ function runCycleFrame(dt: number) {
   for (const p of world.poses()) { const d = shifted(p); live.set(d.uid, d.p, d.q); }
   if (world instanceof PusherWorld) bigZone.plateAt(machineId, world.plateZ());
   topView?.update({ x: claw.x, z: claw.z });
-  poseSender.frame(machineId, { x: claw.x, y: claw.y, z: claw.z, open: shown }, world.movingPoses().map(shifted), clock());
+  poseSender.frame(machineId, { x: claw.x, y: claw.y, z: claw.z, open: shown }, world.movingPoses().map(shifted), clock(), watchedBy(machineId));
   if (!done) return;
   const r = runner.done();
   nearMiss = cycle.carried && !r.won.length && !(world instanceof PusherWorld) ? machineId : null; // 미는 뽑기는 늘 턱 위로 옮겨 놓으니 빼고
   for (const uid of r.won) live.remove(uid);
+  poseSender.flush(clock()); // 마지막 묶음이 done보다 먼저
   socket?.send(encodeDone(machineId, r.won, r.poses));
   dropped.markDone(clock());
   cycle.runner = null; cycle.reported = true;
@@ -864,6 +867,11 @@ function applyMachine(id: string, dolls: DollSpot[], gen: number) {
 type Watch = { live: LiveDolls; receiver: PoseReceiver; poses: number; gen: number };
 const watches = new Map<string, Watch>();
 const WATCH_REACH = 12;
+// 내 판을 구경할 사람이 있나: 기계에서 WATCH_REACH 안에 다른 사람(구경 시작 규칙과 같은 거리) — 없으면 중계를 안 보낸다(무료 한도, 2026-11-02)
+function watchedBy(id: string): boolean {
+  const spot = spotOf.get(id);
+  return !!spot && remotes.positions().some((p) => Math.hypot(p.x - spot.x, p.z - spot.z) <= WATCH_REACH);
+}
 function startWatch(id: string) {
   const w = watches.get(id);
   if (w) { w.gen = genOf(id); return; } // 앞 판의 구경이 아직 끝나지 않았다(결과 모션 중) — 이 판의 것으로 잇는다

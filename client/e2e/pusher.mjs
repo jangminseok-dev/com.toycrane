@@ -61,6 +61,6 @@ const same = !!machine && screen.length === machine.dolls.length && machine.doll
 const startOk = !!start && start.x >= PUSHER.ledge.x1 + 0.06 - 1e-6; // 레버로는 턱 위로 못 간다
 console.log('result', JSON.stringify(result && result.won), 'machine', machine?.dolls.length, 'settled', machine?.dolls.filter((d) => d[2] !== null).length, 'aim poses', aimPoses, 'screen=server', same, 'claw kept off the ledge', startOk, JSON.stringify(start));
 console.log('errors', errors.slice(0, 3).join(' | ') || '-');
-const ok = ready && startOk && !!result && !!machine && machine.dolls.length === before.length - result.won.length && machine.dolls.every((d) => d[2] !== null) && same && aimPoses > 0 && errors.length === 0;
+const ok = ready && startOk && !!result && !!machine && machine.dolls.length === before.length - result.won.length && machine.dolls.every((d) => d[2] !== null) && same && errors.length === 0; // aimPoses는 기록만 — 구경꾼(12m 안 다른 사람)이 없으면 중계를 안 보낸다(2026-11-02), 중계 자체는 watch e2e가 본다
 console.log(ok ? 'PASS pusher' : 'FAIL pusher');
 await fetch(`http://127.0.0.1:${port}/json/close/${t.id}`); watcher.close(); process.exit(ok ? 0 : 1);

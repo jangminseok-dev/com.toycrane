@@ -30,7 +30,7 @@ test('counter, begging and giving messages match client fixtures', () => {
 test('the old queue and drop-result messages are gone', () => {
   expect(decode('{"t":"queue","c":0,"ids":[]}')).toBeNull();
   expect(decode('{"t":"result","m":"A-3","id":"p1","x":0.1,"z":0,"o":"win","part":"head","k":"bunny"}')).toBeNull();
-  expect(PROTOCOL).toBe(14); // 매장 38m·진열탑 줄임·피규어 앞 벽(배치가 바뀜, 2026-11-02) — 옛 배치를 든 화면은 새로 고친다
+  expect(PROTOCOL).toBe(15); // 중계를 0.4초 묶음(f)으로(2026-11-02) — 옛 형식을 든 화면은 새로 고친다
 });
 
 test('play messages match client fixtures', () => {
@@ -41,7 +41,7 @@ test('play messages match client fixtures', () => {
 // 판 보고(done)와 중계(pose): 인형 자리 = [번호, x, y, z, qx, qy, qz, qw] — 보고는 소수 3자리, 중계는 2자리 (물리 뽑기 설계 §4.5)
 test('done and pose match client fixtures', () => {
   expect(JSON.parse(encodeDone('A-3', [7], [{ uid: 8, p: [0.2004, 0.87, 0.1], q: [0, 0, 0, 1] }]))).toEqual(fx.client_done);
-  expect(JSON.parse(encodePose('A-3', [0.1, 1.6, 0.2, 0.4], [{ uid: 7, p: [0.2, 1.3, 0.1], q: [0, 0, 0, 1] }]))).toEqual(fx.client_pose);
+  expect(JSON.parse(encodePose('A-3', [{ age: 0.1, c: [0.1, 1.6, 0.2, 0.4], d: [{ uid: 7, p: [0.2, 1.3, 0.1], q: [0, 0, 0, 1] }] }, { age: 0, c: [0.1, 1.5, 0.2, 0.4], d: [] }]))).toEqual(fx.client_pose); // 묶음: [나이, 집게, 인형들]
 });
 
 

@@ -1,7 +1,8 @@
-// 입장 화면들: 닉네임 정하기, 만석, 안내. 매장 위에 덮는 유리 카드 하나를 바꿔 끼운다(아이폰 리퀴드 글라스 느낌).
+// 입장 화면들: 닉네임 정하기, 만석, 안내. 매장 위에 덮는 카툰 카드 하나를 바꿔 끼운다(ui/cartoon — 남색 테두리·납작 그림자·간판 글꼴,
+// 사용자 2026-11-02 사진 270 '처음 들어올 때 나오는 것들도 카툰풍으로').
+import { CARTOON_FONT, FILL, INK, cartoonPill } from './cartoon';
 import { backdropBlur } from './glass';
 
-const FONT = '-apple-system, "Apple SD Gothic Neo", sans-serif';
 let layer: HTMLDivElement | null = null;
 
 function card(): HTMLDivElement {
@@ -9,21 +10,21 @@ function card(): HTMLDivElement {
     layer = document.createElement('div');
     Object.assign(layer.style, {
       position: 'fixed', inset: '0', zIndex: '30', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'rgba(20,14,30,.35)', padding: '16px', fontFamily: FONT,
+      background: 'rgba(44,36,112,.4)', padding: '16px', fontFamily: CARTOON_FONT,
     });
     backdropBlur(layer, 'blur(6px)');
+    const css = document.createElement('style'); // 입력 칸의 흐린 안내 글자(인라인으로는 못 정한다)
+    css.textContent = '.entry-input::placeholder { color: rgba(44,36,112,.45); }';
+    layer.appendChild(css);
     document.body.appendChild(layer);
   }
   layer.style.display = 'flex';
-  layer.innerHTML = '';
+  for (const el of [...layer.children]) if (el.tagName !== 'STYLE') el.remove();
   const box = document.createElement('div');
   Object.assign(box.style, {
-    width: 'min(360px, 100%)', borderRadius: '28px', padding: '26px 22px 22px', color: '#f6ecff', textAlign: 'center',
-    background: 'linear-gradient(160deg, rgba(255,255,255,.16), rgba(255,255,255,.05))',
-    border: '1px solid rgba(255,255,255,.28)',
-    boxShadow: 'inset 0 1px 1px rgba(255,255,255,.45), 0 20px 50px rgba(0,0,0,.45), 0 0 40px rgba(255,95,220,.12)',
+    width: 'min(360px, 100%)', borderRadius: '26px', padding: '26px 24px 24px', color: INK, textAlign: 'center',
+    background: FILL.white, border: `3px solid ${INK}`, boxShadow: `0 8px 0 ${INK}, 0 20px 50px rgba(44,36,112,.25)`,
   });
-  backdropBlur(box, 'blur(24px) saturate(180%)');
   layer.appendChild(box);
   return box;
 }
@@ -31,14 +32,14 @@ function card(): HTMLDivElement {
 function heading(text: string): HTMLHeadingElement {
   const h = document.createElement('h1');
   h.textContent = text;
-  Object.assign(h.style, { margin: '0 0 6px', fontSize: '24px', fontWeight: '900', color: '#ff9fe8' });
+  Object.assign(h.style, { margin: '0 0 6px', fontSize: '28px', fontWeight: '400', color: '#ff4fa3', fontFamily: CARTOON_FONT });
   return h;
 }
 
-function paragraph(text: string, color = '#cdbde6'): HTMLParagraphElement {
+function paragraph(text: string, color = 'rgba(44,36,112,.8)'): HTMLParagraphElement {
   const p = document.createElement('p');
   p.textContent = text;
-  Object.assign(p.style, { margin: '6px 0 0', fontSize: '14px', lineHeight: '1.5', color });
+  Object.assign(p.style, { margin: '6px 0 0', fontSize: '15px', lineHeight: '1.5', color, fontFamily: CARTOON_FONT });
   return p;
 }
 
@@ -46,10 +47,7 @@ function button(text: string): HTMLButtonElement {
   const b = document.createElement('button');
   b.textContent = text;
   Object.assign(b.style, {
-    marginTop: '16px', width: '100%', padding: '13px', borderRadius: '16px', cursor: 'pointer',
-    background: 'linear-gradient(180deg, rgba(255,150,205,.95), rgba(255,110,175,.85))', border: '1px solid rgba(255,255,255,.45)',
-    boxShadow: 'inset 0 1px 1px rgba(255,255,255,.7), 0 6px 18px rgba(255,95,180,.35)',
-    color: '#2a0f1f', fontSize: '16px', fontWeight: '800', fontFamily: FONT,
+    marginTop: '16px', width: '100%', padding: '12px', cursor: 'pointer', fontSize: '19px', ...cartoonPill('pink'), boxShadow: `0 4px 0 ${INK}`,
   });
   return b;
 }
@@ -65,13 +63,13 @@ export function askNickname(error?: string): Promise<string> {
   const form = document.createElement('form');
   const input = document.createElement('input');
   Object.assign(input, { maxLength: 20, placeholder: '닉네임 (1~10자)', autocomplete: 'off' });
+  input.className = 'entry-input';
   Object.assign(input.style, {
-    marginTop: '16px', width: '100%', boxSizing: 'border-box', padding: '13px 14px', borderRadius: '16px', fontSize: '16px',
-    border: '1px solid rgba(255,255,255,.22)', background: 'rgba(255,255,255,.08)', boxShadow: 'inset 0 1px 2px rgba(0,0,0,.25)',
-    color: '#fff', fontFamily: FONT, outline: 'none',
+    marginTop: '16px', width: '100%', boxSizing: 'border-box', padding: '12px 18px', fontSize: '18px', textAlign: 'center', outline: 'none',
+    ...cartoonPill('white'), boxShadow: 'none',
   });
   form.append(input);
-  if (error) form.append(paragraph(error, '#ff8fa8'));
+  if (error) form.append(paragraph(error, '#e23b6d'));
   const go = button('들어가기');
   form.append(go);
   box.append(form);

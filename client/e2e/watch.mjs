@@ -79,7 +79,7 @@ console.log('press', await A.click('한 판 하기')); await sleep(1500);
 console.log('B watching', await B.ev(`window.__toycrane.watching('${ID}')`));
 await playOnce(80);
 let machine; for (let i = 0; i < 800 && !machine; i++) { machine = seen.slice(n0).find(isEnd); await sleep(50); }
-const poses = seen.slice(n0).filter((m) => m.t === 'pose' && m.m === ID).length;
+const poses = seen.slice(n0).filter((m) => m.t === 'pose' && m.m === ID).reduce((n, m) => n + m.f.length, 0); // 0.4초 묶음 속 자리 수(2026-11-02)
 const matches = async () => {
   if (BOX) { const b = await B.ev(`JSON.stringify(window.__toycrane.${ID.startsWith('R-') ? 'hookBox' : 'figureBox'}('${ID}'))`).then(JSON.parse); return !!machine && !!b && Math.hypot(b[0] - machine.box[0], b[1] - machine.box[1], b[2] - machine.box[2]) < 0.01; }
   const b = await B.ev(`JSON.stringify(window.__toycrane.contents('${ID}'))`).then(JSON.parse); return !!machine && b.length === machine.dolls.length && b.every((d) => { const s = machine.dolls.find((x) => x[12] === d[12]); return s && Math.hypot(d[1] - s[1], (d[2] ?? 0) - (s[2] ?? 0), d[3] - s[3]) < 0.01; });
@@ -95,7 +95,7 @@ await playOnce(-80);
 machine = null; for (let i = 0; i < 800 && !machine; i++) { machine = seen.slice(n1).find(isEnd); await sleep(50); }
 const watching3 = await B.ev(`window.__toycrane.watching('${ID}')`);
 for (let i = 0; i < 120 && (await B.ev(`window.__toycrane.watching('${ID}')`)); i++) await sleep(100); // 결과 모션이 끝나야 machine이 들어가고 구경이 끝난다
-const poses2 = seen.slice(n1).filter((m) => m.t === 'pose' && m.m === ID).length, close2 = await matches();
+const poses2 = seen.slice(n1).filter((m) => m.t === 'pose' && m.m === ID).reduce((n, m) => n + m.f.length, 0), close2 = await matches();
 console.log('second play: B watching at start', watching2, 'at end', watching3, 'poses relayed', poses2, 'machine', !!machine, 'B matches server', close2);
 // 상자 기계는 figure(상자 자리)가 판의 끝이라 받는 순간 구경이 끝난다(인형 기계처럼 결과 모션까지 잇지 않음) — watching3은 인형·미는 뽑기만
 const ok = poses >= 20 && again && watching2 && (BOX || watching3) && poses2 >= 20 && close2;

@@ -22,8 +22,9 @@ const make = () => {
 test('stopping a watch puts the box back where the server keeps it', () => {
   const { zone, play } = make();
   play.watch(F1.id, { x: F1.x, z: F1.z });
-  const pose: Pose = { t: 'pose', m: F1.id, id: 'p', c: [0, 1.5, 0, 1], d: [[0, 0.02, 0.8, 0.05, 0.2, 0, 0, 0.98]] };
-  play.onPose(pose, 0); play.onPose({ ...pose, c: [0, 1.4, 0, 1] }, 0.1);
+  const box: [number, number, number, number, number, number, number, number] = [0, 0.02, 0.8, 0.05, 0.2, 0, 0, 0.98];
+  const pose: Pose = { t: 'pose', m: F1.id, id: 'p', f: [[0, [0, 1.5, 0, 1], [box]]] }; // 0.4초 묶음 형식(2026-11-02)
+  play.onPose(pose, 0); play.onPose({ ...pose, f: [[0, [0, 1.4, 0, 1], [box]]] }, 0.1);
   play.frame(0.016, 0.3);
   expect(zone.boxOf(F1.id)[1]).toBeCloseTo(0.8);
   play.stopWatch(F1.id);

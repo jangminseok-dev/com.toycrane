@@ -6,7 +6,7 @@ from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
 
 
 class PoseInteractor(PoseUseCase):
-    """중계 (물리 뽑기 설계 §4.5): 그 기계를 한 판 중으로 잠근 사람이 보낸 집게·인형 자리를 저장 없이 같은 매장에 그대로 뿌린다."""
+    """중계 (물리 뽑기 설계 §4.5): 그 기계를 한 판 중으로 잠근 사람이 보낸 집게·인형 자리 묶음(0.4초)을 저장 없이 같은 매장에 그대로 뿌린다."""
 
     def __init__(self, registry: PlayerRegistryPort, locks: PlayLockPort, connections: ConnectionsPort) -> None:
         self._registry = registry
@@ -18,4 +18,4 @@ class PoseInteractor(PoseUseCase):
         me = dict(self._registry.entries()).get(cmd.conn_id)
         if lock is None or me is None or lock[0] != cmd.machine_id or self._locks.is_between(cmd.conn_id):
             return
-        self._connections.broadcast_pose(cmd.conn_id, me.player_id, cmd.machine_id, list(cmd.claw), [list(d) for d in cmd.dolls])
+        self._connections.broadcast_pose(cmd.conn_id, me.player_id, cmd.machine_id, [[age, list(c), [list(d) for d in dolls]] for age, c, dolls in cmd.frames])

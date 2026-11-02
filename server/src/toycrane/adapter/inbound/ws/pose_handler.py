@@ -12,4 +12,4 @@ async def handle(ctx, env, ws, data: dict) -> None:
     conn_id = ws_attachment.read(ws).get("conn")
     parsed = parse(data)
     if conn_id and parsed:
-        await get_pose_use_case(ctx, env).relay(PoseCommand(conn_id, parsed[0], parsed[1], parsed[2], time.time()))
+        await get_pose_use_case(ctx, env).relay(PoseCommand(conn_id, parsed[0], parsed[1], time.time()))

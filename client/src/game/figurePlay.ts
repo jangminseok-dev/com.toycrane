@@ -38,6 +38,7 @@ export type FigurePlayDeps = {
   rapier(): Rapier | null;
   onDrop(machineId: string): void; // 집게가 내려가기 시작 — 결과를 기다린다(main의 awaiting)
   onOverdue(): void; // 내린 뒤 결과를 너무 오래 못 받음
+  watched?(machineId: string): boolean; // 내 판을 구경할 사람이 기계 가까이 있나 — 없으면 중계를 안 보낸다(없으면 늘 보냄)
 };
 
 export class FigurePlay implements ButtonPlay {
@@ -138,9 +139,10 @@ export class FigurePlay implements ButtonPlay {
     if (this.runner && this.world && this.claw && this.playId) {
       const done = this.runner.advance(dt), [x, y, z, open] = this.runner.clawPose(), box = this.world.boxPose(), extra = this.world.extraPose?.();
       this.zone.setClaw(this.playId, x, y, z, open); this.zone.setBox(this.playId, box, extra);
-      this.poseSender.frame(this.playId, { x, y, z, open }, extra ? [boxPose(box), { ...boxPose(extra), uid: 1 }] : [boxPose(box)], now); // 날개는 uid 1
+      this.poseSender.frame(this.playId, { x, y, z, open }, extra ? [boxPose(box), { ...boxPose(extra), uid: 1 }] : [boxPose(box)], now, this.deps.watched?.(this.playId) ?? true); // 날개는 uid 1
       if (done) {
         const r = this.runner.done();
+        this.poseSender.flush(now); // 마지막 묶음이 done보다 먼저
         this.deps.send(encodeDone(this.playId, r.won ? [0] : [], [boxPose(r.box)]));
         this.dropped?.markDone(now);
         this.claw.dispose(); this.world.dispose();
