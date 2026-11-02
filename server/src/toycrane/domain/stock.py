@@ -11,11 +11,14 @@ from dataclasses import dataclass, field, replace
 
 from toycrane.domain.catalog import EFFECTS, GOLD
 from toycrane.domain.crane import DollSpot, spawn_spot
+from toycrane.domain.shared_data import CLAW
 
 RARE_CHANCE = 0.03
 GOLD_CHANCE = 0.005
 REFILL_SECONDS = 30.0  # 빈 자리 하나가 채워지는 데 걸리는 시간 (아무도 그 기계를 잡고 있지 않은 시간만)
 DOLLS_PER_MACHINE = 9
+# 한꺼번에 채우기(사용자 2026-11-02 '뽑는 속도가 빨라 — 어느 정도 다 뽑히면 우르르'): 이만큼 넘게 비면 빈 자리를 한 번에(claw.json refill.batch)
+BATCH: int = CLAW["refill"]["batch"]
 GOLD_PER_STORE = 3  # 매장에 동시에 있을 수 있는 황금 인형
 COLORS, FACES = 6, 5
 
@@ -72,22 +75,37 @@ def on_taken(stock: MachineStock, uids: list[int], now: float) -> MachineStock:
 
 
 def refill(stock: MachineStock, kind: str, now: float, held: bool, gold_in_store: int, rng: random.Random) -> tuple[MachineStock, list[DollSpot]]:
-    """때가 지난 만큼 빈 자리를 하나씩(30초에 하나) 위에서 채운다. 누가 그 기계를 잡고 있으면(held) 채우지 않고 시계를 미룬다
-    — 오래 붙잡았다 놓아도 한꺼번에 쏟아지지 않게. 희귀는 기계마다 1개, 황금도 기계마다 1개이고 매장 전체 3개까지."""
-    return fill_up(stock, now, held, gold_in_store, rng, DOLLS_PER_MACHINE, lambda dolls: (kind, *spawn_spot(dolls, rng)))
+    """때가 지난 만큼 빈 자리를 하나씩(30초에 하나) 위에서 채운다 — BATCH개 넘게 비었으면 한 번에 다. 누가 그 기계를 잡고 있으면(held)
+    채우지 않고 시계를 미룬다(판 중에 인형이 늘면 보고가 어긋난다 — 이어 하는 손님은 판 끝 top_up이 채운다). 희귀는 기계마다 1개,
+    황금도 기계마다 1개이고 매장 전체 3개까지."""
+    return fill_up(stock, now, held, gold_in_store, rng, DOLLS_PER_MACHINE, lambda dolls: (kind, *spawn_spot(dolls, rng)), BATCH)
+
+
+def top_up(stock: MachineStock, kind: str, gold_in_store: int, rng: random.Random) -> tuple[MachineStock, list[DollSpot]]:
+    """판 결과를 저장할 때: BATCH개 넘게 비었으면 그 자리에서 다 채운다(시계와 상관없이) — 판 결과와 같은 배치 메시지에 실린다."""
+    return top_up_with(stock, gold_in_store, rng, DOLLS_PER_MACHINE, lambda dolls: (kind, *spawn_spot(dolls, rng)), BATCH)
+
+
+def top_up_with(
+    stock: MachineStock, gold_in_store: int, rng: random.Random, full: int, place: Callable[[list[DollSpot]], tuple[str, float, float]], batch: int,
+) -> tuple[MachineStock, list[DollSpot]]:
+    if full - len(stock.dolls) < batch:
+        return stock, []
+    return fill_up(replace(stock, next_at=-1.0), 0.0, False, gold_in_store, rng, full, place, batch)
 
 
 def fill_up(
     stock: MachineStock, now: float, held: bool, gold_in_store: int, rng: random.Random, full: int,
-    place: Callable[[list[DollSpot]], tuple[str, float, float]],
+    place: Callable[[list[DollSpot]], tuple[str, float, float]], batch: int,
 ) -> tuple[MachineStock, list[DollSpot]]:
-    """refill의 몸통 — 기계마다 가득 찬 개수(full)와 새 인형의 (캐릭터, x, z)를 고르는 법(place)만 다르다."""
+    """refill의 몸통 — 기계마다 가득 찬 개수(full)와 새 인형의 (캐릭터, x, z)를 고르는 법(place), 한꺼번에 채우는 수(batch)만 다르다."""
     if stock.next_at is None or stock.next_at > now:
         return stock, []
     if held:
         return replace(stock, next_at=now + REFILL_SECONDS), []
     dolls, next_at, uid, added = list(stock.dolls), stock.next_at, stock.next_uid, []
-    while next_at is not None and next_at <= now and len(dolls) < full:
+    batch_now = full - len(dolls) >= batch  # 많이 비었으면 이번에 다
+    while next_at is not None and (batch_now or next_at <= now) and len(dolls) < full:
         kind, x, z = place(dolls)
         gold_ok = not any(d.rare == GOLD for d in dolls) and gold_in_store + sum(d.rare == GOLD for d in added) < GOLD_PER_STORE
         rare_ok = not any(d.rare and d.rare != GOLD for d in dolls)

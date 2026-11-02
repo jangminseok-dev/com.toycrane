@@ -221,12 +221,16 @@ test('a saved pile sleeps while aiming but the plate still pushes the ledge', ()
   run(w, 1 / 30); // 저장된 자리끼리 조금 겹친 것을 엔진이 첫 걸음에 풀고 나서부터 잰다(재우기는 첫 걸음 뒤)
   const before = w.poses();
   run(w, plate.period + 0.5);
-  const after = w.poses(), moved = (uid: number) => { const a = before.find((p) => p.uid === uid)!.p, b = after.find((p) => p.uid === uid)!.p; return Math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2); };
+  const mid = w.poses();
+  run(w, plate.period);
+  const after = w.poses(), dist = (from: typeof before, to: typeof before, uid: number) => { const a = from.find((p) => p.uid === uid)!.p, b = to.find((p) => p.uid === uid)!.p; return Math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2); };
   const pile = saved.filter((s) => s[1] > ledge.x1 + 0.04).map((s) => s[12]);
-  // 무더기는 계속 기지 않고 잠든 채 끝난다 — 깊은 턱에선 낮은 턱에 기댄 인형이 판 끝에 한 번 스쳐 몇 mm 내려앉을 수 있다
-  expect(Math.max(...pile.map(moved))).toBeLessThan(0.005);
+  // 무더기는 계속 기지 않고 잠든 채 끝난다. 처음 한 바퀴엔 쌓인 인형 몇이 한 번 내려앉을 수 있다 — 인형 30개(2026-11-02 '스폰 늘려')로 무더기가
+  // 높아져 최대 4cm(26개일 땐 몇 mm). 그 뒤 한 바퀴는 거의 그대로여야 한다(계속 기면 휴대폰 프레임이 떨어진다)
+  expect(Math.max(...pile.map((u) => dist(before, mid, u)))).toBeLessThan(0.06);
+  expect(Math.max(...pile.map((u) => dist(mid, after, u)))).toBeLessThan(0.005);
   expect(pile.every((u) => w.bodyOf(u)!.isSleeping())).toBe(true);
-  expect(moved(99)).toBeGreaterThan(0.01);
+  expect(dist(before, after, 99)).toBeGreaterThan(0.01);
   w.dispose();
 }, 120_000);
 

@@ -9,10 +9,11 @@ from toycrane.app.ports.output.play_lock_port import PlayLockPort
 from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
 from toycrane.app.use_cases.machine_contents import ensure_contents
 from toycrane.app.use_cases.report_lock import take_report
-from toycrane.domain.layout import PUSHERS
-from toycrane.domain.pusher_crane import after_pusher_play, tidy_stuck
+from toycrane.domain.layout import MACHINES, PUSHERS
+from toycrane.domain.catalog import GOLD
+from toycrane.domain.pusher_crane import after_pusher_play, tidy_stuck, top_up_mixed
 from toycrane.domain.report import check_report, limits_of, won_dolls, won_views
-from toycrane.domain.stock import count_miss, due, on_taken
+from toycrane.domain.stock import count_miss, due, on_taken, top_up
 
 ZONE, PUSHER_ZONE = "big", "pusher"  # 가방 구역: 큰 인형 기계 · 미는 뽑기(설계 ring-hook §4, 섞인 미니 인형)
 
@@ -57,6 +58,9 @@ class DoneInteractor(DoneUseCase):
             after, tidied = tidy_stuck(before, after, self._rng)  # 직원이 정리: 턱 앞에서 3판째 안 움직인 인형은 뒤로
         else:  # 인형 기계: 연달아 못 뽑은 판을 센다 — help.plays판째부터 화면이 센 집게로 한다
             after = count_miss(after, me.guest_id, bool(won))
+        # 한꺼번에 채우기: 이어 하는 손님은 기계를 잡고 있어 시계 채우기가 미뤄진다 — 많이 비었으면 판 끝에 바로 다 채운다(이 배치 메시지에 실림)
+        gold = sum(d.rare == GOLD for m, s in stocks.items() if m != machine_id for d in s.dolls) + sum(d.rare == GOLD for d in after.dolls)
+        after, added = top_up_mixed(after, gold, self._rng) if machine_id in PUSHERS else top_up(after, MACHINES[machine_id].kind, gold, self._rng)
         stocks[machine_id] = after
         await self._contents.save(stocks)
         when = due(stocks)
@@ -68,3 +72,6 @@ class DoneInteractor(DoneUseCase):
             self._connections.send_bag(cmd.conn_id, total)
         self._connections.broadcast_result(machine_id, me.player_id, won_views(before, won), staff=gift is not None, miss=after.misses.get(me.guest_id, 0), tidied=len(tidied))
         self._connections.broadcast_machine(machine_id, after.dolls)
+        for doll in added:
+            if doll.rare:
+                self._connections.broadcast_spawn(machine_id, doll.kind, doll.rare)

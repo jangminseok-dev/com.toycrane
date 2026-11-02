@@ -4,7 +4,7 @@ from toycrane.domain.catalog import DOLLS
 from toycrane.domain.layout import MACHINE_SPEC
 from dataclasses import replace
 
-from toycrane.domain.pusher_crane import TIDY, tidy_stuck, FULL, PITY_PLAYS, after_pusher_play, generate_mixed_stock, refill_mixed
+from toycrane.domain.pusher_crane import BATCH_MIXED, FULL, PITY_PLAYS, TIDY, after_pusher_play, generate_mixed_stock, refill_mixed, tidy_stuck, top_up_mixed
 from toycrane.domain.shared_data import PUSHER
 from toycrane.domain.stock import on_taken
 
@@ -129,3 +129,15 @@ def test_moving_or_leaving_resets_the_count_and_the_plate_side_is_never_counted(
     gone, moved = tidy_stuck(after, gone, random.Random(1))
     assert moved == [] and gone.stuck == {}
     assert TIDY["plays"] == 3 and TIDY["move"] == 0.01
+
+
+# 미는 뽑기도 한꺼번에 채우기: BATCH_MIXED(6)개 넘게 비면 칸 위에 한 번에
+def test_a_pusher_refills_a_batch_at_once():
+    stock = generate_mixed_stock(random.Random(5))
+    taken = on_taken(stock, [d.uid for d in stock.dolls[:BATCH_MIXED]], now=0.0)
+    after, added = refill_mixed(taken, 30.0, False, 0, random.Random(2))
+    assert len(added) == BATCH_MIXED and after.next_at is None and all(d.x > LEDGE["x1"] for d in added)
+    five = on_taken(stock, [d.uid for d in stock.dolls[: BATCH_MIXED - 1]], now=0.0)
+    assert top_up_mixed(five, 0, random.Random(2)) == (five, [])
+    after, added = top_up_mixed(taken, 0, random.Random(2))
+    assert len(added) == BATCH_MIXED

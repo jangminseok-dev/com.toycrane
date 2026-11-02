@@ -199,3 +199,18 @@ async def test_a_stuck_ledge_doll_is_tidied_after_a_pusher_play():
     assert moved.y is None and moved.z < PUSHER["ledge"]["z0"] + 0.13 and front.uid not in after.stuck
     assert (None, result("P-1", "p2", [], miss=1, tidied=1)) in conns.broadcasts
     assert (None, machine("P-1", after.dolls)) in conns.broadcasts
+
+
+# 판 끝에 바로 채우기: 인형 기계에서 BATCH개째 빠진 판의 결과를 저장하면 빈 자리가 그 자리에서 다 채워져(안 앉은 채) 배치에 실린다
+async def test_a_play_that_empties_a_batch_refills_the_machine_at_once():
+    from toycrane.domain.stock import BATCH, DOLLS_PER_MACHINE
+    reg, locks, conns, bag, contents, it = setup()
+    stock = contents.stored["A-1"]
+    contents.stored["A-1"] = replace(stock, dolls=stock.dolls[: DOLLS_PER_MACHINE - BATCH + 1])  # BATCH-1개 빈 기계
+    stock = contents.stored["A-1"]
+    won = stock.dolls[0].uid
+    await it.done(DoneCommand("c-1", "A-1", report(stock, won=(won,)), now=20.0))
+    after = contents.stored["A-1"]
+    assert len(after.dolls) == DOLLS_PER_MACHINE and after.next_at is None
+    assert sum(d.y is None for d in after.dolls) == BATCH
+    assert (None, machine("A-1", after.dolls)) in conns.broadcasts

@@ -61,6 +61,8 @@ const same = !!machine && screen.length === machine.dolls.length && machine.doll
 const startOk = !!start && start.x >= PUSHER.ledge.x1 + 0.06 - 1e-6; // 레버로는 턱 위로 못 간다
 console.log('result', JSON.stringify(result && result.won), 'machine', machine?.dolls.length, 'settled', machine?.dolls.filter((d) => d[2] !== null).length, 'aim poses', aimPoses, 'screen=server', same, 'claw kept off the ledge', startOk, JSON.stringify(start));
 console.log('errors', errors.slice(0, 3).join(' | ') || '-');
-const ok = ready && startOk && !!result && !!machine && machine.dolls.length === before.length - result.won.length && machine.dolls.every((d) => d[2] !== null) && same && errors.length === 0; // aimPoses는 기록만 — 구경꾼(12m 안 다른 사람)이 없으면 중계를 안 보낸다(2026-11-02), 중계 자체는 watch e2e가 본다
+// 판 끝 한꺼번에 채우기(2026-11-02): 많이 비었으면 같은 배치에 새 인형(안 앉은 채, 새 번호)이 더 실린다 — 원래 있던 인형은 당첨만큼 빠지고 모두 앉아 있어야 한다
+const oldUids = new Set(before.map((d) => d[12])), kept = machine ? machine.dolls.filter((d) => oldUids.has(d[12])) : [], fresh = machine ? machine.dolls.filter((d) => !oldUids.has(d[12])) : [];
+const ok = ready && startOk && !!result && !!machine && kept.length === before.length - result.won.length && kept.every((d) => d[2] !== null) && fresh.every((d) => d[2] === null && d[12] > Math.max(...oldUids)) && same && errors.length === 0; // aimPoses는 기록만 — 구경꾼(12m 안 다른 사람)이 없으면 중계를 안 보낸다(2026-11-02), 중계 자체는 watch e2e가 본다
 console.log(ok ? 'PASS pusher' : 'FAIL pusher');
 await fetch(`http://127.0.0.1:${port}/json/close/${t.id}`); watcher.close(); process.exit(ok ? 0 : 1);

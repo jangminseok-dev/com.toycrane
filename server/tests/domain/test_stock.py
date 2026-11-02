@@ -5,7 +5,7 @@ import pytest
 
 from toycrane.domain.layout import MACHINE_SPEC
 from toycrane.domain.shared_data import CLAW
-from toycrane.domain.stock import MISS_KEEP, MachineStock, count_miss, due, generate_stock, new_doll, on_taken, refill
+from toycrane.domain.stock import BATCH, MISS_KEEP, MachineStock, count_miss, due, generate_stock, new_doll, on_taken, refill, top_up
 
 
 # 새 인형 (설계 2026-10-31 인형 채우기 §4.2·§4.4): 황금 0.5%·희귀 3%(효과 8가지), 체형 50/25/25, 표정 5, 색 6
@@ -157,3 +157,32 @@ def test_only_the_latest_guests_are_remembered():
     for i in range(MISS_KEEP + 5):
         stock = count_miss(stock, f"g-{i}", won=False)
     assert len(stock.misses) == MISS_KEEP and "g-0" not in stock.misses and f"g-{MISS_KEEP + 4}" in stock.misses
+
+
+# 한꺼번에 채우기(사용자 2026-11-02 '뽑는 속도가 빨라 — 어느 정도 다 뽑히면 하나씩이 아니라 우르르'): BATCH(3)개 넘게 비면 때가 됐을 때 빈 자리를
+# 한 번에 다 채운다. 그보다 적게 비면 예전처럼 30초에 하나
+def test_a_batch_of_missing_dolls_refills_all_at_once():
+    stock = generate_stock("cat", random.Random(1))
+    taken = on_taken(stock, [d.uid for d in stock.dolls[:BATCH]], now=0.0)
+    after, added = refill(taken, "cat", 30.0, False, 0, random.Random(2))
+    assert len(added) == BATCH and len(after.dolls) == len(stock.dolls) and after.next_at is None
+    assert all(d.y is None for d in added)
+
+
+def test_fewer_missing_than_a_batch_still_refill_one_at_a_time():
+    stock = generate_stock("cat", random.Random(1))
+    taken = on_taken(stock, [d.uid for d in stock.dolls[: BATCH - 1]], now=0.0)
+    after, added = refill(taken, "cat", 30.0, False, 0, random.Random(2))
+    assert len(added) == 1 and after.next_at == 60.0
+
+
+# 판 끝에 바로 채우기: 손님이 쉬지 않고 이어 하면 기계를 잡고 있어 시계 채우기가 미뤄진다 — 판 결과를 저장할 때 BATCH개 넘게 비었으면
+# 그 자리에서 다 채운다(판 결과와 같은 배치 메시지에 실려 다음 판 전에 화면에 들어간다)
+def test_top_up_fills_every_gap_once_a_batch_is_missing():
+    stock = generate_stock("cat", random.Random(1))
+    two = on_taken(stock, [d.uid for d in stock.dolls[: BATCH - 1]], now=0.0)
+    assert top_up(two, "cat", 0, random.Random(2)) == (two, [])
+    three = on_taken(stock, [d.uid for d in stock.dolls[:BATCH]], now=0.0)
+    after, added = top_up(three, "cat", 0, random.Random(2))
+    assert len(added) == BATCH and len(after.dolls) == len(stock.dolls) and after.next_at is None
+    assert len({d.uid for d in after.dolls}) == len(after.dolls)

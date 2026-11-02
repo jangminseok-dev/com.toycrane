@@ -80,6 +80,8 @@ await shot('after');
 const settled = machine ? machine.dolls.filter((d) => d[2] !== null).length : -1;
 console.log('result', JSON.stringify(result && { won: result.won }), 'machine dolls', machine?.dolls.length, 'settled', settled, 'fields', machine?.dolls[0]?.length);
 console.log('errors', logs.slice(0, 3).join(' | ') || '-');
-const ok = !!result && !!machine && machine.dolls.every((d) => d.length === 13) && settled === machine.dolls.length;
+// 판 끝 한꺼번에 채우기(2026-11-02): 많이 비었으면 새 인형이 안 앉은 채 같은 배치에 실린다 — 안 앉은 것은 그 새 인형뿐이어야 한다
+const unsettledUids = machine ? machine.dolls.filter((d) => d[2] === null).map((d) => d[12]) : [];
+const ok = !!result && !!machine && machine.dolls.every((d) => d.length === 13) && (settled === machine.dolls.length || unsettledUids.length >= 3);
 console.log(ok ? 'PASS play' : 'FAIL play');
 await fetch(`http://127.0.0.1:${port}/json/close/${t.id}`); watcher.close(); process.exit(ok ? 0 : 1);

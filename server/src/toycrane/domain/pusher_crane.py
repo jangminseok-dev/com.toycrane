@@ -11,7 +11,7 @@ from toycrane.domain.catalog import DOLLS
 from toycrane.domain.crane import UPRIGHT, DollSpot
 from toycrane.domain.layout import MACHINE_SPEC
 from toycrane.domain.shared_data import PUSHER
-from toycrane.domain.stock import MachineStock, count_miss, fill_up, new_doll
+from toycrane.domain.stock import MachineStock, count_miss, fill_up, new_doll, top_up_with
 
 KINDS: tuple[str, ...] = tuple(DOLLS)
 FULL = PUSHER["count"] + PUSHER["on_ledge"]  # 가득 찬 기계의 미니 인형 수(처음 배치와 같다)
@@ -36,6 +36,7 @@ PITY_PLAYS: int = PUSHER["pity"]
 # 직원이 정리(사용자 2026-11-02 사진 273 '턱 앞에 인형이 걸린다'): 턱 위에서 판 바로 앞(z0 + front)보다 앞에 있는 앉은 인형이 TIDY.plays판 연속
 # TIDY.move(1cm)도 안 움직이면 직원이 턱 뒤쪽(판 바로 앞, ledge_spot)으로 옮겨 다시 밀리게 한다 — 안 앉은 채(y None)로 두어 화면이 떨어뜨린다
 TIDY = PUSHER["tidy"]
+BATCH_MIXED: int = PUSHER["refill"]["batch"]  # 이만큼 넘게 비면 빈 자리를 한 번에(stock.BATCH와 같은 규칙)
 
 
 def staff_pick(dolls: list[DollSpot]) -> int | None:
@@ -91,5 +92,10 @@ def generate_mixed_stock(rng: random.Random) -> MachineStock:
 
 
 def refill_mixed(stock: MachineStock, now: float, held: bool, gold_in_store: int, rng: random.Random) -> tuple[MachineStock, list[DollSpot]]:
-    """인형 기계 채우기(stock.refill)와 같은 시계·희귀·황금 규칙으로 FULL개까지 — 새 인형은 24종 중 아무거나, 칸 위에서."""
-    return fill_up(stock, now, held, gold_in_store, rng, FULL, lambda _dolls: (rng.choice(KINDS), *pile_spot(rng)))
+    """인형 기계 채우기(stock.refill)와 같은 시계·희귀·황금 규칙으로 FULL개까지 — 새 인형은 24종 중 아무거나, 칸 위에서. BATCH_MIXED개 넘게 비면 한 번에."""
+    return fill_up(stock, now, held, gold_in_store, rng, FULL, lambda _dolls: (rng.choice(KINDS), *pile_spot(rng)), BATCH_MIXED)
+
+
+def top_up_mixed(stock: MachineStock, gold_in_store: int, rng: random.Random) -> tuple[MachineStock, list[DollSpot]]:
+    """판 결과를 저장할 때 BATCH_MIXED개 넘게 비었으면 그 자리에서 칸 위에 다 채운다(stock.top_up과 같은 규칙)."""
+    return top_up_with(stock, gold_in_store, rng, FULL, lambda _dolls: (rng.choice(KINDS), *pile_spot(rng)), BATCH_MIXED)

@@ -6,6 +6,7 @@
   "rare": {"rare": 0.79, "gold": 0.78},
   "hole": {"size": 0.38, "lip": 0.12},
   "help": {"plays": 10, "force": 1.4},
+  "refill": {"batch": 3},
   "max_wins": 3,
   "cycle_seconds": 12,
   "settle_seconds": 3,
