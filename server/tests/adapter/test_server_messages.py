@@ -111,4 +111,4 @@ def test_protocol_is_thirteen():
     """고리 걸기·미는 뽑기 다시 만들기(설계 2026-11-02 ring-hook): act·ring·pusher 메시지와 welcome rings·pushers를 없애 옛 화면은 새로 고친다 — 화면(net/protocol.ts)과 같은 수."""
     from toycrane.adapter.inbound.ws.schemas.server_messages import PROTOCOL
 
-    assert PROTOCOL == 15  # 중계 0.4초 묶음(2026-11-02)  # 매장 38m·진열탑·피규어 앞 벽 — 배치가 바뀌면 옛 화면이 새로 고치게(2026-11-02)
+    assert PROTOCOL == 16  # 고리 기계 간격 2.1m(2026-11-03) — 장애물이 바뀌어 옛 화면이 새로 고치게  # 매장 38m·진열탑·피규어 앞 벽 — 배치가 바뀌면 옛 화면이 새로 고치게(2026-11-02)

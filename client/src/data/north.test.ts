@@ -5,7 +5,8 @@ import { PUSHERS, isPusher, nearestPusher } from './pushers';
 import { RINGS, isRing, nearestRing } from './rings';
 import { MACHINE_SPEC, OBSTACLES, frontSpot } from './storeLayout';
 
-// 북쪽 구역(설계 2026-11-02 고리·미는 뽑기 §3·§4): 고리 10대(두 줄, 북쪽 벽 앞)와 미는 뽑기 4대가 모두 남쪽 광장 쪽(+z)을 본다
+// 북쪽 구역(설계 2026-11-02 고리·미는 뽑기 §3·§4): 고리 10대(두 줄, 북쪽 벽 앞)와 미는 뽑기 4대가 모두 남쪽 광장 쪽(+z)을 본다.
+// 고리 간격 2.1m(사용자 2026-11-03 '옆 기계 칸 간격을 살짝 벌려줘' — 1.84m는 옆 시점 카메라가 옆 기계에 걸렸다), 가운데 기계(R-3·R-8)는 제자리
 const STEP = 0.25, MARGIN = 0.35, N = Math.round((MAP_HALF * 2) / STEP) + 1;
 const at = (i: number) => -MAP_HALF + i * STEP, cellOf = (v: number) => Math.max(0, Math.min(N - 1, Math.round((v + MAP_HALF) / STEP)));
 const free = (x: number, z: number) => !OBSTACLES.some(([x0, z0, x1, z1]) => x > x0 - MARGIN && x < x1 + MARGIN && z > z0 - MARGIN && z < z1 + MARGIN);
@@ -31,8 +32,8 @@ const near = (d: Float64Array, p: Vec2) => {
 
 test('ten ring machines R-1 to R-10 face the plaza in two rows', () => {
   expect(RINGS.map((r) => r.id)).toEqual(Array.from({ length: 10 }, (_, i) => `R-${i + 1}`));
-  expect(RINGS.filter((r) => r.row === 'r1').map((r) => r.x)).toEqual([-10.88, -9.04, -7.2, -5.36, -3.52]);
-  expect(RINGS.filter((r) => r.row === 'r2').map((r) => r.x)).toEqual([3.52, 5.36, 7.2, 9.04, 10.88]);
+  expect(RINGS.filter((r) => r.row === 'r1').map((r) => r.x)).toEqual([-11.4, -9.3, -7.2, -5.1, -3]);
+  expect(RINGS.filter((r) => r.row === 'r2').map((r) => r.x)).toEqual([3, 5.1, 7.2, 9.3, 11.4]);
   for (const r of RINGS) { expect(r.z).toBe(-18); expect(r.ry).toBe(0); }
   expect(isRing('R-4')).toBe(true);
   expect(isRing('F-1')).toBe(false);
