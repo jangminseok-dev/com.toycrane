@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { makeAvatarHead } from './avatar';
 import { PLAIN, makeDoll } from './dolls';
 
 // 작은 그림(설계 2026-11-02 고리 카드·가방 보기): 캐릭터·색·희귀 인형을 한 번 찍어 둔 128×128 캔버스(투명 바탕). 같은 것은 다시 찍지 않는다.
@@ -48,21 +49,26 @@ export class Later<T> {
 const pictures = new Later((key) => { const [kind, color, rare] = key.split('|'); return shoot(kind, Number(color), rare); });
 // 찍어 둔 그림(WebGL이 없으면 null), 아직이면 undefined — 찍히면 onReady
 export const thumbnailSoon = (kind: string, color: number, rare: string, onReady: () => void): HTMLCanvasElement | null | undefined => pictures.get(`${kind}|${color}|${rare}`, onReady);
-export const pumpThumbnails = (budgetMs: number): void => pictures.pump(budgetMs);
+// 구경하는 사람 얼굴(사용자 2026-11-03): 캐릭터 색 번호마다 머리 한 장
+const faces = new Later((key) => { const s = studio(); return s ? snap(s, makeAvatarHead(Number(key))) : null; });
+export const avatarFaceSoon = (color: number, onReady: () => void): HTMLCanvasElement | null | undefined => faces.get(String(color), onReady);
+export const pumpThumbnails = (budgetMs: number): void => { const start = performance.now(); pictures.pump(budgetMs); faces.pump(budgetMs - (performance.now() - start)); };
 
 // 128px엔 면을 낮춘 인형(lite)으로 충분
 function shoot(kind: string, color: number, rare: string): HTMLCanvasElement | null {
   const s = studio(), doll = s ? makeDoll(kind, { ...PLAIN, color, rare }, true) : null;
-  let out: HTMLCanvasElement | null = null;
-  if (s && doll) {
-    s.scene.add(doll);
-    const box = new THREE.Box3().setFromObject(doll), c = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3());
-    const d = Math.max(size.x, size.y) / (2 * Math.tan((s.camera.fov * Math.PI) / 360)) * 1.15;
-    s.camera.position.set(c.x, c.y + size.y * 0.05, c.z + size.z / 2 + d); s.camera.lookAt(c);
-    s.renderer.render(s.scene, s.camera);
-    s.scene.remove(doll);
-    out = document.createElement('canvas'); out.width = out.height = SIZE;
-    out.getContext('2d')!.drawImage(s.renderer.domElement, 0, 0);
-  }
+  return s && doll ? snap(s, doll) : null;
+}
+
+// 물건을 화면 가득 정면에서 한 장
+function snap(s: NonNullable<ReturnType<typeof studio>>, obj: THREE.Object3D): HTMLCanvasElement {
+  s.scene.add(obj);
+  const box = new THREE.Box3().setFromObject(obj), c = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3());
+  const d = Math.max(size.x, size.y) / (2 * Math.tan((s.camera.fov * Math.PI) / 360)) * 1.15;
+  s.camera.position.set(c.x, c.y + size.y * 0.05, c.z + size.z / 2 + d); s.camera.lookAt(c);
+  s.renderer.render(s.scene, s.camera);
+  s.scene.remove(obj);
+  const out = document.createElement('canvas'); out.width = out.height = SIZE;
+  out.getContext('2d')!.drawImage(s.renderer.domElement, 0, 0);
   return out;
 }

@@ -34,6 +34,11 @@ export class MachineBusy {
     this.rows.clear();
   }
 
+  // 지금 판을 하거나 이어 하려고 자리를 잡아 둔 사람들
+  players(now: number): Set<string> {
+    return new Set([...this.rows.values()].filter((r) => now <= r.until).map((r) => r.who));
+  }
+
   who(machineId: string, now: number): string | null {
     const r = this.rows.get(machineId);
     return r && now <= r.until ? r.who : null;

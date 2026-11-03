@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { beforeAll, expect, test } from 'vitest';
 import { stubCanvas } from '../test/canvasStub';
-import { makeAvatar } from './avatar';
+import { makeAvatar, makeAvatarHead } from './avatar';
 
 beforeAll(stubCanvas);
 
@@ -21,21 +21,12 @@ test('a tag can be added above the name and removed', () => {
   expect(a.root.getObjectByName('tag')).toBeUndefined();
 });
 
-// 앞을 가리면 거의 투명하게 — 그 아바타 재질만 복제해 흐리고, 다른 사람(같은 재질을 쓰는)은 그대로 (교환소 개편 설계 §4.7.2)
-test('fading one avatar leaves the others alone and comes back', () => {
-  const a = makeAvatar(0, '토끼'), b = makeAvatar(0, '곰돌이');
-  const body = (x: ReturnType<typeof makeAvatar>) => { let m: THREE.Mesh | null = null; x.rig.bob.traverse((o) => { if (!m && (o as THREE.Mesh).isMesh) m = o as THREE.Mesh; }); return m!; };
-  const original = body(a).material as THREE.Material;
-  a.setFade(0.15);
-  expect((body(a).material as THREE.Material).opacity).toBeCloseTo(0.15);
-  expect((body(a).material as THREE.Material).transparent).toBe(true);
-  expect((body(b).material as THREE.Material).opacity).toBe(1);
-  a.setFade(1);
-  expect(body(a).material).toBe(original);
-  a.setFade(0);
-  expect(a.root.visible).toBe(false);
-  a.setFade(1);
-  expect(a.root.visible).toBe(true);
+// 구경하는 사람 얼굴(사용자 2026-11-03): 화면 구석에서 빼꼼 내미는 얼굴은 그 사람 캐릭터와 같은 머리(색마다 머리 모양) — 색 번호 밖의 수도 같은 규칙으로
+test('the peeking face is the same head as that character', () => {
+  const geos = (o: THREE.Object3D) => { const g: THREE.BufferGeometry[] = []; o.traverse((c) => { if ((c as THREE.Mesh).isMesh) g.push((c as THREE.Mesh).geometry); }); return g; };
+  expect(geos(makeAvatarHead(2))).toEqual(geos(makeAvatar(2, '토끼').rig.head));
+  expect(geos(makeAvatarHead(10))).toEqual(geos(makeAvatar(2, '토끼').rig.head));
+  expect(geos(makeAvatarHead(1))).not.toEqual(geos(makeAvatar(2, '토끼').rig.head));
 });
 
 // 사용자 2026-11-02(사진 214): 캐릭터를 카툰식으로 더 귀엽게 — 색마다 머리 모양이 다르고(단발·양갈래 똥머리·포니테일·바보털),

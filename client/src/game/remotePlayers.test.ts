@@ -20,19 +20,17 @@ test('begging remotes show a tag and can be found nearby', () => {
   expect(remotes.beggarNear({ x: 0, z: 0 }, 1.3)).toBeNull();
 });
 
-// 한 판 중 내 카메라를 가리는 사람만 0.2초에 걸쳐 사라지고, 벗어나면 돌아온다 (교환소 개편 설계 §4.7.2).
-// 8%만 남기면 카툰 부품(눈·눈썹·머리 모양…)이 겹쳐 쌓여 화면 앞에 커다란 유령으로 보였다(사용자 2026-11-02 사진 227)
-test('remotes blocking my view fade out and come back', () => {
+// 한 판 하는 동안 다른 사람 캐릭터는 모두 숨긴다 — 그동안 들어온 사람도(사용자 2026-11-03: 앞을 막아서는 방해, 보고 있다는 느낌만 남기고 싶다).
+// 보고 있는 사람은 얼굴(ui/peekFaces)로만 알리므로 이름·색·자리를 알려 준다
+test('everyone else is hidden during my play and shown again after', () => {
   const scene = new THREE.Scene(), remotes = new RemotePlayers(scene);
-  remotes.add(view('p2', 0, 0), 0); remotes.add(view('p3', 5, 0), 0);
-  const blocking = (p: { x: number; z: number }) => Math.abs(p.x) < 1;
-  for (let i = 0; i < 20; i++) remotes.fade(blocking, 1 / 30);
-  expect(remotes.fadeOf('p2')).toBe(0);
-  expect(remotes.fadeOf('p3')).toBe(1);
-  const roots = scene.children.filter((o) => o.visible);
-  expect(roots).toHaveLength(1);
-  for (let i = 0; i < 20; i++) remotes.fade(null, 1 / 30);
-  expect(remotes.fadeOf('p2')).toBe(1);
+  remotes.add(view('p2', 0, 0), 0);
+  remotes.hideAll(true);
+  remotes.add(view('p3', 5, 0), 0);
+  expect(scene.children.filter((o) => o.visible)).toHaveLength(0);
+  expect(remotes.people()).toEqual([{ id: 'p2', nick: '곰돌이', color: 1, x: 0, z: 0 }, { id: 'p3', nick: '토끼', color: 1, x: 5, z: 0 }]);
+  remotes.hideAll(false);
+  expect(scene.children.filter((o) => o.visible)).toHaveLength(2);
 });
 
 // 조르던 사람이 나가거나 다시 접속해 목록을 비우면 그 사람의 조르기 모션도 멈춘다 (최종 리뷰 I2)

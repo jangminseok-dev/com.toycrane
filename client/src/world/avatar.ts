@@ -29,7 +29,6 @@ export interface Avatar {
   update(t: number): void;
   dispose(): void; // 장면에서 뺄 때 이 아바타만의 GPU 자원(이름표) 해제
   setTag(text: string | null): void; // 이름표 위 작은 꼬리표 ('조르는 중' — 아래에 두면 머리에 가렸다, 사용자 2026-11-02 사진 266), null이면 뗀다
-  setFade(opacity: number): void; // 한 판 중 내 화면을 가릴 때 흐리게, 0이면 숨김 (1이면 원래대로)
 }
 
 const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
@@ -87,16 +86,23 @@ function bagParts(i: number): THREE.Group {
   return g;
 }
 const cached = (map: Map<number, Baked>, i: number, make: (i: number) => THREE.Group) => map.get(i) ?? map.set(i, bake(make(i))).get(i)!;
+const colorIndex = (color: number) => ((color % AVATAR_COLORS.length) + AVATAR_COLORS.length) % AVATAR_COLORS.length;
+
+// 머리만(구경하는 사람 얼굴 그림, world/thumbs) — 캐릭터 머리와 같은 덩어리를 나눠 쓴다
+export function makeAvatarHead(color: number): THREE.Group {
+  const head = new THREE.Group();
+  head.add(...meshesOf(cached(bakedHeads, colorIndex(color), headParts)));
+  return head;
+}
 
 // 손이 몸에서 떠 있는 동글이 캐릭터 (시제품 docs/reference/prototypes/spike-arcade-big-v3.html makeAvatar)
 export function makeAvatar(color: number, nickname: string): Avatar {
-  const i = ((color % AVATAR_COLORS.length) + AVATAR_COLORS.length) % AVATAR_COLORS.length;
+  const i = colorIndex(color);
   const root = new THREE.Group();
   const bob = new THREE.Group(); root.add(bob);
   const skin = toon(SKIN);
   bob.add(...meshesOf(cached(bakedBodies, i, bodyParts)));
-  const head = new THREE.Group(); head.position.set(0, 1.42, 0); bob.add(head);
-  head.add(...meshesOf(cached(bakedHeads, i, headParts)));
+  const head = makeAvatarHead(i); head.position.set(0, 1.42, 0); bob.add(head);
   const backpack = new THREE.Group(); backpack.position.set(0, 0.72, -0.34); bob.add(backpack);
   backpack.add(...meshesOf(cached(bakedBags, i, bagParts)));
   const feet = [-1, 1].map((s) => part(SPH_MID, toon(0x4a3b7a), [s * 0.16, 0.08, 0.06], [0.13, 0.09, 0.17]));
@@ -105,8 +111,6 @@ export function makeAvatar(color: number, nickname: string): Avatar {
   root.add(...hands);
   const label = makeLabel(nickname); label.position.set(0, 2.25, 0); root.add(label);
   let tag: THREE.Sprite | null = null;
-  // 흐릴 때만 이 아바타 재질을 복제해 쓴다 (툰 재질은 모두가 함께 쓰므로 원본을 흐리면 다른 사람도 흐려진다)
-  let faded: { originals: Map<THREE.Mesh, THREE.Material>; clones: Map<THREE.Material, THREE.Material> } | null = null;
   root.scale.setScalar(0.85);
 
   const phase = Math.random() * 6;
@@ -116,30 +120,7 @@ export function makeAvatar(color: number, nickname: string): Avatar {
   return {
     root,
     rig,
-    dispose() { disposeLabel(label); if (tag) disposeLabel(tag); faded?.clones.forEach((m) => m.dispose()); },
-    setFade(opacity) {
-      root.visible = opacity > 0; // 다 흐려지면 숨긴다 — 투명 부품이 겹쳐 쌓이지 않게
-      if (opacity >= 1) {
-        if (faded) for (const [m, mat] of faded.originals) m.material = mat;
-        label.material.opacity = 1; if (tag) tag.material.opacity = 1;
-        if (faded) faded.originals.clear();
-        return;
-      }
-      faded ??= { originals: new Map(), clones: new Map() };
-      const f = faded;
-      root.traverse((o) => {
-        const m = o as THREE.Mesh;
-        if (!m.isMesh) return;
-        if (!f.originals.has(m)) {
-          const mat = m.material as THREE.Material;
-          let clone = f.clones.get(mat);
-          if (!clone) { clone = mat.clone(); clone.transparent = true; clone.depthWrite = false; f.clones.set(mat, clone); }
-          f.originals.set(m, mat); m.material = clone;
-        }
-        (m.material as THREE.Material).opacity = opacity;
-      });
-      label.material.opacity = opacity; if (tag) tag.material.opacity = opacity;
-    },
+    dispose() { disposeLabel(label); if (tag) disposeLabel(tag); },
     setTag(text) {
       if (tag) { root.remove(tag); disposeLabel(tag); tag = null; }
       if (!text) return;

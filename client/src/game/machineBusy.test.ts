@@ -42,3 +42,10 @@ test('each machine keeps its own claw cycle time', () => {
   expect(busy.who('P-1', 38.5)).toBe('p2');
   expect(busy.who('P-1', 50.5)).toBeNull();
 });
+
+// 구경하는 사람 얼굴(사용자 2026-11-03): 자기 기계에서 판을 하는(또는 이어 하려고 잡아 둔) 사람은 내 판을 보는 사람으로 치지 않는다
+test('players lists who is playing or holding a machine right now', () => {
+  const b = new MachineBusy(20, 20);
+  b.set('A-1', 'p1', 100); b.hold('A-2', 'p2', 100); b.set('A-3', 'p3', 70);
+  expect(b.players(110)).toEqual(new Set(['p1', 'p2']));
+});

@@ -4,7 +4,7 @@ import { CAMERA_OFFSETS, followCamera } from './game/followCamera';
 import { InputSampler } from './game/inputSampler';
 import { LocalPlayer } from './game/localPlayer';
 import { aimHeight, aimVisible } from './game/aim';
-import { blocksView, machineCameraPose } from './game/machineCamera';
+import { machineCameraPose } from './game/machineCamera';
 import { figureCameraPose } from './game/figureCamera';
 import { FIGURE_SPOTS, FigurePlay } from './game/figurePlay';
 import { watchKind } from './game/watchRoute';
@@ -28,6 +28,7 @@ import { AutoWalk, nearestCounter } from './game/autoWalk';
 import { OcclusionFader } from './game/occlusion';
 import { CoinShow } from './game/coinShow';
 import { RemotePlayers } from './game/remotePlayers';
+import { watchersOf } from './game/watchers';
 import { installJoystick } from './input/joystick';
 import { readKeyboard } from './input/keyboard';
 import { admit, createGuest, getBag, getGuest, type Guest } from './net/api';
@@ -47,6 +48,7 @@ import { askNickname, hideEntry, showFull, showMessage, showWelcomeBack } from '
 import { onBagTap, setHud, setInfo, soundButton, toast } from './ui/hud';
 import { bagGroups, openBagSheet } from './ui/bagSheet';
 import { buildMinimap, mapSize } from './ui/minimap';
+import { PeekFaces } from './ui/peekFaces';
 import { eulReul, iGa } from './ui/josa';
 import { hidePlayControls, hideSeatControls, setRunBadge, showHint, showPlayControls, showRunPause, showSeatControls } from './ui/playControls';
 import { BOX_TIMER_AT, DOLL_TIMER_AT, buildMachineTimer, type MachineTimer } from './world/machineTimer';
@@ -136,6 +138,8 @@ let sampler = new InputSampler();
 const bigZone = buildBigZone(scene);
 const figureZone = buildFigureZone(scene); // 동쪽 피규어 기계 14대(9단계)
 const minimap = buildMinimap(document.body, mapSize(innerWidth, innerHeight)); // 왼쪽 아래 매장 지도(설계 2026-11-02 §6, 사용자 2026-11-02 왼쪽 아래로)
+const peek = new PeekFaces(Math.min(innerWidth, innerHeight) < 600 ? 68 : 92); // 한 판 중 구경하는 사람 얼굴(사용자 2026-11-03)
+let watching: string[] = [];
 // 탑·기계 행·교환소가 내 캐릭터를 가리면 그것만 흐리게(머리·몸통 중 하나라도 가리면)
 const hookZone = buildHookZone(scene); // 북쪽 고리 걸기 10대(계획 12)
 const fader = new OcclusionFader([tower, ...bigZone.occluders, ...figureZone.occluders, ...hookZone.occluders, ...buildCoinCounters(scene), ...buildDecor(scene)]);
@@ -1056,8 +1060,11 @@ function frame(now: number) {
     bigZone.hideRowsBehind(atMachine ?? null); // 기계 앞 화면에선 내 기계 뒤 줄을 숨긴다 (휴대폰 그리기 호출, 큰 홀 설계 §6)
     bigZone.setFocus(me.pos.x, me.pos.z); // 먼 묶음은 인형 외곽선을 끈다 (큰 홀 설계 §6)
     minimap.frame({ me: { x: me.pos.x, z: me.pos.z, heading: myAvatar.root.rotation.y }, others: remotes.positions(), atMachine: !!atMachine }, now / 1000); // 기계 앞에선 숨김
-    const myMachine = atMachine ? spotOf.get(atMachine) : undefined;
-    remotes.fade(myMachine ? (p) => blocksView(myMachine, p) : null, dt); // 한 판 중 내 카메라를 가리는 사람은 흐려지다 사라진다
+    // 한 판 하는 동안 다른 사람 캐릭터는 모두 숨기고, 내 가까이 선 사람은 화면 구석 얼굴로만(사용자 2026-11-03 '보고 있다고만 느끼게')
+    remotes.hideAll(!!atMachine);
+    const people = remotes.people();
+    watching = atMachine ? watchersOf(watching, me.pos, people, busy.players(clock())) : [];
+    peek.set(people.filter((p) => watching.includes(p.id)).sort((a, b) => watching.indexOf(a.id) - watching.indexOf(b.id)));
     if (session) {
       // 기계 레버가 집게를 움직이고 캐릭터는 기계 앞에 서 있다.
       // 시간이 다 되면 여기서 내리고(sendDrop이 session을 비운다) — 그 뒤엔 session을 읽지 않는다 (읽으면 그리기 고리가 멈춘다)

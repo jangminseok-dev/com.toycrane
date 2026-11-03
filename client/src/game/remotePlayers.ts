@@ -6,13 +6,13 @@ import { startBegging } from '../world/motions';
 import type { Tweens } from './tween';
 import { extrapolate, isMoving, type RemoteState } from './remote';
 
-type Remote = { avatar: Avatar; state: RemoteState; shown: THREE.Vector2; nick: string; room: number | null; begging: { stop(): Promise<void> } | null; fade: number };
-const FADE_TO = 0, FADE_SECONDS = 0.2; // 내 카메라를 가리는 사람은 사라진다 (교환소 개편 설계 §4.7.2 — 8%는 카툰 부품이 겹쳐 유령처럼 보였다)
+type Remote = { avatar: Avatar; state: RemoteState; shown: THREE.Vector2; nick: string; color: number; room: number | null; begging: { stop(): Promise<void> } | null };
 const SMOOTH = 0.2; // 매 프레임 추정 위치로 20%씩 다가간다
 
 // 같은 매장의 다른 사람들: 받은 위치에서 추정한 곳으로 부드럽게 따라 움직인다
 export class RemotePlayers {
   private remotes = new Map<string, Remote>();
+  private hidden = false;
 
   constructor(private scene: THREE.Scene) {}
 
@@ -20,13 +20,14 @@ export class RemotePlayers {
     this.remove(p.id);
     const avatar = makeAvatar(p.color, p.nick);
     avatar.root.position.set(p.x, 0, p.z);
+    avatar.root.visible = !this.hidden;
     this.scene.add(avatar.root);
     this.remotes.set(p.id, {
       avatar,
       state: { pos: { x: p.x, z: p.z }, dir: { x: p.dx, z: p.dz }, receivedAt: nowMs },
       shown: new THREE.Vector2(p.x, p.z),
-      nick: p.nick,
-      room: null, begging: null, fade: 1,
+      nick: p.nick, color: p.color,
+      room: null, begging: null,
     });
   }
 
@@ -64,19 +65,16 @@ export class RemotePlayers {
     else if (room === null && r.begging) { void r.begging.stop(); r.begging = null; }
   }
 
-  // 한 판 중 내 카메라와 기계 사이에 선 사람(blocking이 참)을 흐리다가 숨기고, 벗어나면 원래대로 (blocking이 null이면 모두 원래대로)
-  fade(blocking: ((p: { x: number; z: number }) => boolean) | null, dt: number): void {
-    const step = (1 - FADE_TO) * Math.min(1, dt / FADE_SECONDS);
-    for (const r of this.remotes.values()) {
-      const target = blocking && blocking({ x: r.shown.x, z: r.shown.y }) ? FADE_TO : 1;
-      if (r.fade === target) continue;
-      r.fade = target < r.fade ? Math.max(target, r.fade - step) : Math.min(target, r.fade + step);
-      r.avatar.setFade(r.fade);
-    }
+  // 한 판 하는 동안 다른 사람 캐릭터는 모두 숨긴다(사용자 2026-11-03 — 기계 앞을 막아서는 방해). 보고 있는 사람은 화면 구석 얼굴로만 알린다
+  hideAll(on: boolean): void {
+    if (on === this.hidden) return;
+    this.hidden = on;
+    for (const r of this.remotes.values()) r.avatar.root.visible = !on;
   }
 
-  fadeOf(id: string): number {
-    return this.remotes.get(id)?.fade ?? 1;
+  // 구경하는 사람 얼굴(ui/peekFaces)에 쓸 이름·색과 화면에 보이는 자리
+  people(): { id: string; nick: string; color: number; x: number; z: number }[] {
+    return [...this.remotes].map(([id, r]) => ({ id, nick: r.nick, color: r.color, x: r.shown.x, z: r.shown.y }));
   }
 
   roomOf(id: string): number | null {
