@@ -66,3 +66,14 @@ test('the hook box stays clear of the front post from the side on its way to the
     }
   }
 });
+
+// 옆 시점은 살짝 위에서 내려다본다(사용자 2026-11-03 사진: 눈높이 그대로라 밋밋했다) — 보는 방향이 수평에서 12°~25° 아래.
+// 너무 내려다보면 버튼이 화면 아래로 잘린다(사진 208) — 위의 화면 안 시험이 함께 지킨다
+test('the hook side view looks slightly down from above', () => {
+  for (const aspect of [1.86, 390 / 844]) {
+    const { pos, look } = figureCameraPose(spot, 1, aspect, HOOK_MACHINE.camera);
+    const pitch = (Math.atan2(pos.y - look.y, Math.hypot(pos.x - look.x, pos.z - look.z)) * 180) / Math.PI;
+    expect(pitch, `${aspect}`).toBeGreaterThan(12);
+    expect(pitch, `${aspect}`).toBeLessThan(25);
+  }
+});
