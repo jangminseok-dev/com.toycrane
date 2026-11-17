@@ -128,7 +128,7 @@ HTTP: `POST /api/guest {nickname}` → 201 `{guestId,nickname,color}` / 400 `{"e
 
 **Interfaces:**
 - Consumes: 없음
-- Produces: 로그인된 wrangler, 확인 결과 한 줄(README에 기록은 Task 2)
+- Produces: 로그인된 wrangler, 확인 결과 한 줄(docs/DEPLOY_LOG.md에 기록은 Task 2)
 
 - [ ] **Step 1: 사용자에게 Cloudflare 무료 계정 생성을 요청한다** (이메일 가입, 카드 등록 없이 Workers Free). 사용자가 터미널에서 `! npx wrangler login`을 실행해 로그인한다.
 
@@ -673,7 +673,7 @@ test('extrapolate', () => expect(extrapolate({ pos: { x: 0, z: 3 }, dir: { x: 1,
 ### Task 10: 실제 배포와 확인
 
 **Files:**
-- Modify: `README.md` (배포 주소·확인 결과)
+- Modify: `docs/DEPLOY_LOG.md` (배포 주소·확인 결과)
 
 **Interfaces:**
 - Consumes: Task 1~9 전부
@@ -686,13 +686,13 @@ test('extrapolate', () => expect(extrapolate({ pos: { x: 0, z: 3 }, dir: { x: 1,
 
 - [ ] **Step 4: 사람이 확인한다** — PC 한 대와 휴대폰 한 대(카톡으로 주소를 보내 인앱 브라우저로 열기)로 같은 매장에 들어가 서로 걷는 모습 확인. 걷는 동안 다시 배포해서 두 기기 모두 자동 재접속되는지 확인.
 
-- [ ] **Step 5: 기록하고 커밋** — README에 배포 주소·확인 날짜·기기. `git commit -am "docs: 1단계 배포 확인"`
+- [ ] **Step 5: 기록하고 커밋** — docs/DEPLOY_LOG.md에 배포 주소·확인 날짜·기기. `git commit -am "docs: 1단계 배포 확인"`
 
 ---
 
 ## 실행 결과 (2026-10-31)
 
-10개 태스크 완료, https://toycrane.toycrane.workers.dev 에 배포. 실행 중 판단과 리뷰 결과는 커밋 메시지와 README "확인 기록"에 있고, 다음 단계가 이어받을 미룬 항목은 아래와 같다.
+10개 태스크 완료, https://toycrane.toycrane.workers.dev 에 배포. 실행 중 판단과 리뷰 결과는 커밋 메시지와 docs/DEPLOY_LOG.md "확인 기록"에 있고, 다음 단계가 이어받을 미룬 항목은 아래와 같다.
 
 **다음 단계로 넘긴 판단**
 - 이동 검증은 계획의 허용 거리 공식 대신 "이동 예산"(충전 4.8m/s, 상한 10.2m, 시작 0.6m) — Plan 2 줄 서기에 상한이 크면 줄인다.

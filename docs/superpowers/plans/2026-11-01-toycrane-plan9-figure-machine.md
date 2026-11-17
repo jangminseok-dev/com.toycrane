@@ -271,7 +271,7 @@
 
 ### Task 12: 연결 — 매장에서 피규어 한 판, 구경, 결과, e2e
 
-**Files:** Modify `client/src/main.ts`, `client/src/world/storeScene.ts`(필요하면); Create `client/e2e/figure.mjs`; Modify `README.md`, `client/e2e/perf-hall.json`
+**Files:** Modify `client/src/main.ts`, `client/src/world/storeScene.ts`(필요하면); Create `client/e2e/figure.mjs`; Modify `docs/DEPLOY_LOG.md`, `client/e2e/perf-hall.json`
 
 **Interfaces:**
 - Consumes: Task 1~11 전부.
@@ -282,8 +282,8 @@
 - [ ] **Step 2: 돌려 실패** — 로컬 개발 서버 8787 + 헤드리스 크롬 9461: `node e2e/figure.mjs 9461 http://localhost:8787` → FAIL.
 - [ ] **Step 3: 연결 구현** (`main.ts`).
 - [ ] **Step 4: 확인** — `node e2e/figure.mjs …` PASS; 인형 e2e `play`·`run`·`watch` PASS; `determinism`(빈 저장소 서버) PASS; `perf.mjs` 휴대폰 관문 통과(피규어 기계 앞 시점 수치 추가); 전체 `npx vitest run src && npx tsc --noEmit -p . && npm run build`, `cd server && uv run pytest -q && PYTHONPATH=src uv run lint-imports`, `npx vitest run --config vitest.sim.config.ts sim/scenes.test.ts sim/figure.test.ts` PASS; PC·휴대폰 스크린샷(피규어 구역, 판 중 정면·옆, 상자 까기 일반·희귀·황금 — 희귀·황금은 개발용 강제 값으로).
-- [ ] **Step 5: 커밋** `feat: 피규어 뽑기 연결 — 한 판, 구경, 상자 까기, e2e` + README 확인 기록 '9단계 피규어 뽑기'.
+- [ ] **Step 5: 커밋** `feat: 피규어 뽑기 연결 — 한 판, 구경, 상자 까기, e2e` + docs/DEPLOY_LOG.md 확인 기록 '9단계 피규어 뽑기'.
 
 ### Task 13: 최종 검토와 배포
 
-- [ ] 전체 브랜치 리뷰(가장 유능한 모델) → Critical·Important 한 번에 고치기(각 RED→GREEN) → **사용자에게 배포 허락**(알릴 것: 규약 10이라 열린 화면 새로 고침, 인형 기계 그대로) → `cd server && CI=1 uv run pywrangler deploy` → 라이브 `figure.mjs`·`play`·`run`·스크린샷·콘솔 오류 → README에 Version.
+- [ ] 전체 브랜치 리뷰(가장 유능한 모델) → Critical·Important 한 번에 고치기(각 RED→GREEN) → **사용자에게 배포 허락**(알릴 것: 규약 10이라 열린 화면 새로 고침, 인형 기계 그대로) → `cd server && CI=1 uv run pywrangler deploy` → 라이브 `figure.mjs`·`play`·`run`·스크린샷·콘솔 오류 → docs/DEPLOY_LOG.md에 Version.

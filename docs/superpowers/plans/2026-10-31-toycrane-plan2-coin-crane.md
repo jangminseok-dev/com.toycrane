@@ -749,11 +749,11 @@ test('avatar exposes a rig for motions', () => {
 
 **Files:**
 - Modify: `server/scripts/smoke.mjs` — 케이스 추가: `coins`(줄 서고 1.5초 뒤 `take` 무시 → 2초 뒤 `coins` got 5) · `play`(코인 받고 C-6 앞자리 (0, -5.4)까지 이동 예산 안에서 걸어가 `play_ok` → welcome 배치의 인형 위에 `drop` → 관찰자가 `result`를 받고 형식이 맞음, win이면 `machine`·`bag`) · `busy`(둘째 사람이 같은 기계 `play_no busy`) · `nocoins`(새 게스트 `play_no coins`) · `refund`(`play_ok` 뒤 소켓 닫기 → 다시 들어오면 welcome `coins`가 줄기 전과 같음, 관찰자는 `free`)
-- Modify: `README.md` (2단계 확인 기록, 로컬 `migrations apply --local`은 이미 있음)
+- Modify: `docs/DEPLOY_LOG.md` (2단계 확인 기록, 로컬 `migrations apply --local`은 이미 있음)
 
 - [ ] **Step 1: 로컬 스모크** — Run: `node server/scripts/smoke.mjs http://localhost:8787 myself guest admission together twotabs walk unknown coins play busy nocoins refund` / Expected: 전부 `OK`
 - [ ] **Step 2: 원격 D1 표** — Run: `cd server && npx wrangler d1 migrations apply toycrane --remote` / Expected: `0002_coins_bag.sql ✅`
 - [ ] **Step 3: 배포** — Run: `npm --prefix client run build && (cd server && CI=1 uv run pywrangler deploy)` / Expected: `https://toycrane.toycrane.workers.dev`
 - [ ] **Step 4: 배포 주소 스모크** — Run: Step 1 케이스 + `idle`을 `https://toycrane.toycrane.workers.dev`로 / Expected: 전부 `OK`
 - [ ] **Step 5: 사람이 확인한다** — PC 하나와 휴대폰 하나(카톡 인앱): 둘이 같은 교환소에 줄 서서 코인 받기, 서로 다른 기계에서 한 판씩, 같은 기계를 동시에 누르면 한 사람만 되는지, 남이 하는 모습(코인·조이스틱·결과 모션) 보이는지, 성공하면 당첨 카드·가방 숫자, 하는 도중 휴대폰 창을 닫았다 열면 코인이 돌아오는지.
-- [ ] **Step 6: 기록하고 커밋** — README에 확인 날짜·기기·결과. `git commit -am "docs: 2단계 배포 확인"`
+- [ ] **Step 6: 기록하고 커밋** — docs/DEPLOY_LOG.md에 확인 날짜·기기·결과. `git commit -am "docs: 2단계 배포 확인"`

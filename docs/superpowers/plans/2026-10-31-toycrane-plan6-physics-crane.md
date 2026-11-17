@@ -378,17 +378,17 @@ test('towers survive a play that does not touch them', ...);                    
 
 ---
 
-### Task 13: 성능·결정성·휴대폰 확인, README
+### Task 13: 성능·결정성·휴대폰 확인, docs/DEPLOY_LOG.md
 
 **Files:**
-- Modify: `client/e2e/perf.mjs`(판 중 측정 추가), `README.md`
+- Modify: `client/e2e/perf.mjs`(판 중 측정 추가), `docs/DEPLOY_LOG.md`
 - Create: `client/e2e/determinism.mjs`
 
 - [ ] **Step 1: 그리기 호출** — Run: `node client/e2e/perf.mjs 9461 http://localhost:8787 client/e2e/perf-physics.json` — Expected: 휴대폰 기계 앞 ≤ 160(153 + live 모드), 걷기 ≤ 370, PC는 기준의 ±5%
 - [ ] **Step 2: 물리 시간** — `perf.mjs`에 판 중 `MachineWorld.step` 평균 ms(`window.__toycrane.physicsMs`)를 더해 잰다. Expected: 휴대폰 흉내(CPU 4배 느리게, `Emulation.setCPUThrottlingRate`) ≤ 1ms/프레임, 60fps
 - [ ] **Step 3: 결정성** — `determinism.mjs`: 같은 `machine` 상태(안 앉은 인형 9개)를 두 탭이 각각 앉히고 `contentsOf`를 비교. Expected: 모든 인형 자리·돌림 동일. 다르면 ledger에 기록하고 스펙 §4.6의 되돌림(첫 화면이 보고)을 Task 14 전에 적용한다.
 - [ ] **Step 4: 모바일 e2e** — Run: `node client/e2e/mobile-entry.mjs 9461 http://localhost:8787 && node client/e2e/mobile-joystick.mjs 9461 http://localhost:8787` — Expected: PASS PASS
-- [ ] **Step 5: README 확인 기록에 6단계 줄 추가, Commit** — `git commit -m "test: 물리 뽑기 성능·결정성·휴대폰 확인"`
+- [ ] **Step 5: docs/DEPLOY_LOG.md 확인 기록에 6단계 줄 추가, Commit** — `git commit -m "test: 물리 뽑기 성능·결정성·휴대폰 확인"`
 
 ---
 
@@ -397,7 +397,7 @@ test('towers survive a play that does not touch them', ...);                    
 - [ ] **Step 1: 사용자에게 배포 허락을 받는다.** D1 변경 없음. DO 저장소는 `machines_v3`를 읽어 v4로 이주(모두 안 앉은 인형 → 첫 화면이 앉힘). 규약 4라 열린 화면은 새로 고침된다.
 - [ ] **Step 2: 배포** — Run: `cd server && CI=1 uv run pywrangler deploy` — Expected: `Deployed toycrane`
 - [ ] **Step 3: 라이브 확인** — `node client/e2e/play.mjs 9461 https://toycrane.toycrane.workers.dev`, `watch.mjs` 같은 주소. Expected: 둘 다 ok. 사용자에게 스크린샷과 함께 §1의 두 장면을 직접 해 보도록 안내.
-- [ ] **Step 4: README 라이브 확인 줄, Commit.**
+- [ ] **Step 4: docs/DEPLOY_LOG.md 라이브 확인 줄, Commit.**
 
 ---
 

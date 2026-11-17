@@ -404,7 +404,7 @@ test('per-kind strength factors name real dolls and stay gentle', () => {
 
 - [ ] **Step 2: Run** `npx vitest run src/data src/physics` — Expected: FAIL.
 - [ ] **Step 3: Implement** 배율 읽기·적용, 서버 생성 파일 다시 만들기.
-- [ ] **Step 4: 맞추기** — `SIM_TRIALS=300 npx vitest run --config vitest.sim.config.ts sim/kinds.test.ts`로 벗어난 종을 찾고, `sim/sweep.test.ts`(`SWEEP_OUT=<파일>`, `kind` 인자를 더해)로 그 종의 배율을 찾아 `claw.json`에 적는다. 생김새는 고치지 않는다(spec §6). 끝으로 `SIM_TRIALS=1000`으로 `kinds.test.ts`(24종)·`odds.test.ts`·`scenes.test.ts` 전부 통과. 종마다 결과를 ledger와 README 확인 기록에 남긴다.
+- [ ] **Step 4: 맞추기** — `SIM_TRIALS=300 npx vitest run --config vitest.sim.config.ts sim/kinds.test.ts`로 벗어난 종을 찾고, `sim/sweep.test.ts`(`SWEEP_OUT=<파일>`, `kind` 인자를 더해)로 그 종의 배율을 찾아 `claw.json`에 적는다. 생김새는 고치지 않는다(spec §6). 끝으로 `SIM_TRIALS=1000`으로 `kinds.test.ts`(24종)·`odds.test.ts`·`scenes.test.ts` 전부 통과. 종마다 결과를 ledger와 docs/DEPLOY_LOG.md 확인 기록에 남긴다.
 - [ ] **Step 5: Run** `cd server && uv run pytest -q && PYTHONPATH=src uv run lint-imports` — Expected: PASS.
 - [ ] **Step 6: Commit** `feat: 인형 리뉴얼 — 종류별 집게 힘 배율로 24종 확률 맞춤`
 
@@ -443,6 +443,6 @@ async def test_v4_contents_are_read_as_unsettled_v5():
 
 - [ ] **Step 1:** `node client/e2e/perf.mjs <base> client/e2e/perf-plush.json` — 휴대폰 기계 앞 그리기 호출 ≤ 160, 물리 휴대폰 ≤ 1ms. 넘으면 lite 면 수·합치기를 고친다. 삼각형 수를 기록한다.
 - [ ] **Step 2:** e2e 로컬: `play`, `watch`, `run`, `determinism`, `mobile-entry`, `mobile-joystick` 모두 PASS (헤드리스 크롬은 `--disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-background-timer-throttling`).
-- [ ] **Step 3:** README 확인 기록에 7단계 인형 리뉴얼 줄(확률 종류별 요약, 그리기 호출·삼각형, e2e)을 더한다.
+- [ ] **Step 3:** docs/DEPLOY_LOG.md 확인 기록에 7단계 인형 리뉴얼 줄(확률 종류별 요약, 그리기 호출·삼각형, e2e)을 더한다.
 - [ ] **Step 4:** 전체 리뷰(가장 유능한 모델) → Critical/Important 한 번에 고치기.
-- [ ] **Step 5:** 사용자에게 배포 허락을 묻는다(저장 상태 한 번 비움·탑 사라짐·옛 화면 새로 고침을 알린다). 허락 뒤 `cd server && CI=1 uv run pywrangler deploy`, 라이브 `play`·`run`·`determinism`, 기계 앞 스크린샷, README에 Version 기록.
+- [ ] **Step 5:** 사용자에게 배포 허락을 묻는다(저장 상태 한 번 비움·탑 사라짐·옛 화면 새로 고침을 알린다). 허락 뒤 `cd server && CI=1 uv run pywrangler deploy`, 라이브 `play`·`run`·`determinism`, 기계 앞 스크린샷, docs/DEPLOY_LOG.md에 Version 기록.

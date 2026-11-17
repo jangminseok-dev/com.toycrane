@@ -628,4 +628,4 @@ test('chubby dolls are drawn wider', () => {
   3. `cd server && npx wrangler d1 migrations apply toycrane --remote` — 라이브 D1 표 변경. 적용 전에 `--remote`로 옛 bag 행 수를 세어 두고, 적용 뒤 총 개수가 같은지 확인한다.
   4. `npm --prefix client run build && (cd server && CI=1 uv run pywrangler deploy)`
   5. 라이브 한 판.
-- [ ] **Step 5: README 확인 기록과 사람 확인** — 기계 24대, 채우기, 희귀·황금 알림, 레버 조작을 PC와 휴대폰으로 확인한다. 측정값을 README에 적고 커밋한다.
+- [ ] **Step 5: docs/DEPLOY_LOG.md 확인 기록과 사람 확인** — 기계 24대, 채우기, 희귀·황금 알림, 레버 조작을 PC와 휴대폰으로 확인한다. 측정값을 docs/DEPLOY_LOG.md에 적고 커밋한다.

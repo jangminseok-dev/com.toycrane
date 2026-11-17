@@ -290,10 +290,10 @@
   - determinism(빈 저장소 서버)
 - 성능 `perf.mjs`: ring/pusher 측정을 hook/pusher 새 기계로, 관문 확인.
 - 전체 시험.
-- README: 고리 걸기·미는 뽑기 다시 만들기, 인형 부위 고침, 진열 2단.
+- docs/DEPLOY_LOG.md: 고리 걸기·미는 뽑기 다시 만들기, 인형 부위 고침, 진열 2단.
 - **커밋:** `docs: 고리 걸기·미는 뽑기 다시 만들기 확인 기록`
 
 ### Task 12: 최종 리뷰와 배포
 - 가장 유능한 모델로 리뷰하고, Critical·Important는 한 번에 고친다.
-- 배포: 사용자가 미리 허락했다. 그 뒤 라이브 확인(hook·pusher·figure·play·run·bag), README Version을 적는다.
+- 배포: 사용자가 미리 허락했다. 그 뒤 라이브 확인(hook·pusher·figure·play·run·bag), docs/DEPLOY_LOG.md Version을 적는다.
 - 기록을 records로 옮기고, 작업 폴더를 지우고, main 병합 여부를 묻는다.

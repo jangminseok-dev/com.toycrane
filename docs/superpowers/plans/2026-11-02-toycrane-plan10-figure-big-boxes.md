@@ -199,7 +199,7 @@
   - `figure.json`의 종류별 `gap`, `box.mass`, `box.com`, `power`와 `claw.scale`을 바꿔 가며 기준을 맞춘다.
   - 시제품 모양에서 크게 벗어나지 않는다: 틈 ±3cm, 상자 치수는 그대로.
   - 바뀐 값마다 이유를 ledger에 남긴다.
-  - 맞춘 뒤 500상자로 한 번 잰 숫자를 README에 적는다.
+  - 맞춘 뒤 500상자로 한 번 잰 숫자를 docs/DEPLOY_LOG.md에 적는다.
 - [ ] **Step 4: 실행**
   - Run: `cd client && SIM_TRIALS=200 npx vitest run --config vitest.sim.config.ts sim/figure.test.ts sim/scenes.test.ts && npx vitest run src/physics src/data`
   - Expected: PASS.
@@ -240,7 +240,7 @@
 ### Task 6: 연결·확인 — 한 판, e2e 두 종류, 성능, 사진
 
 **Files:**
-- Modify: `client/src/game/figurePlay.ts`(`FigureWorld(R, box, kind)`), `client/src/main.ts`(필요하면), `client/e2e/figure.mjs`(셋째 인자 기계 id, 기본 F-1), `client/src/game/figureCamera.test.ts`(키운 집게 머리), `README.md`, `client/e2e/perf-hall.json`
+- Modify: `client/src/game/figurePlay.ts`(`FigureWorld(R, box, kind)`), `client/src/main.ts`(필요하면), `client/e2e/figure.mjs`(셋째 인자 기계 id, 기본 F-1), `client/src/game/figureCamera.test.ts`(키운 집게 머리), `docs/DEPLOY_LOG.md`, `client/e2e/perf-hall.json`
 
 - [ ] **Step 1: 실패하는 시험**
   - Run: `node e2e/figure.mjs 9461 http://localhost:8787 F-8`
@@ -256,7 +256,7 @@
   - `perf.mjs` 관문 통과
   - 전체 시험: `npx vitest run src && npx tsc --noEmit -p . && npm run build`, `cd server && uv run pytest -q && PYTHONPATH=src uv run lint-imports`, sim scenes·figure PASS
   - PC·휴대폰 스크린샷: 긴 상자·정사각형 정면·옆·한 바퀴
-- [ ] **Step 4: 커밋** — `feat: 큰 상자 두 종류 연결 — e2e, 성능, 기록`(README '피규어 큰 상자 두 종류')
+- [ ] **Step 4: 커밋** — `feat: 큰 상자 두 종류 연결 — e2e, 성능, 기록`(docs/DEPLOY_LOG.md '피규어 큰 상자 두 종류')
 
 ### Task 7: 최종 리뷰와 배포
 
@@ -268,4 +268,4 @@
   - 인형 기계는 그대로
 - [ ] 배포: `cd server && CI=1 uv run pywrangler deploy`
 - [ ] 라이브 확인: `figure.mjs` F-1·F-8, `figure-run`, `play`, `run`, 스크린샷, 콘솔 오류
-- [ ] README에 Version을 적는다.
+- [ ] docs/DEPLOY_LOG.md에 Version을 적는다.

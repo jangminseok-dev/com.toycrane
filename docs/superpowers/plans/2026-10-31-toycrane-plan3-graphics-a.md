@@ -575,7 +575,7 @@ test('decor stays a few merged meshes and every piece is an obstacle', () => {
 
 **Files:**
 - Create: `client/e2e/perf-after.json`(재본 값)
-- Modify: `README.md`(3단계 확인 기록)
+- Modify: `docs/DEPLOY_LOG.md`(3단계 확인 기록)
 
 - [ ] **Step 1: 성능** — 빌드 후 로컬에서 `node client/e2e/perf.mjs http://localhost:8787 client/e2e/perf-after.json`을 돌린다.
   Expected: 네 값 모두 `perf-baseline.json`의 1.5배 이하. 넘으면 이렇게 줄이고 다시 잰다(먼저 줄이는 순서):
@@ -599,4 +599,4 @@ test('decor stays a few merged meshes and every piece is an obstacle', () => {
   - 잡는 느낌이 나는가
   - 휴대폰에서 부드러운가
 
-  결과와 측정값을 README "3단계 확인"에 적고 커밋한다(`docs: 3단계 확인 기록`).
+  결과와 측정값을 docs/DEPLOY_LOG.md "3단계 확인"에 적고 커밋한다(`docs: 3단계 확인 기록`).

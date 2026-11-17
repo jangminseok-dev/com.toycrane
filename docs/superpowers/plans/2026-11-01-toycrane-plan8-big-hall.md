@@ -195,7 +195,7 @@ test('next to a machine row the camera is as close as before', () => {
 
 **Files:**
 - Create: `client/e2e/nav.mjs`
-- Modify: `client/e2e/play.mjs`, `watch.mjs`, `run.mjs`, `determinism.mjs`, `perf.mjs`, `shot.mjs`, `client/src/net/protocol.ts`, `client/src/net/protocol.test.ts`, `server/src/toycrane/adapter/inbound/ws/schemas/server_messages.py`, `shared/protocol_fixtures.json`, `README.md`
+- Modify: `client/e2e/play.mjs`, `watch.mjs`, `run.mjs`, `determinism.mjs`, `perf.mjs`, `shot.mjs`, `client/src/net/protocol.ts`, `client/src/net/protocol.test.ts`, `server/src/toycrane/adapter/inbound/ws/schemas/server_messages.py`, `shared/protocol_fixtures.json`, `docs/DEPLOY_LOG.md`
 
 **Interfaces:**
 - Produces: `client/e2e/nav.mjs` — `export const LAYOUT`, `export const HALF`(= `hall.map_half`), `export function route(from, to)`(0.25m 격자, 장애물 0.35m 여유 — 지금 스크립트마다 복사된 것을 한 곳으로), `export function frontOf(id)`(`ry`를 쓴 앞자리). 스크립트의 `{ x: 0, z: -5.4 }`·`FRONT_C6`는 `frontOf('C-6')`로. determinism은 두 화면 모두 들어간 뒤 `frontOf('C-6')` 근처로 걸어가 같은 기계들을 앉힌다.
@@ -203,5 +203,5 @@ test('next to a machine row the camera is as close as before', () => {
 - [ ] **Step 1:** 규약 시험을 7로(화면 `PROTOCOL` 시험, fixtures `v: 7`) → `npx vitest run src/net`·`uv run pytest -q` FAIL 확인 → 화면·서버 `PROTOCOL = 7` → PASS.
 - [ ] **Step 2:** `nav.mjs`를 만들고 스크립트들을 옮긴다. 로컬 e2e: play·watch·run·mobile-entry·mobile-joystick PASS, determinism은 빈 저장소 서버(`uv run pywrangler dev --port 8799 --persist-to <빈 폴더>`, 먼저 `npx wrangler d1 migrations apply toycrane --local --persist-to <같은 폴더>`)에서 PASS(비교 2대 이상, 어긋남 0).
 - [ ] **Step 3:** 전체: `cd client && npx vitest run src && npx tsc --noEmit -p . && npm run build`, `cd server && uv run pytest -q && PYTHONPATH=src uv run lint-imports`, 장면 시뮬 `npx vitest run --config vitest.sim.config.ts sim/scenes.test.ts` — PASS. `perf.mjs` 결과를 `client/e2e/perf-hall.json`에.
-- [ ] **Step 4:** README 확인 기록에 8단계 큰 홀 줄(배치, 성능 수치, e2e). 커밋 `feat: 큰 홀 — 규약 7, e2e 길 찾기, 기록`.
-- [ ] **Step 5:** 전체 브랜치 리뷰(가장 유능한 모델) → Critical·Important 한 번에 고치기 → 사용자에게 배포 허락(알릴 것: 매장이 바뀌어 열린 화면은 새로 고침, 기계 속 인형은 그대로) → 배포 → 라이브 play·run·determinism·콘솔 오류·스크린샷 → README에 Version.
+- [ ] **Step 4:** docs/DEPLOY_LOG.md 확인 기록에 8단계 큰 홀 줄(배치, 성능 수치, e2e). 커밋 `feat: 큰 홀 — 규약 7, e2e 길 찾기, 기록`.
+- [ ] **Step 5:** 전체 브랜치 리뷰(가장 유능한 모델) → Critical·Important 한 번에 고치기 → 사용자에게 배포 허락(알릴 것: 매장이 바뀌어 열린 화면은 새로 고침, 기계 속 인형은 그대로) → 배포 → 라이브 play·run·determinism·콘솔 오류·스크린샷 → docs/DEPLOY_LOG.md에 Version.

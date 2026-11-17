@@ -453,4 +453,4 @@ test('someone between my camera and my machine blocks the view, the next machine
   3. `npx wrangler d1 migrations apply toycrane --remote` 직후 `CI=1 uv run pywrangler deploy`.
   4. 라이브에서 코인 받기·조르기 한 번.
   - 배포는 사용자 허락을 받고 한다.
-- [ ] **Step 6: README 확인 기록** — 측정값·확인 범위를 적고 커밋.
+- [ ] **Step 6: docs/DEPLOY_LOG.md 확인 기록** — 측정값·확인 범위를 적고 커밋.
