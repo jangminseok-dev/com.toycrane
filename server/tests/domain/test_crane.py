@@ -37,17 +37,18 @@ def test_claw_strength_grows_with_distance_from_the_hole():
     assert claw_strength(hx + hr, hz) < claw_strength(0.0, 0.0) < claw_strength(w, -d)
 
 
-# 인형 기계 재배치(2026-11-24): 새 인형은 집게 가운데가 닿는 범위(play_half − edge) 안에만 떨어뜨린다
+# 인형 기계 재배치(2026-11-24): 새 인형은 못 닿는 자리(집게 가운데 범위 + out) 밖으로는 떨어뜨리지 않는다
 def test_spawn_spot_stays_where_the_claw_reaches():
     from toycrane.domain.crane import REACH_HALF
 
+    out = CLAW["reposition"]["out"]
     hx, hz, _ = MACHINE_SPEC.hole
     half = CLAW["hole"]["size"] / 2
     for seed in range(20):
         rng, spots = random.Random(seed), []
         for uid in range(10):
             x, z = spawn_spot(spots, rng)
-            assert abs(x) <= REACH_HALF[0] and abs(z) <= REACH_HALF[1]
+            assert abs(x) <= REACH_HALF[0] + out and abs(z) <= REACH_HALF[1] + out
             assert abs(x - hx) > half or abs(z - hz) > half
             spots.append(DollSpot("bear", x, None, z, uid=uid))
 
@@ -59,3 +60,12 @@ def test_spawn_spot_still_finds_a_spot_in_a_full_machine():
     full = [DollSpot("bear", round(-REACH_HALF[0] + 0.1 * i, 3), 0.1, round(-REACH_HALF[1] + 0.1 * j, 3), uid=i * 10 + j) for i in range(8) for j in range(7)]
     x, z = spawn_spot(full, rng)
     assert abs(x) <= REACH_HALF[0] and abs(z) <= REACH_HALF[1]
+
+
+# 난이도를 건드리지 않게(시뮬: 집게 가운데 범위로 좁히면 인형이 몰려 머리 겨냥 53% → 43%) — 못 닿는 자리 바로 안쪽까지 다 쓴다
+def test_spawn_spot_uses_the_whole_reachable_band():
+    from toycrane.domain.crane import REACH_HALF
+
+    rng = random.Random(4)
+    xs, zs = zip(*(spawn_spot([], rng) for _ in range(2000)))
+    assert max(map(abs, xs)) > REACH_HALF[0] + 0.04 and max(map(abs, zs)) > REACH_HALF[1] + 0.04

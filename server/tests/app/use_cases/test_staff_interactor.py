@@ -31,7 +31,7 @@ async def test_staff_moves_unreachable_dolls_for_the_seated_player():
     locks.hold("c-1", "A-1", 10.0)
     await it.call(StaffCommand("c-1", "A-1", now=15.0))
     after = contents.stored["A-1"]
-    assert contents.saves == 1 and not any(abs(d.x) > REACH_HALF[0] for d in after.dolls)
+    assert contents.saves == 1 and not any(abs(d.x) > REACH_HALF[0] + CLAW["reposition"]["out"] for d in after.dolls)
     assert conns.broadcasts == [(None, machine("A-1", after.dolls))]
     assert conns.direct == [("c-1", staffed("A-1", 2))]
     assert locks.lock_of("c-1") == ("A-1", 15.0) and locks.is_between("c-1")

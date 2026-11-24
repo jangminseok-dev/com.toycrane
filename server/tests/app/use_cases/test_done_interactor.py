@@ -228,6 +228,7 @@ async def test_a_stuck_glass_doll_is_tidied_after_the_third_doll_play():
     await it.done(DoneCommand("c-1", "A-1", report(contents.stored["A-1"]), now=20.0))
     after = contents.stored["A-1"]
     moved = next(d for d in after.dolls if d.uid == glass.uid)
-    assert moved.y is None and abs(moved.x) <= REACH_HALF[0] and abs(moved.z) <= REACH_HALF[1] and glass.uid not in after.stuck
+    out = CLAW["reposition"]["out"]
+    assert moved.y is None and abs(moved.x) <= REACH_HALF[0] + out and abs(moved.z) <= REACH_HALF[1] + out and glass.uid not in after.stuck
     assert (None, result("A-1", "p1", [], miss=1, tidied=1)) in conns.broadcasts
     assert (None, machine("A-1", after.dolls)) in conns.broadcasts

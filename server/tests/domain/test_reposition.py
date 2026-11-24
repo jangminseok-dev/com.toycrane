@@ -18,7 +18,7 @@ def doll(uid: int, x: float, z: float, y: float | None = 0.1) -> DollSpot:
 def inside(d: DollSpot) -> bool:
     hx, hz, _ = MACHINE_SPEC.hole
     half = CLAW["hole"]["size"] / 2
-    return abs(d.x) <= RW and abs(d.z) <= RD and (abs(d.x - hx) > half or abs(d.z - hz) > half)
+    return abs(d.x) <= RW + OUT and abs(d.z) <= RD + OUT and (abs(d.x - hx) > half or abs(d.z - hz) > half)  # 못 닿는 자리 안쪽(crane.DROP_HALF)
 
 
 def test_unreachable_is_only_settled_dolls_past_the_band():
