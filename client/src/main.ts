@@ -32,7 +32,7 @@ import { watchersOf } from './game/watchers';
 import { installJoystick } from './input/joystick';
 import { readKeyboard } from './input/keyboard';
 import { admit, createGuest, getBag, getGuest, type Guest } from './net/api';
-import { encodeBeg, encodeCounterBeg, encodeDone, encodeGive, encodeMove, encodePlay, encodeStand, encodeTake, encodeTick, lookOf, uidOf, type Coins, type DollPose, type DollSpot, type Result, type ServerMsg } from './net/protocol';
+import { encodeBeg, encodeCounterBeg, encodeDone, encodeGive, encodeMove, encodePlay, encodeStaff, encodeStand, encodeTake, encodeTick, lookOf, uidOf, type Coins, type DollPose, type DollSpot, type Result, type ServerMsg } from './net/protocol';
 import { loadRapier, rapierNow, rapierReady } from './physics/rapier';
 import { MachineWorld } from './physics/machineWorld';
 import { ClawBody } from './physics/clawBody';
@@ -151,6 +151,7 @@ let myId = '';
 // 교환소에서 잠깐 보여 줄 상태 (조르기 쿨타임·가득 참 — 몇 초 뒤 사라짐)
 let counterNote: { text: string; until: number } | null = null;
 let takingUntil = 0; // 코인 받기를 눌러 응답을 기다리는 동안(길어도 3초) — 다시 보내지 않고 '받는 중'
+let staffUntil = 0; // 직원 부르기를 눌러 응답을 기다리는 동안(길어도 3초) — 연달아 눌러도 한 번만 보낸다
 const walker = new AutoWalk(); // "코인이 없어요 · 교환소로": 가까운 교환소 줄 끝까지 저절로 걷기
 // 기계 한 판: 내가 하는 중(session) → 내리고 결과 기다림(awaiting, dropped) → 판 사이(seated: 기계 앞 화면 그대로 "한 번 더·그만하기").
 // busy = 기계 → 하는 사람(판이 끝날 시간, 판 사이엔 서버가 자리를 잡아 두는 시간이 지나면 풀림)
@@ -385,6 +386,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       void gaveShow(m.from, m.to, m.n);
       break;
     case 'give_no': toast(UI.giveNo[m.why] ?? UI.giveNo.poor); break;
+    case 'staffed': staffUntil = 0; toast(m.n > 0 ? UI.staffMoved : UI.staffNone); break; // 옮긴 인형은 함께 온 machine 배치로 위에서 떨어진다
     case 'cbeg_no': {
       const text = m.why === 'wait' ? UI.begWait(Math.max(1, Math.ceil(m.wait / 60))) : m.why === 'full' ? UI.full : UI.giveNo.far;
       if (m.why === 'wait') coinShow.holdNote(text); // 바로 앞의 cbeg(0개)로 시작한 조르는 모션이 끝나면 보인다
@@ -633,7 +635,7 @@ function endPlay() {
     bigZone.clawOf(id).position.copy(craneSpec(id).rest); bigZone.showAim(id, false);
     if (!showing.has(id)) bigZone.releaseClaw(id);
   }
-  session = null; awaiting = null; dropped = null; seated = null;
+  session = null; awaiting = null; dropped = null; seated = null; staffUntil = 0;
   dropCycle();
   run.stop(); nextRunAt = null;
   dropControls(); letGoOfLever();
@@ -729,7 +731,14 @@ function showSeat() {
   if (!id || nextRunAt !== null) return;
   const more = runSize(wallet.coins);
   showSeatControls(wallet.coins > 0 ? () => playAgain(id, 1) : null, more && { ...more, onPress: () => playAgain(id, more.plays) },
-    standUp, () => { standUp(); startCoinWalk(); });
+    standUp, () => { standUp(); startCoinWalk(); }, isDollMachine(id) ? () => callStaff(id) : null);
+}
+// 직원 부르기(재배치 설계 2026-11-24): 인형 기계 판 사이에서만 — 집게가 못 닿는 유리 쪽 인형을 옮겨 달라
+const isDollMachine = (id: string) => MACHINES.some((m) => m.id === id); // MACHINES는 인형 기계만(미는 뽑기·피규어·고리 걸기는 따로)
+function callStaff(id: string) {
+  if (clock() < staffUntil) return;
+  staffUntil = clock() + 3;
+  socket?.send(encodeStaff(id));
 }
 // 이어 하기 멈춤: 판 사이("곧 n번째 판이 시작돼요")의 그만하기 — 다음 판을 안 시작하고 바로 "한 판 더 / 그만하기"를 묻는다. 판 도중에는 버튼이 없다 (사용자 2026-11-01: 판을 멈추지 못하는 버튼은 무의미)
 function stopRun() {
@@ -793,7 +802,7 @@ async function showResult(m: Result, t: Ticket) {
       }
       if (mine && info) showWinCard(won.map((w) => dollName(w[0], w[1], w[2])), SETS.find((x) => x.id === info.set)?.name ?? '', tier, wallet.bag); // 여럿이 빠지면 모두 내 것 (물리 뽑기 설계 §9.1)
       if (mine && m.staff) toast(UI.staffGift); // 미는 뽑기 15판 보장: 직원이 턱 맨 앞 인형을 꺼내 줬다
-      else if (mine && m.tidied) toast(UI.staffTidy); // 직원이 정리: 턱 앞에 걸린 인형을 뒤로
+      else if (mine && m.tidied) toast(isPusher(m.m) ? UI.staffTidy : UI.staffMoved); // 직원이 정리: 미는 뽑기는 턱 앞에 걸린 인형을 뒤로, 인형 기계는 못 닿는 인형을 닿는 곳으로
       return rare ? 1.7 : 1.0;
     },
     fail: () => {
@@ -801,7 +810,7 @@ async function showResult(m: Result, t: Ticket) {
       sfx.fail();
       const note = missNote(isPusher(m.m), m.miss ?? 0, nearMiss === m.m); // '아까워요!', '집게가 세지기까지 2판', '직원 도움까지 1판'…
       nearMiss = null;
-      if (m.tidied) toast(UI.staffTidy); // 직원이 정리: 턱 앞에 걸린 인형을 뒤로 — 못 뽑은 판이면 이 안내가 먼저
+      if (m.tidied) toast(isPusher(m.m) ? UI.staffTidy : UI.staffMoved); // 직원이 정리(미는 뽑기 턱 앞, 인형 기계 못 닿는 자리) — 못 뽑은 판이면 이 안내가 먼저
       else if (note) toast(note);
     },
   };

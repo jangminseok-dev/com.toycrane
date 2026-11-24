@@ -55,8 +55,8 @@ export function setRunBadge(run: string | null): void {
   runEl.style.display = run ? 'block' : 'none';
 }
 
-let againBtn: HTMLButtonElement | null = null, moreBtn: HTMLButtonElement | null = null, standBtn: HTMLButtonElement | null = null;
-let onAgain: (() => void) | null = null, onMore: (() => void) | null = null, onStand: (() => void) | null = null;
+let againBtn: HTMLButtonElement | null = null, moreBtn: HTMLButtonElement | null = null, standBtn: HTMLButtonElement | null = null, staffBtn: HTMLButtonElement | null = null;
+let onAgain: (() => void) | null = null, onMore: (() => void) | null = null, onStand: (() => void) | null = null, onStaff: (() => void) | null = null;
 
 // 판 사이 버튼도 걷기 버튼과 같은 알약(actionButton) — 아래부터 '한 판 더', '다섯 판 더', '그만하기'(사용자 2026-11-02 사진 236 '깔끔하게')
 function buildSeat() {
@@ -64,36 +64,43 @@ function buildSeat() {
   moreBtn = pillButton('gold', () => onMore?.());
   standBtn = pillButton('glass', () => onStand?.());
   paintButton(standBtn, UI.stand, null);
+  staffBtn = pillButton('glass', () => onStaff?.()); // 인형 기계만: 못 닿는 인형을 옮겨 달라(재배치 설계 2026-11-24)
+  paintButton(staffBtn, UI.staffCall, null);
   addEventListener('keydown', (e) => {
     if (e.code === 'Space' && onAgain && !playing && !e.repeat) { e.preventDefault(); onAgain(); }
     if (e.code === 'Escape' && onStand) onStand();
   });
 }
 
-// again이 null이면 코인이 없어 한 번 더 할 수 없다(버튼은 흐리게 '교환소 가기'). more: 여러 판 이어 하기 (코인이 두 개 이상일 때)
-export function showSeatControls(again: (() => void) | null, more: { plays: number; onPress: () => void } | null, stand: () => void, noCoins: () => void): void {
+// again이 null이면 코인이 없어 한 번 더 할 수 없다(버튼은 흐리게 '교환소 가기'). more: 여러 판 이어 하기 (코인이 두 개 이상일 때).
+// staff: 직원 부르기(인형 기계만, 없으면 숨김) — 아래부터 '한 판 더', '다섯 판 더', '직원 부르기', '그만하기'
+export function showSeatControls(again: (() => void) | null, more: { plays: number; onPress: () => void } | null, stand: () => void, noCoins: () => void, staff: (() => void) | null = null): void {
   if (!againBtn) buildSeat();
-  onAgain = again ?? noCoins; onMore = more?.onPress ?? null; onStand = stand;
+  onAgain = again ?? noCoins; onMore = more?.onPress ?? null; onStand = stand; onStaff = staff;
   paintButton(againBtn!, again ? UI.again : UI.goCounter, again ? 1 : null);
   againBtn!.style.opacity = again ? '1' : '.55';
   if (more) paintButton(moreBtn!, UI.againRun(more.plays), more.plays);
   placeButton(againBtn!, 0);
   placeButton(moreBtn!, more ? 1 : null);
-  placeButton(standBtn!, more ? 2 : 1);
+  const next = more ? 2 : 1;
+  placeButton(staffBtn!, staff ? next : null);
+  placeButton(standBtn!, staff ? next + 1 : next);
 }
 
 // 여러 판을 이어 하는 중 판 사이: 다음 판이 저절로 시작되기 전까지 "그만하기"만
 export function showRunPause(stand: () => void): void {
   if (!againBtn) buildSeat();
-  onAgain = null; onMore = null; onStand = stand;
+  onAgain = null; onMore = null; onStand = stand; onStaff = null;
   placeButton(againBtn!, null);
   placeButton(moreBtn!, null);
+  placeButton(staffBtn!, null);
   placeButton(standBtn!, 0);
 }
 
 export function hideSeatControls(): void {
-  onAgain = null; onMore = null; onStand = null;
+  onAgain = null; onMore = null; onStand = null; onStaff = null;
   if (againBtn) placeButton(againBtn, null);
+  if (staffBtn) placeButton(staffBtn, null);
   if (moreBtn) placeButton(moreBtn, null);
   if (standBtn) placeButton(standBtn, null);
 }
