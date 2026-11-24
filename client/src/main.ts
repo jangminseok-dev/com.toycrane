@@ -386,7 +386,6 @@ function onMessage(m: ServerMsg, guest: Guest) {
       void gaveShow(m.from, m.to, m.n);
       break;
     case 'give_no': toast(UI.giveNo[m.why] ?? UI.giveNo.poor); break;
-    case 'staffed': staffUntil = 0; toast(m.n > 0 ? UI.staffMoved : UI.staffNone); break; // 옮긴 인형은 함께 온 machine 배치로 위에서 떨어진다
     case 'cbeg_no': {
       const text = m.why === 'wait' ? UI.begWait(Math.max(1, Math.ceil(m.wait / 60))) : m.why === 'full' ? UI.full : UI.giveNo.far;
       if (m.why === 'wait') coinShow.holdNote(text); // 바로 앞의 cbeg(0개)로 시작한 조르는 모션이 끝나면 보인다

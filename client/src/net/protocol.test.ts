@@ -7,7 +7,7 @@ const fx = fixtures as Record<string, unknown>;
 test('decodes every server fixture', () => {
   for (const k of ['server_welcome', 'server_join', 'server_move', 'server_correct', 'server_leave', 'server_coins',
     'server_play_ok', 'server_play_no', 'server_play', 'server_result', 'server_result_staff', 'server_result_miss', 'server_result_tidy', 'server_machine', 'server_free', 'server_bag', 'server_spawn', 'server_stock',
-    'server_take_no', 'server_cbeg', 'server_cbeg_no', 'server_beg', 'server_gave', 'server_give_no', 'server_done_no', 'server_pose', 'server_figure'])
+    'server_take_no', 'server_cbeg', 'server_cbeg_no', 'server_beg', 'server_gave', 'server_give_no', 'server_done_no', 'server_pose', 'server_figure', 'server_staff_plan', 'server_staff_plan_dolls', 'server_staff_no'])
     expect(decode(JSON.stringify(fx[k]))).toEqual(fx[k]);
 });
 
@@ -30,7 +30,7 @@ test('counter, begging and giving messages match client fixtures', () => {
 test('the old queue and drop-result messages are gone', () => {
   expect(decode('{"t":"queue","c":0,"ids":[]}')).toBeNull();
   expect(decode('{"t":"result","m":"A-3","id":"p1","x":0.1,"z":0,"o":"win","part":"head","k":"bunny"}')).toBeNull();
-  expect(PROTOCOL).toBe(17); // 직원 부르기 staff·staffed(2026-11-24) — 옛 화면은 새로 고쳐 버튼을 받는다. 16: 고리 기계 간격 2.1m(2026-11-03): 걷기 판정(장애물)이 바뀜 — 옛 화면은 새로 고친다
+  expect(PROTOCOL).toBe(18); // 상주 직원 staff_plan·staff_no, welcome staff·now(2026-11-24). 17: 직원 부르기 staff·staffed(2026-11-24) — 옛 화면은 새로 고쳐 버튼을 받는다. 16: 고리 기계 간격 2.1m(2026-11-03): 걷기 판정(장애물)이 바뀜 — 옛 화면은 새로 고친다
 });
 
 test('play messages match client fixtures', () => {
@@ -106,9 +106,13 @@ test('a result carries the miss count when there is one', () => {
   expect(plain?.t === 'result' && (plain.miss ?? 0)).toBe(0);
 });
 
-// 인형 기계 재배치(2026-11-24): 판 사이 "직원 부르기"와 옮긴 수
-test('staff call and staffed reply', () => {
-  expect(JSON.parse(encodeStaff('A-1'))).toEqual({ t: 'staff', m: 'A-1' });
-  expect(decode('{"t":"staffed","m":"A-1","n":2}')).toEqual({ t: 'staffed', m: 'A-1', n: 2 });
-  expect(decode('{"t":"staffed","m":"A-1"}')).toBeNull();
+// 상주 직원(설계 2026-11-24 store-staff): 부르기는 그대로 staff, 서버는 모두에게 일정(staff_plan), 거절은 본인에게(staff_no)
+test('staff call, plan and refusal', () => {
+  expect(JSON.parse(encodeStaff('A-1'))).toEqual(fx.client_staff);
+  const plan = decode(JSON.stringify(fx.server_staff_plan_dolls));
+  expect(plan?.t === 'staff_plan' && plan.jobs[0].from).toBe('A-1');
+  const bad = { ...(fx.server_staff_plan as Record<string, unknown>), jobs: [{ m: 'F-1', dep: 1 }] };
+  expect(decode(JSON.stringify(bad))).toBeNull(); // 일정 시각이 빠짐
+  expect(decode(JSON.stringify({ ...(fx.server_staff_no as Record<string, unknown>), why: 1 }))).toBeNull();
+  expect(decode('{"t":"staffed","m":"A-1","n":2}')).toBeNull(); // 옛 응답은 없어졌다
 });

@@ -3,7 +3,7 @@ import type { Vec2 } from '../game/movement';
 
 export type PlayerView = { id: string; nick: string; color: number; x: number; z: number; dx: number; dz: number; beg?: number | null }; // beg: 조르는 중이면 더 받을 수 있는 코인 수
 // 메시지 형식 버전 — 서버 welcome의 v와 다르면(배포로 형식이 바뀜) 화면을 새로고침한다
-export const PROTOCOL = 17;
+export const PROTOCOL = 18;
 export type Body = 'n' | 'c' | 's'; // 보통 · 뚱뚱 · 마른
 // 기계 속 인형 한 칸 [캐릭터, x, y, z, qx, qy, qz, qw, 색, 체형, 표정, 희귀, 번호] (기계 안 좌표·돌림 쿼터니언 — 물리 뽑기 설계 §4.5).
 // y가 null이면 서버가 (x, z) 위 천장에서 떨어뜨린 아직 안 앉은 인형(돌림은 0,0,0,1) — 화면들이 같은 물리로 앉힌다.
@@ -22,7 +22,11 @@ export type BoxWire = [x: number, y: number, z: number, qx: number, qy: number, 
 export type Welcome = {
   t: 'welcome'; v: number; store: number; you: PlayerView; players: PlayerView[];
   coins: number; bag: number; machines: Record<string, DollSpot[]>; plays: Record<string, string>; figures: Record<string, BoxWire>;
+  staff: Record<string, StaffZonePlan>; now: number; // 상주 직원 구역별 일정, 서버 시각(일정을 화면 시계로 옮길 때)
 };
+// 상주 직원(설계 2026-11-24 store-staff): 일 하나 — from(앞 일 기계, null이면 대기 자리)에서 dep에 떠나 arr에 기계 옆, put에 다시 놓고, end에 인사를 마침
+export type StaffJobWire = { m: string; from: string | null; dep: number; arr: number; put: number; end: number };
+export type StaffZonePlan = { jobs: StaffJobWire[]; back: number }; // back: 대기 자리로 돌아오는 시각
 export type Join = { t: 'join'; p: PlayerView };
 export type Move = { t: 'move'; id: string; x: number; z: number; dx: number; dz: number };
 export type Correct = { t: 'correct'; x: number; z: number };
@@ -53,11 +57,13 @@ export type Gave = { t: 'gave'; from: string; to: string; n: number }; // 코인
 export type GiveNo = { t: 'give_no'; why: string };
 export type Spawn = { t: 'spawn'; m: string; k: string; rv: string }; // 희귀·황금이 채워졌다
 export type Stock = { t: 'stock'; in: number | null }; // 다음 채울 때까지 남은 초 (가득이면 null)
-export type Staffed = { t: 'staffed'; m: string; n: number }; // 직원 부르기 결과(본인에게): 옮긴 인형 수, 0이면 옮길 인형이 없다
+// 모두에게: 그 구역 직원 일정과 이번 일(m)의 다시 놓은 결과(인형 기계·미는 뽑기 dolls, 피규어·고리 box) — put 시각에 그린다
+export type StaffPlan = { t: 'staff_plan'; now: number; z: string; jobs: StaffJobWire[]; back: number; m: string; dolls?: DollSpot[]; box?: BoxWire };
+export type StaffNo = { t: 'staff_no'; m: string; why: 'wait' | 'busy' | 'again' | 'seat'; left: number }; // 직원 부르기 거절(본인에게), wait면 left판 더
 export type FigureMsg = { t: 'figure'; m: string; box: BoxWire; nudged: boolean }; // 피규어 상자 자리(판 뒤·새 상자·직원이 옮김)
 // 고리 한 판: 판 뒤 카드, 갈고리가 멈춘 자리, 걸린 걸이(-1이면 없음), 출구까지 왔나
 export type ServerMsg = Welcome | Join | Move | Correct | Leave | Coins | PlayOk | PlayNo | Play | Result | DoneNo | Pose | MachineMsg | Free | Bag
-  | Spawn | Stock | TakeNo | CounterBeg | CounterBegNo | Beg | Gave | GiveNo | FigureMsg | Staffed;
+  | Spawn | Stock | TakeNo | CounterBeg | CounterBegNo | Beg | Gave | GiveNo | FigureMsg | StaffPlan | StaffNo;
 
 // 닫기 코드 (서버와 같은 값)
 export const CLOSE_FULL = 4001;
@@ -80,6 +86,8 @@ const isClawPose = (v: unknown) => Array.isArray(v) && v.length === 4 && v.every
 const isPoseFrame = (v: unknown) => Array.isArray(v) && v.length === 3 && num(v[0]) && isClawPose(v[1]) && Array.isArray(v[2]) && v[2].every(isPoseWire);
 const isBox = (v: unknown): v is BoxWire => Array.isArray(v) && v.length === 7 && v.every(num);
 const isFigures = (v: unknown) => !!v && typeof v === 'object' && Object.values(v).every(isBox);
+const isJob = (v: unknown) => { const o = v as Record<string, unknown>; return !!o && typeof o === 'object' && str(o.m) && (o.from === null || str(o.from)) && num(o.dep) && num(o.arr) && num(o.put) && num(o.end); };
+const isZonePlan = (v: unknown) => { const o = v as Record<string, unknown>; return !!o && typeof o === 'object' && Array.isArray(o.jobs) && o.jobs.every(isJob) && num(o.back); };
 const isMachines = (v: unknown) => !!v && typeof v === 'object' && Object.values(v).every((spots) => Array.isArray(spots) && spots.every(isSpot));
 
 export function decode(raw: string): ServerMsg | null {
@@ -88,7 +96,8 @@ export function decode(raw: string): ServerMsg | null {
   if (!m || typeof m !== 'object') return null;
   switch (m.t) {
     case 'welcome': return m.v === PROTOCOL && num(m.store) && isPlayer(m.you) && Array.isArray(m.players) && m.players.every(isPlayer)
-      && num(m.coins) && num(m.bag) && isMachines(m.machines) && !!m.plays && typeof m.plays === 'object' && isFigures(m.figures) ? (m as Welcome) : null;
+      && num(m.coins) && num(m.bag) && isMachines(m.machines) && !!m.plays && typeof m.plays === 'object' && isFigures(m.figures)
+      && !!m.staff && typeof m.staff === 'object' && Object.values(m.staff).every(isZonePlan) && num(m.now) ? (m as Welcome) : null;
     case 'join': return isPlayer(m.p) ? (m as Join) : null;
     case 'move': return str(m.id) && pose(m) ? (m as Move) : null;
     case 'correct': return num(m.x) && num(m.z) ? (m as Correct) : null;
@@ -112,7 +121,9 @@ export function decode(raw: string): ServerMsg | null {
     case 'beg': return str(m.id) && (m.room === null || num(m.room)) ? (m as Beg) : null;
     case 'gave': return str(m.from) && str(m.to) && num(m.n) ? (m as Gave) : null;
     case 'give_no': return str(m.why) ? (m as GiveNo) : null;
-    case 'staffed': return str(m.m) && num(m.n) ? (m as Staffed) : null;
+    case 'staff_plan': return num(m.now) && str(m.z) && isZonePlan(m) && str(m.m) && (m.dolls === undefined || (Array.isArray(m.dolls) && m.dolls.every(isSpot)))
+      && (m.box === undefined || isBox(m.box)) ? (m as StaffPlan) : null;
+    case 'staff_no': return str(m.m) && ['wait', 'busy', 'again', 'seat'].includes(m.why as string) && num(m.left) ? (m as StaffNo) : null;
     default: return null;
   }
 }
