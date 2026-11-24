@@ -4,7 +4,7 @@
 // 판 사이에는 오른쪽 아래에 "한 판 더 🪙1"(스페이스), 그 위 "다섯 판 더 🪙5", 그 위 "그만하기"(Esc) — 걷기 버튼과 같은 알약. 여러 판을 이어 하는 중에는 "그만하기"만
 import { CARTOON_FONT, cartoonPill } from './cartoon';
 import { UI } from '../world/copy';
-import { paintButton, pillButton, placeButton } from './actionButton';
+import { paintButton, pillButton, placeButton, stackBottom } from './actionButton';
 
 let runEl: HTMLDivElement | null = null, hintEl: HTMLDivElement | null = null;
 let hintTimer = 0;
@@ -103,4 +103,20 @@ export function hideSeatControls(): void {
   if (staffBtn) placeButton(staffBtn, null);
   if (moreBtn) placeButton(moreBtn, null);
   if (standBtn) placeButton(standBtn, null);
+}
+
+// 판 사이 버튼 위 작은 상태 글(상주 직원: '직원이 오고 있어요', '직원 부르기까지 n판') — 버튼엔 행동만, 상태는 버튼 위(사용자 2026-10-31)
+let seatNoteEl: HTMLDivElement | null = null;
+export function setSeatNote(text: string | null, slots: number): void {
+  if (!seatNoteEl) {
+    seatNoteEl = document.createElement('div');
+    Object.assign(seatNoteEl.style, {
+      position: 'fixed', zIndex: '15', right: 'calc(env(safe-area-inset-right) + 24px)', padding: '4px 12px',
+      font: `400 14px ${CARTOON_FONT}`, pointerEvents: 'none', ...cartoonPill('white'),
+    });
+    document.body.appendChild(seatNoteEl);
+  }
+  if (seatNoteEl.textContent !== (text ?? '')) seatNoteEl.textContent = text ?? '';
+  seatNoteEl.style.bottom = `calc(env(safe-area-inset-bottom) + ${stackBottom(slots)}px)`;
+  seatNoteEl.style.display = text ? 'block' : 'none';
 }

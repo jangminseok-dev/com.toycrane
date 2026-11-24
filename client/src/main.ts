@@ -29,7 +29,8 @@ import { OcclusionFader } from './game/occlusion';
 import { CoinShow } from './game/coinShow';
 import { RemotePlayers } from './game/remotePlayers';
 import { StaffNpcs } from './game/staffNpcs';
-import { STAFF_ZONES, type StaffZone } from './data/staff';
+import { staffCameraPose } from './game/staffCamera';
+import { STAFF, STAFF_ZONES, sideSpot, type StaffZone } from './data/staff';
 import { watchersOf } from './game/watchers';
 import { installJoystick } from './input/joystick';
 import { readKeyboard } from './input/keyboard';
@@ -52,7 +53,7 @@ import { bagGroups, openBagSheet } from './ui/bagSheet';
 import { buildMinimap, mapSize } from './ui/minimap';
 import { PeekFaces } from './ui/peekFaces';
 import { eulReul, iGa } from './ui/josa';
-import { hidePlayControls, hideSeatControls, setRunBadge, showHint, showPlayControls, showRunPause, showSeatControls } from './ui/playControls';
+import { hidePlayControls, hideSeatControls, setRunBadge, showHint, showPlayControls, showRunPause, showSeatControls, setSeatNote } from './ui/playControls';
 import { BOX_TIMER_AT, DOLL_TIMER_AT, buildMachineTimer, type MachineTimer } from './world/machineTimer';
 import { PlayRun, runSize } from './game/playRun';
 import { buildMachineControls, type MachineControls } from './world/machineControls';
@@ -156,6 +157,9 @@ let myId = '';
 let counterNote: { text: string; until: number } | null = null;
 let takingUntil = 0; // 코인 받기를 눌러 응답을 기다리는 동안(길어도 3초) — 다시 보내지 않고 '받는 중'
 let staffUntil = 0; // 직원 부르기를 눌러 응답을 기다리는 동안(길어도 3초) — 연달아 눌러도 한 번만 보낸다
+let staffVisit: { m: string; dep: number; end: number } | null = null; // 내가 부른 직원이 오는 일정(서버 시각) — 그동안 판 사이 버튼은 그만하기만, 카메라는 뒤로
+const staffLeft = new Map<string, number>(); // 기계 → 다시 부를 수 있을 때까지 남은 판(서버 staff_no wait로 알게 됨, 판을 시작할 때마다 줄임)
+let staffShown = ''; // 판 사이 화면이 직원 일정의 어느 단계를 보여 주고 있나(바뀔 때만 다시 그린다)
 const walker = new AutoWalk(); // "코인이 없어요 · 교환소로": 가까운 교환소 줄 끝까지 저절로 걷기
 // 기계 한 판: 내가 하는 중(session) → 내리고 결과 기다림(awaiting, dropped) → 판 사이(seated: 기계 앞 화면 그대로 "한 번 더·그만하기").
 // busy = 기계 → 하는 사람(판이 끝날 시간, 판 사이엔 서버가 자리를 잡아 두는 시간이 지나면 풀림)
@@ -337,7 +341,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
         if (rig && busy.who(m.m, clock()) === m.id) playing.set(m.m, startPlaying(rig, tw, spotOf.get(m.m)!.ry + Math.PI));
       });
       break;
-    case 'play_ok': { const bp = playFor(m.m); if (bp) startButtonPlay(bp, m.m, m.limit, m.coins); else startPlay(m.m, m.limit, m.coins); break; }
+    case 'play_ok': { const left = staffLeft.get(m.m) ?? 0; if (left > 0) staffLeft.set(m.m, left - 1); const bp = playFor(m.m); if (bp) startButtonPlay(bp, m.m, m.limit, m.coins); else startPlay(m.m, m.limit, m.coins); break; }
     case 'done_no': onDoneNo(m.m); break;
     case 'pose': watches.get(m.m)?.receiver.push(m, now / 1000); for (const p of boxPlays) p.onPose(m, now / 1000); break;
     case 'play_no':
@@ -395,7 +399,11 @@ function onMessage(m: ServerMsg, guest: Guest) {
       break;
     case 'give_no': toast(UI.giveNo[m.why] ?? UI.giveNo.poor); break;
     case 'staff_plan': onStaffPlan(m, guest, now); break;
-    case 'staff_no': if (m.why === 'busy') toast(UI.staffBusy); break;
+    case 'staff_no':
+      staffUntil = 0;
+      if (m.why === 'busy') toast(UI.staffBusy);
+      if (m.why === 'wait') { staffLeft.set(m.m, m.left); if (seated === m.m) showSeat(); }
+      break;
     case 'cbeg_no': {
       const text = m.why === 'wait' ? UI.begWait(Math.max(1, Math.ceil(m.wait / 60))) : m.why === 'full' ? UI.full : UI.giveNo.far;
       if (m.why === 'wait') coinShow.holdNote(text); // 바로 앞의 cbeg(0개)로 시작한 조르는 모션이 끝나면 보인다
@@ -426,6 +434,7 @@ function onStaffPlan(m: StaffPlan, guest: Guest, now: number) {
   staff.setPlan(m.z as StaffZone, { jobs: m.jobs, back: m.back });
   const job = m.jobs.find((j) => j.m === m.m);
   if (!job) return;
+  if (seated === m.m) { staffUntil = 0; staffVisit = { m: m.m, dep: job.dep, end: job.end }; staffLeft.set(m.m, STAFF.calls_every); showSeat(); } // 내가 부른 직원
   const apply = () => {
     staffPuts.delete(m.m);
     if (m.dolls) onMessage({ t: 'machine', m: m.m, dolls: m.dolls }, guest);
@@ -659,7 +668,7 @@ function endPlay() {
     bigZone.clawOf(id).position.copy(craneSpec(id).rest); bigZone.showAim(id, false);
     if (!showing.has(id)) bigZone.releaseClaw(id);
   }
-  session = null; awaiting = null; dropped = null; seated = null; staffUntil = 0;
+  session = null; awaiting = null; dropped = null; seated = null; staffUntil = 0; staffVisit = null; setSeatNote(null, 0);
   dropCycle();
   run.stop(); nextRunAt = null;
   dropControls(); letGoOfLever();
@@ -750,15 +759,24 @@ function playAgain(id: string, plays: number) {
   run.start(plays, wallet.coins);
   socket?.send(encodePlay(id));
 }
+// 내가 부른 직원의 단계: 'wait'(앞 일을 기다림) · 'come'(오는 중·정리 중) · ''(없음·끝남)
+function staffStage(): '' | 'wait' | 'come' {
+  if (!staffVisit || staffVisit.m !== seated) return '';
+  const t = staff.serverTime(clock());
+  return t >= staffVisit.end ? '' : t < staffVisit.dep ? 'wait' : 'come';
+}
 function showSeat() {
   const id = seated;
   if (!id || nextRunAt !== null) return;
-  const more = runSize(wallet.coins);
+  const stage = staffStage();
+  staffShown = stage;
+  if (stage) { showRunPause(standUp); setSeatNote(stage === 'wait' ? UI.staffSoon : UI.staffComing, 1); return; } // 직원이 오는 동안은 그만하기만(그만해도 직원은 온다)
+  const more = runSize(wallet.coins), left = staffLeft.get(id) ?? 0;
   showSeatControls(wallet.coins > 0 ? () => playAgain(id, 1) : null, more && { ...more, onPress: () => playAgain(id, more.plays) },
-    standUp, () => { standUp(); startCoinWalk(); }, isDollMachine(id) ? () => callStaff(id) : null);
+    standUp, () => { standUp(); startCoinWalk(); }, left > 0 ? null : () => callStaff(id));
+  setSeatNote(left > 0 ? UI.staffWait(left) : null, more ? 3 : 2);
 }
-// 직원 부르기(재배치 설계 2026-11-24): 인형 기계 판 사이에서만 — 집게가 못 닿는 유리 쪽 인형을 옮겨 달라
-const isDollMachine = (id: string) => MACHINES.some((m) => m.id === id); // MACHINES는 인형 기계만(미는 뽑기·피규어·고리 걸기는 따로)
+// 직원 부르기(상주 직원 설계 2026-11-24): 모든 기계의 판 사이에서 — 구역 직원이 와서 기계 안을 전부 다시 놓는다
 function callStaff(id: string) {
   if (clock() < staffUntil) return;
   staffUntil = clock() + 3;
@@ -1150,7 +1168,10 @@ function frame(now: number) {
     if (atMachine) {
       // 기계 정면에서 유리 칸을 본다 (0.6초쯤에 걸쳐 부드럽게). 피규어 기계는 ①을 떼면 옆 대각선, 판이 끝나면 정면
       const bp = playFor(atMachine);
-      const pose = bp ? bp.cameraPose(atMachine, now / 1000, camera.aspect) : machineCameraPose(spotOf.get(atMachine)!);
+      const stage = staffStage();
+      if (stage !== staffShown && seated) showSeat(); // 직원 단계가 바뀜(기다림 → 오는 중 → 끝) — 버튼과 글을 다시
+      const pose = stage === 'come' && seated === atMachine ? staffCameraPose(spotOf.get(atMachine)!, sideSpot(atMachine), camera.aspect) // 직원이 오는 동안 뒤로 빠져 직원과 기계를 함께
+        : bp ? bp.cameraPose(atMachine, now / 1000, camera.aspect) : machineCameraPose(spotOf.get(atMachine)!);
       camera.position.lerp(pose.pos, Math.min(1, dt * 5));
       camLook.lerp(pose.look, Math.min(1, dt * 5));
       camera.lookAt(camLook);
