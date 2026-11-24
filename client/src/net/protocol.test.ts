@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import fixtures from '../../../shared/protocol_fixtures.json';
-import { PROTOCOL, decode, encodeBeg, encodeCounterBeg, encodeDone, encodeGive, encodeMove, encodePlay, encodePose, encodeStand, encodeTake, encodeTick, lookOf, needsReload, uidOf, type DollSpot, type MachineMsg } from './protocol';
+import { PROTOCOL, decode, encodeBeg, encodeCounterBeg, encodeDone, encodeGive, encodeMove, encodePlay, encodePose, encodeStaff, encodeStand, encodeTake, encodeTick, lookOf, needsReload, uidOf, type DollSpot, type MachineMsg } from './protocol';
 
 const fx = fixtures as Record<string, unknown>;
 
@@ -30,7 +30,7 @@ test('counter, begging and giving messages match client fixtures', () => {
 test('the old queue and drop-result messages are gone', () => {
   expect(decode('{"t":"queue","c":0,"ids":[]}')).toBeNull();
   expect(decode('{"t":"result","m":"A-3","id":"p1","x":0.1,"z":0,"o":"win","part":"head","k":"bunny"}')).toBeNull();
-  expect(PROTOCOL).toBe(16); // 고리 기계 간격 2.1m(2026-11-03): 걷기 판정(장애물)이 바뀜 — 옛 화면은 새로 고친다
+  expect(PROTOCOL).toBe(17); // 직원 부르기 staff·staffed(2026-11-24) — 옛 화면은 새로 고쳐 버튼을 받는다. 16: 고리 기계 간격 2.1m(2026-11-03): 걷기 판정(장애물)이 바뀜 — 옛 화면은 새로 고친다
 });
 
 test('play messages match client fixtures', () => {
@@ -104,4 +104,11 @@ test('a result carries the miss count when there is one', () => {
   expect(r?.t === 'result' && r.miss).toBe(3);
   const plain = decode(JSON.stringify(fx.server_result));
   expect(plain?.t === 'result' && (plain.miss ?? 0)).toBe(0);
+});
+
+// 인형 기계 재배치(2026-11-24): 판 사이 "직원 부르기"와 옮긴 수
+test('staff call and staffed reply', () => {
+  expect(JSON.parse(encodeStaff('A-1'))).toEqual({ t: 'staff', m: 'A-1' });
+  expect(decode('{"t":"staffed","m":"A-1","n":2}')).toEqual({ t: 'staffed', m: 'A-1', n: 2 });
+  expect(decode('{"t":"staffed","m":"A-1"}')).toBeNull();
 });

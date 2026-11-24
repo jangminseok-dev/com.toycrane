@@ -3,7 +3,7 @@ import type { Vec2 } from '../game/movement';
 
 export type PlayerView = { id: string; nick: string; color: number; x: number; z: number; dx: number; dz: number; beg?: number | null }; // beg: 조르는 중이면 더 받을 수 있는 코인 수
 // 메시지 형식 버전 — 서버 welcome의 v와 다르면(배포로 형식이 바뀜) 화면을 새로고침한다
-export const PROTOCOL = 16;
+export const PROTOCOL = 17;
 export type Body = 'n' | 'c' | 's'; // 보통 · 뚱뚱 · 마른
 // 기계 속 인형 한 칸 [캐릭터, x, y, z, qx, qy, qz, qw, 색, 체형, 표정, 희귀, 번호] (기계 안 좌표·돌림 쿼터니언 — 물리 뽑기 설계 §4.5).
 // y가 null이면 서버가 (x, z) 위 천장에서 떨어뜨린 아직 안 앉은 인형(돌림은 0,0,0,1) — 화면들이 같은 물리로 앉힌다.
@@ -53,10 +53,11 @@ export type Gave = { t: 'gave'; from: string; to: string; n: number }; // 코인
 export type GiveNo = { t: 'give_no'; why: string };
 export type Spawn = { t: 'spawn'; m: string; k: string; rv: string }; // 희귀·황금이 채워졌다
 export type Stock = { t: 'stock'; in: number | null }; // 다음 채울 때까지 남은 초 (가득이면 null)
+export type Staffed = { t: 'staffed'; m: string; n: number }; // 직원 부르기 결과(본인에게): 옮긴 인형 수, 0이면 옮길 인형이 없다
 export type FigureMsg = { t: 'figure'; m: string; box: BoxWire; nudged: boolean }; // 피규어 상자 자리(판 뒤·새 상자·직원이 옮김)
 // 고리 한 판: 판 뒤 카드, 갈고리가 멈춘 자리, 걸린 걸이(-1이면 없음), 출구까지 왔나
 export type ServerMsg = Welcome | Join | Move | Correct | Leave | Coins | PlayOk | PlayNo | Play | Result | DoneNo | Pose | MachineMsg | Free | Bag
-  | Spawn | Stock | TakeNo | CounterBeg | CounterBegNo | Beg | Gave | GiveNo | FigureMsg;
+  | Spawn | Stock | TakeNo | CounterBeg | CounterBegNo | Beg | Gave | GiveNo | FigureMsg | Staffed;
 
 // 닫기 코드 (서버와 같은 값)
 export const CLOSE_FULL = 4001;
@@ -111,6 +112,7 @@ export function decode(raw: string): ServerMsg | null {
     case 'beg': return str(m.id) && (m.room === null || num(m.room)) ? (m as Beg) : null;
     case 'gave': return str(m.from) && str(m.to) && num(m.n) ? (m as Gave) : null;
     case 'give_no': return str(m.why) ? (m as GiveNo) : null;
+    case 'staffed': return str(m.m) && num(m.n) ? (m as Staffed) : null;
     default: return null;
   }
 }
@@ -133,6 +135,7 @@ export const encodeDone = (m: string, won: number[], dolls: DollPose[]) => JSON.
 export const encodePose = (m: string, frames: { age: number; c: ClawPose; d: DollPose[] }[]) =>
   JSON.stringify({ t: 'pose', m, f: frames.map((fr) => [round(fr.age, 2), fr.c.map((v) => round(v, 2)), fr.d.map((x) => wire(x, 2))]) });
 export const encodeStand = () => JSON.stringify({ t: 'stand' }); // 판 사이에 "그만하기"
+export const encodeStaff = (m: string) => JSON.stringify({ t: 'staff', m }); // 판 사이에 "직원 부르기" — 못 닿는 인형을 옮겨 달라(인형 기계)
 export const encodeTick = () => JSON.stringify({ t: 'tick' }); // 다음 채울 시각이 지났다 — 아무도 움직이지 않아도 서버가 채우게
 
 // 다른 형식 버전의 서버가 보낸 welcome (해석하기 전에 본다 — 형식이 달라 해석이 실패할 수 있으므로)
