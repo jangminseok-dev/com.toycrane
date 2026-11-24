@@ -12,6 +12,7 @@ from toycrane.app.use_cases.report_lock import take_report
 from toycrane.domain.layout import MACHINES, PUSHERS
 from toycrane.domain.catalog import GOLD
 from toycrane.domain.pusher_crane import after_pusher_play, tidy_stuck, top_up_mixed
+from toycrane.domain.reposition import tidy_unreachable
 from toycrane.domain.report import check_report, limits_of, won_dolls, won_views
 from toycrane.domain.stock import count_miss, due, on_taken, top_up
 
@@ -58,6 +59,7 @@ class DoneInteractor(DoneUseCase):
             after, tidied = tidy_stuck(before, after, self._rng)  # 직원이 정리: 턱 앞에서 3판째 안 움직인 인형은 뒤로
         else:  # 인형 기계: 연달아 못 뽑은 판을 센다 — help.plays판째부터 화면이 센 집게로 한다
             after = count_miss(after, me.guest_id, bool(won))
+            after, tidied = tidy_unreachable(before, after, self._rng)  # 직원이 정리: 유리 쪽 못 닿는 자리에서 3판째 안 움직인 인형은 닿는 곳으로
         # 한꺼번에 채우기: 이어 하는 손님은 기계를 잡고 있어 시계 채우기가 미뤄진다 — 많이 비었으면 판 끝에 바로 다 채운다(이 배치 메시지에 실림)
         gold = sum(d.rare == GOLD for m, s in stocks.items() if m != machine_id for d in s.dolls) + sum(d.rare == GOLD for d in after.dolls)
         after, added = top_up_mixed(after, gold, self._rng) if machine_id in PUSHERS else top_up(after, MACHINES[machine_id].kind, gold, self._rng)

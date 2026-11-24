@@ -214,3 +214,20 @@ async def test_a_play_that_empties_a_batch_refills_the_machine_at_once():
     assert len(after.dolls) == DOLLS_PER_MACHINE and after.next_at is None
     assert sum(d.y is None for d in after.dolls) == BATCH
     assert (None, machine("A-1", after.dolls)) in conns.broadcasts
+
+
+# 인형 기계 재배치(2026-11-24): 유리 쪽 못 닿는 자리에서 3판째 안 움직인 인형은 판 끝에 직원이 닿는 빈자리로(안 앉은 채) 옮기고, 결과에 tidied 수
+async def test_a_stuck_glass_doll_is_tidied_after_the_third_doll_play():
+    from toycrane.domain.crane import REACH_HALF
+    from toycrane.domain.shared_data import CLAW
+
+    reg, locks, conns, bag, contents, it = setup()
+    stock = contents.stored["A-1"]
+    glass = replace(stock.dolls[0], x=REACH_HALF[0] + CLAW["reposition"]["out"] + 0.04, y=0.87, z=0.0)
+    contents.stored["A-1"] = replace(stock, dolls=[glass, *stock.dolls[1:]], stuck={glass.uid: 2})
+    await it.done(DoneCommand("c-1", "A-1", report(contents.stored["A-1"]), now=20.0))
+    after = contents.stored["A-1"]
+    moved = next(d for d in after.dolls if d.uid == glass.uid)
+    assert moved.y is None and abs(moved.x) <= REACH_HALF[0] and abs(moved.z) <= REACH_HALF[1] and glass.uid not in after.stuck
+    assert (None, result("A-1", "p1", [], miss=1, tidied=1)) in conns.broadcasts
+    assert (None, machine("A-1", after.dolls)) in conns.broadcasts
