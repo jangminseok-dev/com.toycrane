@@ -17,7 +17,8 @@ export function seededRandom(seed: number): Rng {
 }
 const MIN_GAP = 0.22, FALLBACK_GAP = 0.16, HOLE_MARGIN = 0.05;
 export function spawnSpot(spots: DollSpot[], rng: Rng): [number, number] {
-  const [W, D] = MACHINE_SPEC.play_half, [hx, hz] = MACHINE_SPEC.hole, half = CLAW.hole.size / 2 + HOLE_MARGIN;
+  const edge = CLAW.reposition.edge, W = MACHINE_SPEC.play_half[0] - edge, D = MACHINE_SPEC.play_half[1] - edge; // 서버 crane.REACH_HALF와 같이 집게가 닿는 범위 안
+  const [hx, hz] = MACHINE_SPEC.hole, half = CLAW.hole.size / 2 + HOLE_MARGIN;
   for (const [gap, tries] of [[MIN_GAP, 400], [FALLBACK_GAP, 400], [0, 1000]] as const) {
     for (let i = 0; i < tries; i++) {
       const x = Math.round((rng() * 2 - 1) * W * 1000) / 1000, z = Math.round((rng() * 2 - 1) * D * 1000) / 1000;

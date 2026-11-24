@@ -16,6 +16,9 @@ HOLE_MARGIN = 0.05  # 구멍 네모 둘레로 이만큼 더 피한다
 BODY_W = {"n": 1.0, "c": 1.15, "s": 0.88}  # 체형 폭 (화면·무게 계산과 같은 값)
 Quat = tuple[float, float, float, float]
 UPRIGHT: Quat = (0.0, 0.0, 0.0, 1.0)
+# 인형 기계 재배치(2026-11-24): 집게 가운데가 가는 범위(벽에서 edge 안쪽) — 새 인형은 이 안에만, 이 범위를 out보다 더 벗어난 앉은 인형은 못 닿는 자리
+_REPOSITION = CLAW["reposition"]
+REACH_HALF: tuple[float, float] = (MACHINE_SPEC.play_half[0] - _REPOSITION["edge"], MACHINE_SPEC.play_half[1] - _REPOSITION["edge"])
 
 
 @dataclass(frozen=True)
@@ -44,9 +47,15 @@ def _outside_hole(x: float, z: float) -> bool:
     return abs(x - hx) > half or abs(z - hz) > half
 
 
+def unreachable(d: "DollSpot") -> bool:
+    """앉은 인형의 가운데가 집게 가운데 범위를 out보다 더 벗어났다(유리 쪽 띠) — 직원이 옮길 인형."""
+    out = _REPOSITION["out"]
+    return d.settled and (abs(d.x) > REACH_HALF[0] + out or abs(d.z) > REACH_HALF[1] + out)
+
+
 def spawn_spot(spots: list[DollSpot], rng: random.Random) -> tuple[float, float]:
-    """새 인형을 떨어뜨릴 (x, z): 구멍 네모 밖, 다른 인형과 22cm 넘게. 400번 안에 못 찾으면 16cm로, 그래도 없으면 아무 데나."""
-    w, d = MACHINE_SPEC.play_half
+    """새 인형을 떨어뜨릴 (x, z): 집게가 닿는 범위 안, 구멍 네모 밖, 다른 인형과 22cm 넘게. 400번 안에 못 찾으면 16cm로, 그래도 없으면 아무 데나."""
+    w, d = REACH_HALF
     for gap, tries in ((MIN_GAP, 400), (FALLBACK_GAP, 400), (0.0, 1000)):
         for _ in range(tries):
             x, z = round(rng.uniform(-w, w), 3), round(rng.uniform(-d, d), 3)
