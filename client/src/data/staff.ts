@@ -10,7 +10,8 @@ export type StaffZone = 'doll' | 'figure' | 'hook' | 'pusher';
 export const STAFF_ZONES: StaffZone[] = ['doll', 'figure', 'hook', 'pusher'];
 export type StaffSpec = {
   posts: Record<StaffZone, [number, number]>; // 구역마다 대기 자리
-  side: number; speed: number; route_factor: number; walk_min: number; walk_max: number; // 기계 옆으로 비켜설 거리, 걷는 시간 = 직선 × route_factor / speed
+  side: Record<StaffZone, number>; inset: number; // 기계 앞자리에서 왼쪽으로 비켜설 거리(구역마다), 기계 쪽으로 들어갈 거리
+  speed: number; route_factor: number; walk_min: number; walk_max: number; // 걷는 시간 = 직선 × route_factor / speed
   work: number; bow: number; queue_max: number; calls_every: number; // 정리·인사 초, 기다리는 일 수, 부른 뒤 다시 부를 때까지 판 수
 };
 export const STAFF = staff as unknown as StaffSpec;
@@ -31,10 +32,10 @@ export function postOf(zone: StaffZone): Vec2 {
   return { x, z };
 }
 
-// 직원이 일하는 자리: 기계 앞자리에서 기계를 보는 손님의 왼쪽으로 side m(기계 앞 화면의 왼쪽 끝)
+// 직원이 일하는 자리: 기계 앞자리에서 기계를 보는 손님의 왼쪽으로 side[구역] m, 기계 쪽으로 inset m — 기계 앞면 바로 옆(카메라 앞을 가리지 않게)
 export function sideSpot(machineId: string): Vec2 {
-  const m = spots.get(machineId)!, f = frontSpot(m);
-  return { x: f.x - Math.cos(m.ry) * STAFF.side, z: f.z + Math.sin(m.ry) * STAFF.side };
+  const m = spots.get(machineId)!, f = frontSpot(m), side = STAFF.side[m.zone], inset = STAFF.inset;
+  return { x: f.x - Math.cos(m.ry) * side - Math.sin(m.ry) * inset, z: f.z + Math.sin(m.ry) * side - Math.cos(m.ry) * inset };
 }
 
 // 기계 자리(직원이 일할 때 바라보는 곳)

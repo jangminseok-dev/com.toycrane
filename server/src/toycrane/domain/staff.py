@@ -29,11 +29,11 @@ def post_of(zone: str) -> Point:
 
 
 def side_spot(machine_id: str) -> Point:
-    """직원이 일하는 자리: 기계 앞자리에서 기계를 보는 손님의 왼쪽으로 side m(기계 앞 화면의 왼쪽 끝)."""
-    m = machine_spot(machine_id)
-    assert m is not None
-    f = front_spot(m)
-    return (f.x - math.cos(m.ry) * STAFF["side"], f.z + math.sin(m.ry) * STAFF["side"])
+    """직원이 일하는 자리: 기계 앞자리에서 기계를 보는 손님의 왼쪽으로 side[구역] m, 기계 쪽으로 inset m — 기계 앞면 바로 옆(카메라 앞을 가리지 않게)."""
+    m, zone = machine_spot(machine_id), zone_of(machine_id)
+    assert m is not None and zone is not None
+    f, side, inset = front_spot(m), STAFF["side"][zone], STAFF["inset"]
+    return (f.x - math.cos(m.ry) * side - math.sin(m.ry) * inset, f.z + math.sin(m.ry) * side - math.cos(m.ry) * inset)
 
 
 def walk_seconds(a: Point, b: Point) -> float:

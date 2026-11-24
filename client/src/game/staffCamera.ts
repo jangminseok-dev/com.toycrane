@@ -5,7 +5,7 @@ import type { Vec2 } from './movement';
 
 // 담을 기계 앞면: 기계 가운데에서 앞으로 front, 좌우 ±half, 높이 bottom~top (인형·피규어·고리·미는 뽑기 모두 들어가는 넉넉한 상자)
 export const STAFF_FRAME = { front: 0.5, half: 0.65, bottom: 0.45, top: 2.0 } as const;
-const STAFF_TOP = 1.75, MARGIN = 0.88, RISE = 0.9, LOOK_Y = 1.15;
+const STAFF_TOP = 1.75, MARGIN = 0.72, RISE = 0.9, LOOK_Y = 1.15; // 화면 가장자리에서 넉넉히 — PC에서 0.88이면 직원이 화면 왼쪽 절반을 차지했다(2026-11-24 스크린샷)
 
 export function staffCameraPose(m: { x: number; z: number; ry: number }, side: Vec2, aspect: number): { pos: THREE.Vector3; look: THREE.Vector3 } {
   const fwd = new THREE.Vector3(Math.sin(m.ry), 0, Math.cos(m.ry)), right = new THREE.Vector3(Math.cos(m.ry), 0, -Math.sin(m.ry));

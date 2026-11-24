@@ -1,7 +1,8 @@
 {
-  "_note": "상주 직원(설계 2026-11-24 store-staff). 구역마다 대기 자리 [x, z], 기계 앞자리에서 손님 기준 왼쪽으로 side m 비켜선 자리에서 일한다. 걷는 시간 = 직선 거리 × route_factor / speed (walk_min~walk_max), 정리 work초, 인사 bow초. 줄은 구역마다 기다리는 일 queue_max개까지, 같은 손님이 같은 기계에서 부른 뒤 calls_every판을 더 해야 다시 부른다.",
+  "_note": "상주 직원(설계 2026-11-24 store-staff). 구역마다 대기 자리 [x, z], 기계 앞자리에서 손님 기준 왼쪽으로 side[구역] m, 기계 쪽으로 inset m 들어간 자리(기계 앞면 옆, 2026-11-24 스크린샷에서 앞자리 옆은 카메라 앞을 가렸다)에서 일한다. 구역마다 기계 간격이 달라 side가 다르다. 걷는 시간 = 직선 거리 × route_factor / speed (walk_min~walk_max), 정리 work초, 인사 bow초. 줄은 구역마다 기다리는 일 queue_max개까지, 같은 손님이 같은 기계에서 부른 뒤 calls_every판을 더 해야 다시 부른다.",
   "posts": {"doll": [-12.25, 0.0], "figure": [11.65, 0.0], "hook": [0.0, -16.85], "pusher": [0.0, -12.45]},
-  "side": 0.9,
+  "side": {"doll": 1.15, "figure": 1.15, "hook": 1.05, "pusher": 1.15},
+  "inset": 0.6,
   "speed": 3.2,
   "route_factor": 1.3,
   "walk_min": 1.0,

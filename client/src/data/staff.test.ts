@@ -13,7 +13,7 @@ const length = (from: { x: number; z: number }, pts: { x: number; z: number }[])
 // 상주 직원(설계 2026-11-24): 서버 domain/staff.py와 같은 자리(숫자 고정, 서버 test_side_spots_match_the_screen과 같음)
 test('zoneOf and sideSpot match the server', () => {
   expect([zoneOf('A-1'), zoneOf('F-1'), zoneOf('R-1'), zoneOf('P-1'), zoneOf('X-1')]).toEqual(['doll', 'figure', 'hook', 'pusher', null]);
-  const expected: Record<string, [number, number]> = { 'A-1': [-16.05, -8.55], 'F-1': [9.05, -9.0], 'R-1': [-12.3, -16.85], 'P-1': [-5.1, -12.45] };
+  const expected: Record<string, [number, number]> = { 'A-1': [-16.65, -8.3], 'F-1': [9.65, -9.25], 'R-1': [-12.45, -17.45], 'P-1': [-5.35, -13.05] };
   for (const [m, [x, z]] of Object.entries(expected)) { const s = sideSpot(m); expect(s.x).toBeCloseTo(x, 3); expect(s.z).toBeCloseTo(z, 3); }
 });
 

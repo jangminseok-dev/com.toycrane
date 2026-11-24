@@ -22,9 +22,9 @@ for (const id of ['A-1', 'C-6', 'P-1', 'F-1', 'F-14', 'R-1', 'R-10']) for (const
     for (const s of [-1, 1]) for (const y of [STAFF_FRAME.bottom, STAFF_FRAME.top]) expect(inside(glass(s, y)), `glass ${s} ${y}`).toBe(true);
     const head = at(side.x, 1.75, side.z), feet = at(side.x, 0, side.z);
     expect(inside(head) && inside(feet), 'staff').toBe(true);
-    // 직원(어깨 폭 ±0.35m)이 유리 가운데를 가리지 않는다
-    const center = glass(0, (STAFF_FRAME.bottom + STAFF_FRAME.top) / 2);
-    const xs = [-0.35, 0.35].map((d) => at(side.x + right.x * d, 1.0, side.z + right.z * d).x);
-    expect(center.x < Math.min(...xs) || center.x > Math.max(...xs), 'blocks glass center').toBe(true);
+    // 직원(큰 머리 폭 ±0.5m, 머리 높이 1.2m)이 유리를 거의 가리지 않는다 — 유리 앞면 폭과 겹치는 부분이 15% 이하(2026-11-24 스크린샷: 앞자리 옆에 서면 유리 왼쪽 절반을 가렸다)
+    const mid = (STAFF_FRAME.bottom + STAFF_FRAME.top) / 2, g = [glass(-1, mid).x, glass(1, mid).x], gl = Math.min(...g), gr = Math.max(...g);
+    const xs = [-0.5, 0.5].flatMap((d) => [0.6, 1.2, 1.6].map((y) => at(side.x + right.x * d, y, side.z + right.z * d).x)), sl = Math.min(...xs), sr = Math.max(...xs);
+    expect(Math.max(0, Math.min(gr, sr) - Math.max(gl, sl)) / (gr - gl), 'covers the glass').toBeLessThanOrEqual(0.15);
   });
 }
