@@ -29,7 +29,7 @@
 
 ---
 
-### 작업 1: 기준값 재기와 공용 값
+### Task 1: 기준값 재기와 공용 값
 
 **파일:**
 - 만들기: `client/sim/reach.test.ts`
@@ -45,7 +45,7 @@
 - [ ] **5단계: 생성.** `cd server && uv run python scripts/gen_shared.py && uv run pytest tests/domain/test_shared_data.py -q` → 통과. `cd client && npx tsc --noEmit` → 오류 없음.
 - [ ] **6단계: 커밋** `인형 기계 재배치: 못 닿는 자리 기준값(시뮬로 잼)`
 
-### 작업 2: 서버 도메인 — 닿는 범위, 새 인형 자리, 옮기기
+### Task 2: 서버 도메인 — 닿는 범위, 새 인형 자리, 옮기기
 
 **파일:**
 - 고치기: `server/src/toycrane/domain/crane.py`
@@ -74,7 +74,7 @@
 - [ ] **4단계: 서버 시험 전체.** `cd server && uv run pytest -q` → 전부 통과. 기존 `spawn_spot` 범위를 가정한 시험이 깨지면 그 시험의 기대를 새 범위로 고친다(동작이 바뀐 것이므로).
 - [ ] **5단계: 커밋** `인형 기계: 새 인형은 집게 닿는 곳에, 못 닿는 인형 옮기기 규칙`
 
-### 작업 3: 가 — 판 끝 자동 정리
+### Task 3: 가 — 판 끝 자동 정리
 
 **파일:**
 - 고치기: `server/src/toycrane/app/use_cases/done_interactor.py`(인형 기계 분기)
@@ -90,7 +90,7 @@
 - [ ] **4단계: 통과 확인.** 같은 파일 전체 통과.
 - [ ] **5단계: 커밋** `인형 기계: 못 닿는 자리에서 3판 안 움직인 인형은 판 끝에 직원이 옮김`
 
-### 작업 4: 나 — 직원 부르기 서버 슬라이스
+### Task 4: 나 — 직원 부르기 서버 슬라이스
 
 **파일:**
 - 만들기: `server/src/toycrane/app/dtos/staff_dto.py`, `app/ports/input/staff_use_case.py`, `app/use_cases/staff_interactor.py`, `dependencies/staff_provider.py`, `adapter/inbound/ws/staff_handler.py`
@@ -117,7 +117,7 @@
 - [ ] **4단계: 서버 시험 전체 통과.** `uv run pytest -q`(`test_architecture.py` 포함).
 - [ ] **5단계: 커밋** `직원 부르기: 판 사이에 못 닿는 인형을 바로 옮기는 서버 메시지(규약 17)`
 
-### 작업 5: 화면 — 메시지와 글
+### Task 5: 화면 — 메시지와 글
 
 **파일:**
 - 고치기: `client/src/net/protocol.ts`(`PROTOCOL = 17`, `encodeStaff`, `Staffed` 타입과 `decode`), `client/src/world/copy.ts`(`UI`)
@@ -132,7 +132,7 @@
 - [ ] **4단계: 통과와 타입 검사.** 같은 시험 통과, `npx tsc --noEmit` 오류 없음(새 `ServerMsg` 종류 때문에 `main.ts` switch가 깨지면 작업 6에서 처리하도록 일단 `case 'staffed': break;`).
 - [ ] **5단계: 커밋** `화면: 직원 부르기 메시지와 글(규약 17)`
 
-### 작업 6: 화면 — 판 사이 버튼과 알림
+### Task 6: 화면 — 판 사이 버튼과 알림
 
 **파일:**
 - 고치기: `client/src/ui/playControls.ts`(`showSeatControls`에 직원 버튼), `client/src/main.ts`(`showSeat`, `onMessage` `staffed`, 결과 알림)
@@ -150,7 +150,7 @@
 - [ ] **3단계: 화면 시험과 타입.** `cd client && npx vitest run && npx tsc --noEmit` → 전부 통과.
 - [ ] **4단계: 커밋** `화면: 판 사이 '직원 부르기' 버튼과 직원 정리 알림`
 
-### 작업 7: 전체 확인
+### Task 7: 전체 확인
 
 - [ ] **1단계: 서버.** `cd server && uv run pytest -q` → 전부 통과.
 - [ ] **2단계: 화면.** `cd client && npx vitest run && npm run build` → 통과.
