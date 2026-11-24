@@ -68,6 +68,10 @@ class ConnectionsPort(ABC):
         """판 보고 거절(치명 규칙) — 기계는 판 시작 전 그대로."""
 
     @abstractmethod
+    def send_staffed(self, conn_id: str, machine_id: str, n: int) -> None:
+        """직원 부르기 결과(본인에게): 옮긴 인형 수, 0이면 옮길 인형이 없다."""
+
+    @abstractmethod
     def broadcast_pose(self, except_conn: str, player_id: str, machine_id: str, f: list) -> None:
         """판을 하는 사람의 집게·인형 자리 중계 — 본인 빼고 모두에게."""
 

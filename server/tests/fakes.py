@@ -134,6 +134,9 @@ class FakeConnections:
     def send_done_no(self, conn_id, machine_id, why) -> None:
         self.direct.append((conn_id, server_messages.done_no(machine_id, why)))
 
+    def send_staffed(self, conn_id, machine_id, n) -> None:
+        self.direct.append((conn_id, server_messages.staffed(machine_id, n)))
+
     def broadcast_pose(self, except_conn, player_id, machine_id, f) -> None:
         self.broadcasts.append((except_conn, server_messages.pose(player_id, machine_id, f)))
 
