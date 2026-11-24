@@ -7,7 +7,7 @@ import math
 import random
 from dataclasses import replace
 
-from toycrane.domain.crane import UPRIGHT, DollSpot, spawn_spot, unreachable
+from toycrane.domain.crane import REACH_HALF, UPRIGHT, DollSpot, spawn_spot, unreachable
 from toycrane.domain.shared_data import CLAW
 from toycrane.domain.stock import MachineStock
 
@@ -19,7 +19,7 @@ def _move(stock: MachineStock, uids: set[int], rng: random.Random) -> MachineSto
     dolls: list[DollSpot] = []
     for d in stock.dolls:
         if d.uid in uids:
-            x, z = spawn_spot(keep, rng)
+            x, z = spawn_spot(keep, rng, REACH_HALF)  # 집게 가운데 범위 안 — 기준선 끝에 떨어지면 굴러서 다시 못 닿는 자리가 된다
             d = replace(d, x=x, y=None, z=z, q=UPRIGHT)
             keep.append(d)
         dolls.append(d)

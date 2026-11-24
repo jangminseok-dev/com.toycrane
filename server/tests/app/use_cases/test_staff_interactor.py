@@ -31,18 +31,28 @@ async def test_staff_moves_unreachable_dolls_for_the_seated_player():
     locks.hold("c-1", "A-1", 10.0)
     await it.call(StaffCommand("c-1", "A-1", now=15.0))
     after = contents.stored["A-1"]
-    assert contents.saves == 1 and not any(abs(d.x) > REACH_HALF[0] + CLAW["reposition"]["out"] for d in after.dolls)
+    assert contents.saves == 1 and not any(abs(d.x) > REACH_HALF[0] for d in after.dolls)
     assert conns.broadcasts == [(None, machine("A-1", after.dolls))]
     assert conns.direct == [("c-1", staffed("A-1", 2))]
     assert locks.lock_of("c-1") == ("A-1", 15.0) and locks.is_between("c-1")
 
 
-async def test_staff_with_nothing_to_move_says_zero():
+async def test_staff_with_nothing_to_move_says_zero_and_keeps_the_seat_time():
     locks, conns, contents, it = setup(glass=0)
     locks.hold("c-1", "A-1", 10.0)
     await it.call(StaffCommand("c-1", "A-1", now=15.0))
     assert contents.saves == 0 and conns.broadcasts == []
     assert conns.direct == [("c-1", staffed("A-1", 0))]
+    assert locks.lock_of("c-1") == ("A-1", 10.0)  # 옮긴 게 없으면 자리 시간을 늘리지 않는다 — 버튼으로 코인 없이 자리를 끝없이 잡지 못하게
+
+
+async def test_staff_after_the_seat_time_ran_out_is_ignored():
+    from toycrane.domain.play_rules import HOLD_SECONDS
+
+    locks, conns, contents, it = setup(glass=2)
+    locks.hold("c-1", "A-1", 10.0)
+    await it.call(StaffCommand("c-1", "A-1", now=10.0 + HOLD_SECONDS + 1))
+    assert contents.saves == 0 and conns.broadcasts == [] and conns.direct == [] and locks.lock_of("c-1") == ("A-1", 10.0)
 
 
 async def test_staff_from_someone_not_seated_is_ignored():

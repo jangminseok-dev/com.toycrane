@@ -55,9 +55,10 @@ def unreachable(d: "DollSpot") -> bool:
     return d.settled and (abs(d.x) > REACH_HALF[0] + out or abs(d.z) > REACH_HALF[1] + out)
 
 
-def spawn_spot(spots: list[DollSpot], rng: random.Random) -> tuple[float, float]:
-    """새 인형을 떨어뜨릴 (x, z): 못 닿는 자리 안쪽(DROP_HALF), 구멍 네모 밖, 다른 인형과 22cm 넘게. 400번 안에 못 찾으면 16cm로, 그래도 없으면 아무 데나."""
-    w, d = DROP_HALF
+def spawn_spot(spots: list[DollSpot], rng: random.Random, half: tuple[float, float] = DROP_HALF) -> tuple[float, float]:
+    """인형을 떨어뜨릴 (x, z): half 안(새 인형은 못 닿는 자리 안쪽 DROP_HALF, 직원이 옮긴 인형은 REACH_HALF), 구멍 네모 밖, 다른 인형과 22cm 넘게.
+    400번 안에 못 찾으면 16cm로, 그래도 없으면 아무 데나."""
+    w, d = half
     for gap, tries in ((MIN_GAP, 400), (FALLBACK_GAP, 400), (0.0, 1000)):
         for _ in range(tries):
             x, z = round(rng.uniform(-w, w), 3), round(rng.uniform(-d, d), 3)

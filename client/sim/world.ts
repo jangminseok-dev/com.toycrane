@@ -16,8 +16,9 @@ export function seededRandom(seed: number): Rng {
   return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
 const MIN_GAP = 0.22, FALLBACK_GAP = 0.16, HOLE_MARGIN = 0.05;
-export function spawnSpot(spots: DollSpot[], rng: Rng): [number, number] {
-  const { edge, out } = CLAW.reposition, W = MACHINE_SPEC.play_half[0] - edge + out, D = MACHINE_SPEC.play_half[1] - edge + out; // 서버 crane.DROP_HALF와 같이 못 닿는 자리 안쪽
+// grow: 집게 가운데 범위(play_half − edge)보다 이만큼 더 — 새 인형은 out(서버 crane.DROP_HALF), 직원이 옮긴 인형은 0(crane.REACH_HALF)
+export function spawnSpot(spots: DollSpot[], rng: Rng, grow = CLAW.reposition.out): [number, number] {
+  const { edge } = CLAW.reposition, W = MACHINE_SPEC.play_half[0] - edge + grow, D = MACHINE_SPEC.play_half[1] - edge + grow;
   const [hx, hz] = MACHINE_SPEC.hole, half = CLAW.hole.size / 2 + HOLE_MARGIN;
   for (const [gap, tries] of [[MIN_GAP, 400], [FALLBACK_GAP, 400], [0, 1000]] as const) {
     for (let i = 0; i < tries; i++) {
