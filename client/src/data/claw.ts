@@ -11,6 +11,9 @@ export type ClawTable = {
   rare: { rare: number; gold: number };
   hole: { size: number; lip: number }; // 구멍 네모 한 변, 턱 높이 (m)
   help: { plays: number; force: number }; // 같은 기계에서 plays판 연달아 못 뽑으면 그다음 판부터 뽑을 때까지 힘 × force (game/help.ts)
+  // 직원이 옮김(인형 기계 재배치 설계 2026-11-24): 집게 가운데는 벽에서 edge만큼 안쪽까지. 앉은 인형 가운데가 그 범위를 out보다 더 벗어나면 못 닿는 자리
+  // (sim/reach: 6~8cm 벗어나면 33%, 바로 안쪽 82%) — plays판 연달아 move(m)도 안 움직이면 판 끝에, 직원 부르기면 바로 옮긴다
+  reposition: { edge: number; out: number; plays: number; move: number };
   max_wins: number; // 한 판에 서버가 받아 주는 당첨 수
   cycle_seconds: number; // 집게 한 바퀴
   settle_seconds: number; // 놓은 뒤 멈춤 대기
