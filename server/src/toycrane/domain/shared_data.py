@@ -1,4 +1,4 @@
-"""생성 파일 — shared/catalog.json·shared/store_layout.json·shared/claw.json·shared/figure.json·shared/hook.json·shared/pusher.json을 고치고 scripts/gen_shared.py로 다시 생성한다."""
+"""생성 파일 — shared/catalog.json·shared/store_layout.json·shared/claw.json·shared/figure.json·shared/hook.json·shared/pusher.json·shared/staff.json을 고치고 scripts/gen_shared.py로 다시 생성한다."""
 
 CATALOG = {'sets': [{'id': 'soft', 'name': '말랑 동물', 'color': '#ff7ab6'},
           {'id': 'forest', 'name': '숲속 친구들', 'color': '#2fbf8f'},
@@ -490,3 +490,17 @@ PUSHER = {'_note': '미는 뽑기 기계 수치(설계 2026-11-02 ring-hook §4)
  'drop': [-0.34, -0.21],
  'settle': {'still': 0.8, 'max': 8},
  'odds': {'rare': 0.03, 'gold': 0.005}}
+
+STAFF = {'_note': '상주 직원(설계 2026-11-24 store-staff). 구역마다 대기 자리 [x, z], 기계 앞자리에서 손님 기준 왼쪽으로 side m 비켜선 자리에서 일한다. 걷는 시간 = 직선 거리 '
+          '× route_factor / speed (walk_min~walk_max), 정리 work초, 인사 bow초. 줄은 구역마다 기다리는 일 queue_max개까지, 같은 손님이 같은 기계에서 '
+          '부른 뒤 calls_every판을 더 해야 다시 부른다.',
+ 'posts': {'doll': [-12.25, 0.0], 'figure': [11.65, 0.0], 'hook': [0.0, -16.85], 'pusher': [0.0, -12.45]},
+ 'side': 0.9,
+ 'speed': 3.2,
+ 'route_factor': 1.3,
+ 'walk_min': 1.0,
+ 'walk_max': 5.0,
+ 'work': 2.0,
+ 'bow': 0.8,
+ 'queue_max': 2,
+ 'calls_every': 5}

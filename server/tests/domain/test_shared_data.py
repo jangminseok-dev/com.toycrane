@@ -11,6 +11,7 @@ def test_generated_module_matches_shared_json():
     assert shared_data.CATALOG == json.loads((SHARED / "catalog.json").read_text(encoding="utf-8"))
     assert shared_data.LAYOUT == json.loads((SHARED / "store_layout.json").read_text(encoding="utf-8"))
     assert shared_data.CLAW == json.loads((SHARED / "claw.json").read_text(encoding="utf-8"))
+    assert shared_data.STAFF == json.loads((SHARED / "staff.json").read_text(encoding="utf-8"))
 
 
 def test_ring_and_pusher_machines_are_machines():
