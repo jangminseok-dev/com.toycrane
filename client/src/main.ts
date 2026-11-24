@@ -28,11 +28,13 @@ import { AutoWalk, nearestCounter } from './game/autoWalk';
 import { OcclusionFader } from './game/occlusion';
 import { CoinShow } from './game/coinShow';
 import { RemotePlayers } from './game/remotePlayers';
+import { StaffNpcs } from './game/staffNpcs';
+import { STAFF_ZONES, type StaffZone } from './data/staff';
 import { watchersOf } from './game/watchers';
 import { installJoystick } from './input/joystick';
 import { readKeyboard } from './input/keyboard';
 import { admit, createGuest, getBag, getGuest, type Guest } from './net/api';
-import { encodeBeg, encodeCounterBeg, encodeDone, encodeGive, encodeMove, encodePlay, encodeStaff, encodeStand, encodeTake, encodeTick, lookOf, uidOf, type Coins, type DollPose, type DollSpot, type Result, type ServerMsg } from './net/protocol';
+import { encodeBeg, encodeCounterBeg, encodeDone, encodeGive, encodeMove, encodePlay, encodeStaff, encodeStand, encodeTake, encodeTick, lookOf, uidOf, type Coins, type DollPose, type DollSpot, type Result, type ServerMsg, type StaffPlan } from './net/protocol';
 import { loadRapier, rapierNow, rapierReady } from './physics/rapier';
 import { MachineWorld } from './physics/machineWorld';
 import { ClawBody } from './physics/clawBody';
@@ -132,6 +134,8 @@ const tower = buildStore(scene);
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
 camera.position.copy(CAMERA_OFFSETS.WIDE); // 입장 후 내 자리로 따라간다
 const remotes = new RemotePlayers(scene);
+const staff = new StaffNpcs(scene); // 구역마다 서 있는 직원 넷(상주 직원 설계 2026-11-24)
+const staffPuts = new Map<string, number>(); // 기계 → 다시 놓은 결과를 그릴 타이머
 const joystick = installJoystick(renderer.domElement);
 let sampler = new InputSampler();
 
@@ -314,6 +318,10 @@ function onMessage(m: ServerMsg, guest: Guest) {
       busy.reset();
       for (const [id, who] of Object.entries(m.plays)) busy.set(id, who, now / 1000);
       endPlay();
+      for (const t of staffPuts.values()) clearTimeout(t);
+      staffPuts.clear();
+      staff.setClock(m.now, now / 1000); staff.clear();
+      for (const z of STAFF_ZONES) staff.setPlan(z, m.staff[z] ?? null); // 일하는 중인 직원은 제자리에(기계 속은 이미 다시 놓은 배치)
       break;
     case 'play':
       busy.set(m.m, m.id, now / 1000);
@@ -386,6 +394,8 @@ function onMessage(m: ServerMsg, guest: Guest) {
       void gaveShow(m.from, m.to, m.n);
       break;
     case 'give_no': toast(UI.giveNo[m.why] ?? UI.giveNo.poor); break;
+    case 'staff_plan': onStaffPlan(m, guest, now); break;
+    case 'staff_no': if (m.why === 'busy') toast(UI.staffBusy); break;
     case 'cbeg_no': {
       const text = m.why === 'wait' ? UI.begWait(Math.max(1, Math.ceil(m.wait / 60))) : m.why === 'full' ? UI.full : UI.giveNo.far;
       if (m.why === 'wait') coinShow.holdNote(text); // 바로 앞의 cbeg(0개)로 시작한 조르는 모션이 끝나면 보인다
@@ -408,6 +418,21 @@ function onMessage(m: ServerMsg, guest: Guest) {
       break;
     case 'correct': me?.correct({ x: m.x, z: m.z }); break;
   }
+}
+
+// 상주 직원 일정(설계 2026-11-24 store-staff): 직원은 일정대로 그리고, 이번 일의 다시 놓은 결과는 put 시각에 기존 machine·figure 길로 그린다
+function onStaffPlan(m: StaffPlan, guest: Guest, now: number) {
+  staff.setClock(m.now, now / 1000);
+  staff.setPlan(m.z as StaffZone, { jobs: m.jobs, back: m.back });
+  const job = m.jobs.find((j) => j.m === m.m);
+  if (!job) return;
+  const apply = () => {
+    staffPuts.delete(m.m);
+    if (m.dolls) onMessage({ t: 'machine', m: m.m, dolls: m.dolls }, guest);
+    else if (m.box) onMessage({ t: 'figure', m: m.m, box: m.box, nudged: false }, guest);
+  };
+  clearTimeout(staffPuts.get(m.m));
+  staffPuts.set(m.m, window.setTimeout(apply, Math.max(0, (job.put - staff.serverTime(now / 1000)) * 1000)));
 }
 
 function onClose(code: number, guest: Guest) {
@@ -1141,6 +1166,7 @@ function frame(now: number) {
   updateEffects(dt);
   for (const sp of spinners) sp.obj.rotation.y += dt * sp.speed;
   remotes.update(now);
+  staff.update(now / 1000);
   updateWatches(now / 1000);
   updatePlateHolds();
   bigZone.update(now / 1000);
