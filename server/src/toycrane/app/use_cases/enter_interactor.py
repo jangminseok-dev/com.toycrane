@@ -13,10 +13,12 @@ from toycrane.app.ports.output.machine_contents_port import MachineContentsPort
 from toycrane.app.ports.output.occupancy_port import OccupancyPort
 from toycrane.app.ports.output.play_lock_port import PlayLockPort
 from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
+from toycrane.app.ports.output.staff_board_port import StaffBoardPort
 from toycrane.app.ports.output.wallet_port import WalletPort
 from toycrane.app.use_cases.connection_cleanup import release_connection
 from toycrane.app.use_cases.figure_boxes import ensure_figures
 from toycrane.domain.hook import HOOK_RULES
+from toycrane.domain.staff import back_at, prune
 from toycrane.app.use_cases.machine_contents import ensure_contents
 from toycrane.app.use_cases.occupancy_note import note_occupancy
 from toycrane.domain.entities.player import Player
@@ -43,6 +45,7 @@ class EnterInteractor(EnterUseCase):
         figures: FigureBoxesPort,
         hooks: FigureBoxesPort,
         locks: PlayLockPort,
+        staff: StaffBoardPort,
         rng: random.Random,
     ) -> None:
         self._registry = registry
@@ -55,6 +58,7 @@ class EnterInteractor(EnterUseCase):
         self._figures = figures
         self._hooks = hooks
         self._locks = locks
+        self._staff = staff
         self._rng = rng
 
     async def enter(self, cmd: EnterCommand) -> EnterResult:
@@ -64,6 +68,7 @@ class EnterInteractor(EnterUseCase):
         stocks = await ensure_contents(self._contents, self._rng)
         figures = await ensure_figures(self._figures, self._rng)
         hooks = await ensure_figures(self._hooks, self._rng, HOOK_RULES)  # 고리 걸기 상자도 같은 형식으로(welcome figures)
+        board = prune(await self._staff.load(), cmd.now)  # 일하는 중인 직원은 새로 들어온 사람에게도 제자리에(상주 직원 설계)
         for conn_id, old in self._registry.entries():
             if old.guest_id == cmd.guest_id:
                 # 같은 게스트의 이전 접속(네트워크가 바뀜·다른 탭): 하던 기계·줄을 정리하고 내보낸다
@@ -89,6 +94,8 @@ class EnterInteractor(EnterUseCase):
             machines={m: s.dolls for m, s in stocks.items()},
             plays=self._locks.plays(),
             figures={m: s.box for m, s in {**figures, **hooks}.items()},
+            staff={z: (jobs, back_at(jobs, z) or 0.0) for z, jobs in board.jobs.items()},
+            now=cmd.now,
         )
         self._connections.send_welcome(cmd.conn_id, cmd.store_no, you, list(result.others), snapshot)
         self._connections.broadcast_join(cmd.conn_id, you)

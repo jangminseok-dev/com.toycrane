@@ -8,7 +8,7 @@ from toycrane.app.dtos.player_view import PlayerView
 from toycrane.app.dtos.store_snapshot import StoreSnapshot
 from toycrane.domain.crane import DollSpot
 
-PROTOCOL = 17  # 메시지 형식 버전 — 화면(net/protocol.ts PROTOCOL)과 다르면 화면이 새로고침한다
+PROTOCOL = 18  # 메시지 형식 버전 — 화면(net/protocol.ts PROTOCOL)과 다르면 화면이 새로고침한다
 
 
 def _player(p: PlayerView) -> dict:
@@ -33,6 +33,8 @@ def welcome(store_no: int, you: PlayerView, players: list[PlayerView], snapshot:
         "machines": {m: _spots(spots) for m, spots in snapshot.machines.items()},
         "plays": snapshot.plays,
         "figures": {m: _box(b) for m, b in snapshot.figures.items()},
+        "staff": {z: {"jobs": [_job(j) for j in jobs], "back": round(back, 3)} for z, (jobs, back) in snapshot.staff.items()},
+        "now": round(snapshot.now, 3),
     }
 
 
@@ -114,8 +116,24 @@ def done_no(machine_id: str, why: str) -> dict:
     return {"t": "done_no", "m": machine_id, "why": why}
 
 
-def staffed(machine_id: str, n: int) -> dict:
-    return {"t": "staffed", "m": machine_id, "n": n}
+def _job(j) -> dict:
+    return {"m": j.machine, "from": j.origin, "dep": round(j.depart, 3), "arr": round(j.arrive, 3), "put": round(j.put, 3), "end": round(j.end, 3)}
+
+
+def staff_plan(zone: str, jobs, back: float, now: float, machine_id: str, dolls: list[DollSpot] | None = None, box=None) -> dict:
+    """상주 직원 일정(설계 2026-11-24 store-staff): 그 구역 직원의 일들과 대기 자리로 돌아오는 시각, 이번 일(machine_id)의 다시 놓은 결과 —
+    인형 기계·미는 뽑기는 dolls, 피규어·고리 걸기는 box. 화면은 put 시각에 결과를 그린다."""
+    msg = {"t": "staff_plan", "now": round(now, 3), "z": zone, "jobs": [_job(j) for j in jobs], "back": round(back, 3), "m": machine_id}
+    if dolls is not None:
+        msg["dolls"] = _spots(dolls)
+    if box is not None:
+        msg["box"] = _box(box)
+    return msg
+
+
+def staff_no(machine_id: str, why: str, left: int) -> dict:
+    """직원 부르기 거절(본인에게): "wait"(left판 더) · "busy"(줄이 참) · "again"(그 기계에 일이 있음) · "seat"(판 사이 자리가 아님)."""
+    return {"t": "staff_no", "m": machine_id, "why": why, "left": left}
 
 
 def pose(player_id: str, machine_id: str, f: list) -> dict:

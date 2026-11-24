@@ -8,6 +8,7 @@ from toycrane.adapter.outbound.d1_occupancy_adapter import D1OccupancyAdapter
 from toycrane.adapter.outbound.d1_wallet_adapter import D1WalletAdapter
 from toycrane.adapter.outbound.do_storage_figure_boxes import HOOK_KEY, DoStorageFigureBoxes
 from toycrane.adapter.outbound.do_storage_machine_contents import DoStorageMachineContents
+from toycrane.adapter.outbound.do_storage_staff_board import DoStorageStaffBoard
 from toycrane.adapter.outbound.ws_connections_adapter import WsConnectionsAdapter
 from toycrane.app.ports.input.enter_use_case import EnterUseCase
 from toycrane.app.use_cases.enter_interactor import EnterInteractor
@@ -25,5 +26,6 @@ def get_enter_use_case(ctx, env) -> EnterUseCase:
         figures=DoStorageFigureBoxes(ctx.storage),
         hooks=DoStorageFigureBoxes(ctx.storage, HOOK_KEY),
         locks=AttachmentPlayLocks(ctx),
+        staff=DoStorageStaffBoard(ctx.storage),
         rng=random.Random(),
     )

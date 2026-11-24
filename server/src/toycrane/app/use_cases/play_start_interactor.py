@@ -5,25 +5,31 @@ from toycrane.app.ports.input.play_start_use_case import PlayStartUseCase
 from toycrane.app.ports.output.connections_port import ConnectionsPort
 from toycrane.app.ports.output.play_lock_port import PlayLockPort
 from toycrane.app.ports.output.player_registry_port import PlayerRegistryPort
+from toycrane.app.ports.output.staff_board_port import StaffBoardPort
 from toycrane.app.ports.output.wallet_port import WalletPort
 from toycrane.domain.coins import WALLET_CAP
 from toycrane.domain.layout import MACHINE_SPEC, front_spot, machine_spot
 from toycrane.domain.play_rules import PLAY_SECONDS, expired, hold_over
+from toycrane.domain.staff import count_play, pending
 
 
 class PlayStartInteractor(PlayStartUseCase):
     """코인 넣고 시작: 기계 한 대 = 한 사람. 판 사이 자리를 잡은 사람은 이어서 하고, 시간이 지난 잠금은 풀고, 코인을 쓰기 전에 먼저 잠근다."""
 
-    def __init__(self, registry: PlayerRegistryPort, locks: PlayLockPort, wallet: WalletPort, connections: ConnectionsPort) -> None:
+    def __init__(self, registry: PlayerRegistryPort, locks: PlayLockPort, wallet: WalletPort, connections: ConnectionsPort, board: StaffBoardPort) -> None:
         self._registry = registry
         self._locks = locks
         self._wallet = wallet
         self._connections = connections
+        self._board = board
 
     async def start(self, cmd: PlayStartCommand) -> None:
         machine = machine_spot(cmd.machine_id)  # 인형 기계·피규어 기계 같은 잠금 규칙
         me = dict(self._registry.entries()).get(cmd.conn_id)
         if machine is None or me is None:
+            return
+        if pending(await self._board.load(), machine.id, cmd.now):  # 직원이 오는 중 — 다시 놓기 전까지 아무도 시작하지 않는다(상주 직원 설계)
+            self._connections.send_play_no(cmd.conn_id, machine.id, "staff")
             return
         mine = self._locks.lock_of(cmd.conn_id)
         if mine is not None:
@@ -62,3 +68,7 @@ class PlayStartInteractor(PlayStartUseCase):
             return
         self._connections.send_play_ok(cmd.conn_id, machine.id, left, PLAY_SECONDS)
         self._connections.broadcast_play(cmd.conn_id, machine.id, me.player_id)
+        board = await self._board.load()  # 코인(D1)을 기다리는 사이 바뀌었을 수 있어 다시 읽는다 — DO 저장소 읽기·쓰기 사이엔 다른 메시지가 끼지 않는다
+        counted = count_play(board, machine.id, me.guest_id)
+        if counted != board:
+            await self._board.save(counted)

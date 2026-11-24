@@ -5,10 +5,12 @@ from toycrane.app.ports.input.stock_use_case import StockUseCase
 from toycrane.app.ports.output.connections_port import ConnectionsPort
 from toycrane.app.ports.output.machine_contents_port import MachineContentsPort
 from toycrane.app.ports.output.play_lock_port import PlayLockPort
+from toycrane.app.ports.output.staff_board_port import StaffBoardPort
 from toycrane.domain.catalog import GOLD
 from toycrane.domain.layout import MACHINES, PUSHERS
 from toycrane.domain.play_rules import expired, hold_over
 from toycrane.domain.pusher_crane import refill_mixed
+from toycrane.domain.staff import pending
 from toycrane.domain.stock import due, refill
 
 
@@ -26,11 +28,12 @@ class StockInteractor(StockUseCase):
     """인형 채우기 (설계 2026-10-31 인형 채우기 §4.1): 서버는 혼자 깨어나지 않으므로 매장이 받는 메시지마다 부른다.
     가장 이른 채울 시각만 보고, 때가 됐을 때만 기계들을 읽어 채운 뒤 한 번 저장하고 모두에게 알린다."""
 
-    def __init__(self, contents: MachineContentsPort, locks: PlayLockPort, connections: ConnectionsPort, rng: random.Random) -> None:
+    def __init__(self, contents: MachineContentsPort, locks: PlayLockPort, connections: ConnectionsPort, rng: random.Random, board: StaffBoardPort) -> None:
         self._contents = contents
         self._locks = locks
         self._connections = connections
         self._rng = rng
+        self._board = board
 
     async def refill(self, cmd: StockCommand) -> None:
         when = await self._contents.due_at()
@@ -39,10 +42,11 @@ class StockInteractor(StockUseCase):
                 self._connections.send_stock(cmd.newcomer, _due_in(when, cmd.now))
             return
         stocks = await self._contents.load()
+        board = await self._board.load()  # 직원이 다시 놓으러 오는 기계는 잡혀 있는 것으로 본다 — 다시 놓은 배치가 그대로 그려지게(상주 직원 설계)
         gold = sum(d.rare == GOLD for s in stocks.values() for d in s.dolls)
         spawns, changed = [], []
         for machine_id, stock in stocks.items():
-            held = lock_active(self._locks, machine_id, cmd.now)
+            held = lock_active(self._locks, machine_id, cmd.now) or pending(board, machine_id, cmd.now) is not None
             if machine_id in PUSHERS:
                 after, added = refill_mixed(stock, cmd.now, held, gold, self._rng)
             else:

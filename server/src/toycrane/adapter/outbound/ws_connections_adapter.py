@@ -83,8 +83,11 @@ class WsConnectionsAdapter(ConnectionsPort):
     def send_done_no(self, conn_id: str, machine_id: str, why: str) -> None:
         self._to_one(conn_id, server_messages.done_no(machine_id, why))
 
-    def send_staffed(self, conn_id: str, machine_id: str, n: int) -> None:
-        self._to_one(conn_id, server_messages.staffed(machine_id, n))
+    def send_staff_no(self, conn_id: str, machine_id: str, why: str, left: int) -> None:
+        self._to_one(conn_id, server_messages.staff_no(machine_id, why, left))
+
+    def broadcast_staff_plan(self, zone: str, jobs, back: float, now: float, machine_id: str, dolls=None, box=None) -> None:
+        self._to_all_except(None, server_messages.staff_plan(zone, jobs, back, now, machine_id, dolls, box))
 
     def broadcast_pose(self, except_conn: str, player_id: str, machine_id: str, f: list) -> None:
         self._to_all_except(except_conn, server_messages.pose(player_id, machine_id, f))

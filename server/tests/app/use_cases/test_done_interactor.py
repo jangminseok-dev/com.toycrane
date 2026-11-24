@@ -1,6 +1,6 @@
 import random
 
-from fakes import FakeBag, FakeConnections, FakeContents, FakeLocks, FakeRegistry, player
+from fakes import FakeBag, FakeConnections, FakeContents, FakeLocks, FakeRegistry, FakeStaffBoard, player
 from toycrane.adapter.inbound.ws.schemas.server_messages import done_no, free, machine, result
 from toycrane.app.dtos.done_dto import DoneCommand
 from toycrane.app.dtos.play_dto import PlayStartCommand
@@ -101,7 +101,7 @@ async def test_no_report_leaves_the_machine_as_it_was():
     reg, locks, conns, bag, contents, it = setup()
     before = contents.stored["A-1"]
     reg.put("c-2", player("p2", guest="g-2", at=front_spot(MACHINES["A-1"])))  # A-1 앞자리
-    start = PlayStartInteractor(reg, locks, FakeWallet({"g-2": 3}), conns)
+    start = PlayStartInteractor(reg, locks, FakeWallet({"g-2": 3}), conns, FakeStaffBoard())
     await start.start(PlayStartCommand("c-2", "A-1", now=10.0 + 20 + 15 + 3 + 1))
     assert locks.holder("A-1")[0] == "c-2" and contents.stored["A-1"] == before and (None, free("A-1")) in conns.broadcasts
 

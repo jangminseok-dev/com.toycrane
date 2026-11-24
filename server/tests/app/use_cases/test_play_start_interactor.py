@@ -1,6 +1,6 @@
 import asyncio
 
-from fakes import FakeConnections, FakeLocks, FakeOccupancy, FakeRegistry, FakeWallet, player
+from fakes import FakeConnections, FakeLocks, FakeOccupancy, FakeRegistry, FakeStaffBoard, FakeWallet, player
 from toycrane.adapter.inbound.ws.schemas.server_messages import free, play, play_no, play_ok
 from toycrane.app.dtos.leave_dto import LeaveCommand
 from toycrane.app.dtos.play_dto import PlayStartCommand
@@ -20,12 +20,12 @@ class SlowWallet(FakeWallet):
         return await super().spend_one(guest_id, now)
 
 
-def setup(wallet=None, at: Position = FRONT):
+def setup(wallet=None, at: Position = FRONT, board=None):
     reg, locks, conns = FakeRegistry(), FakeLocks({"c-1": "p1", "c-2": "p2"}), FakeConnections()
     reg.put("c-1", player("p1", guest="g-1", at=at))
     reg.put("c-2", player("p2", guest="g-2", at=FRONT))
     wallet = wallet or FakeWallet({"g-1": 3, "g-2": 3})
-    return reg, locks, conns, wallet, PlayStartInteractor(reg, locks, wallet, conns)
+    return reg, locks, conns, wallet, PlayStartInteractor(reg, locks, wallet, conns, board or FakeStaffBoard())
 
 
 async def test_start_spends_a_coin_and_locks():
@@ -137,3 +137,28 @@ async def test_play_start_accepts_figure_machine():
     reg2, locks2, conns2, wallet2, it2 = setup(at=Position(front.x - 3.0, front.z))
     await it2.start(PlayStartCommand("c-1", "F-1", now=5.0))
     assert conns2.direct[-1] == ("c-1", play_no("F-1", "far"))
+
+
+# 상주 직원(설계 2026-11-24 store-staff): 직원 일이 잡힌 기계는 다시 놓기(put)까지 아무도 시작하지 못한다
+async def test_nobody_starts_a_machine_while_staff_is_on_the_way():
+    from toycrane.domain.staff import EMPTY_BOARD, plan_call
+
+    called, job = plan_call(EMPTY_BOARD, "A-1", "g-9", 5.0)
+    reg, locks, conns, wallet, it = setup(board=FakeStaffBoard(called))
+    for conn in ("c-1", "c-2"):
+        await it.start(PlayStartCommand(conn, "A-1", now=job.put - 0.1))
+    assert conns.direct == [("c-1", play_no("A-1", "staff")), ("c-2", play_no("A-1", "staff"))] and wallet.coins["g-1"] == 3
+    await it.start(PlayStartCommand("c-1", "A-1", now=job.put + 0.1))
+    assert conns.direct[-1] == ("c-1", play_ok("A-1", 2, 20))
+
+
+async def test_a_play_start_counts_toward_the_next_call():
+    from toycrane.domain.staff import EMPTY_BOARD, plan_call
+
+    called, job = plan_call(EMPTY_BOARD, "A-1", "g-1", 1.0)
+    board = FakeStaffBoard(called)
+    reg, locks, conns, wallet, it = setup(board=board)
+    await it.start(PlayStartCommand("c-1", "A-1", now=job.end + 30))
+    assert board.board.calls == {"A-1": {"g-1": 1}}
+    await it.start(PlayStartCommand("c-2", "A-2", now=job.end + 30))  # 부른 적 없는 손님·기계는 세지 않는다
+    assert board.board.calls == {"A-1": {"g-1": 1}}

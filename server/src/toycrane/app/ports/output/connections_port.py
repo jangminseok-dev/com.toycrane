@@ -68,8 +68,12 @@ class ConnectionsPort(ABC):
         """판 보고 거절(치명 규칙) — 기계는 판 시작 전 그대로."""
 
     @abstractmethod
-    def send_staffed(self, conn_id: str, machine_id: str, n: int) -> None:
-        """직원 부르기 결과(본인에게): 옮긴 인형 수, 0이면 옮길 인형이 없다."""
+    def send_staff_no(self, conn_id: str, machine_id: str, why: str, left: int) -> None:
+        """직원 부르기 거절(본인에게): "wait"(left판 더) · "busy" · "again" · "seat"."""
+
+    @abstractmethod
+    def broadcast_staff_plan(self, zone: str, jobs, back: float, now: float, machine_id: str, dolls: list[DollSpot] | None = None, box=None) -> None:
+        """상주 직원 일정과 이번 일의 다시 놓은 결과를 모두에게."""
 
     @abstractmethod
     def broadcast_pose(self, except_conn: str, player_id: str, machine_id: str, f: list) -> None:

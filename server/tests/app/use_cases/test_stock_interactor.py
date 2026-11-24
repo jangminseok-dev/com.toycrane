@@ -1,6 +1,6 @@
 import random
 
-from fakes import FakeConnections, FakeContents, FakeLocks, stocks_with_empty
+from fakes import FakeConnections, FakeContents, FakeLocks, FakeStaffBoard, stocks_with_empty
 from toycrane.app.dtos.stock_dto import StockCommand
 from toycrane.app.use_cases.stock_interactor import StockInteractor
 
@@ -16,9 +16,9 @@ class Rolls(random.Random):
         return self.value
 
 
-def run(contents, now, locks=None, roll=0.5, conns=None):
+def run(contents, now, locks=None, roll=0.5, conns=None, board=None):
     conns = conns or FakeConnections()
-    return conns, StockInteractor(contents, locks or FakeLocks(), conns, Rolls(roll)).refill(StockCommand(now=now))
+    return conns, StockInteractor(contents, locks or FakeLocks(), conns, Rolls(roll), board or FakeStaffBoard()).refill(StockCommand(now=now))
 
 
 # 메시지가 올 때 때가 된 기계만 채운다: 저장은 한 번, 바뀐 기계와 다음 채울 시각을 모두에게 (설계 2026-10-31 인형 채우기 §4.1)
@@ -68,7 +68,7 @@ async def test_a_stale_lock_does_not_block_refill():
 async def test_a_newcomer_hears_when_the_next_refill_is():
     contents = FakeContents(stocks_with_empty("A-1", next_at=50.0), due=50.0)
     conns = FakeConnections()
-    await StockInteractor(contents, FakeLocks(), conns, Rolls(0.5)).refill(StockCommand(now=20.0, newcomer="c-9"))
+    await StockInteractor(contents, FakeLocks(), conns, Rolls(0.5), FakeStaffBoard()).refill(StockCommand(now=20.0, newcomer="c-9"))
     assert conns.direct == [("c-9", {"t": "stock", "in": 30.0})] and contents.loads == 0
 
 
@@ -87,3 +87,15 @@ async def test_a_due_pusher_refills_with_mixed_dolls():
     await job
     assert len(contents.stored["P-3"].dolls) == FULL and len(contents.stored["A-1"].dolls) == 9 and contents.saves == 1
     assert [m.get("m") for _, m in conns.broadcasts if m["t"] == "machine"] == ["A-1", "P-3"]
+
+
+# 상주 직원(설계 2026-11-24 store-staff): 직원 일이 잡힌 기계는 다시 놓기 전까지 잠금이 없어도 새 인형을 채우지 않는다(다시 놓은 배치가 그대로 그려지게)
+async def test_refill_waits_for_a_pending_staff_job():
+    from toycrane.domain.staff import EMPTY_BOARD, plan_call
+
+    called, job = plan_call(EMPTY_BOARD, "A-1", "g-1", 29.0)
+    contents = FakeContents(stocks_with_empty("A-1", next_at=30.0), due=30.0)
+    conns, run_ = run(contents, 31.0, board=FakeStaffBoard(called))
+    assert job.put > 31.0
+    await run_
+    assert len(contents.stored["A-1"].dolls) == 8 and [m["t"] for _, m in conns.broadcasts] == ["stock"]

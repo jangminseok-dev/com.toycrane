@@ -134,8 +134,11 @@ class FakeConnections:
     def send_done_no(self, conn_id, machine_id, why) -> None:
         self.direct.append((conn_id, server_messages.done_no(machine_id, why)))
 
-    def send_staffed(self, conn_id, machine_id, n) -> None:
-        self.direct.append((conn_id, server_messages.staffed(machine_id, n)))
+    def send_staff_no(self, conn_id, machine_id, why, left) -> None:
+        self.direct.append((conn_id, server_messages.staff_no(machine_id, why, left)))
+
+    def broadcast_staff_plan(self, zone, jobs, back, now, machine_id, dolls=None, box=None) -> None:
+        self.broadcasts.append((None, server_messages.staff_plan(zone, jobs, back, now, machine_id, dolls, box)))
 
     def broadcast_pose(self, except_conn, player_id, machine_id, f) -> None:
         self.broadcasts.append((except_conn, server_messages.pose(player_id, machine_id, f)))
@@ -324,3 +327,20 @@ class FakeLocks:
 
     def plays(self) -> dict[str, str]:
         return {m: self.player_ids.get(c, c.replace("c-", "p")) for c, (m, _) in self.rows.items()}
+
+
+class FakeStaffBoard:
+    """상주 직원 일정·부른 판 수(DO 저장소) 가짜."""
+
+    def __init__(self, board=None) -> None:
+        from toycrane.domain.staff import EMPTY_BOARD
+
+        self.board = board or EMPTY_BOARD
+        self.saves = 0
+
+    async def load(self):
+        return self.board
+
+    async def save(self, board) -> None:
+        self.board = board
+        self.saves += 1

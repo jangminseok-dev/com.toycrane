@@ -7,6 +7,7 @@ from toycrane.adapter.inbound.ws.schemas.server_messages import (
 from toycrane.app.dtos.player_view import PlayerView
 from toycrane.app.dtos.store_snapshot import StoreSnapshot
 from toycrane.domain.crane import DollSpot
+from toycrane.domain.staff import StaffJob
 
 FX = json.loads((Path(__file__).resolve().parents[3] / "shared" / "protocol_fixtures.json").read_text(encoding="utf-8"))
 
@@ -22,6 +23,8 @@ def test_welcome_matches_fixture():
         machines={"A-1": [DollSpot("bunny", 0.1204, 0.87, -0.0501, (0, 0, 0, 1), 2, "n", 1, "", 1), DollSpot("bunny", -0.2, None, 0.1, (0, 0, 0, 1), 0, "c", 3, "star", 2)]},
         plays={"A-3": "p2"},
         figures={"F-1": (0.0041, 1.0543, -0.0031, 0.0, 0.0123, 0.0, 1.0)},
+        staff={"doll": ((StaffJob("A-1", None, 100.0, 103.5, 105.5, 106.3),), 110.0)},
+        now=101.25,
     )
     assert welcome(fx["store"], view(fx["you"]), [view(p) for p in fx["players"]], snap) == fx
 
@@ -111,10 +114,14 @@ def test_protocol_is_thirteen():
     """고리 걸기·미는 뽑기 다시 만들기(설계 2026-11-02 ring-hook): act·ring·pusher 메시지와 welcome rings·pushers를 없애 옛 화면은 새로 고친다 — 화면(net/protocol.ts)과 같은 수."""
     from toycrane.adapter.inbound.ws.schemas.server_messages import PROTOCOL
 
-    assert PROTOCOL == 17  # 직원 부르기 staff·staffed(2026-11-24) — 옛 화면이 새로 고쳐 버튼을 받게  # 고리 기계 간격 2.1m(2026-11-03) — 장애물이 바뀌어 옛 화면이 새로 고치게  # 매장 38m·진열탑·피규어 앞 벽 — 배치가 바뀌면 옛 화면이 새로 고치게(2026-11-02)
+    assert PROTOCOL == 18  # 상주 직원 staff_plan·staff_no, welcome staff·now(2026-11-24)  # 17: 직원 부르기 staff·staffed(2026-11-24) — 옛 화면이 새로 고쳐 버튼을 받게  # 고리 기계 간격 2.1m(2026-11-03) — 장애물이 바뀌어 옛 화면이 새로 고치게  # 매장 38m·진열탑·피규어 앞 벽 — 배치가 바뀌면 옛 화면이 새로 고치게(2026-11-02)
 
 
-def test_staffed_tells_how_many_dolls_the_staff_moved():
-    from toycrane.adapter.inbound.ws.schemas.server_messages import staffed
+def test_staff_messages_match_fixtures():
+    from toycrane.adapter.inbound.ws.schemas.server_messages import staff_no, staff_plan
 
-    assert staffed("A-1", 2) == {"t": "staffed", "m": "A-1", "n": 2}
+    box = (0.0041, 1.0543, -0.0031, 0.0, 0.0123, 0.0, 1.0)
+    assert staff_plan("figure", (StaffJob("F-1", None, 100.0, 103.5, 105.5, 106.3),), 110.0, 100.0, "F-1", None, box) == FX["server_staff_plan"]
+    dolls = [DollSpot("bunny", -0.2, None, 0.1, (0, 0, 0, 1), 0, "c", 3, "star", 2)]
+    assert staff_plan("doll", (StaffJob("A-5", "A-1", 106.3, 108.0, 110.0, 110.8),), 115.0, 100.0, "A-5", dolls, None) == FX["server_staff_plan_dolls"]
+    assert staff_no("A-1", "wait", 3) == FX["server_staff_no"]

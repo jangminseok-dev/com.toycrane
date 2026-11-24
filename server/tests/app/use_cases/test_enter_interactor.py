@@ -6,7 +6,7 @@ import pytest
 
 from fakes import (
     BrokenOccupancy, FakeBag, FakeConnections, FakeContents, FakeFigureBoxes, FakeLocks, FakeOccupancy, FakeRegistry,
-    FakeWallet, player,
+    FakeStaffBoard, FakeWallet, player,
     stocks_with_empty,
 )
 from toycrane.adapter.inbound.ws.schemas.server_messages import join, leave
@@ -16,11 +16,11 @@ from toycrane.app.use_cases.enter_interactor import EnterInteractor
 from toycrane.app.use_cases.stock_interactor import StockInteractor
 
 
-def enter_interactor(reg=None, conns=None, occ=None, new_id=lambda: "p-1", wallet=None, bag=None, contents=None, locks=None):
+def enter_interactor(reg=None, conns=None, occ=None, new_id=lambda: "p-1", wallet=None, bag=None, contents=None, locks=None, board=None):
     return EnterInteractor(
         reg or FakeRegistry(), conns or FakeConnections(), occ or FakeOccupancy(), new_player_id=new_id,
         wallet=wallet or FakeWallet(), bag=bag or FakeBag(), contents=contents or FakeContents(), figures=FakeFigureBoxes(), hooks=FakeFigureBoxes(),
-        locks=locks or FakeLocks(), rng=random.Random(1),
+        locks=locks or FakeLocks(), staff=board or FakeStaffBoard(), rng=random.Random(1),
     )
 
 
@@ -154,7 +154,7 @@ async def test_enter_survives_wallet_read_failure():
 # Review Focus 1: 몇 시간 비어 있던 매장에 처음 들어와도 입장 화면에 이미 채워진 기계가 보인다 (입장 전에 채우기를 돌린다 — enter_handler)
 async def test_enter_sees_the_caught_up_stock():
     conns, contents = FakeConnections(), FakeContents(stocks_with_empty("A-1", next_at=30.0), due=30.0)
-    await StockInteractor(contents, FakeLocks(), conns, random.Random(3)).refill(StockCommand(now=4000.0))
+    await StockInteractor(contents, FakeLocks(), conns, random.Random(3), FakeStaffBoard()).refill(StockCommand(now=4000.0))
     await enter_interactor(conns=conns, contents=contents).enter(cmd("c-1", "g-1", now=4000.0))
     welcome = next(m for c, m in conns.direct if m["t"] == "welcome")
     assert len(welcome["machines"]["A-1"]) == 9
@@ -177,3 +177,18 @@ async def test_welcome_carries_pusher_machines():
     machines = conns.direct[0][1]["machines"]
     assert all(len(machines[p]) == FULL for p in ("P-1", "P-2", "P-3", "P-4"))
     assert len({d.kind for d in contents.stored["P-1"].dolls}) > 1 and contents.saves == 1
+
+
+# 상주 직원(설계 2026-11-24 store-staff): 새로 들어온 사람도 일하는 중인 직원을 제자리에서 본다 — welcome에 구역별 일정과 서버 시각
+async def test_welcome_carries_staff_plans_and_server_now():
+    from toycrane.domain.staff import EMPTY_BOARD, back_at, plan_call
+
+    called, job = plan_call(EMPTY_BOARD, "A-1", "g-9", 100.0)
+    conns = FakeConnections()
+    await enter_interactor(conns=conns, board=FakeStaffBoard(called)).enter(cmd("c-1", "g-1", now=101.0))
+    welcome = next(m for c, m in conns.direct if m["t"] == "welcome")
+    assert welcome["now"] == 101.0 and list(welcome["staff"]) == ["doll"]
+    assert welcome["staff"]["doll"]["jobs"][0]["m"] == "A-1" and welcome["staff"]["doll"]["back"] == round(back_at(called.jobs["doll"], "doll"), 3)
+    later = FakeConnections()
+    await enter_interactor(conns=later, board=FakeStaffBoard(called)).enter(cmd("c-2", "g-2", now=job.end + 60))
+    assert next(m for c, m in later.direct if m["t"] == "welcome")["staff"] == {}  # 돌아오기까지 끝난 일은 빠진다
