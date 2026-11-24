@@ -1,3 +1,4 @@
+import math
 import random
 
 from toycrane.domain.catalog import DOLLS
@@ -141,3 +142,42 @@ def test_a_pusher_refills_a_batch_at_once():
     assert top_up_mixed(five, 0, random.Random(2)) == (five, [])
     after, added = top_up_mixed(taken, 0, random.Random(2))
     assert len(added) == BATCH_MIXED
+
+
+# 상주 직원의 전부 다시 놓기(설계 2026-11-24 store-staff): 칸 인형은 칸 새 자리, 턱 위 인형은 턱 위에서 깊이(z)는 그대로 x만 고르게 — 쌓아 온 진행을 뺏지 않는다
+def _with_ledge(seed: int):
+    s = generate_mixed_stock(random.Random(seed))
+    rng = random.Random(seed + 100)
+    dolls = [replace(d, x=rng.uniform(LEDGE["x0"] + 0.05, LEDGE["x1"] - 0.03), y=0.99, z=rng.uniform(LEDGE["z0"], LEDGE["z1"])) if i < 6 else replace(d, y=0.87)
+             for i, d in enumerate(s.dolls)]
+    return replace(s, dolls=dolls, stuck={dolls[0].uid: 2})
+
+
+def test_redrop_mixed_keeps_ledge_dolls_on_the_ledge_at_their_depth():
+    from toycrane.domain.pusher_crane import REDROP_Z, redrop_mixed
+
+    before = _with_ledge(1)
+    after = redrop_mixed(before, random.Random(2))
+    was = {d.uid: d for d in before.dolls}
+    ledge = [d for d in after.dolls if was[d.uid].x < LEDGE["x1"]]
+    assert len(ledge) == 6 and all(d.y is None and d.q == (0.0, 0.0, 0.0, 1.0) for d in after.dolls) and after.stuck == {}
+    for d in ledge:
+        assert LEDGE["x0"] + 0.08 <= d.x <= LEDGE["x1"] - 0.06
+        assert math.isclose(d.z, min(max(was[d.uid].z, REDROP_Z[0]), REDROP_Z[1]), abs_tol=5e-4)  # 자리는 mm 셋째 자리로 반올림
+    assert all(in_pile(d) for d in after.dolls if was[d.uid].x >= LEDGE["x1"])
+    gaps = [math.hypot(a.x - b.x, a.z - b.z) for i, a in enumerate(ledge) for b in ledge[i + 1:]]
+    assert min(gaps) > 0.01  # 같은 자리에 겹쳐 떨어지지 않게(자리가 모자라면 간격을 줄여 물러섬)
+
+
+def test_redrop_mixed_does_not_move_ledge_dolls_forward_on_average():
+    from toycrane.domain.pusher_crane import REDROP_Z, redrop_mixed
+
+    moved, n = 0.0, 0
+    for seed in range(50):
+        before = _with_ledge(seed)
+        was = {d.uid: d for d in before.dolls}
+        for d in redrop_mixed(before, random.Random(seed)).dolls:
+            if was[d.uid].x < LEDGE["x1"]:
+                moved += d.z - min(max(was[d.uid].z, REDROP_Z[0]), REDROP_Z[1])
+                n += 1
+    assert abs(moved / n) < 5e-4  # 평균으로 앞으로도 뒤로도 가지 않는다(반올림만큼)

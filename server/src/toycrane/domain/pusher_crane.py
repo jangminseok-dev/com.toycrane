@@ -30,6 +30,37 @@ def ledge_spot(rng: random.Random) -> tuple[float, float]:
     return round(rng.uniform(_LEDGE["x0"] + 0.08, _LEDGE["x1"] - 0.06), 3), round(rng.uniform(_LEDGE["z0"] + 0.04, _LEDGE["z0"] + 0.12), 3)
 
 
+# 상주 직원의 전부 다시 놓기(설계 2026-11-24 store-staff): 턱 위 인형은 턱 위에 남기고 깊이(z, 출구 쪽으로 나아간 정도)는 그대로 둔 채 x만
+# 다시 고른다 — 쌓아 온 진행을 뺏지도 더 주지도 않는다. 앞 끝에 아주 가까운 인형은 위에서 떨어뜨리면 그대로 넘어가 거저 뽑히므로 REDROP_Z로 자른다
+REDROP_Z: tuple[float, float] = (_LEDGE["z0"] + 0.04, _LEDGE["z1"] - 0.12)
+REDROP_GAPS = (0.12, 0.08, 0.0)
+
+
+def _ledge_x(z: float, placed: list[DollSpot], rng: random.Random) -> float:
+    for gap in REDROP_GAPS:
+        for _ in range(200):
+            x = round(rng.uniform(_LEDGE["x0"] + 0.08, _LEDGE["x1"] - 0.06), 3)
+            if all(math.hypot(x - p.x, z - p.z) >= gap for p in placed):
+                return x
+    raise AssertionError("unreachable")
+
+
+def redrop_mixed(stock: MachineStock, rng: random.Random) -> MachineStock:
+    """칸 인형은 칸 새 자리(pile_spot), 턱 위 인형(x < 턱 오른쪽 끝)은 깊이 그대로 x만 서로 떨어지게. 모두 안 앉은 채·곧게, stuck 지움."""
+    ledge: list[DollSpot] = []
+    dolls: list[DollSpot] = []
+    for d in stock.dolls:
+        if d.x < _LEDGE["x1"]:
+            z = round(min(max(d.z, REDROP_Z[0]), REDROP_Z[1]), 3)
+            d = replace(d, x=_ledge_x(z, ledge, rng), y=None, z=z, q=UPRIGHT)
+            ledge.append(d)
+        else:
+            x, z = pile_spot(rng)
+            d = replace(d, x=x, y=None, z=z, q=UPRIGHT)
+        dolls.append(d)
+    return replace(stock, dolls=dolls, stuck={})
+
+
 # 15판 보장(사용자 2026-11-02 '미는 뽑기 15판 안에 뽑게'): 같은 기계에서 한 손님이 이만큼 연달아 못 뽑으면 그 판 끝에 직원이 인형 하나를
 # 꺼내 준다 — 어려움(잘 집는 사람 50%선 7판)은 그대로, 대충 하는 사람도 15판을 넘기지 않는다. 판 수 세기는 stock.count_miss
 PITY_PLAYS: int = PUSHER["pity"]

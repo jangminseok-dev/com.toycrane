@@ -50,3 +50,13 @@ def tidy_unreachable(before: MachineStock, after: MachineStock, rng: random.Rand
             stuck[d.uid] = n
     tidied = replace(after, stuck=stuck)
     return (_move(tidied, due, rng), sorted(due)) if due else (tidied, [])
+
+
+def redrop_all(stock: MachineStock, rng: random.Random) -> MachineStock:
+    """상주 직원의 전부 다시 놓기(설계 2026-11-24 store-staff): 모든 인형을 새 인형 채우기와 같은 자리 규칙(spawn_spot, DROP_HALF)으로
+    하나씩 앞서 놓은 인형을 피해 놓는다. 안 앉은 채·곧게, 누구인지(종류·색·희귀·번호)와 판 수 기록은 그대로."""
+    placed: list[DollSpot] = []
+    for d in stock.dolls:
+        x, z = spawn_spot(placed, rng)
+        placed.append(replace(d, x=x, y=None, z=z, q=UPRIGHT))
+    return replace(stock, dolls=placed, stuck={})

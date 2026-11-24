@@ -67,3 +67,21 @@ def test_tidy_unreachable_resets_when_the_doll_moves():
     b = replace(a, dolls=[doll(1, RW + OUT + 0.03, 0.07)])  # 2cm 움직였다
     after, moved = tidy_unreachable(a, b, random.Random(1))
     assert moved == [] and after.stuck == {}
+
+
+# 상주 직원의 전부 다시 놓기(설계 2026-11-24 store-staff): 모든 인형을 새 자리에, 안 앉은 채 — 누구인지는 그대로
+def test_redrop_all_moves_every_doll_unsettled_and_keeps_who_they_are():
+    from toycrane.domain.crane import DROP_HALF
+    from toycrane.domain.reposition import redrop_all
+    from toycrane.domain.stock import generate_stock
+
+    s = generate_stock("bear", random.Random(4))
+    settled = replace(s, dolls=[replace(d, y=0.1, q=(0.0, 0.7071, 0.0, 0.7071)) for d in s.dolls], stuck={1: 2}, misses={"g": 3})
+    after = redrop_all(settled, random.Random(5))
+    hx, hz, _ = MACHINE_SPEC.hole
+    half = CLAW["hole"]["size"] / 2
+    assert {(d.kind, d.color, d.rare, d.uid) for d in after.dolls} == {(d.kind, d.color, d.rare, d.uid) for d in settled.dolls}
+    for d in after.dolls:
+        assert d.y is None and d.q == (0.0, 0.0, 0.0, 1.0)
+        assert abs(d.x) <= DROP_HALF[0] and abs(d.z) <= DROP_HALF[1] and (abs(d.x - hx) > half or abs(d.z - hz) > half)
+    assert after.stuck == {} and after.misses == {"g": 3} and after.next_uid == settled.next_uid
