@@ -45,3 +45,10 @@ test('copy reads naturally', () => {
 test('the staff help toast says the box was put back', () => {
   expect(UI.figureNudged).toBe('직원이 상자를 다시 올려놓아 줬어요');
 });
+
+// 상주 직원 검토(2026-11-24): 거절마다 알림 글이 있어야 한다 — 빠지면 빈 알약이 뜨거나 아무 반응이 없다
+test('every refusal the staff feature can cause has words', () => {
+  for (const why of ['busy', 'coins', 'far', 'staff'] as const) expect(UI.playNo[why], why).toMatch(/\S/);
+  for (const why of ['again', 'seat'] as const) expect(UI.staffNo[why], why).toMatch(/\S/);
+  expect([UI.playNo.staff, UI.staffNo.again, UI.staffNo.seat].join('')).not.toContain('·');
+});

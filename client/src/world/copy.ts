@@ -64,6 +64,9 @@ export const UI = {
   staffSoon: '직원이 곧 와요', // 직원이 앞 기계를 정리하는 동안 줄에서 기다림
   staffBusy: '직원이 바빠요, 조금 뒤에 불러 주세요', // 구역 줄이 찼다
   staffWait: (n: number) => `직원 부르기까지 ${n}판`, // 부른 뒤 다시 부를 수 있을 때까지
+  // 기계 시작 거절(play_no) — 'staff'는 직원이 다시 놓으러 오는 중(상주 직원 검토: 빠져 있어 빈 알약이 떴다)
+  playNo: { busy: '다른 사람이 하는 중이에요', coins: '코인이 없어요. 교환소에서 받을 수 있어요', far: '기계 앞에 서 주세요', staff: '직원이 정리하는 중이에요' },
+  staffNo: { again: '직원이 이미 오고 있어요', seat: '한 판 하고 나서 불러 주세요' }, // 직원 부르기 거절(본인에게)
   strongIn: (n: number) => `집게가 세지기까지 ${n}판`, // 인형 기계: 연달아 못 뽑으면 집게가 세진다(game/help.ts)
   strongClaw: '집게 힘이 세졌어요',
   nearMiss: '아까워요!', // 인형을 들어 옮기다 놓친 판
@@ -71,7 +74,6 @@ export const UI = {
   gotCoins: (n: number) => `코인 ${n}개를 받았어요!`,
   gaveYou: (nick: string, n: number) => `${nick} 님이 코인 ${n}개를 줬어요`,
   youGave: (n: number) => `코인 ${n}개를 줬어요`,
-  noCoinsToast: '코인이 없어요. 교환소에서 받을 수 있어요',
   giveTitle: (nick: string) => `${nick} 님에게 줄 코인`,
   giveCount: (n: number) => `${n}개`,
   giveMax: '최대',

@@ -345,7 +345,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
     case 'done_no': onDoneNo(m.m); break;
     case 'pose': watches.get(m.m)?.receiver.push(m, now / 1000); for (const p of boxPlays) p.onPose(m, now / 1000); break;
     case 'play_no':
-      if (m.why !== 'playing') toast({ busy: '다른 사람이 하는 중이에요', coins: UI.noCoinsToast, far: '기계 앞에 서 주세요' }[m.why]);
+      if (m.why !== 'playing') toast(UI.playNo[m.why]);
       if (seated === m.m) { run.stop(); nextRunAt = null; showSeat(); } // 이어 하던 판을 못 시작했으면 멈추고 다시 묻는다
       break;
     case 'free':
@@ -402,7 +402,8 @@ function onMessage(m: ServerMsg, guest: Guest) {
     case 'staff_no':
       staffUntil = 0;
       if (m.why === 'busy') toast(UI.staffBusy);
-      if (m.why === 'wait') { staffLeft.set(m.m, m.left); if (seated === m.m) showSeat(); }
+      else if (m.why === 'wait') { staffLeft.set(m.m, m.left); if (seated === m.m) showSeat(); }
+      else toast(UI.staffNo[m.why]); // 아무 반응이 없으면 안 된다(설계 실패 기준)
       break;
     case 'cbeg_no': {
       const text = m.why === 'wait' ? UI.begWait(Math.max(1, Math.ceil(m.wait / 60))) : m.why === 'full' ? UI.full : UI.giveNo.far;

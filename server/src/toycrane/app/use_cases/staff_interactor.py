@@ -13,7 +13,6 @@ from toycrane.app.use_cases.machine_contents import ensure_contents
 from toycrane.domain.figure import FIGURE_RULES, FigureState
 from toycrane.domain.hook import HOOK_RULES
 from toycrane.domain.layout import MACHINES, PUSHERS
-from toycrane.domain.play_rules import hold_over
 from toycrane.domain.pusher_crane import redrop_mixed
 from toycrane.domain.reposition import redrop_all
 from toycrane.domain.staff import back_at, calls_left, plan_call, prune, zone_of
@@ -42,7 +41,8 @@ class StaffInteractor(StaffUseCase):
         if zone is None or me is None:
             return
         seat = self._locks.lock_of(cmd.conn_id)
-        if seat is None or seat[0] != cmd.machine_id or not self._locks.is_between(cmd.conn_id) or hold_over(seat[1], cmd.now):
+        # 판 사이 자리 시간이 지났어도 잠금이 아직 내 것이면(아무도 가져가지 않음) '한 판 더'처럼 받는다 — 5판에 한 번이라 자리를 끝없이 잡지 못한다
+        if seat is None or seat[0] != cmd.machine_id or not self._locks.is_between(cmd.conn_id):
             self._connections.send_staff_no(cmd.conn_id, cmd.machine_id, "seat", 0)
             return
         board = prune(await self._board.load(), cmd.now)

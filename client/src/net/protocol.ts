@@ -33,7 +33,7 @@ export type Correct = { t: 'correct'; x: number; z: number };
 export type Leave = { t: 'leave'; id: string };
 export type Coins = { t: 'coins'; n: number; got: number };
 export type PlayOk = { t: 'play_ok'; m: string; coins: number; limit: number };
-export type PlayNo = { t: 'play_no'; m: string; why: 'busy' | 'coins' | 'far' | 'playing' };
+export type PlayNo = { t: 'play_no'; m: string; why: 'busy' | 'coins' | 'far' | 'playing' | 'staff' }; // staff: 직원이 다시 놓으러 오는 중
 export type Play = { t: 'play'; m: string; id: string };
 // 한 판 결과: 구멍에 빠진 인형들 [캐릭터, 색, 희귀, 번호] (비어 있으면 못 뽑음) — 결과는 판을 한 화면의 물리가 정하고 서버는 기록·중계
 export type WonDoll = [kind: string, color: number, rare: string, uid: number];

@@ -66,8 +66,8 @@ async def test_staff_call_on_a_figure_and_a_hook_puts_the_box_back_to_start():
 
 async def test_staff_call_refused_tells_why():
     locks, conns, contents, figures, hooks, board, it = setup()
-    # 자리 없음, 한 판 도중, 자리 시간 지남 → seat
-    for prep in (lambda: None, lambda: locks.lock("c-1", "A-1", 10.0), lambda: locks.hold("c-1", "A-1", 10.0)):
+    # 자리 없음, 한 판 도중 → seat
+    for prep in (lambda: None, lambda: locks.lock("c-1", "A-1", 10.0)):
         locks.release("c-1"); conns.direct.clear(); prep()
         await it.call(StaffCommand("c-1", "A-1", now=10.0 + HOLD_SECONDS + 1))
         assert conns.direct == [("c-1", staff_no("A-1", "seat", 0))]
@@ -89,3 +89,12 @@ async def test_a_busy_zone_refuses_and_does_not_count():
     locks.hold("c-1", "A-1", 100.0)
     await it.call(StaffCommand("c-1", "A-1", now=100.5))
     assert conns.direct == [("c-1", staff_no("A-1", "busy", 0))] and "A-1" not in board.board.calls
+
+
+# 검토(2026-11-24): 판 사이 자리 시간(20초)이 지나도 아무도 그 기계를 가져가지 않았으면 '한 판 더'처럼 직원 부르기도 된다 — 아니면 버튼이 아무 반응이 없다.
+# 자리를 끝없이 잡지는 못한다(5판에 한 번)
+async def test_a_call_after_the_seat_time_still_works_if_nobody_took_the_machine():
+    locks, conns, contents, figures, hooks, board, it = setup()
+    locks.hold("c-1", "A-1", 10.0)
+    await it.call(StaffCommand("c-1", "A-1", now=10.0 + HOLD_SECONDS + 5))
+    assert board.board.jobs["doll"][0].machine == "A-1" and conns.broadcasts[0][1]["t"] == "staff_plan" and conns.direct == []
