@@ -1,5 +1,6 @@
 // 가방 인형 크게 보기(설계 2026-11-24 bag-viewer-new): 가방 칸을 누르면 가운데 카드에 인형을 크게 — 좌우로 끌면 360도, 위아래로 조금 기울고,
-// 두 손가락·휠로 2배까지 키운다. 손대기 전엔 천천히 저절로 돈다. 카드 안 작은 캔버스에 따로 그리고 닫을 때 렌더러를 버린다(휴대폰 메모리)
+// 두 손가락·휠로 2배까지 키운다. 손대기 전엔 천천히 저절로 돈다. 카드 안 작은 캔버스에 따로 그린다 — 렌더러는 하나만 만들어 계속 쓴다(검토 2026-11-25:
+// 열 때마다 새로 만들고 버리면 three가 함께 쓰는 인형 자원의 dispose 수신기가 버린 렌더러를 붙잡아 메모리가 늘었다). 닫을 땐 인형을 빼고 그림판을 줄인다
 import * as THREE from 'three';
 import { UI } from '../world/copy';
 import { PLAIN, makeDoll } from '../world/dolls';
@@ -20,6 +21,13 @@ export class ViewerSpin {
 
 export type RendererLike = { render(scene: THREE.Scene, camera: THREE.Camera): void; setSize(w: number, h: number, style?: boolean): void; setPixelRatio(r: number): void; dispose(): void; forceContextLoss(): void };
 type Spinner = { obj: THREE.Object3D; speed: number };
+
+// 크게 보기 렌더러 하나(WebGL이 없으면 null) — 처음 열 때 만들고 계속 쓴다(작은 그림 thumbs.ts의 studio와 같은 생각)
+let shared: RendererLike | null | undefined;
+export function sharedRenderer<R extends RendererLike>(make: () => R): R | null {
+  if (shared === undefined) { try { shared = make(); } catch { shared = null; } }
+  return shared as R | null;
+}
 
 // 인형 한 개를 그리는 작은 무대 — 가방 작은 그림과 같은 모습(기본 체형·표정, 칸의 색·희귀), 희귀 장식은 돈다
 export class DollStage {
@@ -59,12 +67,11 @@ export class DollStage {
     this.renderer.render(this.scene, this.camera);
   }
 
-  // 렌더러(이 캔버스의 GPU 문맥)를 버린다. 인형 형상·재질은 게임 화면과 함께 쓰는 것이 있어 버리지 않고 장면에서만 뺀다
+  // 인형을 장면에서 빼고 그림판을 1px로 줄인다 — 렌더러는 다음에 또 쓴다. 인형 형상·재질은 게임 화면과 함께 쓰는 것이 있어 버리지 않는다
   dispose(): void {
     if (this.doll) this.pivot.remove(this.doll);
     this.doll = null;
-    this.renderer.dispose();
-    this.renderer.forceContextLoss();
+    this.renderer.setSize(1, 1, false);
   }
 }
 
@@ -104,13 +111,12 @@ export function openDollViewer(cell: { doll: string; color: number; rare: string
   document.body.append(shade);
 
   let stage: DollStage | null = null;
-  try {
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setClearColor(0x000000, 0);
+  const renderer = sharedRenderer(() => { const r = new THREE.WebGLRenderer({ antialias: true, alpha: true }); r.setClearColor(0x000000, 0); return r; });
+  if (renderer) {
     stage = new DollStage(renderer, cell);
-    box.append(renderer.domElement);
+    box.append(renderer.domElement); // 닫으면 카드와 함께 문서에서 빠지고, 다음에 열 때 다시 붙는다
     Object.assign(renderer.domElement.style, { width: '100%', height: '100%', display: 'block' });
-  } catch { // WebGL이 없으면 가방 작은 그림을 크게
+  } else { // WebGL이 없으면 가방 작은 그림을 크게
     const pic = thumbnailSoon(cell.doll, cell.color, cell.rare, () => {});
     if (pic) { const img = document.createElement('img'); img.src = pic.toDataURL(); Object.assign(img.style, { width: '100%', height: '100%' }); box.append(img); }
   }
