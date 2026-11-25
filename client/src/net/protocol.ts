@@ -48,7 +48,7 @@ export type PoseFrame = [age: number, c: ClawPose, d: PoseWire[]];
 export type Pose = { t: 'pose'; m: string; id: string; f: PoseFrame[] };
 export type MachineMsg = { t: 'machine'; m: string; dolls: DollSpot[] };
 export type Free = { t: 'free'; m: string };
-export type Bag = { t: 'bag'; n: number };
+export type Bag = { t: 'bag'; n: number; new?: [kind: string, color: number, rare: string][] }; // new: 이번에 처음 생긴 가방 칸(당첨 카드 NEW)
 export type TakeNo = { t: 'take_no'; c: number; why: 'far' | 'enough' }; // 코인 받기 거절
 export type CounterBeg = { t: 'cbeg'; id: string; c: number; n: number }; // 교환소 조르기 결과 (0이면 쿨타임 거절)
 export type CounterBegNo = { t: 'cbeg_no'; c: number; why: 'wait' | 'full' | 'far'; wait: number }; // 본인에게: 거절 이유, 남은 초
@@ -111,7 +111,7 @@ export function decode(raw: string): ServerMsg | null {
     case 'pose': return str(m.m) && str(m.id) && Array.isArray(m.f) && m.f.every(isPoseFrame) ? (m as Pose) : null;
     case 'machine': return str(m.m) && Array.isArray(m.dolls) && m.dolls.every(isSpot) ? (m as MachineMsg) : null;
     case 'free': return str(m.m) ? (m as Free) : null;
-    case 'bag': return num(m.n) ? (m as Bag) : null;
+    case 'bag': return num(m.n) && (m.new === undefined || (Array.isArray(m.new) && m.new.every((c) => Array.isArray(c) && c.length === 3 && str(c[0]) && num(c[1]) && str(c[2])))) ? (m as Bag) : null;
     case 'spawn': return str(m.m) && str(m.k) && str(m.rv) ? (m as Spawn) : null;
     case 'stock': return m.in === null || num(m.in) ? (m as Stock) : null;
     case 'figure': return str(m.m) && isBox(m.box) && typeof m.nudged === 'boolean' ? { t: 'figure', m: m.m, box: m.box, nudged: m.nudged } : null;

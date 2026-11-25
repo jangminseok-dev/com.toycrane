@@ -7,7 +7,7 @@ const fx = fixtures as Record<string, unknown>;
 test('decodes every server fixture', () => {
   for (const k of ['server_welcome', 'server_join', 'server_move', 'server_correct', 'server_leave', 'server_coins',
     'server_play_ok', 'server_play_no', 'server_play', 'server_result', 'server_result_staff', 'server_result_miss', 'server_result_tidy', 'server_machine', 'server_free', 'server_bag', 'server_spawn', 'server_stock',
-    'server_take_no', 'server_cbeg', 'server_cbeg_no', 'server_beg', 'server_gave', 'server_give_no', 'server_done_no', 'server_pose', 'server_figure', 'server_staff_plan', 'server_staff_plan_dolls', 'server_staff_no'])
+    'server_take_no', 'server_cbeg', 'server_cbeg_no', 'server_beg', 'server_gave', 'server_give_no', 'server_done_no', 'server_pose', 'server_figure', 'server_staff_plan', 'server_staff_plan_dolls', 'server_staff_no', 'server_bag_new'])
     expect(decode(JSON.stringify(fx[k]))).toEqual(fx[k]);
 });
 
@@ -115,4 +115,10 @@ test('staff call, plan and refusal', () => {
   expect(decode(JSON.stringify(bad))).toBeNull(); // 일정 시각이 빠짐
   expect(decode(JSON.stringify({ ...(fx.server_staff_no as Record<string, unknown>), why: 1 }))).toBeNull();
   expect(decode('{"t":"staffed","m":"A-1","n":2}')).toBeNull(); // 옛 응답은 없어졌다
+});
+
+// 가방 NEW: 뽑은 손님에게 가는 bag에 처음 생긴 칸 [캐릭터, 색, 희귀]
+test('a bag message may carry new cells', () => {
+  expect(decode('{"t":"bag","n":3,"new":[["bear",2,""]]}')).toEqual({ t: 'bag', n: 3, new: [['bear', 2, '']] });
+  expect(decode('{"t":"bag","n":3,"new":[["bear","x",""]]}')).toBeNull();
 });

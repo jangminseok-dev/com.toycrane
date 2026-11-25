@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { winCardText, winTier } from './winCard';
+import { cellKey, winCardFresh, winCardText, winTier } from './winCard';
 
 // 당첨 카드 글자 (설계 2026-10-31 인형 채우기 §4.6): "민트 곰돌이", "★ 별빛 곰돌이", "★★ 황금 곰돌이"
 test('the win card names the tier', () => {
@@ -19,4 +19,13 @@ test('the win card lists every doll of a multi win', () => {
   expect(winTier(['', 'star', ''])).toBe('rare');
   expect(winTier(['star', 'gold'])).toBe('gold');
   expect(winTier(['', ''])).toBe('');
+});
+
+// 가방 NEW(설계 2026-11-24 bag-viewer-new): 처음 생긴 칸의 인형 이름 옆에 NEW — 제목과 아래 줄이 winCardText와 같은 순서·같은 자르기
+test('the win card marks first-time dolls as new', () => {
+  expect(winCardFresh([true, false, true])).toEqual({ title: true, more: [false, true] });
+  expect(winCardFresh([false])).toEqual({ title: false, more: [] });
+  expect(winCardFresh([false, true, true, true, true, true, true])).toEqual({ title: false, more: [true, true, true, true, false] }); // '외 2개' 줄엔 없음
+  expect(winCardFresh([])).toEqual({ title: false, more: [] });
+  expect(cellKey('bear', 2, '')).toBe(cellKey('bear', 2, '')); expect(cellKey('bear', 2, '')).not.toBe(cellKey('bear', 3, ''));
 });

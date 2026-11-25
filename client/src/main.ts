@@ -58,7 +58,7 @@ import { BOX_TIMER_AT, DOLL_TIMER_AT, buildMachineTimer, type MachineTimer } fro
 import { PlayRun, runSize } from './game/playRun';
 import { buildMachineControls, type MachineControls } from './world/machineControls';
 import { buildTopView, type TopView } from './world/topView';
-import { showWinCard, winTier } from './ui/winCard';
+import { cellKey, showWinCard, winTier } from './ui/winCard';
 import { setStatus } from './ui/status';
 import { makeAvatar, type Avatar } from './world/avatar';
 import { DOLLS, GOLD, SETS, dollName } from './data/catalog';
@@ -159,7 +159,14 @@ let takingUntil = 0; // 코인 받기를 눌러 응답을 기다리는 동안(�
 let staffUntil = 0; // 직원 부르기를 눌러 응답을 기다리는 동안(길어도 3초) — 연달아 눌러도 한 번만 보낸다
 let staffVisit: { m: string; dep: number; end: number } | null = null; // 내가 부른 직원이 오는 일정(서버 시각) — 그동안 판 사이 버튼은 그만하기만, 카메라는 뒤로
 const staffLeft = new Map<string, number>(); // 기계 → 다시 부를 수 있을 때까지 남은 판(서버 staff_no wait로 알게 됨, 판을 시작할 때마다 줄임)
-let staffShown = ''; // 판 사이 화면이 직원 일정의 어느 단계를 보여 주고 있나(바뀔 때만 다시 그린다)
+let staffShown = '';
+let freshCells = new Set<string>(); // 방금 bag 메시지가 알려 준 처음 생긴 가방 칸 — 바로 뒤 결과 카드가 NEW를 붙이고 비운다
+// 이름마다 처음 생긴 칸인가 — 같은 칸이 둘이면 첫 번째에만
+function takeFresh(keys: string[]): boolean[] {
+  const out = keys.map((k) => freshCells.delete(k));
+  freshCells = new Set();
+  return out;
+} // 판 사이 화면이 직원 일정의 어느 단계를 보여 주고 있나(바뀔 때만 다시 그린다)
 const walker = new AutoWalk(); // "코인이 없어요 · 교환소로": 가까운 교환소 줄 끝까지 저절로 걷기
 // 기계 한 판: 내가 하는 중(session) → 내리고 결과 기다림(awaiting, dropped) → 판 사이(seated: 기계 앞 화면 그대로 "한 번 더·그만하기").
 // busy = 기계 → 하는 사람(판이 끝날 시간, 판 사이엔 서버가 자리를 잡아 두는 시간이 지나면 풀림)
@@ -376,7 +383,7 @@ function onMessage(m: ServerMsg, guest: Guest) {
       if (m.nudged && f && me && Math.hypot(me.pos.x - frontSpot(f).x, me.pos.z - frontSpot(f).z) < 6) toast(UI.figureNudged);
       break;
     }
-    case 'bag': wallet.bag = m.n; setHud(wallet.coins, wallet.bag); break;
+    case 'bag': wallet.bag = m.n; setHud(wallet.coins, wallet.bag); freshCells = new Set((m.new ?? []).map(([k, c, r]) => cellKey(k, c, r))); break; // 바로 뒤 결과 카드의 NEW
     case 'spawn': announceSpawn(m.m, m.k, m.rv); break;
     case 'stock':
       // 다음 채울 시각이 지나면 서버를 깨운다 (아무도 움직이지 않아도 제때 채우게) — 매장 사람들이 한꺼번에 보내지 않게 조금씩 흩는다
@@ -843,7 +850,7 @@ async function showResult(m: Result, t: Ticket) {
         const nick = mine ? myNick : remotes.nickOf(m.id);
         tower.showMessage(tier === 'gold' ? '★★ 매우 희귀! ★★' : '★ 희귀 뽑기! ★', `${nick} 님이 ${name}${eulReul(name)} 뽑았어요`, true, tier === 'gold' ? 8 : 6);
       }
-      if (mine && info) showWinCard(won.map((w) => dollName(w[0], w[1], w[2])), SETS.find((x) => x.id === info.set)?.name ?? '', tier, wallet.bag); // 여럿이 빠지면 모두 내 것 (물리 뽑기 설계 §9.1)
+      if (mine && info) showWinCard(won.map((w) => dollName(w[0], w[1], w[2])), SETS.find((x) => x.id === info.set)?.name ?? '', tier, wallet.bag, takeFresh(won.map((w) => cellKey(w[0], w[1], w[2])))); // 여럿이 빠지면 모두 내 것 (물리 뽑기 설계 §9.1)
       if (mine && m.staff) toast(UI.staffGift); // 미는 뽑기 15판 보장: 직원이 턱 맨 앞 인형을 꺼내 줬다
       else if (mine && m.tidied) toast(isPusher(m.m) ? UI.staffTidy : UI.staffMoved); // 직원이 정리: 미는 뽑기는 턱 앞에 걸린 인형을 뒤로, 인형 기계는 못 닿는 인형을 닿는 곳으로
       return rare ? 1.7 : 1.0;
@@ -890,7 +897,7 @@ async function showFigureResult(m: Result, t: Ticket) {
       const opened = (at: THREE.Vector3) => { burst(scene, at, tier === 'gold' ? [0xffd36b, 0xfff6b0, 0xff9f43, 0xffffff] : [0xff7ab6, 0x8fd3ff, 0xffe066, 0x8fe3c8], tier ? 60 : 36); sfx.pop(); };
       await new Promise<void>((done) => bp.reveal(first[0], first[2], figureCameraPose(spot, 0, camera.aspect, bp.machine.camera), done, FIGURE_SPOTS.get(m.m)?.box ?? 'long', opened));
       announce();
-      showWinCard([name], FIGURE_WORD, tier, wallet.bag);
+      showWinCard([name], FIGURE_WORD, tier, wallet.bag, takeFresh(first ? [cellKey(first[0], first[1], first[2])] : []));
     } else sfx.fail();
     if (awaiting === m.m) sitDown(m.m, !!first);
   } else {

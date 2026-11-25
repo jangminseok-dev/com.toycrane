@@ -15,6 +15,13 @@ export function winCardText(names: string[], tier: Tier): { head: string; title:
   if (tier === 'rare') return { head: `★ 희귀!${count}`, title: `★ ${names[0]}`, more };
   return { head: `짠!${count}`, title: names[0], more };
 }
+// 가방 칸 하나(캐릭터·색·희귀)를 가리키는 열쇠 — 처음 생긴 칸(bag 메시지의 new)과 뽑은 인형을 맞춰 본다
+export const cellKey = (kind: string, color: number, rare: string): string => `${kind}|${color}|${rare}`;
+// 이름마다 처음 생긴 칸인가(가방 NEW) → 제목과 아래 줄(winCardText와 같은 자르기, '외 N개' 줄엔 없음)
+export function winCardFresh(fresh: boolean[]): { title: boolean; more: boolean[] } {
+  const rest = fresh.slice(1), more = rest.length > MORE_MAX ? [...rest.slice(0, MORE_MAX), false] : rest;
+  return { title: !!fresh[0], more };
+}
 // 여러 개 중 가장 높은 등급(희귀 효과 id들 — 황금 > 희귀 > 보통)
 export function winTier(rares: string[]): Tier {
   return rares.includes(GOLD.id) ? 'gold' : rares.some((r) => r) ? 'rare' : '';
@@ -26,7 +33,7 @@ const LOOK = {
   gold: { bg: FILL.gold, head: INK, glow: 'rgba(255,190,60,.7)' },
 };
 
-export function showWinCard(names: string[], setName: string, tier: Tier, bag: number): void {
+export function showWinCard(names: string[], setName: string, tier: Tier, bag: number, fresh: boolean[] = []): void {
   if (!card) {
     card = document.createElement('div');
     Object.assign(card.style, {
@@ -43,17 +50,29 @@ export function showWinCard(names: string[], setName: string, tier: Tier, bag: n
     display: 'block', opacity: '1', transform: 'translate(-50%, -50%) scale(1)',
   });
   card.innerHTML = '';
-  const line = (text: string, style: Partial<CSSStyleDeclaration>) => {
-    const el = document.createElement('div'); el.textContent = text; Object.assign(el.style, style); card!.appendChild(el);
+  const line = (text: string, style: Partial<CSSStyleDeclaration>, isNew = false) => {
+    const el = document.createElement('div'); el.textContent = text; Object.assign(el.style, style);
+    if (isNew) el.append(newTag());
+    card!.appendChild(el);
   };
-  const text = winCardText(names, tier);
+  const text = winCardText(names, tier), isNew = winCardFresh(fresh);
   line(text.head, { font: `400 21px ${CARTOON_FONT}`, color: LOOK[tier].head });
-  line(text.title, { font: `400 30px ${CARTOON_FONT}`, margin: '4px 0 2px' });
-  for (const more of text.more) line(more, { font: `400 18px ${CARTOON_FONT}`, margin: '2px 0' });
+  line(text.title, { font: `400 30px ${CARTOON_FONT}`, margin: '4px 0 2px' }, isNew.title);
+  text.more.forEach((more, i) => line(more, { font: `400 18px ${CARTOON_FONT}`, margin: '2px 0' }, isNew.more[i]));
   line(setName, { opacity: '.75', marginTop: text.more.length ? '6px' : '0' });
   line(`가방 ${bag}개째`, { marginTop: '10px', opacity: '.85' });
   clearTimeout(timer);
   timer = window.setTimeout(hide, Math.min(4000, 2200 + 600 * (names.length - 1)));
+}
+
+// NEW 딱지(카툰: 분홍 채움·남색 테두리·납작 그림자) — 처음 뽑은 인형 이름 옆, 가방 칸 그림 위(bagSheet)
+export function newTag(size = 13): HTMLSpanElement {
+  const tag = document.createElement('span'); tag.textContent = 'NEW';
+  Object.assign(tag.style, {
+    display: 'inline-block', marginLeft: '6px', padding: '1px 7px', verticalAlign: 'middle', borderRadius: '999px', font: `400 ${size}px ${CARTOON_FONT}`,
+    color: '#fff', background: '#ff4fa3', border: `2px solid ${INK}`, boxShadow: `0 2px 0 ${INK}`, letterSpacing: '.5px',
+  });
+  return tag;
 }
 
 function hide() {
