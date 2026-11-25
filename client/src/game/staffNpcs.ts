@@ -1,10 +1,10 @@
-// 매장 직원 네 명(설계 2026-11-24 store-staff): 서버 일정(시각)을 화면 시계로 옮겨 staffPose대로 그린다. 손님을 숨기는 한 판 중에도 늘 보인다
+// 매장 직원 네 명(설계 2026-11-24 store-staff): 서버 일정(시각)을 화면 시계로 옮겨 staffPose대로 그린다. 기계 앞 화면에선 그 기계로 오는 직원만 보인다
 import type * as THREE from 'three';
 import { STAFF_ZONES, type StaffZone } from '../data/staff';
 import type { StaffZonePlan } from '../net/protocol';
 import { REST_L, REST_R, type Avatar } from '../world/avatar';
 import { makeStaffAvatar } from '../world/staffAvatar';
-import { staffPose } from './staffSchedule';
+import { staffPose, staffVisible } from './staffSchedule';
 
 export class StaffNpcs {
   private npcs = new Map<StaffZone, { avatar: Avatar; plan: StaffZonePlan | null }>();
@@ -23,9 +23,12 @@ export class StaffNpcs {
   setPlan(zone: StaffZone, plan: StaffZonePlan | null): void { const n = this.npcs.get(zone); if (n) n.plan = plan; }
   clear(): void { for (const n of this.npcs.values()) n.plan = null; }
 
-  update(localSec: number): void {
+  // atMachine: 기계 앞 화면이면 그 기계 id — 그 기계로 일하러 오는 직원만 보인다(staffVisible)
+  update(localSec: number, atMachine: string | null = null): void {
     const t = this.serverTime(localSec);
     for (const [zone, { avatar, plan }] of this.npcs) {
+      avatar.root.visible = staffVisible(plan, atMachine, t);
+      if (!avatar.root.visible) continue;
       const p = staffPose(zone, plan, t), rig = avatar.rig;
       avatar.root.position.set(p.x, 0, p.z);
       avatar.root.rotation.y = p.face;

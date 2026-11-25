@@ -137,6 +137,7 @@ camera.position.copy(CAMERA_OFFSETS.WIDE); // 입장 후 내 자리로 따라간
 const remotes = new RemotePlayers(scene);
 const staff = new StaffNpcs(scene); // 구역마다 서 있는 직원 넷(상주 직원 설계 2026-11-24)
 const staffPuts = new Map<string, number>(); // 기계 → 다시 놓은 결과를 그릴 타이머
+let staffFocus: string | null = null; // 기계 앞 화면이면 그 기계 — 그 기계로 오는 직원만 보인다
 const joystick = installJoystick(renderer.domElement);
 let sampler = new InputSampler();
 
@@ -1127,6 +1128,7 @@ function frame(now: number) {
     minimap.frame({ me: { x: me.pos.x, z: me.pos.z, heading: myAvatar.root.rotation.y }, others: remotes.positions(), atMachine: !!atMachine }, now / 1000); // 기계 앞에선 숨김
     // 한 판 하는 동안 다른 사람 캐릭터는 모두 숨기고, 내 가까이 선 사람은 화면 구석 얼굴로만(사용자 2026-11-03 '보고 있다고만 느끼게')
     remotes.hideAll(!!atMachine);
+    staffFocus = atMachine ?? null; // 직원도 판 화면에선 내 기계로 오는 직원만
     const people = remotes.people();
     watching = atMachine ? watchersOf(watching, me.pos, people, busy.players(clock())) : [];
     peek.set(people.filter((p) => watching.includes(p.id)).sort((a, b) => watching.indexOf(a.id) - watching.indexOf(b.id)));
@@ -1201,7 +1203,7 @@ function frame(now: number) {
   updateEffects(dt);
   for (const sp of spinners) sp.obj.rotation.y += dt * sp.speed;
   remotes.update(now);
-  staff.update(now / 1000);
+  staff.update(now / 1000, staffFocus);
   updateWatches(now / 1000);
   updatePlateHolds();
   bigZone.update(now / 1000);

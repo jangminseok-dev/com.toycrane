@@ -56,3 +56,9 @@ export function staffPose(zone: StaffZone, plan: StaffZonePlan | null, t: number
   }
   return walkBack(zone, jobs[jobs.length - 1], t) ?? idleAt(zone);
 }
+
+// 판 화면(기계 앞, atMachine)에선 손님처럼 직원도 숨기고, 그 기계로 일하러 오는 직원만(일정이 끝나 돌아가기까지) 보인다 — 남이 화면을 막지 않게(사용자 2026-11-03)
+export function staffVisible(plan: StaffZonePlan | null, atMachine: string | null, t: number): boolean {
+  if (!atMachine) return true;
+  return !!plan && t < plan.back && plan.jobs.some((j) => j.m === atMachine);
+}

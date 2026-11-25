@@ -58,3 +58,15 @@ test('a job queued after the walk back leaves from the post', () => {
 test('the same input gives the same pose', () => {
   expect(staffPose('doll', plan, 103.3)).toEqual(staffPose('doll', plan, 103.3));
 });
+
+// 2026-11-25 스크린샷: 미는 뽑기 판 화면 유리 너머로 대기 중인 직원이 보였다 — 판 화면(기계 앞)에선 손님처럼 숨기고,
+// 내 기계로 일하러 오는(돌아가기까지) 직원만 보인다. 걷는 화면에선 모두 보인다
+test('at a machine only the staff coming to that machine is shown', async () => {
+  const { staffVisible } = await import('./staffSchedule');
+  expect(staffVisible(null, null, 50)).toBe(true); // 걷는 화면
+  expect(staffVisible(null, 'A-1', 50)).toBe(false); // 대기 중인 직원은 판 화면에서 숨김
+  expect(staffVisible(plan, 'A-1', 100.5)).toBe(true);
+  expect(staffVisible(plan, 'A-5', 100.5)).toBe(true); // 줄 선 내 기계
+  expect(staffVisible(plan, 'A-9', 100.5)).toBe(false); // 남의 기계 일
+  expect(staffVisible(plan, 'A-5', back + 0.1)).toBe(false); // 다 돌아간 뒤
+});
