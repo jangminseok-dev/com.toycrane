@@ -79,6 +79,7 @@ export const UI = {
   giveMax: '최대',
   cancel: '닫기',
   bagTitle: '내 가방', // 가방 보기(설계 2026-11-02 §5)
+  firstGot: (d: string) => `처음 뽑은 날 ${d}`, // 가방 인형 크게 보기(설계 2026-11-24 bag-viewer-new)
   bagEmpty: '아직 뽑은 게 없어요',
   bagFailed: '가방을 불러오지 못했어요',
   sound: { on: '소리 켜기', off: '소리 끄기' }, // 🔊/🔇 버튼 이름(화면 읽기)

@@ -7,6 +7,7 @@ import { UI } from '../world/copy';
 import { backdropBlur } from './glass';
 import { installNoSelect } from './noSelect';
 import { newTag } from './winCard';
+import { closeDollViewer, openDollViewer } from './dollViewer';
 
 type Zone = keyof typeof UI.bagZones;
 const ORDER: Zone[] = ['doll', 'figure', 'ring', 'pusher'];
@@ -38,6 +39,7 @@ const FONT = '-apple-system, "Apple SD Gothic Neo", sans-serif';
 let shade: HTMLDivElement | null = null;
 
 export function closeBagSheet(): void {
+  closeDollViewer();
   shade?.remove();
   shade = null;
 }
@@ -79,6 +81,8 @@ export function openBagSheet(groups: BagGroup[]): void {
     Object.assign(grid.style, { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: '8px' });
     for (const c of g.cells) {
       const cell = document.createElement('div'); cell.className = 'bag-cell';
+      cell.style.cursor = 'pointer';
+      cell.addEventListener('click', () => openDollViewer(c)); // 누르면 크게 360도로(설계 2026-11-24 bag-viewer-new)
       Object.assign(cell.style, { position: 'relative', padding: '6px 4px 8px', borderRadius: '16px', textAlign: 'center', background: 'rgba(255,255,255,.65)', border: `2px solid ${c.mark === '★★' ? '#e3a400' : c.mark ? '#b46cff' : 'rgba(255,255,255,.9)'}` });
       const name = document.createElement('div'); name.textContent = c.name;
       Object.assign(name.style, { font: `700 12px ${FONT}`, lineHeight: '1.25', wordBreak: 'keep-all' });
