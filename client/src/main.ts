@@ -49,7 +49,7 @@ import { StoreSocket, storeUrl } from './net/storeSocket';
 import { setAction } from './ui/actionButton';
 import { askNickname, hideEntry, showFull, showMessage, showWelcomeBack } from './ui/entry';
 import { onBagTap, setHud, setInfo, soundButton, toast } from './ui/hud';
-import { bagGroups, openBagSheet } from './ui/bagSheet';
+import { bagGroups, lastFirstAt, openBagSheet } from './ui/bagSheet';
 import { buildMinimap, mapSize } from './ui/minimap';
 import { PeekFaces } from './ui/peekFaces';
 import { eulReul, iGa } from './ui/josa';
@@ -281,8 +281,14 @@ function retryLater(guest: Guest) {
 }
 
 // 가방 보기(설계 2026-11-02 §5): 가방 칸을 누르면 서버에서 뽑은 것 목록을 받아 시트로
+// 가방 NEW: 이 기기에 '마지막으로 연 때'(칸의 first_at 단위)를 두고 그 뒤 처음 생긴 칸에 NEW — 열고 나면 지금 가장 늦은 칸으로
 async function showBag(guestId: string) {
-  try { openBagSheet(bagGroups(await getBag(guestId))); } catch { toast(UI.bagFailed); }
+  const key = `toycrane.bagSeen.${guestId}`, saved = storage.get(key), seen = saved === null ? null : Number(saved);
+  try {
+    const items = await getBag(guestId), last = lastFirstAt(items);
+    openBagSheet(bagGroups(items, Number.isFinite(seen) ? seen : null));
+    storage.set(key, String(last ?? 0));
+  } catch { toast(UI.bagFailed); }
 }
 
 async function enter(guest: Guest): Promise<void> {

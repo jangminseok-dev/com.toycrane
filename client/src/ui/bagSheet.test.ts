@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { dollName } from '../data/catalog';
 import { UI } from '../world/copy';
-import { bagGroups } from './bagSheet';
+import { bagGroups, lastFirstAt } from './bagSheet';
 
 const e = (doll: string, color: number, rare: string, zone: string, count: number, first_at: number) => ({ doll, color, rare, zone, count, first_at });
 
@@ -22,4 +22,15 @@ test('bag sheet groups by zone with counts and rare marks', () => {
 test('an empty bag shows no groups and says nothing was won yet', () => {
   expect(bagGroups([])).toEqual([]);
   expect(UI.bagEmpty).toBe('아직 뽑은 게 없어요');
+});
+
+// 가방 NEW(설계 2026-11-24 bag-viewer-new): 이 기기에서 가방을 마지막으로 연 뒤 처음 생긴 칸에만 NEW. 처음 여는 손님은 NEW 없음
+test('cells first won after the bag was last opened are new', () => {
+  const items = [e('bear', 0, '', 'big', 2, 10), e('fox', 3, 'gold', 'ring', 1, 30), e('cat', 1, '', 'pusher', 1, 40)];
+  const fresh = (seen: number | null) => bagGroups(items, seen).flatMap((g) => g.cells.filter((c) => c.fresh).map((c) => c.doll));
+  expect(fresh(null)).toEqual([]);
+  expect(fresh(20)).toEqual(['fox', 'cat']);
+  expect(fresh(40)).toEqual([]);
+  expect(lastFirstAt(items)).toBe(40);
+  expect(lastFirstAt([])).toBeNull();
 });

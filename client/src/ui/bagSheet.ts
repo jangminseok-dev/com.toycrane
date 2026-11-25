@@ -6,24 +6,32 @@ import { thumbnailSoon } from '../world/thumbs';
 import { UI } from '../world/copy';
 import { backdropBlur } from './glass';
 import { installNoSelect } from './noSelect';
+import { newTag } from './winCard';
 
 type Zone = keyof typeof UI.bagZones;
 const ORDER: Zone[] = ['doll', 'figure', 'ring', 'pusher'];
 const zoneOf = (zone: string): Zone => (zone === 'figure' || zone === 'ring' || zone === 'pusher' ? zone : 'doll'); // 큰·작은 기계 인형은 '인형'
-export type BagCell = { doll: string; color: number; rare: string; name: string; count: number; mark: string; firstAt: number };
+export type BagCell = { doll: string; color: number; rare: string; name: string; count: number; mark: string; firstAt: number; fresh: boolean }; // fresh: 마지막으로 연 뒤 처음 생긴 칸(NEW)
 export type BagGroup = { zone: Zone; title: string; cells: BagCell[] };
 
-// 구역마다 같은 캐릭터·색·희귀는 한 칸(개수 합, 처음 뽑은 때는 가장 이른 때), 처음 뽑은 때가 늦은 칸이 위로. 빈 구역은 뺀다
-export function bagGroups(items: BagEntry[]): BagGroup[] {
+// 구역마다 같은 캐릭터·색·희귀는 한 칸(개수 합, 처음 뽑은 때는 가장 이른 때), 처음 뽑은 때가 늦은 칸이 위로. 빈 구역은 뺀다.
+// seenAt: 이 기기에서 가방을 마지막으로 연 때(그 뒤 처음 생긴 칸이 NEW, 처음 여는 손님은 null이라 NEW 없음 — 설계 2026-11-24 bag-viewer-new)
+export function bagGroups(items: BagEntry[], seenAt: number | null = null): BagGroup[] {
   const cells = new Map<Zone, Map<string, BagCell>>();
   for (const it of items) {
     const z = zoneOf(it.zone), key = `${it.doll}|${it.color}|${it.rare}`, group = cells.get(z) ?? new Map<string, BagCell>();
     cells.set(z, group);
     const c = group.get(key);
     if (c) { c.count += it.count; c.firstAt = Math.min(c.firstAt, it.first_at); continue; }
-    group.set(key, { doll: it.doll, color: it.color, rare: it.rare, name: dollName(it.doll, it.color, it.rare), count: it.count, mark: it.rare === GOLD.id ? '★★' : it.rare ? '★' : '', firstAt: it.first_at });
+    group.set(key, { doll: it.doll, color: it.color, rare: it.rare, name: dollName(it.doll, it.color, it.rare), count: it.count, mark: it.rare === GOLD.id ? '★★' : it.rare ? '★' : '', firstAt: it.first_at, fresh: false });
   }
+  for (const g of cells.values()) for (const c of g.values()) c.fresh = seenAt !== null && c.firstAt > seenAt;
   return ORDER.filter((z) => cells.has(z)).map((z) => ({ zone: z, title: UI.bagZones[z], cells: [...cells.get(z)!.values()].sort((a, b) => b.firstAt - a.firstAt) }));
+}
+
+// 가방을 연 뒤 저장할 기준 — 가장 늦게 처음 생긴 칸의 때(서버 시각, 칸의 first_at과 같은 단위)
+export function lastFirstAt(items: BagEntry[]): number | null {
+  return items.length ? Math.max(...items.map((it) => it.first_at)) : null;
 }
 
 const FONT = '-apple-system, "Apple SD Gothic Neo", sans-serif';
@@ -77,6 +85,11 @@ export function openBagSheet(groups: BagGroup[]): void {
       const count = document.createElement('div'); count.textContent = `×${c.count}`;
       Object.assign(count.style, { font: `800 13px ${FONT}`, color: '#8a2a5c' });
       cell.append(picture(c), name, count);
+      if (c.fresh) {
+        const tag = newTag(11);
+        Object.assign(tag.style, { position: 'absolute', top: '2px', left: '2px', marginLeft: '0' });
+        cell.append(tag);
+      }
       if (c.mark) {
         const mark = document.createElement('div'); mark.textContent = c.mark;
         Object.assign(mark.style, { position: 'absolute', top: '4px', right: '8px', color: c.mark === '★★' ? '#e3a400' : '#b46cff', font: `900 14px ${FONT}` });
