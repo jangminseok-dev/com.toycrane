@@ -155,8 +155,8 @@ class FakeConnections:
     def broadcast_free(self, machine_id) -> None:
         self.broadcasts.append((None, server_messages.free(machine_id)))
 
-    def send_bag(self, conn_id, total) -> None:
-        self.direct.append((conn_id, server_messages.bag(total)))
+    def send_bag(self, conn_id, total, new=None) -> None:
+        self.direct.append((conn_id, server_messages.bag(total, new)))
 
     def broadcast_spawn(self, machine_id, kind, rare) -> None:
         self.broadcasts.append((None, server_messages.spawn(machine_id, kind, rare)))
@@ -223,10 +223,11 @@ class FakeBag:
     async def total(self, guest_id: str) -> int:
         return self.totals.get(guest_id, 0)
 
-    async def add(self, guest_id: str, doll: str, color: int, rare: str, zone: str, now: float) -> int:
+    async def add(self, guest_id: str, doll: str, color: int, rare: str, zone: str, now: float) -> tuple[int, bool]:
+        fresh = (guest_id, doll, color, rare, zone) not in self.added
         self.added.append((guest_id, doll, color, rare, zone))
         self.totals[guest_id] = self.totals.get(guest_id, 0) + 1
-        return self.totals[guest_id]
+        return self.totals[guest_id], fresh
 
 
 class FakeContents:

@@ -3,6 +3,11 @@ from toycrane.app.dtos.bag_dto import BagEntry
 from toycrane.app.ports.output.bag_port import BagPort
 
 LIST_SQL = "SELECT doll, color, rare, zone, count, first_at FROM bag WHERE guest_id = ? ORDER BY first_at DESC"
+# 하나 넣고 그 칸의 개수를 돌려받는다 — 1이면 이번에 처음 생긴 칸(가방 NEW, 설계 2026-11-24 bag-viewer-new)
+ADD_SQL = (
+    "INSERT INTO bag (guest_id, doll, color, rare, zone, count, first_at) VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6) "
+    "ON CONFLICT(guest_id, doll, color, rare, zone) DO UPDATE SET count = count + 1 RETURNING count"
+)
 
 
 def rows_to_entries(rows: list[dict]) -> list[BagEntry]:
@@ -17,12 +22,9 @@ class D1BagAdapter(BagPort):
         row = to_py(await self._db.prepare("SELECT COALESCE(SUM(count), 0) AS n FROM bag WHERE guest_id = ?").bind(guest_id).first())
         return int(row["n"]) if row else 0
 
-    async def add(self, guest_id: str, doll: str, color: int, rare: str, zone: str, now: float) -> int:
-        await self._db.prepare(
-            "INSERT INTO bag (guest_id, doll, color, rare, zone, count, first_at) VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6) "
-            "ON CONFLICT(guest_id, doll, color, rare, zone) DO UPDATE SET count = count + 1"
-        ).bind(guest_id, doll, color, rare, zone, now).run()
-        return await self.total(guest_id)
+    async def add(self, guest_id: str, doll: str, color: int, rare: str, zone: str, now: float) -> tuple[int, bool]:
+        row = to_py(await self._db.prepare(ADD_SQL).bind(guest_id, doll, color, rare, zone, now).first())
+        return await self.total(guest_id), bool(row) and int(row["count"]) == 1
 
     async def items(self, guest_id: str) -> list[BagEntry]:
         res = to_py(await self._db.prepare(LIST_SQL).bind(guest_id).all())

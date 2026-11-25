@@ -56,8 +56,8 @@ class FigureDoneInteractor(DoneUseCase):
         prize: list[tuple[str, int, str, int]] = []
         if won:
             kind, rare = roll_prize(self._rng)
-            total = await self._bag.add(me.guest_id, kind, 0, rare, self._rules.zone, cmd.now)
-            self._connections.send_bag(cmd.conn_id, total)
+            total, new = await self._bag.add(me.guest_id, kind, 0, rare, self._rules.zone, cmd.now)
+            self._connections.send_bag(cmd.conn_id, total, [(kind, 0, rare)] if new else [])
             prize = [(kind, 0, rare, 0)]
         self._connections.broadcast_result(machine_id, me.player_id, prize)
         self._connections.broadcast_figure(machine_id, state.box, nudged)

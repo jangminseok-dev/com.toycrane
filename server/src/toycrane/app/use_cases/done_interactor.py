@@ -67,11 +67,13 @@ class DoneInteractor(DoneUseCase):
         await self._contents.save(stocks)
         when = due(stocks)
         self._connections.broadcast_stock(None if when is None else max(0.0, when - cmd.now))
-        total = None
+        total, fresh = None, []
         for doll in won_dolls(before, won):
-            total = await self._bag.add(me.guest_id, doll.kind, doll.color, doll.rare, PUSHER_ZONE if machine_id in PUSHERS else ZONE, cmd.now)
+            total, new = await self._bag.add(me.guest_id, doll.kind, doll.color, doll.rare, PUSHER_ZONE if machine_id in PUSHERS else ZONE, cmd.now)
+            if new:
+                fresh.append((doll.kind, doll.color, doll.rare))
         if total is not None:
-            self._connections.send_bag(cmd.conn_id, total)
+            self._connections.send_bag(cmd.conn_id, total, fresh)
         self._connections.broadcast_result(machine_id, me.player_id, won_views(before, won), staff=gift is not None, miss=after.misses.get(me.guest_id, 0), tidied=len(tidied))
         self._connections.broadcast_machine(machine_id, after.dolls)
         for doll in added:

@@ -157,5 +157,6 @@ def free(machine_id: str) -> dict:
     return {"t": "free", "m": machine_id}
 
 
-def bag(total: int) -> dict:
-    return {"t": "bag", "n": total}
+def bag(total: int, new: list[tuple[str, int, str]] | None = None) -> dict:
+    """가방 수, 이번에 처음 생긴 칸이 있으면 new [[캐릭터, 색, 희귀]...](당첨 카드 NEW)."""
+    return {"t": "bag", "n": total, "new": [list(c) for c in new]} if new else {"t": "bag", "n": total}

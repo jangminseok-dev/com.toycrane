@@ -94,7 +94,8 @@ class ConnectionsPort(ABC):
         """피규어 기계 상자 자리를 모두에게."""
 
     @abstractmethod
-    def send_bag(self, conn_id: str, total: int) -> None: ...
+    def send_bag(self, conn_id: str, total: int, new: list[tuple[str, int, str]] | None = None) -> None:
+        """뽑은 손님에게 가방 수와 이번에 처음 생긴 칸들 [(캐릭터, 색, 희귀)] — 당첨 카드 NEW."""
 
     @abstractmethod
     def broadcast_spawn(self, machine_id: str, kind: str, rare: str) -> None:

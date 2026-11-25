@@ -125,3 +125,7 @@ def test_staff_messages_match_fixtures():
     dolls = [DollSpot("bunny", -0.2, None, 0.1, (0, 0, 0, 1), 0, "c", 3, "star", 2)]
     assert staff_plan("doll", (StaffJob("A-5", "A-1", 106.3, 108.0, 110.0, 110.8),), 115.0, 100.0, "A-5", dolls, None) == FX["server_staff_plan_dolls"]
     assert staff_no("A-1", "wait", 3) == FX["server_staff_no"]
+
+
+def test_bag_message_with_new_cells_matches_fixture():
+    assert bag(3, [("bear", 2, "")]) == FX["server_bag_new"] and bag(3, []) == FX["server_bag"]

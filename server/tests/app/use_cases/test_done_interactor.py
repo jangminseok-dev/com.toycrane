@@ -45,7 +45,8 @@ async def test_done_saves_poses_bags_every_win_and_tells_everyone():
     assert contents.saves == 1 and [d.uid for d in contents.stored["A-1"].dolls] == [1, 2, 3, 4, 5, 6, 9]
     assert all(d.settled for d in contents.stored["A-1"].dolls) and contents.stored["A-1"].next_at == 50.0
     assert bag.added == [("g-1", MACHINES["A-1"].kind, d.color, d.rare, "big") for d in won_dolls]
-    assert ("c-1", {"t": "bag", "n": 2}) in conns.direct
+    cells = list(dict.fromkeys((MACHINES["A-1"].kind, d.color, d.rare) for d in won_dolls))  # 빈 가방이라 모두 처음 생긴 칸(같은 칸은 한 번)
+    assert ("c-1", {"t": "bag", "n": 2, "new": [list(c) for c in cells]}) in conns.direct
     assert (None, result("A-1", "p1", [(MACHINES["A-1"].kind, d.color, d.rare, d.uid) for d in won_dolls])) in conns.broadcasts
     assert (None, machine("A-1", contents.stored["A-1"].dolls)) in conns.broadcasts
     assert locks.is_between("c-1") and locks.holder("A-1") == ("c-1", 20.0)  # 판 사이 자리
@@ -231,3 +232,16 @@ async def test_a_stuck_glass_doll_is_tidied_after_the_third_doll_play():
     assert moved.y is None and abs(moved.x) <= REACH_HALF[0] and abs(moved.z) <= REACH_HALF[1] and glass.uid not in after.stuck
     assert (None, result("A-1", "p1", [], miss=1, tidied=1)) in conns.broadcasts
     assert (None, machine("A-1", after.dolls)) in conns.broadcasts
+
+
+# 가방 NEW: 처음 생긴 칸은 뽑은 손님에게 가는 bag 메시지에 실린다 — 한 판에 같은 칸 둘이면 하나만
+async def test_done_sends_new_cells_with_the_bag():
+    from toycrane.adapter.inbound.ws.schemas.server_messages import bag
+
+    reg, locks, conns, bag_port, contents, it = setup()
+    stock = contents.stored["A-1"]
+    a, b = stock.dolls[0], stock.dolls[1]
+    contents.stored["A-1"] = replace(stock, dolls=[a, replace(b, color=a.color, rare=a.rare), *stock.dolls[2:]])  # 같은 칸 둘
+    stock = contents.stored["A-1"]
+    await it.done(DoneCommand("c-1", "A-1", report(stock, won=(a.uid, b.uid)), now=20.0))
+    assert ("c-1", bag(2, [(MACHINES["A-1"].kind, a.color, a.rare)])) in conns.direct

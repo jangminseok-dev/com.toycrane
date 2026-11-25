@@ -41,7 +41,7 @@ async def test_figure_win_rolls_prize_into_bag_zone_figure():
     assert len(bag.added) == 1
     guest, kind, color, rare, zone = bag.added[0]
     assert (guest, color, zone) == ("g-1", 0, "figure") and kind in DOLLS
-    assert conns.direct == [("c-1", {"t": "bag", "n": 1})]
+    assert conns.direct == [("c-1", {"t": "bag", "n": 1, "new": [[kind, 0, rare]]})]  # 처음 생긴 칸(당첨 카드 NEW)
     new_box = boxes.stored["F-1"].box
     assert boxes.stored["F-1"].still == 0 and abs(new_box[1] - (BARS["y"] + BARS["radius"] + BOX["d"] / 2)) < 1e-9
     assert conns.broadcasts == [(None, result("F-1", "p1", [(kind, 0, rare, 0)])), (None, figure("F-1", new_box, False))]

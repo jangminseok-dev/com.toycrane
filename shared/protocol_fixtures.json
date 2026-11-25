@@ -49,6 +49,7 @@
   "client_tick": { "t": "tick" },
   "server_free": { "t": "free", "m": "A-3" },
   "server_bag": { "t": "bag", "n": 3 },
+  "server_bag_new": { "t": "bag", "n": 3, "new": [["bear", 2, ""]] },
   "server_staff_plan": { "t": "staff_plan", "now": 100.0, "z": "figure", "jobs": [{"m": "F-1", "from": null, "dep": 100.0, "arr": 103.5, "put": 105.5, "end": 106.3}], "back": 110.0, "m": "F-1", "box": [0.004, 1.054, -0.003, 0, 0.012, 0, 1] },
   "server_staff_plan_dolls": { "t": "staff_plan", "now": 100.0, "z": "doll", "jobs": [{"m": "A-5", "from": "A-1", "dep": 106.3, "arr": 108.0, "put": 110.0, "end": 110.8}], "back": 115.0, "m": "A-5", "dolls": [["bunny", -0.2, null, 0.1, 0, 0, 0, 1, 0, "c", 3, "star", 2]] },
   "server_staff_no": { "t": "staff_no", "m": "A-1", "why": "wait", "left": 3 },

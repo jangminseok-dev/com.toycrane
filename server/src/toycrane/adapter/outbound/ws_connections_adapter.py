@@ -113,8 +113,8 @@ class WsConnectionsAdapter(ConnectionsPort):
     def send_stock(self, conn_id: str, due_in: float | None) -> None:
         self._to_one(conn_id, server_messages.stock(due_in))
 
-    def send_bag(self, conn_id: str, total: int) -> None:
-        self._to_one(conn_id, server_messages.bag(total))
+    def send_bag(self, conn_id: str, total: int, new: list[tuple[str, int, str]] | None = None) -> None:
+        self._to_one(conn_id, server_messages.bag(total, new))
 
     def kick(self, conn_id: str, code: int, reason: str) -> None:
         ws = ws_attachment.find(self._ctx, conn_id)

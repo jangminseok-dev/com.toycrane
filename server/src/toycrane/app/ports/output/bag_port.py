@@ -10,8 +10,8 @@ class BagPort(ABC):
     async def total(self, guest_id: str) -> int: ...
 
     @abstractmethod
-    async def add(self, guest_id: str, doll: str, color: int, rare: str, zone: str, now: float) -> int:
-        """하나 넣고 새 합계."""
+    async def add(self, guest_id: str, doll: str, color: int, rare: str, zone: str, now: float) -> tuple[int, bool]:
+        """하나 넣고 (새 합계, 그 칸이 이번에 처음 생겼나)."""
 
     @abstractmethod
     async def items(self, guest_id: str) -> list[BagEntry]:
